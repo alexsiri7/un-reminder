@@ -31,6 +31,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @Composable
 fun SettingsScreen(
     onNavigateToLocations: () -> Unit,
+    onSendFeedback: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -119,6 +120,13 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Regenerate Tomorrow's Triggers")
+            }
+
+            OutlinedButton(
+                onClick = onSendFeedback,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Send Feedback")
             }
         }
     }

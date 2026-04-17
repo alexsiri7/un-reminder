@@ -9,9 +9,10 @@ import androidx.room.TypeConverters
         HabitEntity::class,
         WindowEntity::class,
         TriggerEntity::class,
-        LocationEntity::class
+        LocationEntity::class,
+        PendingFeedbackEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -20,4 +21,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun windowDao(): WindowDao
     abstract fun triggerDao(): TriggerDao
     abstract fun locationDao(): LocationDao
+    abstract fun pendingFeedbackDao(): PendingFeedbackDao
 }

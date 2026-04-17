@@ -1,5 +1,10 @@
 package com.alexsiri7.unreminder.ui.navigation
 
+import android.app.Activity
+import android.graphics.Bitmap
+import android.graphics.PixelCopy
+import android.os.Handler
+import android.os.Looper
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
@@ -15,6 +20,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.view.drawToBitmap
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -23,6 +30,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.alexsiri7.unreminder.ui.feedback.FeedbackScreen
 import com.alexsiri7.unreminder.ui.habit.HabitEditScreen
 import com.alexsiri7.unreminder.ui.habit.HabitListScreen
 import com.alexsiri7.unreminder.ui.location.LocationScreen
@@ -30,6 +38,7 @@ import com.alexsiri7.unreminder.ui.recent.RecentTriggersScreen
 import com.alexsiri7.unreminder.ui.settings.SettingsScreen
 import com.alexsiri7.unreminder.ui.window.WindowEditScreen
 import com.alexsiri7.unreminder.ui.window.WindowListScreen
+import java.io.File
 
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
     data object Habits : Screen("habits", "Habits", Icons.Default.Repeat)
@@ -40,9 +49,31 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector)
 
 val bottomNavItems = listOf(Screen.Habits, Screen.Windows, Screen.Recent, Screen.Settings)
 
+private fun captureScreenshot(activity: Activity, onCaptured: (String) -> Unit) {
+    val bitmap = Bitmap.createBitmap(
+        activity.window.decorView.width,
+        activity.window.decorView.height,
+        Bitmap.Config.ARGB_8888
+    )
+    PixelCopy.request(activity.window, bitmap, { result ->
+        val path = if (result == PixelCopy.SUCCESS) {
+            val file = File(activity.cacheDir, "feedback-${System.currentTimeMillis()}.png")
+            file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 90, it) }
+            file.absolutePath
+        } else {
+            val fallback = File(activity.cacheDir, "feedback-${System.currentTimeMillis()}.png")
+            val decorBitmap = activity.window.decorView.drawToBitmap()
+            fallback.outputStream().use { decorBitmap.compress(Bitmap.CompressFormat.PNG, 90, it) }
+            fallback.absolutePath
+        }
+        onCaptured(path)
+    }, Handler(Looper.getMainLooper()))
+}
+
 @Composable
 fun NavGraph() {
     val navController = rememberNavController()
+    val activity = LocalContext.current as Activity
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
@@ -119,11 +150,33 @@ fun NavGraph() {
                 LocationScreen(onNavigateBack = { navController.popBackStack() })
             }
             composable(Screen.Recent.route) {
-                RecentTriggersScreen()
+                RecentTriggersScreen(
+                    onSendFeedback = {
+                        captureScreenshot(activity) { path ->
+                            navController.navigate("feedback/${java.net.URLEncoder.encode(path, "UTF-8")}")
+                        }
+                    }
+                )
             }
             composable(Screen.Settings.route) {
                 SettingsScreen(
-                    onNavigateToLocations = { navController.navigate("locations") }
+                    onNavigateToLocations = { navController.navigate("locations") },
+                    onSendFeedback = {
+                        captureScreenshot(activity) { path ->
+                            navController.navigate("feedback/${java.net.URLEncoder.encode(path, "UTF-8")}")
+                        }
+                    }
+                )
+            }
+            composable(
+                "feedback/{screenshotPath}",
+                arguments = listOf(navArgument("screenshotPath") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val encoded = backStackEntry.arguments?.getString("screenshotPath") ?: ""
+                val path = java.net.URLDecoder.decode(encoded, "UTF-8")
+                FeedbackScreen(
+                    screenshotPath = path,
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
         }

@@ -18,6 +18,9 @@ android {
         versionName = System.getenv("VERSION_NAME") ?: "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        val githubToken = (project.findProperty("github.feedback.token") as String?) ?: ""
+        buildConfigField("String", "GITHUB_FEEDBACK_TOKEN", "\"$githubToken\"")
     }
 
     signingConfigs {
@@ -55,6 +58,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     testOptions {
@@ -102,6 +106,9 @@ dependencies {
     // Coroutines
     implementation(libs.coroutines.android)
     implementation(libs.coroutines.play.services)
+
+    // OkHttp (feedback GitHub API)
+    implementation(libs.okhttp)
 
     // Testing
     testImplementation(libs.junit)
