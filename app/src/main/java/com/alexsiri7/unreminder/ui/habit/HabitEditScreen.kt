@@ -8,22 +8,30 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -48,7 +56,28 @@ fun HabitEditScreen(
         if (uiState.isSaved) onNavigateBack()
     }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(uiState.errorMessage) {
+        val msg = uiState.errorMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(msg)
+        viewModel.clearError()
+    }
+
+    val previewText = uiState.previewNotification
+    if (uiState.showPreviewDialog && previewText != null) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissPreviewDialog() },
+            title = { Text("Notification preview") },
+            text = { Text(previewText) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.dismissPreviewDialog() }) { Text("Close") }
+            }
+        )
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(if (habitId != null) "Edit Habit" else "New Habit") },
@@ -92,6 +121,36 @@ fun HabitEditScreen(
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 2
             )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = { viewModel.autofillWithAi() },
+                    enabled = uiState.name.length >= 2 && !uiState.isGeneratingFields,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    if (uiState.isGeneratingFields) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text("Autofill with AI")
+                    }
+                }
+                OutlinedButton(
+                    onClick = { viewModel.previewNotification() },
+                    enabled = uiState.name.isNotBlank() &&
+                              uiState.fullDescription.isNotBlank() &&
+                              uiState.lowFloorDescription.isNotBlank() &&
+                              !uiState.isGeneratingFields,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Preview notification")
+                }
+            }
 
             Text("Location")
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
