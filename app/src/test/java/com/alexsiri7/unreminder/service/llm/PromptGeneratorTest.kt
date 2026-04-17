@@ -2,7 +2,6 @@ package com.alexsiri7.unreminder.service.llm
 
 import android.content.Context
 import com.alexsiri7.unreminder.data.db.HabitEntity
-import com.alexsiri7.unreminder.domain.model.LocationTag
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -20,15 +19,14 @@ class PromptGeneratorTest {
         name = "meditation",
         fullDescription = "20-minute guided meditation",
         lowFloorDescription = "3 deep breaths",
-        locationTag = LocationTag.ANYWHERE,
         createdAt = Instant.now(),
         updatedAt = Instant.now()
     )
 
     @Test
     fun `generate returns fallback when model is null`() = runTest {
-        // model is null by default (initialize() not called)
-        val result = generator.generate(habit, LocationTag.HOME, "morning")
+        // model is null by default (initialize() not called in unit tests)
+        val result = generator.generate(habit, "Home", "morning")
         assertEquals("meditation: 3 deep breaths", result)
     }
 
@@ -39,7 +37,7 @@ class PromptGeneratorTest {
             name = "exercise",
             lowFloorDescription = ""
         )
-        val result = generator.generate(emptyHabit, LocationTag.WORK, "afternoon")
+        val result = generator.generate(emptyHabit, "Work", "afternoon")
         assertEquals("exercise: ", result)
     }
 
@@ -49,7 +47,7 @@ class PromptGeneratorTest {
             name = "reading",
             lowFloorDescription = "read one page"
         )
-        val result = generator.generate(customHabit, LocationTag.ANYWHERE, "evening")
+        val result = generator.generate(customHabit, "any location", "evening")
         assertEquals("reading: read one page", result)
     }
 
@@ -66,7 +64,7 @@ class PromptGeneratorTest {
     @Test
     fun `previewHabitNotification throws when model is null`() = runTest {
         val result = runCatching {
-            generator.previewHabitNotification(habit, LocationTag.ANYWHERE)
+            generator.previewHabitNotification(habit, "Anywhere")
         }
         assertTrue(result.isFailure)
         assertTrue("Expected IllegalStateException, got ${result.exceptionOrNull()?.javaClass}", result.exceptionOrNull() is IllegalStateException)

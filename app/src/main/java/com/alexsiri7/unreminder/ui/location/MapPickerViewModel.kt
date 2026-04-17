@@ -41,10 +41,10 @@ class MapPickerViewModel @Inject constructor(
     fun initialize(existingLabel: String?) {
         viewModelScope.launch {
             if (existingLabel != null) {
-                val loc = locationRepository.getByLabel(existingLabel)
+                val loc = locationRepository.getByName(existingLabel)
                 if (loc != null) {
                     _uiState.value = _uiState.value.copy(
-                        name = loc.label,
+                        name = loc.name,
                         lat = loc.lat,
                         lng = loc.lng,
                         radiusM = loc.radiusM,
@@ -93,11 +93,11 @@ class MapPickerViewModel @Inject constructor(
         if (state.name.isBlank()) return
         viewModelScope.launch {
             try {
-                locationRepository.upsertLocation(state.name, state.lat, state.lng, state.radiusM)
-                geofenceManager.registerGeofence(state.name, state.lat, state.lng, state.radiusM)
+                val id = locationRepository.upsertLocation(state.name, state.lat, state.lng, state.radiusM)
+                geofenceManager.registerGeofence(id, state.name, state.lat, state.lng, state.radiusM)
                 onComplete()
             } catch (e: Exception) {
-                Log.e("MapPickerViewModel", "Failed to save location for label=${state.name}", e)
+                Log.e("MapPickerViewModel", "Failed to save location for name=${state.name}", e)
                 _uiState.value = _uiState.value.copy(
                     errorMessage = "Could not save location. Please try again."
                 )

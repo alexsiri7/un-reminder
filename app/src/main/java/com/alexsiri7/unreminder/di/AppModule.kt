@@ -4,7 +4,9 @@ import android.content.Context
 import androidx.room.Room
 import com.alexsiri7.unreminder.data.db.AppDatabase
 import com.alexsiri7.unreminder.data.db.HabitDao
+import com.alexsiri7.unreminder.data.db.HabitLocationCrossRefDao
 import com.alexsiri7.unreminder.data.db.LocationDao
+import com.alexsiri7.unreminder.data.db.MIGRATION_1_2
 import com.alexsiri7.unreminder.data.db.TriggerDao
 import com.alexsiri7.unreminder.data.db.WindowDao
 import dagger.Module
@@ -25,7 +27,7 @@ object AppModule {
             context,
             AppDatabase::class.java,
             "unreminder.db"
-        ).build()
+        ).addMigrations(MIGRATION_1_2).build()
     }
 
     @Provides
@@ -39,4 +41,8 @@ object AppModule {
 
     @Provides
     fun provideLocationDao(db: AppDatabase): LocationDao = db.locationDao()
+
+    @Provides
+    fun provideHabitLocationCrossRefDao(db: AppDatabase): HabitLocationCrossRefDao =
+        db.habitLocationCrossRefDao()
 }

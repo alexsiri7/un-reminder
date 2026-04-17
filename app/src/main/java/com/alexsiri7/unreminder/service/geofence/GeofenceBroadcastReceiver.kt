@@ -7,7 +7,6 @@ import android.content.Intent
 import android.util.Log
 import com.alexsiri7.unreminder.data.db.TriggerEntity
 import com.alexsiri7.unreminder.data.repository.TriggerRepository
-import com.alexsiri7.unreminder.domain.model.LocationTag
 import com.alexsiri7.unreminder.domain.model.TriggerStatus
 import com.alexsiri7.unreminder.service.alarm.AlarmScheduler
 import com.google.android.gms.location.Geofence
@@ -62,35 +61,31 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 for (geofence in triggeringGeofences) {
-                    val label = geofence.requestId
-                    val tag = when (label.uppercase()) {
-                        "HOME" -> LocationTag.HOME
-                        "WORK" -> LocationTag.WORK
-                        "COMMUTE" -> LocationTag.COMMUTE
-                        else -> LocationTag.ANYWHERE
-                    }
+                    val locationId = geofence.requestId.toLongOrNull() ?: continue
+                    try {
+                        when (transition) {
+                            Geofence.GEOFENCE_TRANSITION_ENTER -> {
+                                geofenceManager.addLocationId(locationId)
 
-                    when (transition) {
-                        Geofence.GEOFENCE_TRANSITION_ENTER -> {
-                            geofenceManager.currentLocationTag = tag
+                                if (isDebounced(context, geofence.requestId)) continue
 
-                            if (isDebounced(context, label)) continue
+                                recordDebounce(context, geofence.requestId)
 
-                            recordDebounce(context, label)
-
-                            // Schedule arrival trigger 5 minutes later
-                            val fireAt = Instant.now().plusMillis(ARRIVAL_DELAY_MS)
-                            val triggerId = triggerRepository.insert(
-                                TriggerEntity(
-                                    scheduledAt = fireAt,
-                                    status = TriggerStatus.SCHEDULED
+                                val fireAt = Instant.now().plusMillis(ARRIVAL_DELAY_MS)
+                                val triggerId = triggerRepository.insert(
+                                    TriggerEntity(
+                                        scheduledAt = fireAt,
+                                        status = TriggerStatus.SCHEDULED
+                                    )
                                 )
-                            )
-                            alarmScheduler.scheduleExactAlarm(triggerId, fireAt)
+                                alarmScheduler.scheduleExactAlarm(triggerId, fireAt)
+                            }
+                            Geofence.GEOFENCE_TRANSITION_EXIT -> {
+                                geofenceManager.removeLocationId(locationId)
+                            }
                         }
-                        Geofence.GEOFENCE_TRANSITION_EXIT -> {
-                            geofenceManager.currentLocationTag = LocationTag.ANYWHERE
-                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to process geofence transition: id=$locationId transition=$transition", e)
                     }
                 }
             } finally {
@@ -99,14 +94,15 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         }
     }
 
+    private fun getPrefs(context: Context) =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
     private fun isDebounced(context: Context, label: String): Boolean {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val lastArrival = prefs.getLong(label, 0)
+        val lastArrival = getPrefs(context).getLong(label, 0)
         return System.currentTimeMillis() - lastArrival < DEBOUNCE_MS
     }
 
     private fun recordDebounce(context: Context, label: String) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putLong(label, System.currentTimeMillis()).apply()
+        getPrefs(context).edit().putLong(label, System.currentTimeMillis()).apply()
     }
 }

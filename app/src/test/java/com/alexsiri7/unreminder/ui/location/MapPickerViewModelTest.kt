@@ -6,7 +6,6 @@ import com.alexsiri7.unreminder.data.repository.LocationRepository
 import com.alexsiri7.unreminder.service.geofence.GeofenceManager
 import io.mockk.coEvery
 import io.mockk.coVerify
-import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -74,8 +73,9 @@ class MapPickerViewModelTest {
 
     @Test
     fun `save calls upsertLocation and registerGeofence`() = runTest {
-        coEvery { locationRepository.upsertLocation(any(), any(), any(), any()) } returns Unit
-        coEvery { geofenceManager.registerGeofence(any(), any(), any(), any()) } returns Unit
+        val savedId = 7L
+        coEvery { locationRepository.upsertLocation(any(), any(), any(), any()) } returns savedId
+        coEvery { geofenceManager.registerGeofence(any(), any(), any(), any(), any()) } returns Unit
 
         viewModel.updateName("Home")
         viewModel.updatePin(51.5, -0.1)
@@ -85,7 +85,7 @@ class MapPickerViewModelTest {
         viewModel.save { callbackFired = true }
 
         coVerify { locationRepository.upsertLocation("Home", 51.5, -0.1, 150f) }
-        coVerify { geofenceManager.registerGeofence("Home", 51.5, -0.1, 150f) }
+        coVerify { geofenceManager.registerGeofence(savedId, "Home", 51.5, -0.1, 150f) }
         assertTrue(callbackFired)
     }
 
@@ -97,9 +97,9 @@ class MapPickerViewModelTest {
     }
 
     @Test
-    fun `initialize with existing label pre-populates state`() = runTest {
-        coEvery { locationRepository.getByLabel("Office") } returns
-            LocationEntity(id = 1, label = "Office", lat = 48.8, lng = 2.3, radiusM = 200f)
+    fun `initialize with existing name pre-populates state`() = runTest {
+        coEvery { locationRepository.getByName("Office") } returns
+            LocationEntity(id = 1, name = "Office", lat = 48.8, lng = 2.3, radiusM = 200f)
 
         viewModel.initialize("Office")
 

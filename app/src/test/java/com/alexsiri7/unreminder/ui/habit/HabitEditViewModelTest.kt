@@ -2,13 +2,15 @@ package com.alexsiri7.unreminder.ui.habit
 
 import com.alexsiri7.unreminder.data.db.HabitEntity
 import com.alexsiri7.unreminder.data.repository.HabitRepository
+import com.alexsiri7.unreminder.data.repository.LocationRepository
 import com.alexsiri7.unreminder.domain.model.AiHabitFields
-import com.alexsiri7.unreminder.domain.model.LocationTag
 import com.alexsiri7.unreminder.service.llm.PromptGenerator
 import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -30,6 +32,7 @@ class HabitEditViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private val mockPromptGenerator: PromptGenerator = mockk()
     private val mockHabitRepository: HabitRepository = mockk(relaxed = true)
+    private val mockLocationRepository: LocationRepository = mockk(relaxed = true)
     private lateinit var viewModel: HabitEditViewModel
 
     private val testHabit = HabitEntity(
@@ -37,7 +40,6 @@ class HabitEditViewModelTest {
         name = "meditation",
         fullDescription = "20-minute guided meditation",
         lowFloorDescription = "3 deep breaths",
-        locationTag = LocationTag.ANYWHERE,
         createdAt = Instant.now(),
         updatedAt = Instant.now()
     )
@@ -45,7 +47,8 @@ class HabitEditViewModelTest {
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
-        viewModel = HabitEditViewModel(mockHabitRepository, mockPromptGenerator)
+        every { mockLocationRepository.getAll() } returns flowOf(emptyList())
+        viewModel = HabitEditViewModel(mockHabitRepository, mockLocationRepository, mockPromptGenerator)
         viewModel.updateName("meditation")
         viewModel.updateFullDescription("20-minute guided meditation")
         viewModel.updateLowFloorDescription("3 deep breaths")

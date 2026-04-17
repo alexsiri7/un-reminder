@@ -19,16 +19,20 @@ class LocationViewModel @Inject constructor(
     private val geofenceManager: GeofenceManager
 ) : ViewModel() {
 
+    companion object {
+        private const val TAG = "LocationViewModel"
+    }
+
     val locations: StateFlow<List<LocationEntity>> = locationRepository.getAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun delete(label: String) {
+    fun deleteLocation(location: LocationEntity) {
         viewModelScope.launch {
             try {
-                locationRepository.deleteByLabel(label)
-                geofenceManager.removeGeofence(label)
+                locationRepository.delete(location)
+                geofenceManager.removeGeofence(location.id)
             } catch (e: Exception) {
-                Log.e("LocationViewModel", "Failed to delete location label=$label", e)
+                Log.e(TAG, "deleteLocation failed for id=${location.id}", e)
             }
         }
     }

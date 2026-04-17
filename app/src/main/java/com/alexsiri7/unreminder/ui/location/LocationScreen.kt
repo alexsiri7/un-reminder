@@ -73,14 +73,14 @@ fun LocationScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(loc.label, style = MaterialTheme.typography.titleMedium)
+                            Text(loc.name, style = MaterialTheme.typography.titleMedium)
                             Text(
                                 "%.4f, %.4f \u2014 radius ${loc.radiusM.toInt()} m".format(loc.lat, loc.lng),
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
-                        IconButton(onClick = { onEditLocation(loc.label) }) {
-                            Icon(Icons.Default.Edit, contentDescription = "Edit ${loc.label}")
+                        IconButton(onClick = { onEditLocation(loc.name) }) {
+                            Icon(Icons.Default.Edit, contentDescription = "Edit ${loc.name}")
                         }
                     }
                 }

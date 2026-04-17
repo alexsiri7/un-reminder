@@ -14,12 +14,20 @@ class LocationRepository @Inject constructor(
 
     suspend fun getAllList(): List<LocationEntity> = locationDao.getAllList()
 
-    suspend fun getByLabel(label: String): LocationEntity? = locationDao.getByLabel(label)
+    suspend fun getById(id: Long): LocationEntity? = locationDao.getById(id)
 
-    suspend fun deleteByLabel(label: String) = locationDao.deleteByLabel(label)
+    suspend fun getByIds(ids: Set<Long>): List<LocationEntity> =
+        locationDao.getByIds(ids.toList())
 
-    suspend fun upsertLocation(label: String, lat: Double, lng: Double, radiusM: Float = 100f) {
-        locationDao.deleteByLabel(label)
-        locationDao.insert(LocationEntity(label = label, lat = lat, lng = lng, radiusM = radiusM))
+    suspend fun insert(name: String, lat: Double, lng: Double, radiusM: Float = 100f): Long =
+        locationDao.insert(LocationEntity(name = name, lat = lat, lng = lng, radiusM = radiusM))
+
+    suspend fun delete(location: LocationEntity) = locationDao.delete(location)
+
+    suspend fun getByName(name: String): LocationEntity? = locationDao.getByName(name)
+
+    suspend fun upsertLocation(name: String, lat: Double, lng: Double, radiusM: Float = 100f): Long {
+        locationDao.deleteByName(name)
+        return locationDao.insert(LocationEntity(name = name, lat = lat, lng = lng, radiusM = radiusM))
     }
 }

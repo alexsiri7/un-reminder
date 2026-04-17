@@ -1,5 +1,6 @@
 package com.alexsiri7.unreminder.ui.location
 
+import com.alexsiri7.unreminder.data.db.LocationEntity
 import com.alexsiri7.unreminder.data.repository.LocationRepository
 import com.alexsiri7.unreminder.service.geofence.GeofenceManager
 import io.mockk.coEvery
@@ -39,13 +40,14 @@ class LocationViewModelTest {
     }
 
     @Test
-    fun `delete calls deleteByLabel and removeGeofence`() = runTest {
-        coEvery { locationRepository.deleteByLabel("Home") } returns Unit
-        coEvery { geofenceManager.removeGeofence("Home") } returns Unit
+    fun `deleteLocation calls delete on repository and removeGeofence by id`() = runTest {
+        val location = LocationEntity(id = 42L, name = "Home", lat = 51.5, lng = -0.1, radiusM = 100f)
+        coEvery { locationRepository.delete(location) } returns Unit
+        coEvery { geofenceManager.removeGeofence(42L) } returns Unit
 
-        viewModel.delete("Home")
+        viewModel.deleteLocation(location)
 
-        coVerify { locationRepository.deleteByLabel("Home") }
-        coVerify { geofenceManager.removeGeofence("Home") }
+        coVerify { locationRepository.delete(location) }
+        coVerify { geofenceManager.removeGeofence(42L) }
     }
 }

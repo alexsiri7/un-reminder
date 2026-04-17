@@ -2,8 +2,8 @@ package com.alexsiri7.unreminder.service.trigger
 
 import android.util.Log
 import com.alexsiri7.unreminder.data.repository.HabitRepository
+import com.alexsiri7.unreminder.data.repository.LocationRepository
 import com.alexsiri7.unreminder.data.repository.TriggerRepository
-import com.alexsiri7.unreminder.domain.model.LocationTag
 import com.alexsiri7.unreminder.domain.model.TriggerStatus
 import com.alexsiri7.unreminder.service.geofence.GeofenceManager
 import com.alexsiri7.unreminder.service.llm.PromptGenerator
@@ -16,6 +16,7 @@ import javax.inject.Singleton
 class TriggerPipeline @Inject constructor(
     private val habitRepository: HabitRepository,
     private val triggerRepository: TriggerRepository,
+    private val locationRepository: LocationRepository,
     private val geofenceManager: GeofenceManager,
     private val promptGenerator: PromptGenerator,
     private val notificationHelper: NotificationHelper
@@ -31,11 +32,11 @@ class TriggerPipeline @Inject constructor(
         }
         if (trigger.status != TriggerStatus.SCHEDULED) return
 
-        val locationTag = geofenceManager.currentLocationTag
+        val locationIds = geofenceManager.currentLocationIds
 
-        val eligibleHabits = habitRepository.getEligibleHabits(locationTag)
+        val eligibleHabits = habitRepository.getEligibleHabits(locationIds)
         if (eligibleHabits.isEmpty()) {
-            Log.d(TAG, "No eligible habits for location=$locationTag, skipping trigger $triggerId")
+            Log.d(TAG, "No eligible habits for locationIds=$locationIds, skipping trigger $triggerId")
             triggerRepository.updateOutcome(triggerId, TriggerStatus.DISMISSED)
             return
         }
@@ -43,7 +44,8 @@ class TriggerPipeline @Inject constructor(
         val habit = eligibleHabits.random()
         try {
             val timeOfDay = resolveTimeOfDay()
-            val prompt = promptGenerator.generate(habit, locationTag, timeOfDay)
+            val locationName = resolveLocationName(locationIds)
+            val prompt = promptGenerator.generate(habit, locationName, timeOfDay)
 
             triggerRepository.updateFired(
                 id = triggerId,
@@ -58,7 +60,15 @@ class TriggerPipeline @Inject constructor(
             )
         } catch (e: Exception) {
             Log.e(TAG, "Trigger pipeline failed for trigger=$triggerId habit=${habit.name}", e)
+            triggerRepository.updateOutcome(triggerId, TriggerStatus.DISMISSED)
         }
+    }
+
+    private suspend fun resolveLocationName(locationIds: Set<Long>): String {
+        if (locationIds.isEmpty()) return "any location"
+        return locationRepository.getByIds(locationIds)
+            .joinToString(", ") { it.name }
+            .ifBlank { "any location" }
     }
 
     private fun resolveTimeOfDay(): String {

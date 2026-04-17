@@ -1,6 +1,5 @@
 package com.alexsiri7.unreminder.data.db
 
-import com.alexsiri7.unreminder.domain.model.LocationTag
 import com.alexsiri7.unreminder.domain.model.TriggerStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -38,21 +37,6 @@ class ConvertersTest {
     fun `LocalTime null round-trip`() {
         assertNull(converters.fromLocalTime(null))
         assertNull(converters.toLocalTime(null))
-    }
-
-    @Test
-    fun `LocationTag round-trip`() {
-        for (tag in LocationTag.entries) {
-            val str = converters.fromLocationTag(tag)
-            val result = converters.toLocationTag(str)
-            assertEquals(tag, result)
-        }
-    }
-
-    @Test
-    fun `LocationTag null round-trip`() {
-        assertNull(converters.fromLocationTag(null))
-        assertNull(converters.toLocationTag(null))
     }
 
     @Test

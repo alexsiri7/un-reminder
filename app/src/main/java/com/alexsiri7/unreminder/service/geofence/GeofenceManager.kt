@@ -6,7 +6,6 @@ import android.content.pm.PackageManager
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.alexsiri7.unreminder.data.repository.LocationRepository
-import com.alexsiri7.unreminder.domain.model.LocationTag
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingRequest
 import com.google.android.gms.location.LocationServices
@@ -21,15 +20,21 @@ class GeofenceManager @Inject constructor(
         private const val TAG = "GeofenceManager"
     }
 
-    @Volatile
-    var currentLocationTag: LocationTag = LocationTag.ANYWHERE
+    private val locationIdLock = Any()
+
+    var currentLocationIds: Set<Long> = emptySet()
+        get() = synchronized(locationIdLock) { field }
+        private set
 
     private val geofencingClient = LocationServices.getGeofencingClient(context)
 
     @Inject
     lateinit var locationRepository: LocationRepository
 
-    fun registerGeofence(label: String, lat: Double, lng: Double, radiusM: Float) {
+    fun addLocationId(id: Long) = synchronized(locationIdLock) { currentLocationIds = currentLocationIds + id }
+    fun removeLocationId(id: Long) = synchronized(locationIdLock) { currentLocationIds = currentLocationIds - id }
+
+    fun registerGeofence(id: Long, name: String, lat: Double, lng: Double, radiusM: Float) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
             != PackageManager.PERMISSION_GRANTED
         ) {
@@ -38,7 +43,7 @@ class GeofenceManager @Inject constructor(
         }
 
         val geofence = Geofence.Builder()
-            .setRequestId(label)
+            .setRequestId(id.toString())
             .setCircularRegion(lat, lng, radiusM)
             .setExpirationDuration(Geofence.NEVER_EXPIRE)
             .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_EXIT)
@@ -49,21 +54,18 @@ class GeofenceManager @Inject constructor(
             .addGeofence(geofence)
             .build()
 
-        val pendingIntent = GeofenceBroadcastReceiver.getPendingIntent(context)
-
-        geofencingClient.addGeofences(request, pendingIntent)
-            .addOnSuccessListener { Log.d(TAG, "Geofence registered: $label") }
-            .addOnFailureListener { Log.e(TAG, "Geofence registration failed: $label", it) }
+        geofencingClient.addGeofences(request, GeofenceBroadcastReceiver.getPendingIntent(context))
+            .addOnSuccessListener { Log.d(TAG, "Geofence registered: id=$id name=$name") }
+            .addOnFailureListener { Log.e(TAG, "Geofence registration failed: id=$id", it) }
     }
 
-    fun removeGeofence(label: String) {
-        geofencingClient.removeGeofences(listOf(label))
+    fun removeGeofence(id: Long) {
+        geofencingClient.removeGeofences(listOf(id.toString()))
     }
 
     suspend fun registerAllFromDb() {
-        val locations = locationRepository.getAllList()
-        for (loc in locations) {
-            registerGeofence(loc.label, loc.lat, loc.lng, loc.radiusM)
+        for (loc in locationRepository.getAllList()) {
+            registerGeofence(loc.id, loc.name, loc.lat, loc.lng, loc.radiusM)
         }
     }
 }
