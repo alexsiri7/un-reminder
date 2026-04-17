@@ -37,6 +37,7 @@ Solo user (the author). Single-device, single-user. Personal productivity / well
 | Local storage | **Room** (SQLite) | Local-first. |
 | Scheduling | **WorkManager** + **AlarmManager** (exact alarms) | Stochastic trigger firing inside windows. |
 | Geofencing | **Android `GeofencingClient`** (Google Play Services Location API) | Background location; requires `ACCESS_BACKGROUND_LOCATION`. |
+| Map UI | **osmdroid** | OpenStreetMap-based map picker for location selection; tiles cached automatically on-device. |
 | Notifications | **NotificationManager** (Android 13+ runtime permission) | Native. |
 | LLM | **Gemma 4 E2B on-device** via **ML Kit GenAI Prompt API** / **AICore** (Pixel 8 Pro is AICore-supported). | Zero-cost, offline, private, low-latency. |
 | DI | Hilt | |
@@ -145,7 +146,29 @@ Expected output example for *gratefulness*:
 - "Name one thing that went better than expected today."
 
 ### Fallback
-If Gemma 4 inference fails or takes >5s, fall back to a static template: *"{name}: {low_floor_description}"*.
+If Gemma 4 inference fails or takes >5s, fall back to a static template: *"{name}: {low_floor_description}"*. Note: the AI autofill and notification preview features throw on failure (no silent fallback) so the UI can surface a clear error message.
+
+### Habit-field autofill prompt (on-device Gemma 4)
+
+Used to generate `full_description` and `low_floor_description` when the user taps "Autofill with AI" in the Habit editor. Takes only the habit title as input.
+
+```
+System: You are generating habit description fields for a productivity app.
+Given only a habit title, produce exactly two lines:
+Full: <one sentence, specific full description, max 100 chars>
+Low-floor: <minimum viable version, max 60 chars>
+Plain text only.
+
+Habit title: {name}
+```
+
+Expected output format (two lines, no extras):
+```
+Full: 20-minute guided body-scan meditation
+Low-floor: 3 deep breaths
+```
+
+Parsed via `lines().firstOrNull { it.startsWith("Full:") }` / `"Low-floor:"`. Throws `IllegalStateException` if either line is missing.
 
 ---
 
@@ -153,9 +176,14 @@ If Gemma 4 inference fails or takes >5s, fall back to a static template: *"{name
 
 1. **Home screen** — list of habits. FAB → add habit. Tap habit → edit.
 2. **Habit editor** — name, full description, low-floor description, location chips (multi-select from saved locations; no selection = "Anywhere"), active toggle.
+   AI-assist row: **Autofill with AI** (fills description fields from the habit name via on-device LLM; enabled when name ≥ 2 chars) · **Preview notification** (generates a sample notification text in a dialog; enabled when all description fields are filled).
 3. **Windows screen** — list of windows. FAB → add window. Tap → edit.
 4. **Window editor** — start/end time pickers, days-of-week chips, frequency slider (1–3), active toggle.
-5. **Locations screen** — list of named locations. FAB → capture current GPS as a new named location. Tap → delete. Each location stores name, lat/lng, radius (default 100 m).
+5. **Locations screen** — dynamic list of named locations (any label, not restricted to HOME/WORK).
+   FAB opens the map picker; each list item has an Edit button. Map picker shows a full-screen
+   osmdroid map with a draggable pin and a bottom sheet for name, radius (50–500 m), and Save.
+   Location is stored as lat/lng + radius; osmdroid caches tiles automatically (no offline pre-caching UI).
+   Habits link to zero or more locations via the `habit_location` junction table; no selection means "Anywhere".
 6. **Recent triggers screen** — last 20 fired triggers with their generated prompts and outcomes. Read-only.
 7. **Settings screen** — notification permission status, background location permission status, a manual "Test trigger now" button, and a button to regenerate tomorrow's scheduled triggers.
 
@@ -170,6 +198,7 @@ No onboarding flow for MVP beyond permission requests on first launch. User is e
 - `ACCESS_BACKGROUND_LOCATION` (requested separately after fine location grant, with clear in-app explanation of why)
 - `SCHEDULE_EXACT_ALARM` (Android 12+)
 - `FOREGROUND_SERVICE` for the geofence service if needed.
+- `INTERNET` — map tile downloads for the location picker (OpenStreetMap; no personal data transmitted).
 
 ---
 
@@ -179,7 +208,7 @@ No onboarding flow for MVP beyond permission requests on first launch. User is e
 // DB version 2
 @Entity Habit(id, name, full_description, low_floor_description, active, created_at, updated_at)
 @Entity Window(id, start_time, end_time, days_of_week_bitmask, frequency_per_day, active)
-@Entity Location(id, name /* user-defined */, lat, lng, radius_m)
+@Entity Location(id, name /* user-defined, e.g. "Home", "Gym", "Office" */, lat, lng, radius_m)
 @Entity HabitLocationCrossRef(habit_id → Habit.id CASCADE, location_id → Location.id CASCADE)  // junction
 @Entity Trigger(id, window_id?, habit_id?, scheduled_at, fired_at?, status, generated_prompt?)
 ```

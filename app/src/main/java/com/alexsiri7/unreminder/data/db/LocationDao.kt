@@ -30,4 +30,10 @@ interface LocationDao {
 
     @Query("SELECT * FROM locations")
     suspend fun getAllList(): List<LocationEntity>
+
+    @Query("SELECT * FROM locations WHERE name = :name LIMIT 1")
+    suspend fun getByName(name: String): LocationEntity?
+
+    @Query("DELETE FROM locations WHERE name = :name")
+    suspend fun deleteByName(name: String)
 }

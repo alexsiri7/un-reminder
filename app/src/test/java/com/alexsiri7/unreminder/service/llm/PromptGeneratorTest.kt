@@ -5,6 +5,7 @@ import com.alexsiri7.unreminder.data.db.HabitEntity
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
 
@@ -48,5 +49,25 @@ class PromptGeneratorTest {
         )
         val result = generator.generate(customHabit, "any location", "evening")
         assertEquals("reading: read one page", result)
+    }
+
+    @Test
+    fun `generateHabitFields throws when model is null`() = runTest {
+        val result = runCatching {
+            generator.generateHabitFields("meditation")
+        }
+        assertTrue(result.isFailure)
+        assertTrue("Expected IllegalStateException, got ${result.exceptionOrNull()?.javaClass}", result.exceptionOrNull() is IllegalStateException)
+        assertEquals("LLM unavailable", result.exceptionOrNull()?.message)
+    }
+
+    @Test
+    fun `previewHabitNotification throws when model is null`() = runTest {
+        val result = runCatching {
+            generator.previewHabitNotification(habit, "Anywhere")
+        }
+        assertTrue(result.isFailure)
+        assertTrue("Expected IllegalStateException, got ${result.exceptionOrNull()?.javaClass}", result.exceptionOrNull() is IllegalStateException)
+        assertEquals("LLM unavailable", result.exceptionOrNull()?.message)
     }
 }
