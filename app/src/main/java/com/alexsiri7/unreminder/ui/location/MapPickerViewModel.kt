@@ -55,38 +55,24 @@ class MapPickerViewModel @Inject constructor(
                     return@launch
                 }
             }
-            try {
-                // Permission may not be granted (no explicit request in this flow); lastLocation
-                // returns null gracefully if unavailable — the map falls back to London defaults.
+            // Permission may not be granted (no explicit request in this flow); lastLocation
+            // returns null gracefully if unavailable — the map falls back to London defaults.
+            val loc = try {
                 @Suppress("MissingPermission")
-                val loc = LocationServices.getFusedLocationProviderClient(context)
-                    .lastLocation.await()
-                if (loc != null) {
-                    _uiState.value = _uiState.value.copy(
-                        lat = loc.latitude,
-                        lng = loc.longitude,
-                        initialCenterLat = loc.latitude,
-                        initialCenterLng = loc.longitude,
-                        centerReady = true
-                    )
-                } else {
-                    // No recent GPS fix — use London defaults so pin is visible on screen.
-                    // LocationServices static call cannot be mocked in JVM unit tests;
-                    // this fallback path is intentionally untested at unit level.
-                    _uiState.value = _uiState.value.copy(
-                        lat = _uiState.value.initialCenterLat,
-                        lng = _uiState.value.initialCenterLng,
-                        centerReady = true
-                    )
-                }
+                LocationServices.getFusedLocationProviderClient(context).lastLocation.await()
             } catch (e: Exception) {
                 Log.w("MapPickerViewModel", "Could not get last known location", e)
-                _uiState.value = _uiState.value.copy(
-                    lat = _uiState.value.initialCenterLat,
-                    lng = _uiState.value.initialCenterLng,
-                    centerReady = true
-                )
+                null
             }
+            val lat = loc?.latitude ?: _uiState.value.initialCenterLat
+            val lng = loc?.longitude ?: _uiState.value.initialCenterLng
+            _uiState.value = _uiState.value.copy(
+                lat = lat,
+                lng = lng,
+                initialCenterLat = lat,
+                initialCenterLng = lng,
+                centerReady = true
+            )
         }
     }
 

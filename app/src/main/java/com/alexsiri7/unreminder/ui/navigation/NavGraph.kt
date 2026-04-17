@@ -126,7 +126,6 @@ fun NavGraph() {
             }
             composable("location_add") {
                 MapPickerScreen(
-                    existingLabel = null,
                     onNavigateBack = { navController.popBackStack() }
                 )
             }
