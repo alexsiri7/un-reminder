@@ -31,22 +31,28 @@ class LocationViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     @Suppress("MissingPermission")
-    fun setCurrentLocation(label: String) {
+    fun addCurrentLocation(name: String) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
             != PackageManager.PERMISSION_GRANTED
         ) return
+        if (name.isBlank()) return
 
         viewModelScope.launch {
             try {
                 val fusedClient = LocationServices.getFusedLocationProviderClient(context)
                 val location = fusedClient.lastLocation.await() ?: return@launch
-                val lat = location.latitude
-                val lng = location.longitude
-                locationRepository.upsertLocation(label, lat, lng)
-                geofenceManager.registerGeofence(label, lat, lng, 100f)
+                val id = locationRepository.insert(name.trim(), location.latitude, location.longitude)
+                geofenceManager.registerGeofence(id, name.trim(), location.latitude, location.longitude, 100f)
             } catch (e: Exception) {
-                Log.e("LocationViewModel", "Failed to set location for label=$label", e)
+                Log.e("LocationViewModel", "Failed to add location name=$name", e)
             }
+        }
+    }
+
+    fun deleteLocation(location: LocationEntity) {
+        viewModelScope.launch {
+            geofenceManager.removeGeofence(location.id)
+            locationRepository.delete(location)
         }
     }
 }

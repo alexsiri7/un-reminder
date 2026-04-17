@@ -3,7 +3,6 @@ package com.alexsiri7.unreminder.data.db
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import com.alexsiri7.unreminder.domain.model.LocationTag
 import java.time.Instant
 
 @Entity(tableName = "habits")
@@ -15,8 +14,6 @@ data class HabitEntity(
     val fullDescription: String,
     @ColumnInfo(name = "low_floor_description")
     val lowFloorDescription: String,
-    @ColumnInfo(name = "location_tag")
-    val locationTag: LocationTag = LocationTag.ANYWHERE,
     val active: Boolean = true,
     @ColumnInfo(name = "created_at")
     val createdAt: Instant = Instant.now(),

@@ -7,7 +7,6 @@ import android.content.Intent
 import android.util.Log
 import com.alexsiri7.unreminder.data.db.TriggerEntity
 import com.alexsiri7.unreminder.data.repository.TriggerRepository
-import com.alexsiri7.unreminder.domain.model.LocationTag
 import com.alexsiri7.unreminder.domain.model.TriggerStatus
 import com.alexsiri7.unreminder.service.alarm.AlarmScheduler
 import com.google.android.gms.location.Geofence
@@ -62,23 +61,15 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 for (geofence in triggeringGeofences) {
-                    val label = geofence.requestId
-                    val tag = when (label.uppercase()) {
-                        "HOME" -> LocationTag.HOME
-                        "WORK" -> LocationTag.WORK
-                        "COMMUTE" -> LocationTag.COMMUTE
-                        else -> LocationTag.ANYWHERE
-                    }
-
+                    val locationId = geofence.requestId.toLongOrNull() ?: continue
                     when (transition) {
                         Geofence.GEOFENCE_TRANSITION_ENTER -> {
-                            geofenceManager.currentLocationTag = tag
+                            geofenceManager.addLocationId(locationId)
 
-                            if (isDebounced(context, label)) continue
+                            if (isDebounced(context, geofence.requestId)) continue
 
-                            recordDebounce(context, label)
+                            recordDebounce(context, geofence.requestId)
 
-                            // Schedule arrival trigger 5 minutes later
                             val fireAt = Instant.now().plusMillis(ARRIVAL_DELAY_MS)
                             val triggerId = triggerRepository.insert(
                                 TriggerEntity(
@@ -89,7 +80,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                             alarmScheduler.scheduleExactAlarm(triggerId, fireAt)
                         }
                         Geofence.GEOFENCE_TRANSITION_EXIT -> {
-                            geofenceManager.currentLocationTag = LocationTag.ANYWHERE
+                            geofenceManager.removeLocationId(locationId)
                         }
                     }
                 }

@@ -29,7 +29,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.alexsiri7.unreminder.domain.model.LocationTag
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -39,6 +38,7 @@ fun HabitEditScreen(
     viewModel: HabitEditViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val allLocations by viewModel.allLocations.collectAsStateWithLifecycle()
 
     LaunchedEffect(habitId) {
         if (habitId != null) viewModel.loadHabit(habitId)
@@ -93,13 +93,20 @@ fun HabitEditScreen(
                 minLines = 2
             )
 
+            val selectedIds = uiState.selectedLocationIds
+
             Text("Location")
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                LocationTag.entries.forEach { tag ->
+                FilterChip(
+                    selected = selectedIds.isEmpty(),
+                    onClick = { viewModel.setAnywhere() },
+                    label = { Text("Anywhere") }
+                )
+                allLocations.forEach { loc ->
                     FilterChip(
-                        selected = uiState.locationTag == tag,
-                        onClick = { viewModel.updateLocationTag(tag) },
-                        label = { Text(tag.name) }
+                        selected = loc.id in selectedIds,
+                        onClick = { viewModel.toggleLocation(loc.id) },
+                        label = { Text(loc.name) }
                     )
                 }
             }

@@ -3,8 +3,8 @@ package com.alexsiri7.unreminder.service.trigger
 import com.alexsiri7.unreminder.data.db.HabitEntity
 import com.alexsiri7.unreminder.data.db.TriggerEntity
 import com.alexsiri7.unreminder.data.repository.HabitRepository
+import com.alexsiri7.unreminder.data.repository.LocationRepository
 import com.alexsiri7.unreminder.data.repository.TriggerRepository
-import com.alexsiri7.unreminder.domain.model.LocationTag
 import com.alexsiri7.unreminder.domain.model.TriggerStatus
 import com.alexsiri7.unreminder.service.geofence.GeofenceManager
 import com.alexsiri7.unreminder.service.llm.PromptGenerator
@@ -23,6 +23,7 @@ class TriggerPipelineTest {
 
     private lateinit var habitRepository: HabitRepository
     private lateinit var triggerRepository: TriggerRepository
+    private lateinit var locationRepository: LocationRepository
     private lateinit var geofenceManager: GeofenceManager
     private lateinit var promptGenerator: PromptGenerator
     private lateinit var notificationHelper: NotificationHelper
@@ -33,7 +34,6 @@ class TriggerPipelineTest {
         name = "meditation",
         fullDescription = "20-minute guided meditation",
         lowFloorDescription = "3 deep breaths",
-        locationTag = LocationTag.ANYWHERE,
         createdAt = Instant.now(),
         updatedAt = Instant.now()
     )
@@ -48,6 +48,7 @@ class TriggerPipelineTest {
     fun setup() {
         habitRepository = mockk()
         triggerRepository = mockk(relaxUnitFun = true)
+        locationRepository = mockk()
         geofenceManager = mockk()
         promptGenerator = mockk()
         notificationHelper = mockk(relaxUnitFun = true)
@@ -55,12 +56,14 @@ class TriggerPipelineTest {
         pipeline = TriggerPipeline(
             habitRepository = habitRepository,
             triggerRepository = triggerRepository,
+            locationRepository = locationRepository,
             geofenceManager = geofenceManager,
             promptGenerator = promptGenerator,
             notificationHelper = notificationHelper
         )
 
-        every { geofenceManager.currentLocationTag } returns LocationTag.HOME
+        every { geofenceManager.currentLocationIds } returns setOf(1L)
+        coEvery { locationRepository.getByIds(any()) } returns emptyList()
     }
 
     @Test

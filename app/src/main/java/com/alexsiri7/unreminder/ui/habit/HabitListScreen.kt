@@ -19,7 +19,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -81,10 +80,6 @@ fun HabitListScreen(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(habit.name, style = MaterialTheme.typography.titleMedium)
-                                SuggestionChip(
-                                    onClick = {},
-                                    label = { Text(habit.locationTag.name) }
-                                )
                             }
                             Switch(
                                 checked = habit.active,
