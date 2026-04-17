@@ -3,6 +3,7 @@ package com.alexsiri7.unreminder.service.llm
 import android.content.Context
 import android.util.Log
 import com.alexsiri7.unreminder.data.db.HabitEntity
+import com.alexsiri7.unreminder.domain.model.AiHabitFields
 import com.alexsiri7.unreminder.domain.model.LocationTag
 import com.google.mlkit.genai.prompt.Generation
 import com.google.mlkit.genai.prompt.GenerativeModel
@@ -56,6 +57,45 @@ class PromptGenerator @Inject constructor(
         |Low-floor version: ${habit.lowFloorDescription}
         |Current location: ${location.name}
         |Time of day: $timeOfDay""".trimMargin()
+
+    suspend fun generateHabitFields(title: String): AiHabitFields {
+        val m = model ?: throw IllegalStateException("LLM unavailable")
+        return try {
+            withTimeout(5_000) {
+                val prompt = buildHabitFieldsPrompt(title)
+                val response = m.generateContent(prompt)
+                val text = response.candidates.firstOrNull()?.text
+                    ?: throw IllegalStateException("Empty LLM response")
+                val lines = text.lines()
+                val full = lines.firstOrNull { it.startsWith("Full:") }
+                    ?.removePrefix("Full:")?.trim()
+                    ?: throw IllegalStateException("Could not parse Full: line")
+                val low = lines.firstOrNull { it.startsWith("Low-floor:") }
+                    ?.removePrefix("Low-floor:")?.trim()
+                    ?: throw IllegalStateException("Could not parse Low-floor: line")
+                AiHabitFields(full, low)
+            }
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "LLM habit field generation failed", e)
+            throw e
+        }
+    }
+
+    suspend fun previewHabitNotification(habit: HabitEntity, locationTag: LocationTag = LocationTag.ANYWHERE): String {
+        if (model == null) throw IllegalStateException("LLM unavailable")
+        return generate(habit, locationTag, "now")
+    }
+
+    private fun buildHabitFieldsPrompt(title: String): String =
+        """System: You are generating habit description fields for a productivity app.
+        |Given only a habit title, produce exactly two lines:
+        |Full: <one sentence, specific full description, max 100 chars>
+        |Low-floor: <minimum viable version, max 60 chars>
+        |Plain text only.
+        |
+        |Habit title: $title""".trimMargin()
 
     private fun fallback(habit: HabitEntity): String =
         "${habit.name}: ${habit.lowFloorDescription}"

@@ -6,6 +6,7 @@ import com.alexsiri7.unreminder.domain.model.LocationTag
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
 
@@ -50,5 +51,21 @@ class PromptGeneratorTest {
         )
         val result = generator.generate(customHabit, LocationTag.ANYWHERE, "evening")
         assertEquals("reading: read one page", result)
+    }
+
+    @Test
+    fun `generateHabitFields throws when model is null`() = runTest {
+        val exception = runCatching {
+            generator.generateHabitFields("meditation")
+        }
+        assertTrue(exception.isFailure)
+    }
+
+    @Test
+    fun `previewHabitNotification throws when model is null`() = runTest {
+        val exception = runCatching {
+            generator.previewHabitNotification(habit, LocationTag.ANYWHERE)
+        }
+        assertTrue(exception.isFailure)
     }
 }

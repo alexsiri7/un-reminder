@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.alexsiri7.unreminder.data.db.HabitEntity
 import com.alexsiri7.unreminder.data.repository.HabitRepository
 import com.alexsiri7.unreminder.domain.model.LocationTag
+import com.alexsiri7.unreminder.service.llm.PromptGenerator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,12 +21,17 @@ data class HabitEditUiState(
     val locationTag: LocationTag = LocationTag.ANYWHERE,
     val active: Boolean = true,
     val isLoading: Boolean = false,
-    val isSaved: Boolean = false
+    val isSaved: Boolean = false,
+    val isGeneratingFields: Boolean = false,
+    val previewNotification: String? = null,
+    val showPreviewDialog: Boolean = false,
+    val errorMessage: String? = null
 )
 
 @HiltViewModel
 class HabitEditViewModel @Inject constructor(
-    private val habitRepository: HabitRepository
+    private val habitRepository: HabitRepository,
+    private val promptGenerator: PromptGenerator
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HabitEditUiState())
@@ -86,4 +92,51 @@ class HabitEditViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isSaved = true)
         }
     }
+
+    fun autofillWithAi() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isGeneratingFields = true, errorMessage = null)
+            try {
+                val fields = promptGenerator.generateHabitFields(_uiState.value.name)
+                _uiState.value = _uiState.value.copy(
+                    fullDescription = fields.fullDescription,
+                    lowFloorDescription = fields.lowFloorDescription,
+                    isGeneratingFields = false
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isGeneratingFields = false,
+                    errorMessage = "AI unavailable — fill in manually."
+                )
+            }
+        }
+    }
+
+    fun previewNotification() {
+        viewModelScope.launch {
+            val state = _uiState.value
+            val tempHabit = HabitEntity(
+                name = state.name,
+                fullDescription = state.fullDescription,
+                lowFloorDescription = state.lowFloorDescription,
+                locationTag = state.locationTag
+            )
+            try {
+                val text = promptGenerator.previewHabitNotification(tempHabit, state.locationTag)
+                _uiState.value = _uiState.value.copy(
+                    previewNotification = text,
+                    showPreviewDialog = true
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    errorMessage = "AI unavailable — preview not available."
+                )
+            }
+        }
+    }
+
+    fun dismissPreviewDialog() {
+        _uiState.value = _uiState.value.copy(showPreviewDialog = false, previewNotification = null)
+    }
+    fun clearError() { _uiState.value = _uiState.value.copy(errorMessage = null) }
 }
