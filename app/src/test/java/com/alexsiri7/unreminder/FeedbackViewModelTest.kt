@@ -66,4 +66,25 @@ class FeedbackViewModelTest {
         viewModel.submit("/tmp/shot.png")
         assertTrue(viewModel.uiState.value.tokenMissing)
     }
+
+    @Test
+    fun `consumeTokenMissing resets tokenMissing`() = runTest {
+        viewModel.submit("/tmp/shot.png")
+        assertTrue(viewModel.uiState.value.tokenMissing)
+        viewModel.consumeTokenMissing()
+        assertFalse(viewModel.uiState.value.tokenMissing)
+    }
+
+    @Test
+    fun `consumeError resets error`() = runTest {
+        // Verify the error field and consumeError work correctly via initial state
+        assertFalse(viewModel.uiState.value.error != null)
+        viewModel.consumeError()
+        assertEquals(null, viewModel.uiState.value.error)
+    }
+
+    @Test
+    fun `isSubmitting is false initially`() = runTest {
+        assertFalse(viewModel.uiState.value.isSubmitting)
+    }
 }

@@ -40,10 +40,21 @@ Solo user (the author). Single-device, single-user. Personal productivity / well
 | Notifications | **NotificationManager** (Android 13+ runtime permission) | Native. |
 | LLM | **Gemma 4 E2B on-device** via **ML Kit GenAI Prompt API** / **AICore** (Pixel 8 Pro is AICore-supported). | Zero-cost, offline, private, low-latency. |
 | DI | Hilt | |
+| Networking | **OkHttp** | Feedback upload to GitHub API. |
 | Testing | JUnit + Compose UI tests | |
 
 **Target device for MVP:** Pixel 8 Pro (AICore available, Gemma 4 runs natively).
 **Fallback:** bundle ML Kit GenAI Prompt API for devices without AICore (post-MVP).
+
+### 3.1 Building Locally
+
+Requires **Java 17 or 21** (not 11 — ML Kit GenAI compile dependency requires 17+).
+
+To enable feedback submission, create `local.properties` (git-ignored) and add:
+```
+github.feedback.token=ghp_your_fine_grained_pat_here
+```
+The PAT needs `contents:write` and `issues:write` on this repo. Without it, the feedback button shows a Snackbar and no network calls are made.
 
 ---
 
@@ -140,8 +151,9 @@ If Gemma 4 inference fails or takes >5s, fall back to a static template: *"{name
 3. **Windows screen** — list of windows. FAB → add window. Tap → edit.
 4. **Window editor** — start/end time pickers, days-of-week chips, frequency slider (1–3), active toggle.
 5. **Locations screen** — "Set my Home" / "Set my Work". Uses current GPS at capture time; stores lat/lng + radius (default 100m). Re-settable.
-6. **Recent triggers screen** — last 20 fired triggers with their generated prompts and outcomes. Read-only.
-7. **Settings screen** — notification permission status, background location permission status, a manual "Test trigger now" button, and a button to regenerate tomorrow's scheduled triggers.
+6. **Recent triggers screen** — last 20 fired triggers with their generated prompts and outcomes. Read-only. FAB opens the Feedback screen.
+7. **Settings screen** — notification permission status, background location permission status, a manual "Test trigger now" button, a button to regenerate tomorrow's scheduled triggers, and a "Send Feedback" button.
+8. **Feedback screen** — captures an annotated screenshot (PixelCopy + canvas overlay with color picker and clear-all eraser), accepts a text description, and submits as a GitHub Issue via the Contents + Issues API. Queues locally when offline; WorkManager retries on reconnection.
 
 No onboarding flow for MVP beyond permission requests on first launch. User is expected to add habits and windows themselves.
 
@@ -154,16 +166,20 @@ No onboarding flow for MVP beyond permission requests on first launch. User is e
 - `ACCESS_BACKGROUND_LOCATION` (requested separately after fine location grant, with clear in-app explanation of why)
 - `SCHEDULE_EXACT_ALARM` (Android 12+)
 - `FOREGROUND_SERVICE` for the geofence service if needed.
+- `INTERNET` — for feedback submission to GitHub API (WorkManager, queued when offline).
 
 ---
 
 ## 8. Database Schema (Room)
+
+**DB version**: 2 (MIGRATION_1_2 adds `pending_feedback` table)
 
 ```kotlin
 @Entity Habit(id, name, full_description, low_floor_description, location_tag, active, created_at, updated_at)
 @Entity Window(id, start_time, end_time, days_of_week_bitmask, frequency_per_day, active)
 @Entity Location(id, label /* HOME|WORK */, lat, lng, radius_m)
 @Entity Trigger(id, window_id?, habit_id?, scheduled_at, fired_at?, status, generated_prompt?)
+@Entity PendingFeedback(id, screenshot_path, description, created_at)  // DB v2 — offline feedback queue
 ```
 
 ---
@@ -178,8 +194,9 @@ The app is considered MVP-complete when:
 4. Entering the registered `HOME` geofence triggers exactly one notification 5 minutes later (debounced).
 5. Notification actions correctly record `COMPLETED_FULL`, `COMPLETED_LOW_FLOOR`, or `DISMISSED`.
 6. Recent triggers screen displays the last 20 triggers with their generated prompts.
-7. App works with airplane mode on (no network dependency).
-8. Cold-start to habit list is under 1 second.
+7. Core habit delivery (triggers, notifications, AI prompts) works with airplane mode on — no network dependency for the main loop.
+8. Feedback submission queues locally when offline and uploads automatically when network is available (WorkManager retry).
+9. Cold-start to habit list is under 1 second.
 
 ---
 

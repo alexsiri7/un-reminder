@@ -44,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -75,6 +76,13 @@ fun FeedbackScreen(
         }
     }
 
+    LaunchedEffect(uiState.error) {
+        uiState.error?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.consumeError()
+        }
+    }
+
     val screenshotBitmap = remember(screenshotPath) {
         val file = File(screenshotPath)
         if (file.exists()) android.graphics.BitmapFactory.decodeFile(screenshotPath) else null
@@ -82,6 +90,7 @@ fun FeedbackScreen(
 
     val paletteColors = listOf(Color.Red, Color.Yellow, Color(0xFF4CAF50))
     var currentPathPoints by remember { mutableStateOf<List<Offset>>(emptyList()) }
+    var canvasSize by remember { mutableStateOf(Size.Zero) }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -134,7 +143,12 @@ fun FeedbackScreen(
                                             viewModel.clearPaths()
                                         } else {
                                             viewModel.addPath(
-                                                DrawPath(currentPathPoints, uiState.currentColor)
+                                                DrawPath(
+                                                    points = currentPathPoints,
+                                                    color = uiState.currentColor,
+                                                    canvasWidth = canvasSize.width,
+                                                    canvasHeight = canvasSize.height
+                                                )
                                             )
                                         }
                                         currentPathPoints = emptyList()
@@ -143,6 +157,7 @@ fun FeedbackScreen(
                             )
                         }
                 ) {
+                    canvasSize = size
                     uiState.paths.forEach { path ->
                         for (i in 0 until path.points.size - 1) {
                             drawLine(

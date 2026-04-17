@@ -45,9 +45,10 @@ class GitHubApiService {
             .put(body.toRequestBody("application/json".toMediaType()))
             .build()
         return@withContext try {
-            val response = client.newCall(request).execute()
-            if (response.isSuccessful) "$PAGES_BASE/feedback-screenshots/$uuid.png"
-            else { Log.e(TAG, "Image upload failed: ${response.code}"); null }
+            client.newCall(request).execute().use { response ->
+                if (response.isSuccessful) "$PAGES_BASE/feedback-screenshots/$uuid.png"
+                else { Log.e(TAG, "Image upload failed: ${response.code}"); null }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Image upload exception", e)
             null
@@ -76,9 +77,10 @@ class GitHubApiService {
             .post(body.toRequestBody("application/json".toMediaType()))
             .build()
         return@withContext try {
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) Log.e(TAG, "Issue creation failed: ${response.code}")
-            response.isSuccessful
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) Log.e(TAG, "Issue creation failed: ${response.code}")
+                response.isSuccessful
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Issue creation exception", e)
             false

@@ -14,6 +14,8 @@ class FeedbackRepository @Inject constructor(
             PendingFeedbackEntity(screenshotPath = screenshotPath, description = description)
         )
 
+    suspend fun getById(id: Long): PendingFeedbackEntity? = pendingFeedbackDao.getById(id)
+
     suspend fun getPending(): List<PendingFeedbackEntity> = pendingFeedbackDao.getAll()
 
     suspend fun markSent(id: Long) = pendingFeedbackDao.deleteById(id)

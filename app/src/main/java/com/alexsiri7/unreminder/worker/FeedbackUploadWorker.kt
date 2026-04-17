@@ -46,7 +46,7 @@ class FeedbackUploadWorker @AssistedInject constructor(
             Log.w(TAG, "No feedback ID in input data")
             return Result.failure()
         }
-        val pending = feedbackRepository.getPending().firstOrNull { it.id == feedbackId }
+        val pending = feedbackRepository.getById(feedbackId)
         if (pending == null) {
             Log.w(TAG, "Feedback $feedbackId not found — may already be sent")
             return Result.success()
@@ -69,6 +69,7 @@ class FeedbackUploadWorker @AssistedInject constructor(
 
             if (success) {
                 feedbackRepository.markSent(feedbackId)
+                // TODO: also delete annotated file in cacheDir if different from original (v0.2)
                 screenshotFile.delete()
                 Result.success()
             } else {

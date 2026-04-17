@@ -28,7 +28,7 @@ object AppModule {
                 "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
                 "screenshot_path TEXT NOT NULL, " +
                 "description TEXT NOT NULL, " +
-                "created_at INTEGER NOT NULL DEFAULT 0)"
+                "created_at INTEGER NOT NULL DEFAULT 0)" // Room always provides createdAt; 0 is a DB-level fallback only
             )
         }
     }
