@@ -40,9 +40,6 @@ class LocationViewModelTest {
 
     @Test
     fun `delete calls deleteByLabel and removeGeofence`() = runTest {
-        coEvery { locationRepository.deleteByLabel("Home") } returns Unit
-        coEvery { geofenceManager.removeGeofence("Home") } returns Unit
-
         viewModel.delete("Home")
 
         coVerify { locationRepository.deleteByLabel("Home") }

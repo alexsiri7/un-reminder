@@ -6,7 +6,6 @@ import com.alexsiri7.unreminder.data.repository.LocationRepository
 import com.alexsiri7.unreminder.service.geofence.GeofenceManager
 import io.mockk.coEvery
 import io.mockk.coVerify
-import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -74,9 +73,6 @@ class MapPickerViewModelTest {
 
     @Test
     fun `save calls upsertLocation and registerGeofence`() = runTest {
-        coEvery { locationRepository.upsertLocation(any(), any(), any(), any()) } returns Unit
-        coEvery { geofenceManager.registerGeofence(any(), any(), any(), any()) } returns Unit
-
         viewModel.updateName("Home")
         viewModel.updatePin(51.5, -0.1)
         viewModel.updateRadius(150f)
