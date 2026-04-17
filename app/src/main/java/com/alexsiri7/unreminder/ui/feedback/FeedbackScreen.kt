@@ -159,11 +159,11 @@ fun FeedbackScreen(
                 ) {
                     canvasSize = size
                     uiState.paths.forEach { path ->
-                        for (i in 0 until path.points.size - 1) {
+                        path.points.zipWithNext { a, b ->
                             drawLine(
                                 color = path.color,
-                                start = path.points[i],
-                                end = path.points[i + 1],
+                                start = a,
+                                end = b,
                                 strokeWidth = path.strokeWidth,
                                 cap = StrokeCap.Round
                             )

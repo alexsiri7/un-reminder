@@ -78,7 +78,7 @@ class FeedbackViewModelTest {
     @Test
     fun `consumeError resets error`() = runTest {
         // Verify the error field and consumeError work correctly via initial state
-        assertFalse(viewModel.uiState.value.error != null)
+        assertNull(viewModel.uiState.value.error)
         viewModel.consumeError()
         assertEquals(null, viewModel.uiState.value.error)
     }
