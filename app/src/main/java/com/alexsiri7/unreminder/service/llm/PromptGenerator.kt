@@ -8,6 +8,7 @@ import com.alexsiri7.unreminder.domain.model.LocationTag
 import com.google.mlkit.genai.prompt.Generation
 import com.google.mlkit.genai.prompt.GenerativeModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeout
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -41,7 +42,7 @@ class PromptGenerator @Inject constructor(
                 val response = m.generateContent(prompt)
                 response.candidates.firstOrNull()?.text?.take(80) ?: fallback(habit)
             }
-        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+        } catch (e: CancellationException) {
             throw e  // must propagate: cancellation is not an error
         } catch (e: Exception) {
             Log.w(TAG, "LLM generation failed, using fallback", e)
@@ -75,7 +76,7 @@ class PromptGenerator @Inject constructor(
                     ?: throw IllegalStateException("Could not parse Low-floor: line")
                 AiHabitFields(full, low)
             }
-        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+        } catch (e: CancellationException) {
             throw e  // must propagate: cancellation is not an error
         } catch (e: Exception) {
             Log.w(TAG, "LLM habit field generation failed", e)

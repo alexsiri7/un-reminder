@@ -10,6 +10,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -104,7 +105,7 @@ class HabitEditViewModel @Inject constructor(
                     isGeneratingFields = false
                 )
             } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
+                if (e is CancellationException) throw e
                 _uiState.value = _uiState.value.copy(
                     isGeneratingFields = false,
                     errorMessage = "AI unavailable — fill in manually."
@@ -131,7 +132,7 @@ class HabitEditViewModel @Inject constructor(
                     showPreviewDialog = true
                 )
             } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
+                if (e is CancellationException) throw e
                 _uiState.value = _uiState.value.copy(
                     isGeneratingFields = false,
                     errorMessage = "AI unavailable — preview not available."
