@@ -26,6 +26,7 @@ import androidx.navigation.navArgument
 import com.alexsiri7.unreminder.ui.habit.HabitEditScreen
 import com.alexsiri7.unreminder.ui.habit.HabitListScreen
 import com.alexsiri7.unreminder.ui.location.LocationScreen
+import com.alexsiri7.unreminder.ui.location.MapPickerScreen
 import com.alexsiri7.unreminder.ui.recent.RecentTriggersScreen
 import com.alexsiri7.unreminder.ui.settings.SettingsScreen
 import com.alexsiri7.unreminder.ui.window.WindowEditScreen
@@ -116,7 +117,26 @@ fun NavGraph() {
                 )
             }
             composable("locations") {
-                LocationScreen(onNavigateBack = { navController.popBackStack() })
+                LocationScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onAddLocation = { navController.navigate("location_add") },
+                    onEditLocation = { label -> navController.navigate("location_edit/$label") }
+                )
+            }
+            composable("location_add") {
+                MapPickerScreen(
+                    existingLabel = null,
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+            composable(
+                "location_edit/{label}",
+                arguments = listOf(navArgument("label") { type = NavType.StringType })
+            ) { backStackEntry ->
+                MapPickerScreen(
+                    existingLabel = backStackEntry.arguments?.getString("label"),
+                    onNavigateBack = { navController.popBackStack() }
+                )
             }
             composable(Screen.Recent.route) {
                 RecentTriggersScreen()
