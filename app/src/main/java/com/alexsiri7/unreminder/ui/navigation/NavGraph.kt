@@ -70,7 +70,7 @@ private fun captureScreenshot(activity: Activity, onCaptured: (String) -> Unit) 
     // PixelCopy captures hardware-accelerated surfaces (required for Compose on API 26+).
     // Falls back to drawToBitmap() for rare cases where PixelCopy is unavailable.
     PixelCopy.request(activity.window, bitmap, { result ->
-        val path = if (result == PixelCopy.SUCCESS) {
+        val path: String? = if (result == PixelCopy.SUCCESS) {
             val file = File(activity.cacheDir, "feedback-${System.currentTimeMillis()}.png")
             file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 90, it) }
             file.absolutePath
@@ -83,10 +83,10 @@ private fun captureScreenshot(activity: Activity, onCaptured: (String) -> Unit) 
                 fallback.absolutePath
             } catch (e: Exception) {
                 Log.e("NavGraph", "drawToBitmap fallback also failed — cannot open feedback screen", e)
-                return@request
+                null
             }
         }
-        onCaptured(path)
+        if (path != null) onCaptured(path)
     }, Handler(Looper.getMainLooper()))
 }
 
