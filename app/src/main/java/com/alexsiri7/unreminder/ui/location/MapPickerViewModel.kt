@@ -9,7 +9,6 @@ import com.alexsiri7.unreminder.service.geofence.GeofenceManager
 import com.google.android.gms.location.LocationServices
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -40,7 +39,7 @@ class MapPickerViewModel @Inject constructor(
     val uiState: StateFlow<MapPickerUiState> = _uiState.asStateFlow()
 
     fun initialize(existingLabel: String?) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch {
             if (existingLabel != null) {
                 val loc = locationRepository.getByLabel(existingLabel)
                 if (loc != null) {
