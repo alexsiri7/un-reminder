@@ -39,6 +39,10 @@ class HabitEditViewModel @Inject constructor(
     val allLocations: StateFlow<List<LocationEntity>> = locationRepository.getAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    companion object {
+        private const val TAG = "HabitEditViewModel"
+    }
+
     private var existingHabit: HabitEntity? = null
 
     fun loadHabit(id: Long) {
@@ -47,7 +51,7 @@ class HabitEditViewModel @Inject constructor(
             try {
                 val habit = habitRepository.getById(id).first()
                 if (habit == null) {
-                    Log.w("HabitEditViewModel", "loadHabit: habit $id not found")
+                    Log.w(TAG, "loadHabit: habit $id not found")
                     return@launch
                 }
                 val locationIds = habitRepository.getLocationIds(id).toSet()
@@ -60,7 +64,7 @@ class HabitEditViewModel @Inject constructor(
                     active = habit.active
                 )
             } catch (e: Exception) {
-                Log.e("HabitEditViewModel", "loadHabit: failed to load habit $id", e)
+                Log.e(TAG, "loadHabit: failed to load habit $id", e)
             } finally {
                 _uiState.value = _uiState.value.copy(isLoading = false)
             }
@@ -108,7 +112,7 @@ class HabitEditViewModel @Inject constructor(
                 habitRepository.setLocations(habitId, state.selectedLocationIds)
                 _uiState.value = _uiState.value.copy(isSaved = true)
             } catch (e: Exception) {
-                Log.e("HabitEditViewModel", "save failed", e)
+                Log.e(TAG, "save failed", e)
             }
         }
     }

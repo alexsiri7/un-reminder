@@ -27,6 +27,10 @@ class LocationViewModel @Inject constructor(
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
+    companion object {
+        private const val TAG = "LocationViewModel"
+    }
+
     val locations: StateFlow<List<LocationEntity>> = locationRepository.getAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -41,10 +45,11 @@ class LocationViewModel @Inject constructor(
             try {
                 val fusedClient = LocationServices.getFusedLocationProviderClient(context)
                 val location = fusedClient.lastLocation.await() ?: return@launch
-                val id = locationRepository.insert(name.trim(), location.latitude, location.longitude)
-                geofenceManager.registerGeofence(id, name.trim(), location.latitude, location.longitude, 100f)
+                val trimmedName = name.trim()
+                val id = locationRepository.insert(trimmedName, location.latitude, location.longitude)
+                geofenceManager.registerGeofence(id, trimmedName, location.latitude, location.longitude, 100f)
             } catch (e: Exception) {
-                Log.e("LocationViewModel", "Failed to add location name=$name", e)
+                Log.e(TAG, "Failed to add location name=$name", e)
             }
         }
     }
@@ -55,7 +60,7 @@ class LocationViewModel @Inject constructor(
                 locationRepository.delete(location)
                 geofenceManager.removeGeofence(location.id)
             } catch (e: Exception) {
-                Log.e("LocationViewModel", "deleteLocation failed for id=${location.id}", e)
+                Log.e(TAG, "deleteLocation failed for id=${location.id}", e)
             }
         }
     }

@@ -94,14 +94,15 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         }
     }
 
+    private fun getPrefs(context: Context) =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
     private fun isDebounced(context: Context, label: String): Boolean {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val lastArrival = prefs.getLong(label, 0)
+        val lastArrival = getPrefs(context).getLong(label, 0)
         return System.currentTimeMillis() - lastArrival < DEBOUNCE_MS
     }
 
     private fun recordDebounce(context: Context, label: String) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putLong(label, System.currentTimeMillis()).apply()
+        getPrefs(context).edit().putLong(label, System.currentTimeMillis()).apply()
     }
 }
