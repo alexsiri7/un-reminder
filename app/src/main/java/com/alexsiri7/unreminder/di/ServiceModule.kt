@@ -1,0 +1,35 @@
+package com.alexsiri7.unreminder.di
+
+import android.content.Context
+import com.alexsiri7.unreminder.service.alarm.AlarmScheduler
+import com.alexsiri7.unreminder.service.geofence.GeofenceManager
+import com.alexsiri7.unreminder.service.notification.NotificationHelper
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
+
+@Module
+@InstallIn(SingletonComponent::class)
+object ServiceModule {
+
+    @Provides
+    @Singleton
+    fun provideAlarmScheduler(@ApplicationContext context: Context): AlarmScheduler {
+        return AlarmScheduler(context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideGeofenceManager(@ApplicationContext context: Context): GeofenceManager {
+        return GeofenceManager(context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideNotificationHelper(@ApplicationContext context: Context): NotificationHelper {
+        return NotificationHelper(context)
+    }
+}
