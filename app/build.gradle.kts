@@ -16,6 +16,7 @@ android {
         targetSdk = 34
         versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 1
         versionName = System.getenv("VERSION_NAME") ?: "0.1.0"
+        buildConfigField("String", "SENTRY_DSN", "\"${System.getenv("SENTRY_DSN") ?: ""}\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -55,6 +56,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     testOptions {
@@ -96,6 +98,9 @@ dependencies {
     // Play Services Location (geofencing)
     implementation(libs.play.services.location)
     implementation(libs.osmdroid.android)
+
+    // Sentry
+    implementation(libs.sentry.android)
 
     // ML Kit GenAI
     implementation(libs.mlkit.genai.prompt)

@@ -19,6 +19,7 @@ androidxJunit = "1.2.1"
 mockk = "1.13.13"
 coroutinesTest = "1.9.0"
 osmdroid = "6.1.20"
+sentry = "7.14.0"
 
 [libraries]
 compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
@@ -51,6 +52,7 @@ androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "a
 mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
 coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutinesTest" }
 osmdroid-android = { group = "org.osmdroid", name = "osmdroid-android", version.ref = "osmdroid" }
+sentry-android = { group = "io.sentry", name = "sentry-android", version.ref = "sentry" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

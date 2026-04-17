@@ -9,6 +9,7 @@ import androidx.work.WorkManager
 import com.alexsiri7.unreminder.service.notification.NotificationHelper
 import com.alexsiri7.unreminder.worker.DailySchedulerWorker
 import dagger.hilt.android.HiltAndroidApp
+import io.sentry.android.core.SentryAndroid
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
@@ -28,6 +29,17 @@ class UnReminderApp : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
+        if (BuildConfig.SENTRY_DSN.isNotEmpty()) {
+            SentryAndroid.init(this) { options ->
+                options.dsn = BuildConfig.SENTRY_DSN
+                options.environment = if (BuildConfig.DEBUG) "debug" else "release"
+                options.release = "${BuildConfig.APPLICATION_ID}@${BuildConfig.VERSION_NAME}+${BuildConfig.VERSION_CODE}"
+                options.tracesSampleRate = 0.0
+                options.isSendDefaultPii = false
+                options.isAttachScreenshot = false
+                options.isAttachViewHierarchy = false
+            }
+        }
         notificationHelper.createNotificationChannel()
         scheduleDailyWorker()
     }
