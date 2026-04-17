@@ -95,6 +95,7 @@ dependencies {
 
     // Play Services Location (geofencing)
     implementation(libs.play.services.location)
+    implementation(libs.osmdroid.android)
 
     // ML Kit GenAI
     implementation(libs.mlkit.genai.prompt)

@@ -1,17 +1,19 @@
 package com.alexsiri7.unreminder.ui.location
 
-import android.Manifest
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -20,9 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -32,20 +32,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @Composable
 fun LocationScreen(
     onNavigateBack: () -> Unit,
+    onAddLocation: () -> Unit,
+    onEditLocation: (String) -> Unit,
     viewModel: LocationViewModel = hiltViewModel()
 ) {
     val locations by viewModel.locations.collectAsStateWithLifecycle()
-
-    var pendingLabel by remember { mutableStateOf<String?>(null) }
-
-    val locationPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        if (permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true) {
-            pendingLabel?.let { viewModel.setCurrentLocation(it) }
-            pendingLabel = null
-        }
-    }
 
     Scaffold(
         topBar = {
@@ -57,59 +48,52 @@ fun LocationScreen(
                     }
                 }
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(onClick = onAddLocation) {
+                Icon(Icons.Default.Add, contentDescription = "Add location")
+            }
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+        LazyColumn(
+            modifier = Modifier.padding(padding).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                "Set your locations so the app knows where you are for context-aware triggers.",
-                style = MaterialTheme.typography.bodyMedium
-            )
-
-            listOf("HOME", "WORK").forEach { label ->
-                val saved = locations.find { it.label == label }
+            item {
+                Text(
+                    "Tap + to add a location. The app will trigger habits when you arrive.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+            items(locations) { loc ->
                 Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(label, style = MaterialTheme.typography.titleMedium)
-                        if (saved != null) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(loc.label, style = MaterialTheme.typography.titleMedium)
                             Text(
-                                "Lat: %.4f, Lng: %.4f".format(saved.lat, saved.lng),
+                                "%.4f, %.4f \u2014 radius ${loc.radiusM.toInt()} m".format(loc.lat, loc.lng),
                                 style = MaterialTheme.typography.bodySmall
                             )
-                            Text(
-                                "Radius: ${saved.radiusM.toInt()}m",
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        } else {
-                            Text("Not set", style = MaterialTheme.typography.bodySmall)
                         }
-                        Button(
-                            onClick = {
-                                pendingLabel = label
-                                locationPermissionLauncher.launch(
-                                    arrayOf(
-                                        Manifest.permission.ACCESS_FINE_LOCATION,
-                                        Manifest.permission.ACCESS_COARSE_LOCATION
-                                    )
-                                )
-                            },
-                            modifier = Modifier.padding(top = 8.dp)
-                        ) {
-                            Text("Set to current location")
+                        IconButton(onClick = { onEditLocation(loc.label) }) {
+                            Icon(Icons.Default.Edit, contentDescription = "Edit ${loc.label}")
                         }
                     }
                 }
             }
-
-            Text(
-                "Background location access is needed for geofence triggers. " +
-                    "Grant it in Settings > Location > Allow all the time.",
-                style = MaterialTheme.typography.bodySmall
-            )
+            if (locations.isEmpty()) {
+                item {
+                    Text(
+                        "No locations saved yet.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
     }
 }

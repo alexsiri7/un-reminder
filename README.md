@@ -37,6 +37,7 @@ Solo user (the author). Single-device, single-user. Personal productivity / well
 | Local storage | **Room** (SQLite) | Local-first. |
 | Scheduling | **WorkManager** + **AlarmManager** (exact alarms) | Stochastic trigger firing inside windows. |
 | Geofencing | **Android `GeofencingClient`** (Google Play Services Location API) | Background location; requires `ACCESS_BACKGROUND_LOCATION`. |
+| Map UI | **osmdroid** | OpenStreetMap-based map picker for location selection; tiles cached automatically on-device. |
 | Notifications | **NotificationManager** (Android 13+ runtime permission) | Native. |
 | LLM | **Gemma 4 E2B on-device** via **ML Kit GenAI Prompt API** / **AICore** (Pixel 8 Pro is AICore-supported). | Zero-cost, offline, private, low-latency. |
 | DI | Hilt | |
@@ -162,7 +163,10 @@ Parsed via `lines().firstOrNull { it.startsWith("Full:") }` / `"Low-floor:"`. Th
    AI-assist row: **Autofill with AI** (fills description fields from the habit name via on-device LLM; enabled when name ≥ 2 chars) · **Preview notification** (generates a sample notification text in a dialog; enabled when all description fields are filled).
 3. **Windows screen** — list of windows. FAB → add window. Tap → edit.
 4. **Window editor** — start/end time pickers, days-of-week chips, frequency slider (1–3), active toggle.
-5. **Locations screen** — "Set my Home" / "Set my Work". Uses current GPS at capture time; stores lat/lng + radius (default 100m). Re-settable.
+5. **Locations screen** — dynamic list of named locations (any label, not restricted to HOME/WORK).
+   FAB opens the map picker; each list item has an Edit button. Map picker shows a full-screen
+   osmdroid map with a draggable pin and a bottom sheet for label, radius (50–500 m), and Save.
+   Location is stored as lat/lng + radius; osmdroid caches tiles automatically (no offline pre-caching UI).
 6. **Recent triggers screen** — last 20 fired triggers with their generated prompts and outcomes. Read-only.
 7. **Settings screen** — notification permission status, background location permission status, a manual "Test trigger now" button, and a button to regenerate tomorrow's scheduled triggers.
 
@@ -177,6 +181,7 @@ No onboarding flow for MVP beyond permission requests on first launch. User is e
 - `ACCESS_BACKGROUND_LOCATION` (requested separately after fine location grant, with clear in-app explanation of why)
 - `SCHEDULE_EXACT_ALARM` (Android 12+)
 - `FOREGROUND_SERVICE` for the geofence service if needed.
+- `INTERNET` — map tile downloads for the location picker (OpenStreetMap; no personal data transmitted).
 
 ---
 
@@ -185,7 +190,7 @@ No onboarding flow for MVP beyond permission requests on first launch. User is e
 ```kotlin
 @Entity Habit(id, name, full_description, low_floor_description, location_tag, active, created_at, updated_at)
 @Entity Window(id, start_time, end_time, days_of_week_bitmask, frequency_per_day, active)
-@Entity Location(id, label /* HOME|WORK */, lat, lng, radius_m)
+@Entity Location(id, label /* user-defined, e.g. "HOME", "WORK", "Gym" */, lat, lng, radius_m)
 @Entity Trigger(id, window_id?, habit_id?, scheduled_at, fired_at?, status, generated_prompt?)
 ```
 

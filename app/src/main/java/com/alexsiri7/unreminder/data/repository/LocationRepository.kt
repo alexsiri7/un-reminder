@@ -16,6 +16,8 @@ class LocationRepository @Inject constructor(
 
     suspend fun getByLabel(label: String): LocationEntity? = locationDao.getByLabel(label)
 
+    suspend fun deleteByLabel(label: String) = locationDao.deleteByLabel(label)
+
     suspend fun upsertLocation(label: String, lat: Double, lng: Double, radiusM: Float = 100f) {
         locationDao.deleteByLabel(label)
         locationDao.insert(LocationEntity(label = label, lat = lat, lng = lng, radiusM = radiusM))
