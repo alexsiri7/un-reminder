@@ -4,9 +4,6 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.graphics.Bitmap
-import android.graphics.PixelCopy
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -62,32 +59,14 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector)
 val bottomNavItems = listOf(Screen.Habits, Screen.Windows, Screen.Recent, Screen.Settings)
 
 private fun captureScreenshot(activity: Activity, onCaptured: (String) -> Unit) {
-    val bitmap = Bitmap.createBitmap(
-        activity.window.decorView.width,
-        activity.window.decorView.height,
-        Bitmap.Config.ARGB_8888
-    )
-    // PixelCopy captures hardware-accelerated surfaces (required for Compose on API 26+).
-    // Falls back to drawToBitmap() for rare cases where PixelCopy is unavailable.
-    PixelCopy.request(activity.window, bitmap, { result ->
-        val path: String? = if (result == PixelCopy.SUCCESS) {
-            val file = File(activity.cacheDir, "feedback-${System.currentTimeMillis()}.png")
-            file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 90, it) }
-            file.absolutePath
-        } else {
-            Log.w("NavGraph", "PixelCopy failed (result=$result), falling back to drawToBitmap")
-            try {
-                val fallback = File(activity.cacheDir, "feedback-${System.currentTimeMillis()}.png")
-                val decorBitmap = activity.window.decorView.drawToBitmap()
-                fallback.outputStream().use { decorBitmap.compress(Bitmap.CompressFormat.PNG, 90, it) }
-                fallback.absolutePath
-            } catch (e: Exception) {
-                Log.e("NavGraph", "drawToBitmap fallback also failed — cannot open feedback screen", e)
-                null
-            }
-        }
-        if (path != null) onCaptured(path)
-    }, Handler(Looper.getMainLooper()))
+    try {
+        val file = File(activity.cacheDir, "feedback-${System.currentTimeMillis()}.png")
+        val bitmap = activity.window.decorView.drawToBitmap()
+        file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 90, it) }
+        onCaptured(file.absolutePath)
+    } catch (e: Exception) {
+        Log.e("NavGraph", "drawToBitmap failed — cannot open feedback screen", e)
+    }
 }
 
 @Composable
