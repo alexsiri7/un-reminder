@@ -62,26 +62,30 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
             try {
                 for (geofence in triggeringGeofences) {
                     val locationId = geofence.requestId.toLongOrNull() ?: continue
-                    when (transition) {
-                        Geofence.GEOFENCE_TRANSITION_ENTER -> {
-                            geofenceManager.addLocationId(locationId)
+                    try {
+                        when (transition) {
+                            Geofence.GEOFENCE_TRANSITION_ENTER -> {
+                                geofenceManager.addLocationId(locationId)
 
-                            if (isDebounced(context, geofence.requestId)) continue
+                                if (isDebounced(context, geofence.requestId)) continue
 
-                            recordDebounce(context, geofence.requestId)
+                                recordDebounce(context, geofence.requestId)
 
-                            val fireAt = Instant.now().plusMillis(ARRIVAL_DELAY_MS)
-                            val triggerId = triggerRepository.insert(
-                                TriggerEntity(
-                                    scheduledAt = fireAt,
-                                    status = TriggerStatus.SCHEDULED
+                                val fireAt = Instant.now().plusMillis(ARRIVAL_DELAY_MS)
+                                val triggerId = triggerRepository.insert(
+                                    TriggerEntity(
+                                        scheduledAt = fireAt,
+                                        status = TriggerStatus.SCHEDULED
+                                    )
                                 )
-                            )
-                            alarmScheduler.scheduleExactAlarm(triggerId, fireAt)
+                                alarmScheduler.scheduleExactAlarm(triggerId, fireAt)
+                            }
+                            Geofence.GEOFENCE_TRANSITION_EXIT -> {
+                                geofenceManager.removeLocationId(locationId)
+                            }
                         }
-                        Geofence.GEOFENCE_TRANSITION_EXIT -> {
-                            geofenceManager.removeLocationId(locationId)
-                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to process geofence transition: id=$locationId transition=$transition", e)
                     }
                 }
             } finally {

@@ -24,16 +24,15 @@ class HabitRepository @Inject constructor(
 
     suspend fun update(habit: HabitEntity) = habitDao.update(habit.copy(updatedAt = Instant.now()))
 
-    suspend fun delete(habit: HabitEntity) {
-        crossRefDao.deleteByHabitId(habit.id)
-        habitDao.delete(habit)
-    }
+    suspend fun delete(habit: HabitEntity) = habitDao.delete(habit)
 
     suspend fun getEligibleHabits(
         currentLocationIds: Set<Long>,
         excludeRecentMinutes: Long = 90
     ): List<HabitEntity> {
         val cutoff = Instant.now().minusSeconds(excludeRecentMinutes * 60).toEpochMilli()
+        // Room crashes if IN-clause receives an empty list. Use an impossible ID (-1) so the
+        // clause is syntactically valid but never matches any real habit row.
         val ids = if (currentLocationIds.isEmpty()) listOf(-1L) else currentLocationIds.toList()
         return habitDao.getEligibleHabits(ids, cutoff)
     }

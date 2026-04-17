@@ -19,7 +19,9 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
         // 1b. Create index on location_id for FK performance
         db.execSQL("CREATE INDEX IF NOT EXISTS `index_habit_location_location_id` ON `habit_location` (`location_id`)")
 
-        // 2. Migrate existing habits with HOME/WORK location tags to cross-refs
+        // 2. Seed cross-refs from existing HOME/WORK/COMMUTE location_tag values.
+        //    COMMUTE has no matching location row (label JOIN returns nothing), so those
+        //    habits naturally become "Anywhere" habits — this is intentional.
         db.execSQL("""
             INSERT OR IGNORE INTO `habit_location` (`habit_id`, `location_id`)
             SELECT h.id, l.id FROM habits h

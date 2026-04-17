@@ -55,9 +55,16 @@ A repeatable thing the user wants to do. Each habit has:
 - `name` — user-facing, short (e.g. "meditation", "gratefulness", "singing practice").
 - `full_description` — the full version (e.g. "20-minute guided meditation").
 - `low_floor_description` — the minimum-viable version (e.g. "3 deep breaths"). **Completing this counts as a win.**
-- `location_tag` — one of `{HOME, WORK, COMMUTE, ANYWHERE}`. Default `ANYWHERE`.
+- `locations` — zero or more named `Location` records associated via the `habit_location` junction table. A habit with **no** associated locations is eligible everywhere ("Anywhere" semantics). A habit with one or more locations is only eligible when the user is at one of those locations.
 - `active` — boolean. Inactive habits are never selected.
 - `created_at`, `updated_at`.
+
+### HabitLocationCrossRef
+A many-to-many join between `Habit` and `Location`. Each row has:
+- `habit_id` — FK → `habits.id` (CASCADE DELETE)
+- `location_id` — FK → `locations.id` (CASCADE DELETE)
+
+Composite primary key `(habit_id, location_id)`.
 
 ### Window
 A user-defined time range during which stochastic triggers may fire. Each window has:
@@ -78,8 +85,16 @@ A scheduled notification event.
 - `status` — `{SCHEDULED, FIRED, COMPLETED_FULL, COMPLETED_LOW_FLOOR, DISMISSED}`.
 - `generated_prompt` — the AI-generated text actually shown in the notification.
 
+### Location
+A named geofence the user has registered. Each location has:
+- `id`
+- `name` — user-defined label (e.g. "Home", "Gym", "Office").
+- `lat`, `lng` — coordinates captured at registration time (current GPS).
+- `radius_m` — geofence radius (default 100 m).
+
 ### Location state
-A simple in-memory / lightweight-persisted state of the user's current location tag (`HOME`, `WORK`, `COMMUTE`, or unknown), updated by geofence transitions.
+In-memory set of `location_id` values for the geofences the user is currently inside,
+updated by geofence `ENTER`/`EXIT` callbacks. Empty set means no known location.
 
 ---
 
@@ -102,7 +117,8 @@ A simple in-memory / lightweight-persisted state of the user's current location 
 1. Resolve current location state.
 2. Query eligible habits:
    - `active = true`
-   - `location_tag` matches current state, OR `location_tag = ANYWHERE`.
+   - Has **no** entries in `habit_location` (eligible everywhere), OR has at least one
+     `location_id` matching a geofence the user is currently inside.
    - Not fired within the last N minutes (configurable, default 90m) to avoid tight repeats.
 3. Pick **one** habit uniformly at random from eligible set. If the set is empty, skip silently.
 4. Call Gemma 4 E2B with a structured prompt (see below) to generate a fresh, actionable one-liner for this habit instance.
@@ -119,7 +135,7 @@ exact wording across calls. Maximum 80 characters. Plain text only.
 Habit: {name}
 Full version: {full_description}
 Low-floor version: {low_floor_description}
-Current location: {HOME|WORK|COMMUTE|ANYWHERE}
+Current location: {location name(s) or "Anywhere"}
 Time of day: {morning|afternoon|evening|night}
 ```
 
@@ -136,10 +152,10 @@ If Gemma 4 inference fails or takes >5s, fall back to a static template: *"{name
 ## 6. Screens (MVP)
 
 1. **Home screen** — list of habits. FAB → add habit. Tap habit → edit.
-2. **Habit editor** — name, full description, low-floor description, location tag, active toggle.
+2. **Habit editor** — name, full description, low-floor description, location chips (multi-select from saved locations; no selection = "Anywhere"), active toggle.
 3. **Windows screen** — list of windows. FAB → add window. Tap → edit.
 4. **Window editor** — start/end time pickers, days-of-week chips, frequency slider (1–3), active toggle.
-5. **Locations screen** — "Set my Home" / "Set my Work". Uses current GPS at capture time; stores lat/lng + radius (default 100m). Re-settable.
+5. **Locations screen** — list of named locations. FAB → capture current GPS as a new named location. Tap → delete. Each location stores name, lat/lng, radius (default 100 m).
 6. **Recent triggers screen** — last 20 fired triggers with their generated prompts and outcomes. Read-only.
 7. **Settings screen** — notification permission status, background location permission status, a manual "Test trigger now" button, and a button to regenerate tomorrow's scheduled triggers.
 
@@ -160,9 +176,11 @@ No onboarding flow for MVP beyond permission requests on first launch. User is e
 ## 8. Database Schema (Room)
 
 ```kotlin
-@Entity Habit(id, name, full_description, low_floor_description, location_tag, active, created_at, updated_at)
+// DB version 2
+@Entity Habit(id, name, full_description, low_floor_description, active, created_at, updated_at)
 @Entity Window(id, start_time, end_time, days_of_week_bitmask, frequency_per_day, active)
-@Entity Location(id, label /* HOME|WORK */, lat, lng, radius_m)
+@Entity Location(id, name /* user-defined */, lat, lng, radius_m)
+@Entity HabitLocationCrossRef(habit_id → Habit.id CASCADE, location_id → Location.id CASCADE)  // junction
 @Entity Trigger(id, window_id?, habit_id?, scheduled_at, fired_at?, status, generated_prompt?)
 ```
 

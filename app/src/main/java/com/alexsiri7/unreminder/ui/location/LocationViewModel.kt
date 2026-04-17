@@ -51,8 +51,12 @@ class LocationViewModel @Inject constructor(
 
     fun deleteLocation(location: LocationEntity) {
         viewModelScope.launch {
-            geofenceManager.removeGeofence(location.id)
-            locationRepository.delete(location)
+            try {
+                locationRepository.delete(location)
+                geofenceManager.removeGeofence(location.id)
+            } catch (e: Exception) {
+                Log.e("LocationViewModel", "deleteLocation failed for id=${location.id}", e)
+            }
         }
     }
 }

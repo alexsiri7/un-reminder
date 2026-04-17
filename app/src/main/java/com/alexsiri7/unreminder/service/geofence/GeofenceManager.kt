@@ -20,8 +20,10 @@ class GeofenceManager @Inject constructor(
         private const val TAG = "GeofenceManager"
     }
 
-    @Volatile
+    private val locationIdLock = Any()
+
     var currentLocationIds: Set<Long> = emptySet()
+        get() = synchronized(locationIdLock) { field }
         private set
 
     private val geofencingClient = LocationServices.getGeofencingClient(context)
@@ -29,8 +31,8 @@ class GeofenceManager @Inject constructor(
     @Inject
     lateinit var locationRepository: LocationRepository
 
-    fun addLocationId(id: Long) { currentLocationIds = currentLocationIds + id }
-    fun removeLocationId(id: Long) { currentLocationIds = currentLocationIds - id }
+    fun addLocationId(id: Long) = synchronized(locationIdLock) { currentLocationIds = currentLocationIds + id }
+    fun removeLocationId(id: Long) = synchronized(locationIdLock) { currentLocationIds = currentLocationIds - id }
 
     fun registerGeofence(id: Long, name: String, lat: Double, lng: Double, radiusM: Float) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)

@@ -1,5 +1,6 @@
 package com.alexsiri7.unreminder.ui.habit
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.alexsiri7.unreminder.data.db.HabitEntity
@@ -38,21 +39,31 @@ class HabitEditViewModel @Inject constructor(
     val allLocations: StateFlow<List<LocationEntity>> = locationRepository.getAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private var existingHabitId: Long? = null
+    private var existingHabit: HabitEntity? = null
 
     fun loadHabit(id: Long) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
-            val habit = habitRepository.getById(id).first() ?: return@launch
-            val locationIds = habitRepository.getLocationIds(id).toSet()
-            existingHabitId = id
-            _uiState.value = HabitEditUiState(
-                name = habit.name,
-                fullDescription = habit.fullDescription,
-                lowFloorDescription = habit.lowFloorDescription,
-                selectedLocationIds = locationIds,
-                active = habit.active
-            )
+            try {
+                val habit = habitRepository.getById(id).first()
+                if (habit == null) {
+                    Log.w("HabitEditViewModel", "loadHabit: habit $id not found")
+                    return@launch
+                }
+                val locationIds = habitRepository.getLocationIds(id).toSet()
+                existingHabit = habit
+                _uiState.value = HabitEditUiState(
+                    name = habit.name,
+                    fullDescription = habit.fullDescription,
+                    lowFloorDescription = habit.lowFloorDescription,
+                    selectedLocationIds = locationIds,
+                    active = habit.active
+                )
+            } catch (e: Exception) {
+                Log.e("HabitEditViewModel", "loadHabit: failed to load habit $id", e)
+            } finally {
+                _uiState.value = _uiState.value.copy(isLoading = false)
+            }
         }
     }
 
@@ -76,23 +87,29 @@ class HabitEditViewModel @Inject constructor(
         viewModelScope.launch {
             val state = _uiState.value
             if (state.name.isBlank()) return@launch
-            val existingId = existingHabitId
-            val habitId = if (existingId != null) {
-                habitRepository.update(
-                    HabitEntity(id = existingId, name = state.name,
-                        fullDescription = state.fullDescription,
-                        lowFloorDescription = state.lowFloorDescription,
-                        active = state.active)
-                )
-                existingId
-            } else {
-                habitRepository.insert(
-                    HabitEntity(name = state.name, fullDescription = state.fullDescription,
-                        lowFloorDescription = state.lowFloorDescription, active = state.active)
-                )
+            try {
+                val existing = existingHabit
+                val habitId = if (existing != null) {
+                    habitRepository.update(
+                        existing.copy(
+                            name = state.name,
+                            fullDescription = state.fullDescription,
+                            lowFloorDescription = state.lowFloorDescription,
+                            active = state.active
+                        )
+                    )
+                    existing.id
+                } else {
+                    habitRepository.insert(
+                        HabitEntity(name = state.name, fullDescription = state.fullDescription,
+                            lowFloorDescription = state.lowFloorDescription, active = state.active)
+                    )
+                }
+                habitRepository.setLocations(habitId, state.selectedLocationIds)
+                _uiState.value = _uiState.value.copy(isSaved = true)
+            } catch (e: Exception) {
+                Log.e("HabitEditViewModel", "save failed", e)
             }
-            habitRepository.setLocations(habitId, state.selectedLocationIds)
-            _uiState.value = _uiState.value.copy(isSaved = true)
         }
     }
 }

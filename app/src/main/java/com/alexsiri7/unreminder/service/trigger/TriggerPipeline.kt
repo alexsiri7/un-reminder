@@ -60,6 +60,7 @@ class TriggerPipeline @Inject constructor(
             )
         } catch (e: Exception) {
             Log.e(TAG, "Trigger pipeline failed for trigger=$triggerId habit=${habit.name}", e)
+            triggerRepository.updateOutcome(triggerId, TriggerStatus.DISMISSED)
         }
     }
 

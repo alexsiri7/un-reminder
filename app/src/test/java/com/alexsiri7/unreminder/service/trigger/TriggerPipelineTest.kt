@@ -1,6 +1,7 @@
 package com.alexsiri7.unreminder.service.trigger
 
 import com.alexsiri7.unreminder.data.db.HabitEntity
+import com.alexsiri7.unreminder.data.db.LocationEntity
 import com.alexsiri7.unreminder.data.db.TriggerEntity
 import com.alexsiri7.unreminder.data.repository.HabitRepository
 import com.alexsiri7.unreminder.data.repository.LocationRepository
@@ -124,5 +125,41 @@ class TriggerPipelineTest {
         pipeline.execute(42L)
 
         coVerify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any()) }
+    }
+
+    @Test
+    fun `pipeline exception dismisses the trigger`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
+        coEvery { promptGenerator.generate(any(), any(), any()) } throws RuntimeException("LLM error")
+
+        pipeline.execute(42L)
+
+        coVerify { triggerRepository.updateOutcome(42L, TriggerStatus.DISMISSED) }
+    }
+
+    @Test
+    fun `happy path - location name passed to prompt generator`() = runTest {
+        val loc = LocationEntity(id = 1L, name = "Home", lat = 0.0, lng = 0.0, radiusM = 100f)
+        coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
+        coEvery { locationRepository.getByIds(setOf(1L)) } returns listOf(loc)
+        coEvery { promptGenerator.generate(any(), "Home", any()) } returns "Time for meditation!"
+
+        pipeline.execute(42L)
+
+        coVerify { promptGenerator.generate(testHabit, "Home", any()) }
+    }
+
+    @Test
+    fun `stale location id - prompt receives any location fallback`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
+        coEvery { locationRepository.getByIds(any()) } returns emptyList()
+        coEvery { promptGenerator.generate(any(), "any location", any()) } returns "Time!"
+
+        pipeline.execute(42L)
+
+        coVerify { promptGenerator.generate(testHabit, "any location", any()) }
     }
 }

@@ -24,6 +24,7 @@ class PromptGeneratorTest {
 
     @Test
     fun `generate returns fallback when model is null`() = runTest {
+        // model is null by default (initialize() not called in unit tests)
         val result = generator.generate(habit, "Home", "morning")
         assertEquals("meditation: 3 deep breaths", result)
     }
