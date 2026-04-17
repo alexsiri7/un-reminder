@@ -6,6 +6,7 @@ import com.alexsiri7.unreminder.data.repository.LocationRepository
 import com.alexsiri7.unreminder.service.geofence.GeofenceManager
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -48,7 +49,7 @@ class MapPickerViewModelTest {
         val state = viewModel.uiState.value
         assertEquals("", state.name)
         assertEquals(100f, state.radiusM)
-        assertFalse(state.isSaved)
+        assertFalse(state.centerReady)
     }
 
     @Test
@@ -107,5 +108,19 @@ class MapPickerViewModelTest {
         assertEquals(48.8, state.lat, 0.0001)
         assertEquals(200f, state.radiusM)
         assertTrue(state.centerReady)
+    }
+
+    @Test
+    fun `save does not invoke onComplete and sets errorMessage when upsertLocation throws`() = runTest {
+        coEvery {
+            locationRepository.upsertLocation(any(), any(), any(), any())
+        } throws RuntimeException("DB error")
+
+        viewModel.updateName("Gym")
+        var callbackFired = false
+        viewModel.save { callbackFired = true }
+
+        assertFalse(callbackFired)
+        assertFalse(viewModel.uiState.value.errorMessage.isNullOrBlank())
     }
 }

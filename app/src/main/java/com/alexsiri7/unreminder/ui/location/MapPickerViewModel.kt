@@ -22,10 +22,10 @@ data class MapPickerUiState(
     val lng: Double = 0.0,
     val radiusM: Float = 100f,
     val isLoading: Boolean = false,
-    val isSaved: Boolean = false,
-    val initialCenterLat: Double = 51.5074,
+    val initialCenterLat: Double = 51.5074,  // London — fallback when no GPS fix is available
     val initialCenterLng: Double = -0.1278,
-    val centerReady: Boolean = false
+    val centerReady: Boolean = false,
+    val errorMessage: String? = null
 )
 
 @HiltViewModel
@@ -56,6 +56,8 @@ class MapPickerViewModel @Inject constructor(
                 }
             }
             try {
+                // Permission may not be granted (no explicit request in this flow); lastLocation
+                // returns null gracefully if unavailable — the map falls back to London defaults.
                 @Suppress("MissingPermission")
                 val loc = LocationServices.getFusedLocationProviderClient(context)
                     .lastLocation.await()
@@ -68,11 +70,22 @@ class MapPickerViewModel @Inject constructor(
                         centerReady = true
                     )
                 } else {
-                    _uiState.value = _uiState.value.copy(centerReady = true)
+                    // No recent GPS fix — use London defaults so pin is visible on screen.
+                    // LocationServices static call cannot be mocked in JVM unit tests;
+                    // this fallback path is intentionally untested at unit level.
+                    _uiState.value = _uiState.value.copy(
+                        lat = _uiState.value.initialCenterLat,
+                        lng = _uiState.value.initialCenterLng,
+                        centerReady = true
+                    )
                 }
             } catch (e: Exception) {
                 Log.w("MapPickerViewModel", "Could not get last known location", e)
-                _uiState.value = _uiState.value.copy(centerReady = true)
+                _uiState.value = _uiState.value.copy(
+                    lat = _uiState.value.initialCenterLat,
+                    lng = _uiState.value.initialCenterLng,
+                    centerReady = true
+                )
             }
         }
     }
@@ -96,10 +109,12 @@ class MapPickerViewModel @Inject constructor(
             try {
                 locationRepository.upsertLocation(state.name, state.lat, state.lng, state.radiusM)
                 geofenceManager.registerGeofence(state.name, state.lat, state.lng, state.radiusM)
-                _uiState.value = _uiState.value.copy(isSaved = true)
                 onComplete()
             } catch (e: Exception) {
                 Log.e("MapPickerViewModel", "Failed to save location for label=${state.name}", e)
+                _uiState.value = _uiState.value.copy(
+                    errorMessage = "Could not save location. Please try again."
+                )
             }
         }
     }

@@ -20,6 +20,7 @@
 <p>
   The Un-Reminder is a native Android application that stores all user data exclusively on the user's device.
   It does not collect, transmit, share, or sell any personal information.
+  Map tile images are fetched from <a href="https://www.openstreetmap.org">OpenStreetMap</a> tile servers when the location picker is open; these requests contain no personal data.
 </p>
 
 <h2>Data handled on-device</h2>
@@ -43,6 +44,7 @@
   <li><code>POST_NOTIFICATIONS</code> — to display habit prompts.</li>
   <li><code>ACCESS_FINE_LOCATION</code>, <code>ACCESS_BACKGROUND_LOCATION</code> — to detect arrival at locations you configure.</li>
   <li><code>SCHEDULE_EXACT_ALARM</code> — to fire stochastic triggers at their scheduled times.</li>
+  <li><code>INTERNET</code> — to download map tiles from OpenStreetMap when you use the map-based location picker. No personal data is included in these requests.</li>
 </ul>
 
 <h2>Your data</h2>

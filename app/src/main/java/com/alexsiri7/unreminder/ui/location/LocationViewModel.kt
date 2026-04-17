@@ -1,5 +1,6 @@
 package com.alexsiri7.unreminder.ui.location
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.alexsiri7.unreminder.data.db.LocationEntity
@@ -23,8 +24,12 @@ class LocationViewModel @Inject constructor(
 
     fun delete(label: String) {
         viewModelScope.launch {
-            locationRepository.deleteByLabel(label)
-            geofenceManager.removeGeofence(label)
+            try {
+                locationRepository.deleteByLabel(label)
+                geofenceManager.removeGeofence(label)
+            } catch (e: Exception) {
+                Log.e("LocationViewModel", "Failed to delete location label=$label", e)
+            }
         }
     }
 }

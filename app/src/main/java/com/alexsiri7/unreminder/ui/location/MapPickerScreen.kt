@@ -17,6 +17,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberBottomSheetScaffoldState
@@ -55,6 +57,11 @@ fun MapPickerScreen(
     LaunchedEffect(Unit) { viewModel.initialize(existingLabel) }
 
     val mapViewRef = remember { mutableStateOf<MapView?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(uiState.errorMessage) {
+        uiState.errorMessage?.let { snackbarHostState.showSnackbar(it) }
+    }
 
     val scaffoldState = rememberBottomSheetScaffoldState(
         bottomSheetState = rememberStandardBottomSheetState(
@@ -64,6 +71,7 @@ fun MapPickerScreen(
 
     BottomSheetScaffold(
         scaffoldState = scaffoldState,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(if (existingLabel == null) "Add location" else "Edit location") },
@@ -98,7 +106,7 @@ fun MapPickerScreen(
                     value = uiState.radiusM,
                     onValueChange = viewModel::updateRadius,
                     valueRange = 50f..500f,
-                    steps = 89,
+                    steps = 89,  // 90 positions at 5 m increments (50, 55, ..., 500)
                     modifier = Modifier.fillMaxWidth()
                 )
                 Button(
@@ -170,8 +178,8 @@ fun MapPickerScreen(
                         GeoPoint(uiState.lat, uiState.lng),
                         uiState.radiusM.toDouble()
                     )
-                    circle.fillColor = 0x220000FF
-                    circle.strokeColor = 0xFF0000FF.toInt()
+                    circle.fillColor = 0x220000FF           // ARGB: alpha=0x22 (~13% opaque), blue
+                    circle.strokeColor = 0xFF0000FF.toInt() // ARGB: fully opaque blue
                     circle.strokeWidth = 2f
                     mv.overlays.add(0, circle)
                     mv.invalidate()

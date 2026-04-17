@@ -1,5 +1,6 @@
 package com.alexsiri7.unreminder.ui.navigation
 
+import android.net.Uri
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
@@ -120,7 +121,7 @@ fun NavGraph() {
                 LocationScreen(
                     onNavigateBack = { navController.popBackStack() },
                     onAddLocation = { navController.navigate("location_add") },
-                    onEditLocation = { label -> navController.navigate("location_edit/$label") }
+                    onEditLocation = { label -> navController.navigate("location_edit/${Uri.encode(label)}") }
                 )
             }
             composable("location_add") {
