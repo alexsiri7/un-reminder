@@ -33,15 +33,35 @@ jobs:
       - name: Unit tests
         run: ./gradlew test --stacktrace
 
-      - name: Assemble debug APK
-        run: ./gradlew assembleDebug --stacktrace
+      - name: Decode release keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::KEYSTORE_B64 secret is not set — release APK cannot be signed."
+            exit 1
+          fi
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/keystore.jks"
+          echo "KEYSTORE_PATH=$RUNNER_TEMP/keystore.jks" >> "$GITHUB_ENV"
 
-      - name: Upload debug APK
+      - name: Resolve version
+        run: |
+          VERSION_CODE=$(git rev-list --count HEAD)
+          echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
+
+      - name: Assemble signed release APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew assembleRelease --stacktrace
+
+      - name: Upload signed release APK
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-${{ github.sha }}
-          path: app/build/outputs/apk/debug/*.apk
+          name: app-release-${{ github.sha }}
+          path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 14
 
