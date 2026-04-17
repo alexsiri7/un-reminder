@@ -42,9 +42,24 @@ Solo user (the author). Single-device, single-user. Personal productivity / well
 | LLM | **Gemma 4 E2B on-device** via **ML Kit GenAI Prompt API** / **AICore** (Pixel 8 Pro is AICore-supported). | Zero-cost, offline, private, low-latency. |
 | DI | Hilt | |
 | Testing | JUnit + Compose UI tests | |
+| Crash reporting | **Sentry** (`sentry-android:7.14.0`) — release builds only, gated on `SENTRY_DSN` env var; no PII, no habit content | Error visibility in production |
 
 **Target device for MVP:** Pixel 8 Pro (AICore available, Gemma 4 runs natively).
 **Fallback:** bundle ML Kit GenAI Prompt API for devices without AICore (post-MVP).
+
+---
+
+## 3a. CI / Release Setup
+
+The following GitHub Actions secrets must be configured for the release workflow to produce a signed build with crash reporting enabled:
+
+| Secret | Required For | Notes |
+|--------|-------------|-------|
+| `KEYSTORE_FILE` | Signed APK/AAB | Base64-encoded `.jks` file |
+| `KEYSTORE_PASSWORD` | Signed APK/AAB | |
+| `KEY_ALIAS` | Signed APK/AAB | |
+| `KEY_PASSWORD` | Signed APK/AAB | |
+| `SENTRY_DSN` | Crash reporting | Optional — if absent, Sentry init is skipped and no crash reports are sent |
 
 ---
 
@@ -181,7 +196,7 @@ No onboarding flow for MVP beyond permission requests on first launch. User is e
 - `ACCESS_BACKGROUND_LOCATION` (requested separately after fine location grant, with clear in-app explanation of why)
 - `SCHEDULE_EXACT_ALARM` (Android 12+)
 - `FOREGROUND_SERVICE` for the geofence service if needed.
-- `INTERNET` — map tile downloads for the location picker (OpenStreetMap; no personal data transmitted).
+- `INTERNET` — map tile downloads for the location picker (OpenStreetMap; no personal data transmitted), and anonymous crash report transmission to Sentry in release builds (no personal data, no habit content, no location data).
 
 ---
 

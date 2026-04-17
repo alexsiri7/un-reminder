@@ -35,7 +35,6 @@
   <li>No analytics or telemetry.</li>
   <li>No advertising.</li>
   <li>No user account, sign-in, or cloud sync.</li>
-  <li>No third-party data sharing.</li>
 </ul>
 
 <h2>Crash reporting</h2>
@@ -47,7 +46,7 @@
   <li><code>POST_NOTIFICATIONS</code> — to display habit prompts.</li>
   <li><code>ACCESS_FINE_LOCATION</code>, <code>ACCESS_BACKGROUND_LOCATION</code> — to detect arrival at locations you configure.</li>
   <li><code>SCHEDULE_EXACT_ALARM</code> — to fire stochastic triggers at their scheduled times.</li>
-  <li><code>INTERNET</code> — to download map tiles from OpenStreetMap when you use the map-based location picker. No personal data is included in these requests.</li>
+  <li><code>INTERNET</code> — to download map tiles from OpenStreetMap when you use the map-based location picker (no personal data), and to transmit anonymous crash reports to Sentry in release builds (no personal data, no habit content, no location data).</li>
 </ul>
 
 <h2>Your data</h2>
