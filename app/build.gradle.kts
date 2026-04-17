@@ -14,14 +14,27 @@ android {
         applicationId = "com.alexsiri7.unreminder"
         minSdk = 31
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 1
+        versionName = System.getenv("VERSION_NAME") ?: "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            val keystorePath = System.getenv("KEYSTORE_PATH")
+            if (!keystorePath.isNullOrBlank()) {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
