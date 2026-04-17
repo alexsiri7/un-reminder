@@ -129,7 +129,29 @@ Expected output example for *gratefulness*:
 - "Name one thing that went better than expected today."
 
 ### Fallback
-If Gemma 4 inference fails or takes >5s, fall back to a static template: *"{name}: {low_floor_description}"*.
+If Gemma 4 inference fails or takes >5s, fall back to a static template: *"{name}: {low_floor_description}"*. Note: the AI autofill and notification preview features throw on failure (no silent fallback) so the UI can surface a clear error message.
+
+### Habit-field autofill prompt (on-device Gemma 4)
+
+Used to generate `full_description` and `low_floor_description` when the user taps "Autofill with AI" in the Habit editor. Takes only the habit title as input.
+
+```
+System: You are generating habit description fields for a productivity app.
+Given only a habit title, produce exactly two lines:
+Full: <one sentence, specific full description, max 100 chars>
+Low-floor: <minimum viable version, max 60 chars>
+Plain text only.
+
+Habit title: {name}
+```
+
+Expected output format (two lines, no extras):
+```
+Full: 20-minute guided body-scan meditation
+Low-floor: 3 deep breaths
+```
+
+Parsed via `lines().firstOrNull { it.startsWith("Full:") }` / `"Low-floor:"`. Throws `IllegalStateException` if either line is missing.
 
 ---
 
@@ -137,6 +159,7 @@ If Gemma 4 inference fails or takes >5s, fall back to a static template: *"{name
 
 1. **Home screen** — list of habits. FAB → add habit. Tap habit → edit.
 2. **Habit editor** — name, full description, low-floor description, location tag, active toggle.
+   AI-assist row: **Autofill with AI** (fills description fields from the habit name via on-device LLM; enabled when name ≥ 2 chars) · **Preview notification** (generates a sample notification text in a dialog; enabled when all description fields are filled).
 3. **Windows screen** — list of windows. FAB → add window. Tap → edit.
 4. **Window editor** — start/end time pickers, days-of-week chips, frequency slider (1–3), active toggle.
 5. **Locations screen** — "Set my Home" / "Set my Work". Uses current GPS at capture time; stores lat/lng + radius (default 100m). Re-settable.

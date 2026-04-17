@@ -55,17 +55,21 @@ class PromptGeneratorTest {
 
     @Test
     fun `generateHabitFields throws when model is null`() = runTest {
-        val exception = runCatching {
+        val result = runCatching {
             generator.generateHabitFields("meditation")
         }
-        assertTrue(exception.isFailure)
+        assertTrue(result.isFailure)
+        assertTrue("Expected IllegalStateException, got ${result.exceptionOrNull()?.javaClass}", result.exceptionOrNull() is IllegalStateException)
+        assertEquals("LLM unavailable", result.exceptionOrNull()?.message)
     }
 
     @Test
     fun `previewHabitNotification throws when model is null`() = runTest {
-        val exception = runCatching {
+        val result = runCatching {
             generator.previewHabitNotification(habit, LocationTag.ANYWHERE)
         }
-        assertTrue(exception.isFailure)
+        assertTrue(result.isFailure)
+        assertTrue("Expected IllegalStateException, got ${result.exceptionOrNull()?.javaClass}", result.exceptionOrNull() is IllegalStateException)
+        assertEquals("LLM unavailable", result.exceptionOrNull()?.message)
     }
 }

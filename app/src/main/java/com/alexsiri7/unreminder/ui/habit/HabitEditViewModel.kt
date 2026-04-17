@@ -104,6 +104,7 @@ class HabitEditViewModel @Inject constructor(
                     isGeneratingFields = false
                 )
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 _uiState.value = _uiState.value.copy(
                     isGeneratingFields = false,
                     errorMessage = "AI unavailable — fill in manually."
@@ -114,21 +115,25 @@ class HabitEditViewModel @Inject constructor(
 
     fun previewNotification() {
         viewModelScope.launch {
-            val state = _uiState.value
-            val tempHabit = HabitEntity(
-                name = state.name,
-                fullDescription = state.fullDescription,
-                lowFloorDescription = state.lowFloorDescription,
-                locationTag = state.locationTag
-            )
+            _uiState.value = _uiState.value.copy(isGeneratingFields = true, errorMessage = null)
             try {
+                val state = _uiState.value
+                val tempHabit = HabitEntity(
+                    name = state.name,
+                    fullDescription = state.fullDescription,
+                    lowFloorDescription = state.lowFloorDescription,
+                    locationTag = state.locationTag
+                )
                 val text = promptGenerator.previewHabitNotification(tempHabit, state.locationTag)
                 _uiState.value = _uiState.value.copy(
+                    isGeneratingFields = false,
                     previewNotification = text,
                     showPreviewDialog = true
                 )
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 _uiState.value = _uiState.value.copy(
+                    isGeneratingFields = false,
                     errorMessage = "AI unavailable — preview not available."
                 )
             }

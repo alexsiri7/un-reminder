@@ -28,7 +28,7 @@ class PromptGenerator @Inject constructor(
             m.warmup()
             model = m
         } catch (e: Exception) {
-            Log.w(TAG, "LLM initialization failed, falling back to templates", e)
+            Log.w(TAG, "LLM initialization failed; notification generation will use templates, AI autofill will throw", e)
             model = null
         }
     }
@@ -42,7 +42,7 @@ class PromptGenerator @Inject constructor(
                 response.candidates.firstOrNull()?.text?.take(80) ?: fallback(habit)
             }
         } catch (e: kotlin.coroutines.cancellation.CancellationException) {
-            throw e
+            throw e  // must propagate: cancellation is not an error
         } catch (e: Exception) {
             Log.w(TAG, "LLM generation failed, using fallback", e)
             fallback(habit)
@@ -76,7 +76,7 @@ class PromptGenerator @Inject constructor(
                 AiHabitFields(full, low)
             }
         } catch (e: kotlin.coroutines.cancellation.CancellationException) {
-            throw e
+            throw e  // must propagate: cancellation is not an error
         } catch (e: Exception) {
             Log.w(TAG, "LLM habit field generation failed", e)
             throw e
@@ -84,8 +84,14 @@ class PromptGenerator @Inject constructor(
     }
 
     suspend fun previewHabitNotification(habit: HabitEntity, locationTag: LocationTag = LocationTag.ANYWHERE): String {
-        if (model == null) throw IllegalStateException("LLM unavailable")
-        return generate(habit, locationTag, "now")
+        val m = model ?: throw IllegalStateException("LLM unavailable")
+        return withTimeout(5_000) {
+            // "now" tells the LLM to generate a notification appropriate for the current moment
+            val prompt = buildPrompt(habit, locationTag, "now")
+            val response = m.generateContent(prompt)
+            response.candidates.firstOrNull()?.text?.take(80)
+                ?: throw IllegalStateException("Empty LLM response")
+        }
     }
 
     private fun buildHabitFieldsPrompt(title: String): String =
