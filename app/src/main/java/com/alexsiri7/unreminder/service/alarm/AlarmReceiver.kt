@@ -3,6 +3,7 @@ package com.alexsiri7.unreminder.service.alarm
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import com.alexsiri7.unreminder.service.trigger.TriggerPipeline
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -24,6 +25,8 @@ class AlarmReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 triggerPipeline.execute(triggerId)
+            } catch (e: Exception) {
+                Log.e("AlarmReceiver", "Pipeline execution failed for trigger=$triggerId", e)
             } finally {
                 pendingResult.finish()
             }

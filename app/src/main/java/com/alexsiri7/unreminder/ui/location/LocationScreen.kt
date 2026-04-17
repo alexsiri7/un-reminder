@@ -20,6 +20,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -33,9 +36,16 @@ fun LocationScreen(
 ) {
     val locations by viewModel.locations.collectAsStateWithLifecycle()
 
+    var pendingLabel by remember { mutableStateOf<String?>(null) }
+
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { /* permissions handled */ }
+    ) { permissions ->
+        if (permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true) {
+            pendingLabel?.let { viewModel.setCurrentLocation(it) }
+            pendingLabel = null
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -79,13 +89,13 @@ fun LocationScreen(
                         }
                         Button(
                             onClick = {
+                                pendingLabel = label
                                 locationPermissionLauncher.launch(
                                     arrayOf(
                                         Manifest.permission.ACCESS_FINE_LOCATION,
                                         Manifest.permission.ACCESS_COARSE_LOCATION
                                     )
                                 )
-                                viewModel.setCurrentLocation(label)
                             },
                             modifier = Modifier.padding(top = 8.dp)
                         ) {

@@ -21,10 +21,10 @@ class AlarmScheduler @Inject constructor(
     private val alarmManager: AlarmManager =
         context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
-    fun scheduleExactAlarm(triggerId: Long, fireAt: Instant) {
+    fun scheduleExactAlarm(triggerId: Long, fireAt: Instant): Boolean {
         if (!alarmManager.canScheduleExactAlarms()) {
             Log.w(TAG, "Cannot schedule exact alarms — permission not granted")
-            return
+            return false
         }
 
         val pendingIntent = createPendingIntent(triggerId)
@@ -33,6 +33,7 @@ class AlarmScheduler @Inject constructor(
             fireAt.toEpochMilli(),
             pendingIntent
         )
+        return true
     }
 
     fun cancelAlarm(triggerId: Long) {

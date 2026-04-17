@@ -3,6 +3,7 @@ package com.alexsiri7.unreminder.ui.location
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -43,8 +44,8 @@ class LocationViewModel @Inject constructor(
                 val lng = location.longitude
                 locationRepository.upsertLocation(label, lat, lng)
                 geofenceManager.registerGeofence(label, lat, lng, 100f)
-            } catch (_: Exception) {
-                // Location unavailable
+            } catch (e: Exception) {
+                Log.e("LocationViewModel", "Failed to set location for label=$label", e)
             }
         }
     }

@@ -4,6 +4,7 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import com.alexsiri7.unreminder.data.db.TriggerEntity
 import com.alexsiri7.unreminder.data.repository.TriggerRepository
 import com.alexsiri7.unreminder.domain.model.LocationTag
@@ -22,6 +23,7 @@ import javax.inject.Inject
 class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
     companion object {
+        private const val TAG = "GeofenceBroadcastRcvr"
         private const val DEBOUNCE_MS = 30 * 60 * 1000L // 30 minutes
         private const val ARRIVAL_DELAY_MS = 5 * 60 * 1000L // 5 minutes
         private const val PREFS_NAME = "geofence_debounce"
@@ -48,7 +50,10 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val event = GeofencingEvent.fromIntent(intent) ?: return
-        if (event.hasError()) return
+        if (event.hasError()) {
+            Log.e(TAG, "Geofence error: code=${event.errorCode}")
+            return
+        }
 
         val transition = event.geofenceTransition
         val triggeringGeofences = event.triggeringGeofences ?: return
@@ -61,6 +66,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                     val tag = when (label.uppercase()) {
                         "HOME" -> LocationTag.HOME
                         "WORK" -> LocationTag.WORK
+                        "COMMUTE" -> LocationTag.COMMUTE
                         else -> LocationTag.ANYWHERE
                     }
 
