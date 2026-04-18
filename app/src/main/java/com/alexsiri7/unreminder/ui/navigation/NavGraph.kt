@@ -19,9 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -30,7 +28,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.alexsiri7.unreminder.data.repository.OnboardingRepository
 import com.alexsiri7.unreminder.ui.habit.HabitEditScreen
 import com.alexsiri7.unreminder.ui.habit.HabitListScreen
 import com.alexsiri7.unreminder.ui.location.LocationScreen
@@ -40,11 +37,6 @@ import com.alexsiri7.unreminder.ui.recent.RecentTriggersScreen
 import com.alexsiri7.unreminder.ui.settings.SettingsScreen
 import com.alexsiri7.unreminder.ui.window.WindowEditScreen
 import com.alexsiri7.unreminder.ui.window.WindowListScreen
-import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.stateIn
-import javax.inject.Inject
 
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
     data object Habits : Screen("habits", "Habits", Icons.Default.Repeat)
@@ -55,18 +47,12 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector)
 
 val bottomNavItems = listOf(Screen.Habits, Screen.Windows, Screen.Recent, Screen.Settings)
 
-@HiltViewModel
-class NavViewModel @Inject constructor(
-    onboardingRepository: OnboardingRepository
-) : ViewModel() {
-    val isOnboarded: StateFlow<Boolean?> = onboardingRepository.isOnboardingCompleted
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
-}
-
 @Composable
 fun NavGraph(navViewModel: NavViewModel = hiltViewModel()) {
     val isOnboarded by navViewModel.isOnboarded.collectAsStateWithLifecycle()
 
+    // Lock startDestination once: prevents NavHost from re-routing after onboarding
+    // completes and isOnboarded flips from false → true during the same session.
     val startDestination = remember { mutableStateOf<String?>(null) }
     if (startDestination.value == null && isOnboarded != null) {
         startDestination.value = if (isOnboarded == true) Screen.Habits.route else "onboarding"

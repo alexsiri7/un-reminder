@@ -3,6 +3,7 @@ package com.alexsiri7.unreminder.ui.onboarding
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -27,7 +28,8 @@ data class OnboardingUiState(
     val habitName: String = "",
     val windowStartTime: LocalTime = LocalTime.of(9, 0),
     val windowEndTime: LocalTime = LocalTime.of(17, 0),
-    val isCompleted: Boolean = false
+    val isCompleted: Boolean = false,
+    val errorMessage: String? = null
 )
 
 @HiltViewModel
@@ -74,36 +76,52 @@ class OnboardingViewModel @Inject constructor(
 
     fun completeOnboarding(saveHabit: Boolean, saveWindow: Boolean) {
         viewModelScope.launch {
-            if (saveHabit && _uiState.value.habitName.isNotBlank()) {
-                habitRepository.insert(
-                    HabitEntity(
-                        name = _uiState.value.habitName,
-                        fullDescription = "",
-                        lowFloorDescription = "",
-                        active = true
+            try {
+                if (saveHabit && _uiState.value.habitName.isNotBlank()) {
+                    habitRepository.insert(
+                        HabitEntity(
+                            name = _uiState.value.habitName,
+                            fullDescription = "",
+                            lowFloorDescription = "",
+                            active = true
+                        )
                     )
+                }
+                if (saveWindow) {
+                    windowRepository.insert(
+                        WindowEntity(
+                            startTime = _uiState.value.windowStartTime,
+                            endTime = _uiState.value.windowEndTime,
+                            // Mon–Fri: bit 0 = Monday, bit 4 = Friday (matches DailySchedulerWorkerTest convention)
+                            daysOfWeekBitmask = 0b0011111,
+                            frequencyPerDay = 1,
+                            active = true
+                        )
+                    )
+                }
+                onboardingRepository.markOnboardingCompleted()
+                _uiState.value = _uiState.value.copy(isCompleted = true)
+            } catch (e: Exception) {
+                Log.e(TAG, "completeOnboarding failed", e)
+                _uiState.value = _uiState.value.copy(
+                    errorMessage = "Something went wrong. Please try again."
                 )
             }
-            if (saveWindow) {
-                windowRepository.insert(
-                    WindowEntity(
-                        startTime = _uiState.value.windowStartTime,
-                        endTime = _uiState.value.windowEndTime,
-                        daysOfWeekBitmask = 0b0011111, // Mon-Fri
-                        frequencyPerDay = 1,
-                        active = true
-                    )
-                )
-            }
-            onboardingRepository.markOnboardingCompleted()
-            _uiState.value = _uiState.value.copy(isCompleted = true)
         }
     }
 
     fun skip() {
         viewModelScope.launch {
-            onboardingRepository.markOnboardingCompleted()
+            try {
+                onboardingRepository.markOnboardingCompleted()
+            } catch (e: Exception) {
+                Log.e(TAG, "skip: failed to mark onboarding completed, proceeding anyway", e)
+            }
             _uiState.value = _uiState.value.copy(isCompleted = true)
         }
+    }
+
+    companion object {
+        private const val TAG = "OnboardingViewModel"
     }
 }

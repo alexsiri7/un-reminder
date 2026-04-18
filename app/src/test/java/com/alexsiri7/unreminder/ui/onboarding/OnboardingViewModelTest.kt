@@ -6,6 +6,7 @@ import androidx.core.content.ContextCompat
 import com.alexsiri7.unreminder.data.repository.HabitRepository
 import com.alexsiri7.unreminder.data.repository.OnboardingRepository
 import com.alexsiri7.unreminder.data.repository.WindowRepository
+import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
@@ -20,9 +21,12 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.time.LocalTime
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class OnboardingViewModelTest {
@@ -89,9 +93,67 @@ class OnboardingViewModelTest {
         viewModel.completeOnboarding(saveHabit = true, saveWindow = true)
         advanceUntilIdle()
 
-        coVerify { mockHabitRepository.insert(match { it.name == "Meditate" }) }
+        coVerify {
+            mockHabitRepository.insert(match {
+                it.name == "Meditate" &&
+                it.active == true &&
+                it.fullDescription == "" &&
+                it.lowFloorDescription == ""
+            })
+        }
         coVerify { mockWindowRepository.insert(any()) }
         coVerify { mockOnboardingRepository.markOnboardingCompleted() }
+        assertTrue(viewModel.uiState.value.isCompleted)
+        assertNull(viewModel.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun `completeOnboarding with saveWindow=false does not insert window`() = runTest {
+        viewModel.updateHabitName("Exercise")
+        viewModel.completeOnboarding(saveHabit = true, saveWindow = false)
+        advanceUntilIdle()
+
+        coVerify { mockHabitRepository.insert(any()) }
+        coVerify(exactly = 0) { mockWindowRepository.insert(any()) }
+        coVerify { mockOnboardingRepository.markOnboardingCompleted() }
+        assertTrue(viewModel.uiState.value.isCompleted)
+    }
+
+    @Test
+    fun `completeOnboarding saves custom window times to WindowEntity`() = runTest {
+        viewModel.updateWindowStartTime(LocalTime.of(8, 30))
+        viewModel.updateWindowEndTime(LocalTime.of(20, 0))
+        viewModel.completeOnboarding(saveHabit = false, saveWindow = true)
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { mockHabitRepository.insert(any()) }
+        coVerify {
+            mockWindowRepository.insert(match {
+                it.startTime == LocalTime.of(8, 30) && it.endTime == LocalTime.of(20, 0)
+            })
+        }
+        assertTrue(viewModel.uiState.value.isCompleted)
+    }
+
+    @Test
+    fun `completeOnboarding sets errorMessage on repository failure`() = runTest {
+        coEvery { mockHabitRepository.insert(any()) } throws RuntimeException("DB error")
+
+        viewModel.updateHabitName("Yoga")
+        viewModel.completeOnboarding(saveHabit = true, saveWindow = true)
+        advanceUntilIdle()
+
+        assertNotNull(viewModel.uiState.value.errorMessage)
+        assertTrue(viewModel.uiState.value.errorMessage!!.isNotBlank())
+    }
+
+    @Test
+    fun `skip sets isCompleted even if markOnboardingCompleted throws`() = runTest {
+        coEvery { mockOnboardingRepository.markOnboardingCompleted() } throws RuntimeException("DataStore error")
+
+        viewModel.skip()
+        advanceUntilIdle()
+
         assertTrue(viewModel.uiState.value.isCompleted)
     }
 
