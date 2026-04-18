@@ -1,8 +1,8 @@
 package com.alexsiri7.unreminder.di
 
 import android.content.Context
-import com.alexsiri7.unreminder.service.alarm.AlarmScheduler
 import com.alexsiri7.unreminder.data.repository.LocationRepository
+import com.alexsiri7.unreminder.service.alarm.AlarmScheduler
 import com.alexsiri7.unreminder.service.geofence.GeofenceManager
 import com.alexsiri7.unreminder.service.notification.EmojiRotator
 import com.alexsiri7.unreminder.service.notification.NotificationHelper

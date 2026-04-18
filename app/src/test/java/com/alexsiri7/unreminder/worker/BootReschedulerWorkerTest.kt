@@ -3,9 +3,12 @@ package com.alexsiri7.unreminder.worker
 import android.content.Context
 import androidx.work.ListenableWorker.Result
 import androidx.work.WorkerParameters
+import com.alexsiri7.unreminder.data.db.TriggerEntity
 import com.alexsiri7.unreminder.data.repository.TriggerRepository
+import com.alexsiri7.unreminder.domain.model.TriggerStatus
 import com.alexsiri7.unreminder.service.alarm.AlarmScheduler
 import com.alexsiri7.unreminder.service.geofence.GeofenceManager
+import java.time.Instant
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -47,12 +50,19 @@ class BootReschedulerWorkerTest {
     }
 
     @Test
-    fun `doWork calls registerAllFromDb — geofenceManager dependency is properly wired`() = runTest {
+    fun `doWork schedules only future triggers and skips past ones`() = runTest {
+        val now = Instant.now()
+        val futureTrigger = TriggerEntity(id = 1L, scheduledAt = now.plusSeconds(3600), status = TriggerStatus.SCHEDULED)
+        val pastTrigger = TriggerEntity(id = 2L, scheduledAt = now.minusSeconds(3600), status = TriggerStatus.SCHEDULED)
+
         coEvery { mockGeofenceManager.registerAllFromDb() } returns Unit
-        coEvery { mockTriggerRepository.getAllScheduled() } returns emptyList()
+        coEvery { mockTriggerRepository.getAllScheduled() } returns listOf(futureTrigger, pastTrigger)
+        coEvery { mockAlarmScheduler.scheduleExactAlarm(any(), any()) } returns Unit
 
         val result = worker.doWork()
 
         assertEquals(Result.success(), result)
+        coVerify(exactly = 1) { mockAlarmScheduler.scheduleExactAlarm(1L, futureTrigger.scheduledAt) }
+        coVerify(exactly = 0) { mockAlarmScheduler.scheduleExactAlarm(2L, any()) }
     }
 }
