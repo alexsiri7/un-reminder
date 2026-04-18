@@ -14,6 +14,7 @@ import javax.inject.Singleton
 class NotificationHelper @Inject constructor(
     private val context: Context
 ) {
+    private val notificationManager = context.getSystemService(NotificationManager::class.java)
     companion object {
         const val CHANNEL_ID = "un_reminder_triggers"
         const val CHANNEL_NAME = "Habit Triggers"
@@ -37,8 +38,7 @@ class NotificationHelper @Inject constructor(
         ).apply {
             description = "Stochastic habit nudges"
         }
-        val manager = context.getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(channel)
+        notificationManager.createNotificationChannel(channel)
 
         val systemChannel = NotificationChannel(
             CHANNEL_ID_SYSTEM,
@@ -49,7 +49,7 @@ class NotificationHelper @Inject constructor(
             setSound(null, null)
             enableVibration(false)
         }
-        manager.createNotificationChannel(systemChannel)
+        notificationManager.createNotificationChannel(systemChannel)
     }
 
     fun postTriggerNotification(triggerId: Long, promptText: String, habitName: String) {
@@ -69,8 +69,7 @@ class NotificationHelper @Inject constructor(
             .addAction(0, "Dismiss", dismissIntent)
             .build()
 
-        val manager = context.getSystemService(NotificationManager::class.java)
-        manager.notify(triggerId.toInt(), notification)
+        notificationManager.notify(triggerId.toInt(), notification)
     }
 
     fun postHabitPausedNotification(habitId: Long, habitName: String) {
@@ -81,8 +80,7 @@ class NotificationHelper @Inject constructor(
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
             .build()
-        val manager = context.getSystemService(NotificationManager::class.java)
-        manager.notify((NOTIFICATION_ID_PAUSED_BASE + habitId).toInt(), notification)
+        notificationManager.notify((NOTIFICATION_ID_PAUSED_BASE + habitId).toInt(), notification)
     }
 
     private fun createActionIntent(triggerId: Long, action: String, requestCodeOffset: Int): PendingIntent {
