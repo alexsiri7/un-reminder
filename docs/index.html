@@ -56,11 +56,13 @@
 
 <h2>Crash reporting</h2>
 <p>
-  The app uses <a href="https://sentry.io">Sentry</a> to automatically report unhandled exceptions,
-  ANRs, and native crashes. Reports contain only technical metadata (stack traces, Android version,
-  device model, app version) and do not include any personal information, habit content,
-  notification text, or location data. Crash reports are sent over HTTPS and are visible only
-  to the developer. You can review Sentry's privacy policy at
+  The app uses <a href="https://sentry.io">Sentry</a> to automatically report unhandled
+  exceptions, ANRs, and native crashes. Reports contain technical metadata including:
+  stack traces, Android OS version, device model and screen resolution, app version,
+  device locale, available memory, and connectivity type. Reports do not include any
+  personal information, habit content, notification text, or location data, and are not
+  used to identify individual users. Crash reports are sent over HTTPS and are visible
+  only to the developer. You can review Sentry's privacy policy at
   <a href="https://sentry.io/privacy/">sentry.io/privacy</a>.
 </p>
 
@@ -70,7 +72,7 @@
   <li><code>POST_NOTIFICATIONS</code> — to display habit prompts.</li>
   <li><code>ACCESS_FINE_LOCATION</code>, <code>ACCESS_BACKGROUND_LOCATION</code> — to detect arrival at locations you configure.</li>
   <li><code>SCHEDULE_EXACT_ALARM</code> — to fire stochastic triggers at their scheduled times.</li>
-  <li><code>INTERNET</code> — two purposes: (1) to download map tiles from OpenStreetMap when you use the location picker (no personal data sent); and (2) when you explicitly submit in-app feedback, to upload your annotated screenshot and description to the app's GitHub repository as a GitHub issue. This upload is always user-initiated; nothing is sent automatically.</li>
+  <li><code>INTERNET</code> — three purposes: (1) to download map tiles from OpenStreetMap when you use the location picker (no personal data sent); (2) when you explicitly submit in-app feedback, to upload your annotated screenshot and description to the app's GitHub repository as a GitHub issue (always user-initiated; nothing is sent automatically); and (3) to send crash reports to Sentry (no personal information, habit content, or location data included).</li>
 </ul>
 
 <h2>Your data</h2>

@@ -10,6 +10,7 @@ import androidx.work.WorkManager
 import com.alexsiri7.unreminder.service.llm.PromptGenerator
 import com.alexsiri7.unreminder.service.notification.NotificationHelper
 import com.alexsiri7.unreminder.service.sentry.applyOptions
+import com.alexsiri7.unreminder.service.sentry.shouldInitSentry
 import com.alexsiri7.unreminder.worker.DailySchedulerWorker
 import dagger.hilt.android.HiltAndroidApp
 import io.sentry.android.core.SentryAndroid
@@ -40,6 +41,7 @@ class UnReminderApp : Application(), Configuration.Provider {
             .build()
 
     override fun onCreate() {
+        // init before super so Sentry captures crashes during Hilt graph setup
         initSentry()
         super.onCreate()
         notificationHelper.createNotificationChannel()
@@ -49,7 +51,7 @@ class UnReminderApp : Application(), Configuration.Provider {
 
     private fun initSentry() {
         val dsn = BuildConfig.SENTRY_DSN
-        if (dsn.isBlank()) return
+        if (!shouldInitSentry(dsn)) return
         try {
             SentryAndroid.init(this) { options ->
                 applyOptions(
@@ -61,7 +63,7 @@ class UnReminderApp : Application(), Configuration.Provider {
                     versionCode = BuildConfig.VERSION_CODE
                 )
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.w("UnReminderApp", "Sentry init failed", e)
         }
     }

@@ -3,6 +3,7 @@ package com.alexsiri7.unreminder.service.sentry
 import io.sentry.android.core.SentryAndroidOptions
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SentryOptionsBuilderTest {
@@ -44,10 +45,29 @@ class SentryOptionsBuilderTest {
 
     @Test
     fun `PII and attachments all disabled`() {
-        val options = SentryAndroidOptions()
+        val options = SentryAndroidOptions().apply {
+            isSendDefaultPii = true
+            isAttachScreenshot = true
+            isAttachViewHierarchy = true
+        }
         applyOptions(options, dsn = "https://key@sentry.io/123", isDebug = false, appId = "com.example", versionName = "1.0.0", versionCode = 1)
         assertFalse(options.isSendDefaultPii)
         assertFalse(options.isAttachScreenshot)
         assertFalse(options.isAttachViewHierarchy)
+    }
+
+    @Test
+    fun `blank DSN - should not init sentry`() {
+        assertFalse(shouldInitSentry(""))
+    }
+
+    @Test
+    fun `whitespace-only DSN - should not init sentry`() {
+        assertFalse(shouldInitSentry("   "))
+    }
+
+    @Test
+    fun `non-blank DSN - should init sentry`() {
+        assertTrue(shouldInitSentry("https://key@sentry.io/123"))
     }
 }
