@@ -25,7 +25,7 @@ class GitHubApiService @Inject constructor(
         title: String,
         body: String,
         screenshotFile: File? = null,
-    ): Unit = withContext(Dispatchers.IO) {
+    ) = withContext(Dispatchers.IO) {
         val endpoint = BuildConfig.FEEDBACK_ENDPOINT_URL
         if (endpoint.isBlank()) {
             throw IllegalStateException("FEEDBACK_ENDPOINT_URL not configured")
