@@ -69,6 +69,18 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun surpriseMe() {
+        viewModelScope.launch {
+            val trigger = TriggerEntity(
+                scheduledAt = Instant.now(),
+                status = TriggerStatus.SCHEDULED,
+                source = "MANUAL"
+            )
+            val id = triggerRepository.insert(trigger)
+            triggerPipeline.execute(id)
+        }
+    }
+
     fun regenerateTriggers() {
         viewModelScope.launch {
             triggerRepository.deleteAllScheduled()

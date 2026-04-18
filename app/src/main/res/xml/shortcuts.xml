@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="surprise_me"
+        android:enabled="true"
+        android:icon="@drawable/ic_surprise_me"
+        android:shortcutShortLabel="@string/shortcut_surprise_short"
+        android:shortcutLongLabel="@string/shortcut_surprise_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.alexsiri7.unreminder"
+            android:targetClass="com.alexsiri7.unreminder.ui.shortcut.SurpriseMeActivity" />
+        <categories android:name="android.shortcut.conversation" />
+    </shortcut>
+</shortcuts>

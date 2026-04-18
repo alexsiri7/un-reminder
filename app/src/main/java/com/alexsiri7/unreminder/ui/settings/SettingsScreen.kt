@@ -108,6 +108,13 @@ fun SettingsScreen(
             }
 
             OutlinedButton(
+                onClick = { viewModel.surpriseMe() },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Surprise me")
+            }
+
+            OutlinedButton(
                 onClick = { viewModel.testTriggerNow() },
                 modifier = Modifier.fillMaxWidth()
             ) {

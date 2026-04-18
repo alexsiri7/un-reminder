@@ -20,5 +20,7 @@ data class TriggerEntity(
     val firedAt: Instant? = null,
     val status: TriggerStatus = TriggerStatus.SCHEDULED,
     @ColumnInfo(name = "generated_prompt")
-    val generatedPrompt: String? = null
+    val generatedPrompt: String? = null,
+    @ColumnInfo(name = "source")
+    val source: String? = null
 )

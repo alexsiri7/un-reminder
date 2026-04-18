@@ -7,6 +7,7 @@ import com.alexsiri7.unreminder.data.db.HabitDao
 import com.alexsiri7.unreminder.data.db.HabitLocationCrossRefDao
 import com.alexsiri7.unreminder.data.db.LocationDao
 import com.alexsiri7.unreminder.data.db.MIGRATION_1_2
+import com.alexsiri7.unreminder.data.db.MIGRATION_2_3
 import com.alexsiri7.unreminder.data.db.TriggerDao
 import com.alexsiri7.unreminder.data.db.WindowDao
 import dagger.Module
@@ -27,7 +28,7 @@ object AppModule {
             context,
             AppDatabase::class.java,
             "unreminder.db"
-        ).addMigrations(MIGRATION_1_2).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
     }
 
     @Provides

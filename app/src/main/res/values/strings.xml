@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Un-Reminder</string>
+    <string name="shortcut_surprise_short">Surprise</string>
+    <string name="shortcut_surprise_long">Surprise me</string>
 </resources>
