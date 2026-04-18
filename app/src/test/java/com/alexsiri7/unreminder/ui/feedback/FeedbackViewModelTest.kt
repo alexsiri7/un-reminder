@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import com.alexsiri7.unreminder.data.repository.FeedbackRepository
 import com.alexsiri7.unreminder.service.github.GitHubApiService
+import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -34,7 +35,8 @@ class FeedbackViewModelTest {
     }
     @After fun tearDown() { Dispatchers.resetMain() }
 
-    @Test fun `submit sets errorMessage when endpoint URL is blank`() = runTest {
+    @Test fun `submit sets errorMessage when submission throws`() = runTest {
+        coEvery { mockGitHubApiService.submit(any(), any(), any()) } throws RuntimeException("boom")
         viewModel.updateDescription("app crashed on tap")
         viewModel.submit(mockk(relaxed = true))
         advanceUntilIdle()
@@ -45,7 +47,7 @@ class FeedbackViewModelTest {
     }
 
     @Test fun `clearError clears errorMessage in state`() = runTest {
-        // Trigger an error first via blank-endpoint submit path
+        coEvery { mockGitHubApiService.submit(any(), any(), any()) } throws RuntimeException("boom")
         viewModel.submit(mockk(relaxed = true))
         advanceUntilIdle()
         assertNotNull(viewModel.uiState.value.errorMessage)
