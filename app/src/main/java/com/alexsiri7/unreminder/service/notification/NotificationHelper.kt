@@ -14,6 +14,7 @@ import javax.inject.Singleton
 class NotificationHelper @Inject constructor(
     private val context: Context
 ) {
+    private val notificationManager = context.getSystemService(NotificationManager::class.java)
     companion object {
         const val CHANNEL_ID = "un_reminder_triggers"
         const val CHANNEL_NAME = "Habit Triggers"
@@ -22,6 +23,11 @@ class NotificationHelper @Inject constructor(
         const val ACTION_COMPLETED_FULL = "COMPLETED_FULL"
         const val ACTION_COMPLETED_LOW_FLOOR = "COMPLETED_LOW_FLOOR"
         const val ACTION_DISMISSED = "DISMISSED"
+        const val CHANNEL_ID_SYSTEM = "un_reminder_system"
+        const val CHANNEL_NAME_SYSTEM = "Habit Status"
+        // Paused-habit notifications use habitId as offset.
+        // Base chosen well above realistic trigger ID values to avoid collisions.
+        const val NOTIFICATION_ID_PAUSED_BASE = 900_000L
     }
 
     fun createNotificationChannel() {
@@ -32,8 +38,18 @@ class NotificationHelper @Inject constructor(
         ).apply {
             description = "Stochastic habit nudges"
         }
-        val manager = context.getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(channel)
+        notificationManager.createNotificationChannel(channel)
+
+        val systemChannel = NotificationChannel(
+            CHANNEL_ID_SYSTEM,
+            CHANNEL_NAME_SYSTEM,
+            NotificationManager.IMPORTANCE_DEFAULT
+        ).apply {
+            description = "Habit lifecycle status updates"
+            setSound(null, null)
+            enableVibration(false)
+        }
+        notificationManager.createNotificationChannel(systemChannel)
     }
 
     fun postTriggerNotification(triggerId: Long, promptText: String, habitName: String) {
@@ -53,8 +69,18 @@ class NotificationHelper @Inject constructor(
             .addAction(0, "Dismiss", dismissIntent)
             .build()
 
-        val manager = context.getSystemService(NotificationManager::class.java)
-        manager.notify(triggerId.toInt(), notification)
+        notificationManager.notify(triggerId.toInt(), notification)
+    }
+
+    fun postHabitPausedNotification(habitId: Long, habitName: String) {
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID_SYSTEM)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle("Paused $habitName")
+            .setContentText("Rewrite its low-floor description to re-activate.")
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+            .build()
+        notificationManager.notify((NOTIFICATION_ID_PAUSED_BASE + habitId).toInt(), notification)
     }
 
     private fun createActionIntent(triggerId: Long, action: String, requestCodeOffset: Int): PendingIntent {

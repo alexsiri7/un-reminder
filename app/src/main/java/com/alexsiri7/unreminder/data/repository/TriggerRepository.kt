@@ -40,4 +40,7 @@ class TriggerRepository @Inject constructor(
     }
 
     suspend fun deleteAllScheduled() = triggerDao.deleteAllScheduled()
+
+    suspend fun getLastNForHabit(habitId: Long, n: Int): List<TriggerEntity> =
+        triggerDao.getLastNForHabit(habitId, n)
 }

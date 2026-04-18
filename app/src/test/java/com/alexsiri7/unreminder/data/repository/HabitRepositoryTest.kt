@@ -32,6 +32,15 @@ class HabitRepositoryTest {
     }
 
     @Test
+    fun `getByIdOnce delegates to dao with correct id`() = runTest {
+        coEvery { habitDao.getByIdOnce(5L) } returns null
+
+        repo.getByIdOnce(5L)
+
+        coVerify { habitDao.getByIdOnce(5L) }
+    }
+
+    @Test
     fun `getEligibleHabits with non-empty set passes ids directly`() = runTest {
         coEvery { habitDao.getEligibleHabits(listOf(1L, 2L), any()) } returns emptyList()
 

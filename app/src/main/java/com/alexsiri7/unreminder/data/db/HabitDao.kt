@@ -22,6 +22,10 @@ interface HabitDao {
     @Query("SELECT * FROM habits WHERE id = :id")
     fun getById(id: Long): Flow<HabitEntity?>
 
+    /** One-shot suspend read; use when a reactive Flow is not needed (e.g., background coroutine). */
+    @Query("SELECT * FROM habits WHERE id = :id")
+    suspend fun getByIdOnce(id: Long): HabitEntity?
+
     @Query("SELECT * FROM habits ORDER BY name ASC")
     fun getAll(): Flow<List<HabitEntity>>
 

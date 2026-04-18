@@ -58,7 +58,9 @@ A repeatable thing the user wants to do. Each habit has:
 - `full_description` — the full version (e.g. "20-minute guided meditation").
 - `low_floor_description` — the minimum-viable version (e.g. "3 deep breaths"). **Completing this counts as a win.**
 - `locations` — zero or more named `Location` records associated via the `habit_location` junction table. A habit with **no** associated locations is eligible everywhere ("Anywhere" semantics). A habit with one or more locations is only eligible when the user is at one of those locations.
-- `active` — boolean. Inactive habits are never selected.
+- `active` — boolean. Inactive habits are never selected. Can be toggled manually in the habit editor.
+  The system also sets this to `false` automatically after 3 consecutive `DISMISSED` triggers
+  (see [Trigger Logic §5](#5-trigger-logic)).
 - `created_at`, `updated_at`.
 
 ### HabitLocationCrossRef
@@ -126,6 +128,8 @@ updated by geofence `ENTER`/`EXIT` callbacks. Empty set means no known location.
 4. Call Gemma 4 E2B with a structured prompt (see below) to generate a fresh, actionable one-liner for this habit instance.
 5. Post the notification with the generated text. Action buttons: **Did the full version**, **Did the low-floor**, **Dismiss**.
 6. Record the trigger row with the generated prompt and the outcome when the user responds.
+   If the last 3 triggers for the same habit are all `DISMISSED`, the habit is automatically set to
+   `active = false` (auto-paused). The user can re-activate it by editing the habit.
 
 ### LLM prompt shape (on-device Gemma 4)
 
@@ -243,7 +247,6 @@ Tracked manually by glancing at the Recent triggers screen. Not a feature.
 ## 11. Out of Scope for MVP (explicit v0.2+ backlog)
 
 - Emoji/icon shuffling on notifications.
-- Dismissal tracking → auto-inactivate after 3 consecutive dismissals.
 - Cloud sync & multi-device (would re-introduce Supabase + Google OAuth).
 - iOS version.
 - A "Surprise Me" quick-pick screen.
