@@ -43,4 +43,6 @@ class TriggerRepository @Inject constructor(
 
     suspend fun getLastNForHabit(habitId: Long, n: Int): List<TriggerEntity> =
         triggerDao.getLastNForHabit(habitId, n)
+
+    suspend fun getLastFiredForHabit(habitId: Long): Long? = triggerDao.getLastFiredForHabit(habitId)
 }
