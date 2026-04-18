@@ -2,6 +2,7 @@ package com.alexsiri7.unreminder.di
 
 import android.content.Context
 import com.alexsiri7.unreminder.service.alarm.AlarmScheduler
+import com.alexsiri7.unreminder.data.repository.LocationRepository
 import com.alexsiri7.unreminder.service.geofence.GeofenceManager
 import com.alexsiri7.unreminder.service.notification.EmojiRotator
 import com.alexsiri7.unreminder.service.notification.NotificationHelper
@@ -25,8 +26,11 @@ object ServiceModule {
 
     @Provides
     @Singleton
-    fun provideGeofenceManager(@ApplicationContext context: Context): GeofenceManager {
-        return GeofenceManager(context)
+    fun provideGeofenceManager(
+        @ApplicationContext context: Context,
+        locationRepository: LocationRepository
+    ): GeofenceManager {
+        return GeofenceManager(context, locationRepository)
     }
 
     @Provides
