@@ -2,6 +2,7 @@ name: Release
 
 on:
   push:
+    branches: [main]
     tags:
       - 'v*'
   workflow_dispatch:
@@ -48,8 +49,11 @@ jobs:
         run: |
           if [ "${GITHUB_REF#refs/tags/}" != "$GITHUB_REF" ]; then
             VERSION_NAME="${GITHUB_REF#refs/tags/v}"
-          else
+          elif [ -n "${{ inputs.version }}" ]; then
             VERSION_NAME="${{ inputs.version }}"
+          else
+            # main push: versionName derived from short SHA
+            VERSION_NAME="main-$(git rev-parse --short HEAD)"
           fi
           VERSION_CODE=$(git rev-list --count HEAD)
           echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
