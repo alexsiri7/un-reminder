@@ -68,22 +68,20 @@ class FeedbackViewModel @Inject constructor(
                 val merged = mergeAnnotations(annotationBitmap)
                 val screenshotPath = merged?.let { saveToCacheDir(it) }
 
-                if (BuildConfig.GITHUB_FEEDBACK_TOKEN.isBlank()) {
+                if (BuildConfig.FEEDBACK_ENDPOINT_URL.isBlank()) {
                     _uiState.value = _uiState.value.copy(
                         isSubmitting = false,
-                        errorMessage = "Feedback token not configured — copy logs to clipboard instead."
+                        errorMessage = "Feedback endpoint not configured."
                     )
                     return@launch
                 }
 
                 try {
-                    val screenshotUrl = screenshotPath?.let { path ->
-                        gitHubApiService.uploadImage(File(path))
-                    }
                     val desc = _uiState.value.description
                     val title = desc.take(60).ifBlank { "Feedback from app" }
-                    val body = buildIssueBody(desc, screenshotUrl)
-                    gitHubApiService.createIssue(title, body)
+                    val body = buildIssueBody(desc)
+                    val screenshotFile = screenshotPath?.let { File(it) }
+                    gitHubApiService.submit(title, body, screenshotFile)
                     screenshotPath?.let { File(it).delete() }
                     _uiState.value = _uiState.value.copy(isSubmitting = false, submitted = true)
                 } catch (e: IOException) {
@@ -97,11 +95,10 @@ class FeedbackViewModel @Inject constructor(
                     )
                 } catch (e: Exception) {
                     if (e is CancellationException) throw e
-                    // Permanent failure (e.g. auth error) — do not queue; inform the user.
                     Log.e(TAG, "Direct submit failed (permanent)", e)
                     _uiState.value = _uiState.value.copy(
                         isSubmitting = false,
-                        errorMessage = "Submission failed — please check your feedback token."
+                        errorMessage = "Submission failed."
                     )
                 }
             } catch (e: Exception) {
@@ -131,10 +128,9 @@ class FeedbackViewModel @Inject constructor(
         return file.absolutePath
     }
 
-    private fun buildIssueBody(description: String, screenshotUrl: String?): String =
+    private fun buildIssueBody(description: String): String =
         buildString {
             if (description.isNotBlank()) appendLine(description).appendLine()
-            if (screenshotUrl != null) appendLine("![screenshot]($screenshotUrl)").appendLine()
             appendLine("---")
             appendLine("Device: ${Build.MANUFACTURER} ${Build.MODEL}")
             appendLine("Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")

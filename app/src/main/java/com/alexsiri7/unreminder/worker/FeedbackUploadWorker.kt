@@ -32,26 +32,24 @@ class FeedbackUploadWorker @AssistedInject constructor(
         val pending = feedbackRepository.getPending()
         if (pending.isEmpty()) return Result.success()
 
-        if (BuildConfig.GITHUB_FEEDBACK_TOKEN.isBlank()) return Result.failure()
+        if (BuildConfig.FEEDBACK_ENDPOINT_URL.isBlank()) return Result.failure()
 
         for (item in pending) {
             try {
-                val screenshotUrl = item.screenshotPath?.let { path ->
-                    val file = File(path)
-                    if (file.exists()) gitHubApiService.uploadImage(file) else null
-                }
-
                 val title = item.description.take(60).ifBlank { "Feedback from app" }
                 val body = buildString {
                     if (item.description.isNotBlank()) appendLine(item.description).appendLine()
-                    if (screenshotUrl != null) appendLine("![screenshot]($screenshotUrl)").appendLine()
                     appendLine("---")
                     appendLine("Device: ${Build.MANUFACTURER} ${Build.MODEL}")
                     appendLine("Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
                     appendLine("App: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
                 }
 
-                gitHubApiService.createIssue(title, body)
+                val screenshotFile = item.screenshotPath
+                    ?.let { File(it) }
+                    ?.takeIf { it.exists() }
+
+                gitHubApiService.submit(title, body, screenshotFile)
                 feedbackRepository.deleteById(item.id)
                 item.screenshotPath?.let { File(it).delete() }
             } catch (e: Exception) {

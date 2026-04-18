@@ -6,11 +6,11 @@ import androidx.work.WorkerParameters
 import com.alexsiri7.unreminder.data.db.PendingFeedbackEntity
 import com.alexsiri7.unreminder.data.repository.FeedbackRepository
 import com.alexsiri7.unreminder.service.github.GitHubApiService
+import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.just
 import io.mockk.mockk
-import io.mockk.Runs
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -44,7 +44,7 @@ class FeedbackUploadWorkerTest {
         assertEquals(Result.success(), result)
     }
 
-    @Test fun `doWork calls deleteById after successful upload`() = runTest {
+    @Test fun `doWork submits queued item and deletes on success`() = runTest {
         val item = PendingFeedbackEntity(
             id = 1L,
             screenshotPath = null,
@@ -52,15 +52,13 @@ class FeedbackUploadWorkerTest {
             queuedAt = Instant.now()
         )
         coEvery { mockRepository.getPending() } returns listOf(item)
-        coEvery { mockGitHubApiService.createIssue(any(), any()) } just Runs
+        coEvery { mockGitHubApiService.submit(any(), any(), any()) } just Runs
 
-        // Token is blank in tests so we get failure — this verifies the guard works.
-        // For the success path, coverage is ensured by FeedbackViewModelTest.
         val result = worker.doWork()
 
-        // With blank token the worker returns failure without calling the API
-        assertEquals(Result.failure(), result)
-        coVerify(exactly = 0) { mockGitHubApiService.createIssue(any(), any()) }
+        assertEquals(Result.success(), result)
+        coVerify(exactly = 1) { mockGitHubApiService.submit(any(), any(), any()) }
+        coVerify(exactly = 1) { mockRepository.deleteById(1L) }
     }
 
     @Test fun `doWork returns retry on IOException`() = runTest {
@@ -71,12 +69,28 @@ class FeedbackUploadWorkerTest {
             queuedAt = Instant.now()
         )
         coEvery { mockRepository.getPending() } returns listOf(item)
-        coEvery { mockGitHubApiService.createIssue(any(), any()) } throws IOException("network unreachable")
+        coEvery { mockGitHubApiService.submit(any(), any(), any()) } throws IOException("network unreachable")
 
-        // Worker will hit token-blank guard and return failure without calling API,
-        // so we verify the IOException path indirectly by ensuring the guard is first.
         val result = worker.doWork()
+
+        assertEquals(Result.retry(), result)
+        coVerify(exactly = 0) { mockRepository.deleteById(any()) }
+    }
+
+    @Test fun `doWork returns failure on non-transient exception`() = runTest {
+        val item = PendingFeedbackEntity(
+            id = 3L,
+            screenshotPath = null,
+            description = "weird failure",
+            queuedAt = Instant.now()
+        )
+        coEvery { mockRepository.getPending() } returns listOf(item)
+        coEvery { mockGitHubApiService.submit(any(), any(), any()) } throws RuntimeException("400 bad request")
+
+        val result = worker.doWork()
+
         assertEquals(Result.failure(), result)
+        coVerify(exactly = 0) { mockRepository.deleteById(any()) }
     }
 
     @Test fun `WORK_NAME constant is defined`() {

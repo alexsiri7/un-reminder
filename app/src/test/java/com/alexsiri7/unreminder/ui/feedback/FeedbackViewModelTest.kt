@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import com.alexsiri7.unreminder.data.repository.FeedbackRepository
 import com.alexsiri7.unreminder.service.github.GitHubApiService
+import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -34,7 +35,8 @@ class FeedbackViewModelTest {
     }
     @After fun tearDown() { Dispatchers.resetMain() }
 
-    @Test fun `submit sets errorMessage when token is blank`() = runTest {
+    @Test fun `submit sets errorMessage when submission throws`() = runTest {
+        coEvery { mockGitHubApiService.submit(any(), any(), any()) } throws RuntimeException("boom")
         viewModel.updateDescription("app crashed on tap")
         viewModel.submit(mockk(relaxed = true))
         advanceUntilIdle()
@@ -44,19 +46,19 @@ class FeedbackViewModelTest {
         assertNotNull(state.errorMessage)
     }
 
-    @Test fun `updateDescription updates description in state`() {
-        viewModel.updateDescription("some description")
-        assertEquals("some description", viewModel.uiState.value.description)
-    }
-
     @Test fun `clearError clears errorMessage in state`() = runTest {
-        // Trigger an error first via blank-token submit path
+        coEvery { mockGitHubApiService.submit(any(), any(), any()) } throws RuntimeException("boom")
         viewModel.submit(mockk(relaxed = true))
         advanceUntilIdle()
         assertNotNull(viewModel.uiState.value.errorMessage)
 
         viewModel.clearError()
         assertNull(viewModel.uiState.value.errorMessage)
+    }
+
+    @Test fun `updateDescription updates description in state`() {
+        viewModel.updateDescription("some description")
+        assertEquals("some description", viewModel.uiState.value.description)
     }
 
     @Test fun `setScreenshot updates screenshotBitmap in state`() {
