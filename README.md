@@ -125,7 +125,10 @@ updated by geofence `ENTER`/`EXIT` callbacks. Empty set means no known location.
    - Has **no** entries in `habit_location` (eligible everywhere), OR has at least one
      `location_id` matching a geofence the user is currently inside.
    - Not fired within the last N minutes (configurable, default 90m) to avoid tight repeats.
-3. Pick **one** habit uniformly at random from eligible set. If the set is empty, skip silently.
+3. Pick **one** habit by weighted-random selection from the eligible set, biased toward habits
+   not recently prompted. Weight formula: `1 + min(minutesSince, 1440) / 120`, where
+   `minutesSince` is minutes since the habit was last fired (cap: 1440 min = 24 h). A habit
+   never fired receives the maximum weight (~13×). If the eligible set is empty, skip silently.
 4. Call Gemma 4 E2B with a structured prompt (see below) to generate a fresh, actionable one-liner for this habit instance.
 5. Post the notification with the generated text. Action buttons: **Did the full version**, **Did the low-floor**, **Dismiss**.
 6. Record the trigger row with the generated prompt and the outcome when the user responds.
@@ -251,7 +254,6 @@ Tracked manually by glancing at the Recent triggers screen. Not a feature.
 - Cloud sync & multi-device (would re-introduce Supabase + Google OAuth).
 - iOS version.
 - A "Surprise Me" quick-pick screen.
-- Weighted habit selection based on history.
 - Multi-modal habits (image/audio prompts from Gemma 4 multimodal).
 - Tasker/IFTTT webhooks for external triggers.
 - Habit templates / suggested habits library.

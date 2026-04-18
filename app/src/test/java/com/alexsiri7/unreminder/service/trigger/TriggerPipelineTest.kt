@@ -229,9 +229,18 @@ class TriggerPipelineWeightTest {
         )
         val lastFiredMap = mapOf(1L to null, 2L to 0L)
         val now = 91 * 60_000L
+        // Expected neverDone rate ≈ 88% (MAX_WEIGHT / (MAX_WEIGHT + ~1.76)); threshold 600 gives 28pt margin
         val neverDoneCount = (1..1000).count {
             TriggerPipeline.pickWeighted(listOf(neverDone, recentlyDone), lastFiredMap, now) == neverDone
         }
         assertTrue("Expected >600/1000 picks for never-done, got $neverDoneCount", neverDoneCount > 600)
+    }
+
+    @Test
+    fun `weight floors at 1_0 when lastFired is in the future (clock skew)`() {
+        val now = 60 * 60_000L
+        val futureLastFired = now + 30 * 60_000L // 30 minutes in the future
+        val w = TriggerPipeline.computeWeight(futureLastFired, now)
+        assertTrue("Expected weight >= 1.0 for future lastFired, got $w", w >= 1.0)
     }
 }
