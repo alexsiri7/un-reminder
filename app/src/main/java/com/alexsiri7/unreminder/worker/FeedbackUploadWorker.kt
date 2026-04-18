@@ -51,7 +51,7 @@ class FeedbackUploadWorker @AssistedInject constructor(
 
                 gitHubApiService.submit(title, body, screenshotFile)
                 feedbackRepository.deleteById(item.id)
-                item.screenshotPath?.let { File(it).delete() }
+                screenshotFile?.delete()
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.w(TAG, "Upload failed for item ${item.id}", e)

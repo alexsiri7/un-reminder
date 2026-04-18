@@ -82,7 +82,7 @@ class FeedbackViewModel @Inject constructor(
                     val body = buildIssueBody(desc)
                     val screenshotFile = screenshotPath?.let { File(it) }
                     gitHubApiService.submit(title, body, screenshotFile)
-                    screenshotPath?.let { File(it).delete() }
+                    screenshotFile?.delete()
                     _uiState.value = _uiState.value.copy(isSubmitting = false, submitted = true)
                 } catch (e: IOException) {
                     // Transient network failure — queue for retry when connectivity returns.
