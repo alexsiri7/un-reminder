@@ -16,7 +16,7 @@ fun applyOptions(
     options.environment = if (isDebug) "debug" else "release"
     options.release = "$appId@$versionName+$versionCode"
     // Privacy-safe defaults: no performance tracing, no PII, no UI snapshots
-    options.tracesSampleRate = 0.0 // performance tracing disabled by design
+    options.tracesSampleRate = 0.0
     options.isSendDefaultPii = false
     options.isAttachScreenshot = false
     options.isAttachViewHierarchy = false
