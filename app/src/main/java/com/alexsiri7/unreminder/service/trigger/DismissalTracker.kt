@@ -36,10 +36,18 @@ class DismissalTracker @Inject constructor(
         }
 
         val allDismissed = recent.all { it.status == TriggerStatus.DISMISSED }
-        if (!allDismissed) return
+        if (!allDismissed) {
+            Log.d(TAG, "Habit $habitId streak broken (not all of last $STREAK_THRESHOLD are DISMISSED), skipping")
+            return
+        }
 
         val habit = habitRepository.getByIdOnce(habitId) ?: run {
             Log.w(TAG, "Habit $habitId not found, cannot deactivate")
+            return
+        }
+
+        if (!habit.active) {
+            Log.d(TAG, "Habit $habitId is already paused, skipping")
             return
         }
 

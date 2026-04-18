@@ -24,7 +24,9 @@ class NotificationHelper @Inject constructor(
         const val ACTION_DISMISSED = "DISMISSED"
         const val CHANNEL_ID_SYSTEM = "un_reminder_system"
         const val CHANNEL_NAME_SYSTEM = "Habit Status"
-        const val NOTIFICATION_ID_PAUSED_BASE = 900_000
+        // Paused-habit notifications use habitId as offset.
+        // Base chosen well above realistic trigger ID values to avoid collisions.
+        const val NOTIFICATION_ID_PAUSED_BASE = 900_000L
     }
 
     fun createNotificationChannel() {

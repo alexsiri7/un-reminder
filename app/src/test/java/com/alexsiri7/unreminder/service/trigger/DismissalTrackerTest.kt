@@ -115,6 +115,19 @@ class DismissalTrackerTest {
     }
 
     @Test
+    fun `3 consecutive dismissals but habit already paused - no notification`() = runTest {
+        coEvery { triggerRepository.getById(triggerId) } returns makeTrigger(TriggerStatus.DISMISSED)
+        coEvery { triggerRepository.getLastNForHabit(habitId, 3) } returns
+            listOf(makeDismissedTrigger(42), makeDismissedTrigger(41), makeDismissedTrigger(40))
+        coEvery { habitRepository.getByIdOnce(habitId) } returns testHabit.copy(active = false)
+
+        tracker.onDismissed(triggerId)
+
+        coVerify(exactly = 0) { habitRepository.update(any()) }
+        coVerify(exactly = 0) { notificationHelper.postHabitPausedNotification(any(), any()) }
+    }
+
+    @Test
     fun `3 consecutive dismissals but habit not found - no crash`() = runTest {
         coEvery { triggerRepository.getById(triggerId) } returns makeTrigger(TriggerStatus.DISMISSED)
         coEvery { triggerRepository.getLastNForHabit(habitId, 3) } returns
