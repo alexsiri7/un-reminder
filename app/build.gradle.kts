@@ -21,8 +21,13 @@ android {
 
         buildConfigField(
             "String",
-            "GITHUB_FEEDBACK_TOKEN",
-            "\"${System.getenv("GITHUB_FEEDBACK_TOKEN") ?: project.findProperty("githubFeedbackToken") ?: ""}\""
+            "FEEDBACK_ENDPOINT_URL",
+            "\"${System.getenv("FEEDBACK_ENDPOINT_URL") ?: "https://feedback.alexsiri7.workers.dev/"}\""
+        )
+        buildConfigField(
+            "String",
+            "FEEDBACK_REPO",
+            "\"alexsiri7/un-reminder\""
         )
         buildConfigField("String", "SENTRY_DSN", "\"${System.getenv("SENTRY_DSN") ?: ""}\"")
 

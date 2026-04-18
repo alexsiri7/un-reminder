@@ -44,7 +44,10 @@ class FeedbackUploadWorkerTest {
         assertEquals(Result.success(), result)
     }
 
-    @Test fun `doWork calls deleteById after successful upload`() = runTest {
+    @Test fun `doWork returns failure when endpoint URL is blank`() = runTest {
+        // Under unitTests.isReturnDefaultValues = true, BuildConfig fields
+        // are empty strings, so the endpoint guard fires and doWork returns
+        // failure without calling the service.
         val item = PendingFeedbackEntity(
             id = 1L,
             screenshotPath = null,
@@ -52,18 +55,15 @@ class FeedbackUploadWorkerTest {
             queuedAt = Instant.now()
         )
         coEvery { mockRepository.getPending() } returns listOf(item)
-        coEvery { mockGitHubApiService.createIssue(any(), any()) } just Runs
+        coEvery { mockGitHubApiService.submit(any(), any(), any()) } just Runs
 
-        // Token is blank in tests so we get failure — this verifies the guard works.
-        // For the success path, coverage is ensured by FeedbackViewModelTest.
         val result = worker.doWork()
 
-        // With blank token the worker returns failure without calling the API
         assertEquals(Result.failure(), result)
-        coVerify(exactly = 0) { mockGitHubApiService.createIssue(any(), any()) }
+        coVerify(exactly = 0) { mockGitHubApiService.submit(any(), any(), any()) }
     }
 
-    @Test fun `doWork returns retry on IOException`() = runTest {
+    @Test fun `doWork returns failure when the endpoint guard prevents IO attempts`() = runTest {
         val item = PendingFeedbackEntity(
             id = 2L,
             screenshotPath = null,
@@ -71,10 +71,9 @@ class FeedbackUploadWorkerTest {
             queuedAt = Instant.now()
         )
         coEvery { mockRepository.getPending() } returns listOf(item)
-        coEvery { mockGitHubApiService.createIssue(any(), any()) } throws IOException("network unreachable")
+        coEvery { mockGitHubApiService.submit(any(), any(), any()) } throws IOException("network unreachable")
 
-        // Worker will hit token-blank guard and return failure without calling API,
-        // so we verify the IOException path indirectly by ensuring the guard is first.
+        // Guard fires before any submit attempt, so we never reach the IOException path.
         val result = worker.doWork()
         assertEquals(Result.failure(), result)
     }

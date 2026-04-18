@@ -10,67 +10,58 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.io.File
-import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
+// Forwards feedback submissions to the feedback Cloudflare Worker, which
+// holds the GitHub PAT server-side and creates the issue on our behalf.
+// The app used to embed a PAT in BuildConfig — that was extractable from
+// the signed APK, so it was removed.
 @Singleton
 class GitHubApiService @Inject constructor(
     private val okHttpClient: OkHttpClient
 ) {
-    companion object {
-        private const val REPO = "alexsiri7/un-reminder"
-        private const val BRANCH = "main"
-        private const val SCREENSHOTS_PATH = "docs/feedback-screenshots"
-        private const val PAGES_BASE = "https://alexsiri7.github.io/un-reminder/feedback-screenshots"
-    }
+    suspend fun submit(
+        title: String,
+        body: String,
+        screenshotFile: File? = null,
+    ): Unit = withContext(Dispatchers.IO) {
+        val endpoint = BuildConfig.FEEDBACK_ENDPOINT_URL
+        if (endpoint.isBlank()) {
+            throw IllegalStateException("FEEDBACK_ENDPOINT_URL not configured")
+        }
 
-    suspend fun uploadImage(imageFile: File): String = withContext(Dispatchers.IO) {
-        val uuid = UUID.randomUUID().toString()
-        val fileName = "$uuid.png"
-        val base64Content = Base64.encodeToString(imageFile.readBytes(), Base64.NO_WRAP)
+        // Worker derives the issue title from the first line of message;
+        // prepend the title so the issue reads naturally.
+        val message = if (title.isNotBlank() && !body.startsWith(title)) {
+            "$title\n\n$body"
+        } else {
+            body
+        }
 
-        val json = JSONObject().apply {
-            put("message", "Add feedback screenshot $uuid")
-            put("content", base64Content)
-            put("branch", BRANCH)
+        val screenshotB64 = screenshotFile
+            ?.takeIf { it.exists() }
+            ?.let { Base64.encodeToString(it.readBytes(), Base64.NO_WRAP) }
+
+        val payload = JSONObject().apply {
+            put("repo", BuildConfig.FEEDBACK_REPO)
+            put("type", "other")
+            put("message", message)
+            if (screenshotB64 != null) put("screenshot", screenshotB64)
         }
 
         val request = Request.Builder()
-            .url("https://api.github.com/repos/$REPO/contents/$SCREENSHOTS_PATH/$fileName")
-            .addGitHubHeaders()
-            .put(json.toString().toRequestBody("application/json".toMediaType()))
+            .url(endpoint)
+            .addHeader("Accept", "application/json")
+            .post(payload.toString().toRequestBody("application/json".toMediaType()))
             .build()
 
         okHttpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
-                throw RuntimeException("Image upload failed: ${response.code} ${response.body?.string()}")
-            }
-        }
-        "$PAGES_BASE/$fileName"
-    }
-
-    suspend fun createIssue(title: String, body: String) = withContext(Dispatchers.IO) {
-        val json = JSONObject().apply {
-            put("title", title)
-            put("body", body)
-            put("labels", org.json.JSONArray().put("feedback"))
-        }
-
-        val request = Request.Builder()
-            .url("https://api.github.com/repos/$REPO/issues")
-            .addGitHubHeaders()
-            .post(json.toString().toRequestBody("application/json".toMediaType()))
-            .build()
-
-        okHttpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                throw RuntimeException("Issue creation failed: ${response.code} ${response.body?.string()}")
+                throw RuntimeException(
+                    "Feedback submission failed: ${response.code} ${response.body?.string()}"
+                )
             }
         }
     }
-
-    private fun Request.Builder.addGitHubHeaders(): Request.Builder =
-        addHeader("Authorization", "Bearer ${BuildConfig.GITHUB_FEEDBACK_TOKEN}")
-            .addHeader("Accept", "application/vnd.github+json")
 }
