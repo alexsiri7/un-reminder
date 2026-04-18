@@ -42,6 +42,10 @@ class MapPickerViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(MapPickerUiState())
     val uiState: StateFlow<MapPickerUiState> = _uiState.asStateFlow()
 
+    companion object {
+        private const val TAG = "MapPickerViewModel"
+    }
+
     fun initialize(existingLabel: String?) {
         viewModelScope.launch {
             if (existingLabel != null) {
