@@ -28,6 +28,7 @@ data class HabitEditUiState(
     val isLoading: Boolean = false,
     val isSaved: Boolean = false,
     val isGeneratingFields: Boolean = false,
+    val fieldsFlashing: Boolean = false,
     val previewNotification: String? = null,
     val showPreviewDialog: Boolean = false,
     val errorMessage: String? = null
@@ -112,8 +113,12 @@ class HabitEditViewModel @Inject constructor(
                     existing.id
                 } else {
                     habitRepository.insert(
-                        HabitEntity(name = state.name, fullDescription = state.fullDescription,
-                            lowFloorDescription = state.lowFloorDescription, active = state.active)
+                        HabitEntity(
+                            name = state.name,
+                            fullDescription = state.fullDescription,
+                            lowFloorDescription = state.lowFloorDescription,
+                            active = state.active
+                        )
                     )
                 }
                 habitRepository.setLocations(habitId, state.selectedLocationIds)
@@ -141,7 +146,8 @@ class HabitEditViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(
             fullDescription = fields.fullDescription,
             lowFloorDescription = fields.lowFloorDescription,
-            isGeneratingFields = false
+            isGeneratingFields = false,
+            fieldsFlashing = true
         )
     }
 
@@ -171,4 +177,5 @@ class HabitEditViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(showPreviewDialog = false, previewNotification = null)
     }
     fun clearError() { _uiState.value = _uiState.value.copy(errorMessage = null) }
+    fun clearFieldsFlash() { _uiState.value = _uiState.value.copy(fieldsFlashing = false) }
 }

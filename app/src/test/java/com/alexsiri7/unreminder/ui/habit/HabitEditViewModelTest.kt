@@ -86,6 +86,7 @@ class HabitEditViewModelTest {
 
         val state = viewModel.uiState.value
         assertFalse(state.isGeneratingFields)
+        assertFalse(state.fieldsFlashing)
         assertEquals("AI unavailable — fill in manually.", state.errorMessage)
     }
 
@@ -150,5 +151,32 @@ class HabitEditViewModelTest {
         viewModel.clearError()
 
         assertNull(viewModel.uiState.value.errorMessage)
+    }
+
+    // --- fieldsFlashing ---
+
+    @Test
+    fun `autofillWithAi success sets fieldsFlashing to true`() = runTest {
+        coEvery { mockPromptGenerator.generateHabitFields("meditation") } returns
+            AiHabitFields("desc", "low")
+
+        viewModel.autofillWithAi()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.fieldsFlashing)
+    }
+
+    @Test
+    fun `clearFieldsFlash resets fieldsFlashing to false`() = runTest {
+        coEvery { mockPromptGenerator.generateHabitFields("meditation") } returns
+            AiHabitFields("desc", "low")
+
+        viewModel.autofillWithAi()
+        advanceUntilIdle()
+        assertTrue(viewModel.uiState.value.fieldsFlashing)
+
+        viewModel.clearFieldsFlash()
+
+        assertFalse(viewModel.uiState.value.fieldsFlashing)
     }
 }

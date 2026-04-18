@@ -29,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
+import java.time.LocalTime
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -155,7 +156,7 @@ fun OnboardingScreen(
                     OutlinedButton(
                         onClick = {
                             TimePickerDialog(context, { _, h, m ->
-                                viewModel.updateWindowStartTime(java.time.LocalTime.of(h, m))
+                                viewModel.updateWindowStartTime(LocalTime.of(h, m))
                             }, uiState.windowStartTime.hour, uiState.windowStartTime.minute, true).show()
                         },
                         modifier = Modifier.weight(1f)
@@ -163,7 +164,7 @@ fun OnboardingScreen(
                     OutlinedButton(
                         onClick = {
                             TimePickerDialog(context, { _, h, m ->
-                                viewModel.updateWindowEndTime(java.time.LocalTime.of(h, m))
+                                viewModel.updateWindowEndTime(LocalTime.of(h, m))
                             }, uiState.windowEndTime.hour, uiState.windowEndTime.minute, true).show()
                         },
                         modifier = Modifier.weight(1f)
