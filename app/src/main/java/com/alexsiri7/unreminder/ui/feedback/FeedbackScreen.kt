@@ -218,12 +218,7 @@ fun FeedbackScreen(
                             isAntiAlias = true
                         }
                         for (stroke in strokes) {
-                            paint.color = android.graphics.Color.argb(
-                                (stroke.color.alpha * 255).toInt(),
-                                (stroke.color.red * 255).toInt(),
-                                (stroke.color.green * 255).toInt(),
-                                (stroke.color.blue * 255).toInt()
-                            )
+                            paint.color = stroke.color.toArgb()
                             canvas.drawPath(stroke.path.asAndroidPath(), paint)
                         }
                         annBitmap
