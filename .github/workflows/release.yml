@@ -99,3 +99,25 @@ jobs:
             app/build/outputs/apk/release/*.apk
           generate_release_notes: true
           fail_on_unmatched_files: true
+
+      - name: Notify prod landing
+        if: success() && github.event_name != 'pull_request'
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          [ -z "$NTFY_TOPIC" ] && exit 0
+          pr=$(gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/pulls" --jq '.[0].number // empty')
+          body="direct push: $(git log -1 --pretty=%s)"
+          if [ -n "$pr" ]; then
+            if gh pr view "$pr" --repo "${{ github.repository }}" --json labels --jq '.labels[].name' | grep -qx 'no-ntfy'; then
+              echo "PR #$pr has no-ntfy label — skipping"
+              exit 0
+            fi
+            title=$(gh pr view "$pr" --repo "${{ github.repository }}" --json title --jq '.title')
+            body="PR #$pr: $title (${VERSION_NAME})"
+          fi
+          curl -s -o /dev/null \
+            -H "Title: ${{ github.event.repository.name }} landed in prod" \
+            -H "Tags: tada" \
+            -d "$body" "ntfy.sh/$NTFY_TOPIC"
