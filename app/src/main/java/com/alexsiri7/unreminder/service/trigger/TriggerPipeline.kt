@@ -1,6 +1,7 @@
 package com.alexsiri7.unreminder.service.trigger
 
 import android.util.Log
+import com.alexsiri7.unreminder.data.db.HabitEntity
 import com.alexsiri7.unreminder.data.repository.HabitRepository
 import com.alexsiri7.unreminder.data.repository.LocationRepository
 import com.alexsiri7.unreminder.data.repository.TriggerRepository
@@ -23,6 +24,29 @@ class TriggerPipeline @Inject constructor(
 ) {
     companion object {
         private const val TAG = "TriggerPipeline"
+        internal const val CAP_MINUTES = 1440L
+        internal val MAX_WEIGHT = 1.0 + CAP_MINUTES / 120.0
+
+        internal fun computeWeight(lastFiredMillis: Long?, nowMillis: Long): Double {
+            lastFiredMillis ?: return MAX_WEIGHT
+            val minutesSince = (nowMillis - lastFiredMillis) / 60_000L
+            return 1.0 + minOf(minutesSince, CAP_MINUTES) / 120.0
+        }
+
+        internal fun pickWeighted(
+            habits: List<HabitEntity>,
+            lastFiredMillisById: Map<Long, Long?>,
+            nowMillis: Long
+        ): HabitEntity {
+            val weights = habits.map { computeWeight(lastFiredMillisById[it.id], nowMillis) }
+            val total = weights.sum()
+            var r = Math.random() * total
+            for ((habit, weight) in habits.zip(weights)) {
+                r -= weight
+                if (r <= 0.0) return habit
+            }
+            return habits.last()
+        }
     }
 
     suspend fun execute(triggerId: Long) {
@@ -41,7 +65,11 @@ class TriggerPipeline @Inject constructor(
             return
         }
 
-        val habit = eligibleHabits.random()
+        val nowMillis = System.currentTimeMillis()
+        val lastFiredMap = eligibleHabits.associate { h ->
+            h.id to triggerRepository.getLastFiredForHabit(h.id)
+        }
+        val habit = pickWeighted(eligibleHabits, lastFiredMap, nowMillis)
         try {
             val timeOfDay = resolveTimeOfDay()
             val locationName = resolveLocationName(locationIds)
