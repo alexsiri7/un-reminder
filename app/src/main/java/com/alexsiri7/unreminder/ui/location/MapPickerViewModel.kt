@@ -65,7 +65,7 @@ class MapPickerViewModel @Inject constructor(
                 @Suppress("MissingPermission")
                 LocationServices.getFusedLocationProviderClient(context).lastLocation.await()
             } catch (e: Exception) {
-                Log.w(TAG, "Could not get last known location", e)
+                Log.w("MapPickerViewModel", "Could not get last known location", e)
                 null
             }
             val lat = loc?.latitude ?: _uiState.value.initialCenterLat
@@ -101,7 +101,7 @@ class MapPickerViewModel @Inject constructor(
                 geofenceManager.registerGeofence(id, state.name, state.lat, state.lng, state.radiusM)
                 onComplete()
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to save location for name=${state.name}", e)
+                Log.e("MapPickerViewModel", "Failed to save location for name=${state.name}", e)
                 _uiState.value = _uiState.value.copy(
                     errorMessage = "Could not save location. Please try again."
                 )

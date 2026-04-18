@@ -5,6 +5,7 @@ import com.alexsiri7.unreminder.data.repository.LocationRepository
 import com.alexsiri7.unreminder.service.geofence.GeofenceManager
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -30,7 +31,7 @@ class LocationViewModelTest {
         Dispatchers.setMain(testDispatcher)
         locationRepository = mockk(relaxUnitFun = true)
         geofenceManager = mockk(relaxUnitFun = true)
-        coEvery { locationRepository.getAll() } returns flowOf(emptyList())
+        every { locationRepository.getAll() } returns flowOf(emptyList())
         viewModel = LocationViewModel(locationRepository, geofenceManager)
     }
 

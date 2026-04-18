@@ -39,6 +39,7 @@ Solo user (the author). Single-device, single-user. Personal productivity / well
 | Geofencing | **Android `GeofencingClient`** (Google Play Services Location API) | Background location; requires `ACCESS_BACKGROUND_LOCATION`. |
 | Map UI | **osmdroid** | OpenStreetMap-based map picker for location selection; tiles cached automatically on-device. |
 | Notifications | **NotificationManager** (Android 13+ runtime permission) | Native. |
+| Crash reporting | **Sentry** (`sentry-android`) | On-device-only gating via blank DSN; no PII, habit content, or location data sent. |
 | LLM | **Gemma 4 E2B on-device** via **ML Kit GenAI Prompt API** / **AICore** (Pixel 8 Pro is AICore-supported). | Zero-cost, offline, private, low-latency. |
 | Network | **OkHttp** | HTTP client for GitHub feedback API (optional in-app feedback feature). |
 | DI | Hilt | |
@@ -203,7 +204,7 @@ Parsed via `lines().firstOrNull { it.startsWith("Full:") }` / `"Low-floor:"`. Th
 - `ACCESS_BACKGROUND_LOCATION` (requested separately after fine location grant, with clear in-app explanation of why)
 - `SCHEDULE_EXACT_ALARM` (Android 12+)
 - `FOREGROUND_SERVICE` for the geofence service if needed.
-- `INTERNET` — two purposes: (1) map tile downloads for the location picker (OpenStreetMap; no personal data transmitted); and (2) optional in-app feedback upload to GitHub (user-initiated; sends annotated screenshot and description).
+- `INTERNET` — three purposes: (1) map tile downloads for the location picker (OpenStreetMap; no personal data transmitted); (2) optional in-app feedback upload to GitHub (user-initiated; sends annotated screenshot and description); and (3) crash report uploads to Sentry (no personal information, habit content, or location data included).
 
 ---
 
