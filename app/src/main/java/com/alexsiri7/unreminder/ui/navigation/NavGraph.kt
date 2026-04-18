@@ -14,8 +14,14 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -24,14 +30,21 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.alexsiri7.unreminder.data.repository.OnboardingRepository
 import com.alexsiri7.unreminder.ui.habit.HabitEditScreen
 import com.alexsiri7.unreminder.ui.habit.HabitListScreen
 import com.alexsiri7.unreminder.ui.location.LocationScreen
 import com.alexsiri7.unreminder.ui.location.MapPickerScreen
+import com.alexsiri7.unreminder.ui.onboarding.OnboardingScreen
 import com.alexsiri7.unreminder.ui.recent.RecentTriggersScreen
 import com.alexsiri7.unreminder.ui.settings.SettingsScreen
 import com.alexsiri7.unreminder.ui.window.WindowEditScreen
 import com.alexsiri7.unreminder.ui.window.WindowListScreen
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
+import javax.inject.Inject
 
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
     data object Habits : Screen("habits", "Habits", Icons.Default.Repeat)
@@ -42,15 +55,33 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector)
 
 val bottomNavItems = listOf(Screen.Habits, Screen.Windows, Screen.Recent, Screen.Settings)
 
+@HiltViewModel
+class NavViewModel @Inject constructor(
+    onboardingRepository: OnboardingRepository
+) : ViewModel() {
+    val isOnboarded: StateFlow<Boolean?> = onboardingRepository.isOnboardingCompleted
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+}
+
 @Composable
-fun NavGraph() {
+fun NavGraph(navViewModel: NavViewModel = hiltViewModel()) {
+    val isOnboarded by navViewModel.isOnboarded.collectAsStateWithLifecycle()
+
+    val startDestination = remember { mutableStateOf<String?>(null) }
+    if (startDestination.value == null && isOnboarded != null) {
+        startDestination.value = if (isOnboarded == true) Screen.Habits.route else "onboarding"
+    }
+    val resolvedStart = startDestination.value ?: return
+
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
+    val showBottomBar = currentDestination?.route != "onboarding"
+
     Scaffold(
         bottomBar = {
-            NavigationBar {
+            if (showBottomBar) NavigationBar {
                 bottomNavItems.forEach { screen ->
                     NavigationBarItem(
                         icon = { Icon(screen.icon, contentDescription = screen.label) },
@@ -72,7 +103,7 @@ fun NavGraph() {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = Screen.Habits.route,
+            startDestination = resolvedStart,
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(Screen.Habits.route) {
@@ -144,6 +175,15 @@ fun NavGraph() {
             composable(Screen.Settings.route) {
                 SettingsScreen(
                     onNavigateToLocations = { navController.navigate("locations") }
+                )
+            }
+            composable("onboarding") {
+                OnboardingScreen(
+                    onFinished = {
+                        navController.navigate(Screen.Habits.route) {
+                            popUpTo("onboarding") { inclusive = true }
+                        }
+                    }
                 )
             }
         }
