@@ -8,6 +8,12 @@ import com.alexsiri7.unreminder.service.llm.PromptGenerator
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
+import io.mockk.verify
+import io.sentry.Sentry
+import io.sentry.protocol.SentryId
+import io.sentry.ScopeCallback
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
@@ -88,6 +94,21 @@ class HabitEditViewModelTest {
         assertFalse(state.isGeneratingFields)
         assertFalse(state.fieldsFlashing)
         assertEquals("AI unavailable — fill in manually.", state.errorMessage)
+    }
+
+    @Test
+    fun `autofillWithAi captures exception to Sentry on failure`() = runTest {
+        mockkStatic(Sentry::class)
+        every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
+
+        coEvery { mockPromptGenerator.generateHabitFields(any()) } throws
+            IllegalStateException("LLM unavailable")
+
+        viewModel.autofillWithAi()
+        advanceUntilIdle()
+
+        verify(exactly = 1) { Sentry.captureException(any(), any<ScopeCallback>()) }
+        unmockkStatic(Sentry::class)
     }
 
     // --- previewNotification ---

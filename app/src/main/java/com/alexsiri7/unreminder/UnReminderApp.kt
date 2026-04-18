@@ -41,8 +41,7 @@ class UnReminderApp : Application(), Configuration.Provider {
             .build()
 
     override fun onCreate() {
-        // init before super so Sentry captures crashes during Hilt graph setup
-        initSentry()
+        initSentry() // must run before super.onCreate() to capture any init-phase crashes
         super.onCreate()
         notificationHelper.createNotificationChannel()
         scheduleDailyWorker()
@@ -64,8 +63,12 @@ class UnReminderApp : Application(), Configuration.Provider {
                 )
             }
         } catch (e: Throwable) {
-            Log.w("UnReminderApp", "Sentry init failed", e)
+            Log.w(TAG, "Sentry init failed", e)
         }
+    }
+
+    companion object {
+        private const val TAG = "UnReminderApp"
     }
 
     private fun scheduleDailyWorker() {

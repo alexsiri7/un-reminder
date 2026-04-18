@@ -17,7 +17,7 @@ import javax.inject.Singleton
 class OnboardingRepository @Inject constructor(
     private val dataStore: DataStore<Preferences>
 ) {
-    private val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
+    private val onboardingDoneKey = booleanPreferencesKey("onboarding_done")
 
     /** Flow that emits whether the user has completed onboarding. Defaults to false on clean install. */
     val isOnboardingCompleted: Flow<Boolean> = dataStore.data
@@ -29,11 +29,11 @@ class OnboardingRepository @Inject constructor(
                 throw e
             }
         }
-        .map { prefs -> prefs[ONBOARDING_DONE] ?: false }
+        .map { prefs -> prefs[onboardingDoneKey] ?: false }
 
     /** Persists onboarding completion so the onboarding screen is never shown again. */
     suspend fun markOnboardingCompleted() {
-        dataStore.edit { prefs -> prefs[ONBOARDING_DONE] = true }
+        dataStore.edit { prefs -> prefs[onboardingDoneKey] = true }
     }
 
     companion object {

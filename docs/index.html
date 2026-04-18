@@ -46,12 +46,31 @@
   No feedback is sent without your explicit action.
 </p>
 
+<h2>Automated crash reporting (Sentry)</h2>
+<p>
+  Release builds of this app use <a href="https://sentry.io">Sentry</a> (sentry.io) to automatically capture
+  unhandled exceptions in the AI autofill subsystem. When an error occurs, the following data is transmitted
+  to Sentry's servers:
+</p>
+<ul>
+  <li>Exception type and stack trace.</li>
+  <li>App version and build environment ("release").</li>
+  <li>A component tag identifying the error source (e.g. "llm-init", "ai-ui").</li>
+</ul>
+<p>
+  No personal data is attached: <code>isSendDefaultPii = false</code>, screenshots are not captured
+  (<code>isAttachScreenshot = false</code>), UI snapshots are not captured
+  (<code>isAttachViewHierarchy = false</code>), and performance tracing is disabled
+  (<code>tracesSampleRate = 0.0</code>). This transmission is automatic and occurs only in release builds
+  with a configured DSN. It is not user-initiated.
+</p>
+
 <h2>What we do not do</h2>
 <ul>
   <li>No analytics or behavioural telemetry.</li>
   <li>No advertising.</li>
   <li>No user account, sign-in, or cloud sync.</li>
-  <li>No third-party data sharing — except when you explicitly submit feedback via the in-app tool (see above).</li>
+  <li>No third-party data sharing — except: (1) when you explicitly submit feedback via the in-app tool (see above), and (2) automatic crash reports sent to Sentry in release builds (see above).</li>
 </ul>
 
 <h2>Crash reporting</h2>

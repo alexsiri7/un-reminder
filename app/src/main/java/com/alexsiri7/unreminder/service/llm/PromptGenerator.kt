@@ -7,6 +7,7 @@ import com.alexsiri7.unreminder.domain.model.AiHabitFields
 import com.google.mlkit.genai.prompt.Generation
 import com.google.mlkit.genai.prompt.GenerativeModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import io.sentry.Sentry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeout
 import javax.inject.Inject
@@ -29,6 +30,9 @@ class PromptGenerator @Inject constructor(
             model = m
         } catch (e: Exception) {
             Log.w(TAG, "LLM initialization failed; notification generation will use templates, AI autofill will throw", e)
+            Sentry.captureException(e) { scope ->
+                scope.setTag("component", "llm-init")
+            }
             model = null
         }
     }
