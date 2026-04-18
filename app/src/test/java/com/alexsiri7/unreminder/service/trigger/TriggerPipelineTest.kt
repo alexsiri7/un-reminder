@@ -16,6 +16,8 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
@@ -65,6 +67,7 @@ class TriggerPipelineTest {
 
         every { geofenceManager.currentLocationIds } returns setOf(1L)
         coEvery { locationRepository.getByIds(any()) } returns emptyList()
+        coEvery { triggerRepository.getLastFiredForHabit(any()) } returns null
     }
 
     @Test
@@ -161,5 +164,83 @@ class TriggerPipelineTest {
         pipeline.execute(42L)
 
         coVerify { promptGenerator.generate(testHabit, "any location", any()) }
+    }
+}
+
+class TriggerPipelineWeightTest {
+
+    @Test
+    fun `habit never fired gets max weight`() {
+        val w = TriggerPipeline.computeWeight(null, nowMillis = 0L)
+        assertEquals(TriggerPipeline.MAX_WEIGHT, w, 0.001)
+    }
+
+    @Test
+    fun `weight formula at 120 minutes gives 2_0`() {
+        val now = 120 * 60_000L
+        val w = TriggerPipeline.computeWeight(lastFiredMillis = 0L, nowMillis = now)
+        assertEquals(2.0, w, 0.001)
+    }
+
+    @Test
+    fun `more recent completion gives lower weight`() {
+        val now = 1_000_000L
+        val recent = TriggerPipeline.computeWeight(now - 100 * 60_000L, now)
+        val older = TriggerPipeline.computeWeight(now - 500 * 60_000L, now)
+        assertTrue(recent < older)
+    }
+
+    @Test
+    fun `weight is capped at MAX_WEIGHT for very old completions`() {
+        val now = 100_000 * 60_000L
+        val w = TriggerPipeline.computeWeight(lastFiredMillis = 0L, nowMillis = now)
+        assertEquals(TriggerPipeline.MAX_WEIGHT, w, 0.001)
+    }
+
+    @Test
+    fun `weight is at least 1_0 for recently eligible habit`() {
+        val now = 90 * 60_000L
+        val w = TriggerPipeline.computeWeight(lastFiredMillis = 0L, nowMillis = now)
+        assertTrue(w >= 1.0)
+    }
+
+    @Test
+    fun `pickWeighted with single habit always returns that habit`() {
+        val habit = HabitEntity(
+            id = 1L, name = "test",
+            fullDescription = "full", lowFloorDescription = "low",
+            createdAt = Instant.EPOCH, updatedAt = Instant.EPOCH
+        )
+        val result = TriggerPipeline.pickWeighted(listOf(habit), emptyMap(), nowMillis = 0L)
+        assertEquals(habit, result)
+    }
+
+    @Test
+    fun `pickWeighted with null lastFired biases toward never-done habit`() {
+        val neverDone = HabitEntity(
+            id = 1L, name = "never",
+            fullDescription = "f", lowFloorDescription = "l",
+            createdAt = Instant.EPOCH, updatedAt = Instant.EPOCH
+        )
+        val recentlyDone = HabitEntity(
+            id = 2L, name = "recent",
+            fullDescription = "f", lowFloorDescription = "l",
+            createdAt = Instant.EPOCH, updatedAt = Instant.EPOCH
+        )
+        val lastFiredMap = mapOf(1L to null, 2L to 0L)
+        val now = 91 * 60_000L
+        // Expected neverDone rate ≈ 88% (MAX_WEIGHT / (MAX_WEIGHT + ~1.76)); threshold 600 gives 28pt margin
+        val neverDoneCount = (1..1000).count {
+            TriggerPipeline.pickWeighted(listOf(neverDone, recentlyDone), lastFiredMap, now) == neverDone
+        }
+        assertTrue("Expected >600/1000 picks for never-done, got $neverDoneCount", neverDoneCount > 600)
+    }
+
+    @Test
+    fun `weight floors at 1_0 when lastFired is in the future (clock skew)`() {
+        val now = 60 * 60_000L
+        val futureLastFired = now + 30 * 60_000L // 30 minutes in the future
+        val w = TriggerPipeline.computeWeight(futureLastFired, now)
+        assertTrue("Expected weight >= 1.0 for future lastFired, got $w", w >= 1.0)
     }
 }

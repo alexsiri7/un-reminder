@@ -39,6 +39,7 @@ Solo user (the author). Single-device, single-user. Personal productivity / well
 | Geofencing | **Android `GeofencingClient`** (Google Play Services Location API) | Background location; requires `ACCESS_BACKGROUND_LOCATION`. |
 | Map UI | **osmdroid** | OpenStreetMap-based map picker for location selection; tiles cached automatically on-device. |
 | Notifications | **NotificationManager** (Android 13+ runtime permission) | Native. |
+| Crash reporting | **Sentry** (`sentry-android`) | On-device-only gating via blank DSN; no PII, habit content, or location data sent. |
 | LLM | **Gemma 4 E2B on-device** via **ML Kit GenAI Prompt API** / **AICore** (Pixel 8 Pro is AICore-supported). | Zero-cost, offline, private, low-latency. |
 | Network | **OkHttp** | HTTP client for GitHub feedback API (optional in-app feedback feature). |
 | Error reporting | **Sentry Android SDK** (`sentry-android 7.14.0`) | Automatic exception capture for LLM subsystem errors in release builds; opt-in via `SENTRY_DSN` build-config field. No PII, no performance tracing. |
@@ -137,7 +138,10 @@ updated by geofence `ENTER`/`EXIT` callbacks. Empty set means no known location.
    - Has **no** entries in `habit_location` (eligible everywhere), OR has at least one
      `location_id` matching a geofence the user is currently inside.
    - Not fired within the last N minutes (configurable, default 90m) to avoid tight repeats.
-3. Pick **one** habit uniformly at random from eligible set. If the set is empty, skip silently.
+3. Pick **one** habit by weighted-random selection from the eligible set, biased toward habits
+   not recently prompted. Weight formula: `1 + min(minutesSince, 1440) / 120`, where
+   `minutesSince` is minutes since the habit was last fired (cap: 1440 min = 24 h). A habit
+   never fired receives the maximum weight (~13×). If the eligible set is empty, skip silently.
 4. Call Gemma 4 E2B with a structured prompt (see below) to generate a fresh, actionable one-liner for this habit instance.
 5. Post the notification with the generated text. Action buttons: **Did the full version**, **Did the low-floor**, **Dismiss**.
 6. Record the trigger row with the generated prompt and the outcome when the user responds.
@@ -216,7 +220,7 @@ Parsed via `lines().firstOrNull { it.startsWith("Full:") }` / `"Low-floor:"`. Th
 - `ACCESS_BACKGROUND_LOCATION` (requested separately after fine location grant, with clear in-app explanation of why)
 - `SCHEDULE_EXACT_ALARM` (Android 12+)
 - `FOREGROUND_SERVICE` for the geofence service if needed.
-- `INTERNET` — two purposes: (1) map tile downloads for the location picker (OpenStreetMap; no personal data transmitted); and (2) optional in-app feedback upload to GitHub (user-initiated; sends annotated screenshot and description).
+- `INTERNET` — three purposes: (1) map tile downloads for the location picker (OpenStreetMap; no personal data transmitted); (2) optional in-app feedback upload to GitHub (user-initiated; sends annotated screenshot and description); and (3) crash report uploads to Sentry (no personal information, habit content, or location data included).
 
 ---
 
@@ -263,7 +267,6 @@ Tracked manually by glancing at the Recent triggers screen. Not a feature.
 - Cloud sync & multi-device (would re-introduce Supabase + Google OAuth).
 - iOS version.
 - A "Surprise Me" quick-pick screen.
-- Weighted habit selection based on history.
 - Multi-modal habits (image/audio prompts from Gemma 4 multimodal).
 - Tasker/IFTTT webhooks for external triggers.
 - Habit templates / suggested habits library.
