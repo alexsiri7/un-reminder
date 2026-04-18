@@ -1,6 +1,7 @@
 package com.alexsiri7.unreminder
 
 import android.app.Application
+import android.util.Log
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -8,8 +9,10 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.alexsiri7.unreminder.service.llm.PromptGenerator
 import com.alexsiri7.unreminder.service.notification.NotificationHelper
+import com.alexsiri7.unreminder.service.sentry.applyOptions
 import com.alexsiri7.unreminder.worker.DailySchedulerWorker
 import dagger.hilt.android.HiltAndroidApp
+import io.sentry.android.core.SentryAndroid
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -37,10 +40,30 @@ class UnReminderApp : Application(), Configuration.Provider {
             .build()
 
     override fun onCreate() {
+        initSentry()
         super.onCreate()
         notificationHelper.createNotificationChannel()
         scheduleDailyWorker()
         appScope.launch { promptGenerator.initialize() }
+    }
+
+    private fun initSentry() {
+        val dsn = BuildConfig.SENTRY_DSN
+        if (dsn.isBlank()) return
+        try {
+            SentryAndroid.init(this) { options ->
+                applyOptions(
+                    options,
+                    dsn = dsn,
+                    isDebug = BuildConfig.DEBUG,
+                    appId = BuildConfig.APPLICATION_ID,
+                    versionName = BuildConfig.VERSION_NAME,
+                    versionCode = BuildConfig.VERSION_CODE
+                )
+            }
+        } catch (e: Exception) {
+            Log.w("UnReminderApp", "Sentry init failed", e)
+        }
     }
 
     private fun scheduleDailyWorker() {

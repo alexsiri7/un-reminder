@@ -48,11 +48,21 @@
 
 <h2>What we do not do</h2>
 <ul>
-  <li>No analytics, telemetry, or crash reporting.</li>
+  <li>No analytics or behavioural telemetry.</li>
   <li>No advertising.</li>
   <li>No user account, sign-in, or cloud sync.</li>
   <li>No third-party data sharing — except when you explicitly submit feedback via the in-app tool (see above).</li>
 </ul>
+
+<h2>Crash reporting</h2>
+<p>
+  The app uses <a href="https://sentry.io">Sentry</a> to automatically report unhandled exceptions,
+  ANRs, and native crashes. Reports contain only technical metadata (stack traces, Android version,
+  device model, app version) and do not include any personal information, habit content,
+  notification text, or location data. Crash reports are sent over HTTPS and are visible only
+  to the developer. You can review Sentry's privacy policy at
+  <a href="https://sentry.io/privacy/">sentry.io/privacy</a>.
+</p>
 
 <h2>Permissions</h2>
 <p>The app requests the following Android runtime permissions, each used solely for the on-device features described above:</p>
