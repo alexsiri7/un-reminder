@@ -86,6 +86,7 @@ class HabitEditViewModelTest {
 
         val state = viewModel.uiState.value
         assertFalse(state.isGeneratingFields)
+        assertFalse(state.fieldsFlashing)
         assertEquals("AI unavailable — fill in manually.", state.errorMessage)
     }
 

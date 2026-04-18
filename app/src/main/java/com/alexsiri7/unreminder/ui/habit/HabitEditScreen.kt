@@ -28,6 +28,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -41,6 +42,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -74,9 +76,12 @@ fun HabitEditScreen(
 
     LaunchedEffect(uiState.fieldsFlashing) {
         if (uiState.fieldsFlashing) {
-            flashAlpha.snapTo(0.3f)
-            flashAlpha.animateTo(0f, animationSpec = tween(durationMillis = 600))
-            viewModel.clearFieldsFlash()
+            try {
+                flashAlpha.snapTo(0.3f)
+                flashAlpha.animateTo(0f, animationSpec = tween(durationMillis = 600))
+            } finally {
+                viewModel.clearFieldsFlash()
+            }
         }
     }
 
@@ -125,6 +130,7 @@ fun HabitEditScreen(
             )
             Box(modifier = Modifier
                 .fillMaxWidth()
+                .clip(OutlinedTextFieldDefaults.shape)
                 .background(MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = flashAlpha.value))
             ) {
                 OutlinedTextField(
@@ -137,6 +143,7 @@ fun HabitEditScreen(
             }
             Box(modifier = Modifier
                 .fillMaxWidth()
+                .clip(OutlinedTextFieldDefaults.shape)
                 .background(MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = flashAlpha.value))
             ) {
                 OutlinedTextField(
