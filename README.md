@@ -41,11 +41,24 @@ Solo user (the author). Single-device, single-user. Personal productivity / well
 | Notifications | **NotificationManager** (Android 13+ runtime permission) | Native. |
 | LLM | **Gemma 4 E2B on-device** via **ML Kit GenAI Prompt API** / **AICore** (Pixel 8 Pro is AICore-supported). | Zero-cost, offline, private, low-latency. |
 | Network | **OkHttp** | HTTP client for GitHub feedback API (optional in-app feedback feature). |
+| Error reporting | **Sentry Android SDK** (`sentry-android 7.14.0`) | Automatic exception capture for LLM subsystem errors in release builds; opt-in via `SENTRY_DSN` build-config field. No PII, no performance tracing. |
 | DI | Hilt | |
 | Testing | JUnit + Compose UI tests | |
 
 **Target device for MVP:** Pixel 8 Pro (AICore available, Gemma 4 runs natively).
 **Fallback:** bundle ML Kit GenAI Prompt API for devices without AICore (post-MVP).
+
+### Build Configuration / GitHub Secrets
+
+The following repository secrets are required for CI release builds:
+
+| Secret | Purpose | Format |
+|---|---|---|
+| `KEYSTORE_*` / `KEY_*` | APK signing | See Android release signing docs |
+| `GITHUB_FEEDBACK_TOKEN` | In-app feedback submission | GitHub PAT with `issues:write` scope |
+| `SENTRY_DSN` | Automated crash reporting (optional — blank value disables Sentry) | Sentry DSN URL, e.g. `https://key@org.ingest.sentry.io/projectid` |
+
+All secrets are optional in the sense that the app compiles and runs without them; missing secrets disable the corresponding feature at runtime.
 
 ---
 

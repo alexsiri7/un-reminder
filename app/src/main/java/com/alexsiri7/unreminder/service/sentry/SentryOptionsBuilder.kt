@@ -2,6 +2,8 @@ package com.alexsiri7.unreminder.service.sentry
 
 import io.sentry.android.core.SentryAndroidOptions
 
+fun shouldInitSentry(dsn: String): Boolean = dsn.isNotBlank()
+
 fun applyOptions(
     options: SentryAndroidOptions,
     dsn: String,
@@ -13,7 +15,8 @@ fun applyOptions(
     options.dsn = dsn
     options.environment = if (isDebug) "debug" else "release"
     options.release = "$appId@$versionName+$versionCode"
-    options.tracesSampleRate = 0.0
+    // Privacy-safe defaults: no performance tracing, no PII, no UI snapshots
+    options.tracesSampleRate = 0.0 // performance tracing disabled by design
     options.isSendDefaultPii = false
     options.isAttachScreenshot = false
     options.isAttachViewHierarchy = false

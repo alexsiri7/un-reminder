@@ -8,8 +8,9 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.alexsiri7.unreminder.service.llm.PromptGenerator
-import com.alexsiri7.unreminder.service.sentry.applyOptions
 import com.alexsiri7.unreminder.service.notification.NotificationHelper
+import com.alexsiri7.unreminder.service.sentry.applyOptions
+import com.alexsiri7.unreminder.service.sentry.shouldInitSentry
 import com.alexsiri7.unreminder.worker.DailySchedulerWorker
 import dagger.hilt.android.HiltAndroidApp
 import io.sentry.android.core.SentryAndroid
@@ -40,7 +41,7 @@ class UnReminderApp : Application(), Configuration.Provider {
             .build()
 
     override fun onCreate() {
-        initSentry()
+        initSentry() // must run before super.onCreate() to capture any init-phase crashes
         super.onCreate()
         notificationHelper.createNotificationChannel()
         scheduleDailyWorker()
@@ -49,7 +50,7 @@ class UnReminderApp : Application(), Configuration.Provider {
 
     private fun initSentry() {
         val dsn = BuildConfig.SENTRY_DSN
-        if (dsn.isBlank()) return
+        if (!shouldInitSentry(dsn)) return
         try {
             SentryAndroid.init(this) { options ->
                 applyOptions(

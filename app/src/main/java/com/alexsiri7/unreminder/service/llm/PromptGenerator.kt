@@ -63,12 +63,7 @@ class PromptGenerator @Inject constructor(
         |Time of day: $timeOfDay""".trimMargin()
 
     suspend fun generateHabitFields(title: String): AiHabitFields {
-        val m = model ?: run {
-            Sentry.captureMessage("generateHabitFields called with null model") { scope ->
-                scope.setTag("component", "llm-generate-fields")
-            }
-            throw IllegalStateException("LLM unavailable")
-        }
+        val m = model ?: throw IllegalStateException("LLM unavailable")
         return try {
             withTimeout(5_000) {
                 val prompt = buildHabitFieldsPrompt(title)
@@ -93,12 +88,7 @@ class PromptGenerator @Inject constructor(
     }
 
     suspend fun previewHabitNotification(habit: HabitEntity, locationName: String = "Anywhere"): String {
-        val m = model ?: run {
-            Sentry.captureMessage("previewHabitNotification called with null model") { scope ->
-                scope.setTag("component", "llm-preview")
-            }
-            throw IllegalStateException("LLM unavailable")
-        }
+        val m = model ?: throw IllegalStateException("LLM unavailable")
         return withTimeout(5_000) {
             // "now" tells the LLM to generate a notification appropriate for the current moment
             val prompt = buildPrompt(habit, locationName, "now")

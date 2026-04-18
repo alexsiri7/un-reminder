@@ -46,12 +46,31 @@
   No feedback is sent without your explicit action.
 </p>
 
+<h2>Automated crash reporting (Sentry)</h2>
+<p>
+  Release builds of this app use <a href="https://sentry.io">Sentry</a> (sentry.io) to automatically capture
+  unhandled exceptions in the AI autofill subsystem. When an error occurs, the following data is transmitted
+  to Sentry's servers:
+</p>
+<ul>
+  <li>Exception type and stack trace.</li>
+  <li>App version and build environment ("release").</li>
+  <li>A component tag identifying the error source (e.g. "llm-init", "ai-ui").</li>
+</ul>
+<p>
+  No personal data is attached: <code>isSendDefaultPii = false</code>, screenshots are not captured
+  (<code>isAttachScreenshot = false</code>), UI snapshots are not captured
+  (<code>isAttachViewHierarchy = false</code>), and performance tracing is disabled
+  (<code>tracesSampleRate = 0.0</code>). This transmission is automatic and occurs only in release builds
+  with a configured DSN. It is not user-initiated.
+</p>
+
 <h2>What we do not do</h2>
 <ul>
-  <li>No analytics, telemetry, or crash reporting.</li>
+  <li>No analytics or telemetry.</li>
   <li>No advertising.</li>
   <li>No user account, sign-in, or cloud sync.</li>
-  <li>No third-party data sharing — except when you explicitly submit feedback via the in-app tool (see above).</li>
+  <li>No third-party data sharing — except: (1) when you explicitly submit feedback via the in-app tool (see above), and (2) automatic crash reports sent to Sentry in release builds (see above).</li>
 </ul>
 
 <h2>Permissions</h2>
@@ -60,7 +79,7 @@
   <li><code>POST_NOTIFICATIONS</code> — to display habit prompts.</li>
   <li><code>ACCESS_FINE_LOCATION</code>, <code>ACCESS_BACKGROUND_LOCATION</code> — to detect arrival at locations you configure.</li>
   <li><code>SCHEDULE_EXACT_ALARM</code> — to fire stochastic triggers at their scheduled times.</li>
-  <li><code>INTERNET</code> — two purposes: (1) to download map tiles from OpenStreetMap when you use the location picker (no personal data sent); and (2) when you explicitly submit in-app feedback, to upload your annotated screenshot and description to the app's GitHub repository as a GitHub issue. This upload is always user-initiated; nothing is sent automatically.</li>
+  <li><code>INTERNET</code> — three purposes: (1) to download map tiles from OpenStreetMap when you use the location picker (no personal data sent); (2) when you explicitly submit in-app feedback, to upload your annotated screenshot and description to the app's GitHub repository as a GitHub issue (always user-initiated); and (3) to transmit automatic crash reports to Sentry in release builds (see "Automated crash reporting" section above).</li>
 </ul>
 
 <h2>Your data</h2>
