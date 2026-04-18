@@ -1,6 +1,10 @@
 package com.alexsiri7.unreminder.ui.navigation
 
+import android.graphics.Bitmap
+import android.graphics.PixelCopy
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
@@ -16,8 +20,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -33,6 +39,7 @@ import com.alexsiri7.unreminder.ui.habit.HabitListScreen
 import com.alexsiri7.unreminder.ui.location.LocationScreen
 import com.alexsiri7.unreminder.ui.location.MapPickerScreen
 import com.alexsiri7.unreminder.ui.onboarding.OnboardingScreen
+import com.alexsiri7.unreminder.ui.feedback.FeedbackScreen
 import com.alexsiri7.unreminder.ui.recent.RecentTriggersScreen
 import com.alexsiri7.unreminder.ui.settings.SettingsScreen
 import com.alexsiri7.unreminder.ui.window.WindowEditScreen
@@ -62,6 +69,18 @@ fun NavGraph(navViewModel: NavViewModel = hiltViewModel()) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
+
+    var feedbackScreenshot by remember { mutableStateOf<Bitmap?>(null) }
+    val activity = LocalContext.current as? android.app.Activity
+    fun captureAndNavigate(destination: String) {
+        val window = activity?.window ?: return
+        val view = window.decorView
+        val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+        PixelCopy.request(window, bitmap, { result ->
+            if (result == PixelCopy.SUCCESS) feedbackScreenshot = bitmap
+            navController.navigate(destination)
+        }, Handler(Looper.getMainLooper()))
+    }
 
     val showBottomBar = currentDestination?.route != "onboarding"
 
@@ -156,11 +175,20 @@ fun NavGraph(navViewModel: NavViewModel = hiltViewModel()) {
                 )
             }
             composable(Screen.Recent.route) {
-                RecentTriggersScreen()
+                RecentTriggersScreen(
+                    onNavigateToFeedback = { captureAndNavigate("feedback") }
+                )
             }
             composable(Screen.Settings.route) {
                 SettingsScreen(
-                    onNavigateToLocations = { navController.navigate("locations") }
+                    onNavigateToLocations = { navController.navigate("locations") },
+                    onNavigateToFeedback = { captureAndNavigate("feedback") }
+                )
+            }
+            composable("feedback") {
+                FeedbackScreen(
+                    screenshotBitmap = feedbackScreenshot,
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
             composable("onboarding") {

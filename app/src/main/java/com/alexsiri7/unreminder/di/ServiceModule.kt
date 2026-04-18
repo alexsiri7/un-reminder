@@ -9,6 +9,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import okhttp3.OkHttpClient
 import javax.inject.Singleton
 
 @Module
@@ -32,4 +33,8 @@ object ServiceModule {
     fun provideNotificationHelper(@ApplicationContext context: Context): NotificationHelper {
         return NotificationHelper(context)
     }
+
+    @Provides
+    @Singleton
+    fun provideOkHttpClient(): OkHttpClient = OkHttpClient.Builder().build()
 }
