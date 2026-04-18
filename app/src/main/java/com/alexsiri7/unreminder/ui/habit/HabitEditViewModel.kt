@@ -113,8 +113,12 @@ class HabitEditViewModel @Inject constructor(
                     existing.id
                 } else {
                     habitRepository.insert(
-                        HabitEntity(name = state.name, fullDescription = state.fullDescription,
-                            lowFloorDescription = state.lowFloorDescription, active = state.active)
+                        HabitEntity(
+                            name = state.name,
+                            fullDescription = state.fullDescription,
+                            lowFloorDescription = state.lowFloorDescription,
+                            active = state.active
+                        )
                     )
                 }
                 habitRepository.setLocations(habitId, state.selectedLocationIds)
