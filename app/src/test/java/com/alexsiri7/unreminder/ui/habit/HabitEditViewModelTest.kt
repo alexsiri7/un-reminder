@@ -12,7 +12,7 @@ import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
 import io.mockk.verify
 import io.sentry.Sentry
-import io.sentry.SentryId
+import io.sentry.protocol.SentryId
 import io.sentry.ScopeCallback
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
