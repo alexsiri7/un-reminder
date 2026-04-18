@@ -38,8 +38,7 @@ class GitHubApiService @Inject constructor(
 
         val request = Request.Builder()
             .url("https://api.github.com/repos/$REPO/contents/$SCREENSHOTS_PATH/$fileName")
-            .addHeader("Authorization", "Bearer ${BuildConfig.GITHUB_FEEDBACK_TOKEN}")
-            .addHeader("Accept", "application/vnd.github+json")
+            .addGitHubHeaders()
             .put(json.toString().toRequestBody("application/json".toMediaType()))
             .build()
 
@@ -60,8 +59,7 @@ class GitHubApiService @Inject constructor(
 
         val request = Request.Builder()
             .url("https://api.github.com/repos/$REPO/issues")
-            .addHeader("Authorization", "Bearer ${BuildConfig.GITHUB_FEEDBACK_TOKEN}")
-            .addHeader("Accept", "application/vnd.github+json")
+            .addGitHubHeaders()
             .post(json.toString().toRequestBody("application/json".toMediaType()))
             .build()
 
@@ -71,4 +69,8 @@ class GitHubApiService @Inject constructor(
             }
         }
     }
+
+    private fun Request.Builder.addGitHubHeaders(): Request.Builder =
+        addHeader("Authorization", "Bearer ${BuildConfig.GITHUB_FEEDBACK_TOKEN}")
+            .addHeader("Accept", "application/vnd.github+json")
 }

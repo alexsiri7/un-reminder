@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 import javax.inject.Inject
 
 data class FeedbackUiState(
@@ -85,7 +86,7 @@ class FeedbackViewModel @Inject constructor(
                     gitHubApiService.createIssue(title, body)
                     screenshotPath?.let { File(it).delete() }
                     _uiState.value = _uiState.value.copy(isSubmitting = false, submitted = true)
-                } catch (e: java.io.IOException) {
+                } catch (e: IOException) {
                     // Transient network failure — queue for retry when connectivity returns.
                     Log.w(TAG, "Direct submit failed (network), queuing for retry", e)
                     feedbackRepository.queue(screenshotPath, _uiState.value.description)
