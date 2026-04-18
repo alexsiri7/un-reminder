@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import com.alexsiri7.unreminder.data.repository.TriggerRepository
 import com.alexsiri7.unreminder.domain.model.TriggerStatus
+import com.alexsiri7.unreminder.service.trigger.DismissalTracker
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -17,6 +18,9 @@ class NotificationActionReceiver : BroadcastReceiver() {
 
     @Inject
     lateinit var triggerRepository: TriggerRepository
+
+    @Inject
+    lateinit var dismissalTracker: DismissalTracker
 
     override fun onReceive(context: Context, intent: Intent) {
         val triggerId = intent.getLongExtra(NotificationHelper.EXTRA_TRIGGER_ID, -1)
@@ -35,6 +39,9 @@ class NotificationActionReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 triggerRepository.updateOutcome(triggerId, status)
+                if (status == TriggerStatus.DISMISSED) {
+                    dismissalTracker.onDismissed(triggerId)
+                }
                 val manager = context.getSystemService(NotificationManager::class.java)
                 manager.cancel(triggerId.toInt())
             } finally {

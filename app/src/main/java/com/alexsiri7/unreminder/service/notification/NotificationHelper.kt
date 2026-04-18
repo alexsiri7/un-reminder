@@ -22,6 +22,9 @@ class NotificationHelper @Inject constructor(
         const val ACTION_COMPLETED_FULL = "COMPLETED_FULL"
         const val ACTION_COMPLETED_LOW_FLOOR = "COMPLETED_LOW_FLOOR"
         const val ACTION_DISMISSED = "DISMISSED"
+        const val CHANNEL_ID_SYSTEM = "un_reminder_system"
+        const val CHANNEL_NAME_SYSTEM = "Habit Status"
+        const val NOTIFICATION_ID_PAUSED_BASE = 900_000
     }
 
     fun createNotificationChannel() {
@@ -34,6 +37,17 @@ class NotificationHelper @Inject constructor(
         }
         val manager = context.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(channel)
+
+        val systemChannel = NotificationChannel(
+            CHANNEL_ID_SYSTEM,
+            CHANNEL_NAME_SYSTEM,
+            NotificationManager.IMPORTANCE_DEFAULT
+        ).apply {
+            description = "Habit lifecycle status updates"
+            setSound(null, null)
+            enableVibration(false)
+        }
+        manager.createNotificationChannel(systemChannel)
     }
 
     fun postTriggerNotification(triggerId: Long, promptText: String, habitName: String) {
@@ -55,6 +69,18 @@ class NotificationHelper @Inject constructor(
 
         val manager = context.getSystemService(NotificationManager::class.java)
         manager.notify(triggerId.toInt(), notification)
+    }
+
+    fun postHabitPausedNotification(habitId: Long, habitName: String) {
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID_SYSTEM)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle("Paused $habitName")
+            .setContentText("Rewrite its low-floor description to re-activate.")
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+            .build()
+        val manager = context.getSystemService(NotificationManager::class.java)
+        manager.notify((NOTIFICATION_ID_PAUSED_BASE + habitId).toInt(), notification)
     }
 
     private fun createActionIntent(triggerId: Long, action: String, requestCodeOffset: Int): PendingIntent {

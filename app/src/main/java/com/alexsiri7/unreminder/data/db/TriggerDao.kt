@@ -38,4 +38,7 @@ interface TriggerDao {
 
     @Query("SELECT fired_at FROM triggers WHERE habit_id = :habitId AND fired_at IS NOT NULL ORDER BY fired_at DESC LIMIT 1")
     suspend fun getLastFiredForHabit(habitId: Long): Long?
+
+    @Query("SELECT * FROM triggers WHERE habit_id = :habitId AND fired_at IS NOT NULL ORDER BY fired_at DESC LIMIT :limit")
+    suspend fun getLastNForHabit(habitId: Long, limit: Int): List<TriggerEntity>
 }

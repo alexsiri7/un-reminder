@@ -26,6 +26,8 @@ class HabitRepository @Inject constructor(
 
     suspend fun delete(habit: HabitEntity) = habitDao.delete(habit)
 
+    suspend fun getByIdOnce(id: Long): HabitEntity? = habitDao.getByIdOnce(id)
+
     suspend fun getEligibleHabits(
         currentLocationIds: Set<Long>,
         excludeRecentMinutes: Long = 90
