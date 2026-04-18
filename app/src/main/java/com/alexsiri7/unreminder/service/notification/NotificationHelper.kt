@@ -12,7 +12,8 @@ import javax.inject.Singleton
 
 @Singleton
 class NotificationHelper @Inject constructor(
-    private val context: Context
+    private val context: Context,
+    private val emojiRotator: EmojiRotator
 ) {
     private val notificationManager = context.getSystemService(NotificationManager::class.java)
     companion object {
@@ -53,13 +54,14 @@ class NotificationHelper @Inject constructor(
     }
 
     fun postTriggerNotification(triggerId: Long, promptText: String, habitName: String) {
+        val emoji = emojiRotator.pick(triggerId)
         val fullIntent = createActionIntent(triggerId, ACTION_COMPLETED_FULL, 0)
         val lowFloorIntent = createActionIntent(triggerId, ACTION_COMPLETED_LOW_FLOOR, 1)
         val dismissIntent = createActionIntent(triggerId, ACTION_DISMISSED, 2)
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle(habitName)
+            .setContentTitle("$emoji $habitName")
             .setContentText(promptText)
             .setStyle(NotificationCompat.BigTextStyle().bigText(promptText))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
