@@ -29,7 +29,7 @@ class UnReminderApp : Application(), Configuration.Provider {
     @Inject
     lateinit var promptGenerator: PromptGenerator
 
-    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
