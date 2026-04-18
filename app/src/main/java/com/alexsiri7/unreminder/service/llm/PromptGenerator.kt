@@ -7,6 +7,7 @@ import com.alexsiri7.unreminder.domain.model.AiHabitFields
 import com.google.mlkit.genai.prompt.Generation
 import com.google.mlkit.genai.prompt.GenerativeModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import io.sentry.Sentry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeout
 import javax.inject.Inject
@@ -29,6 +30,9 @@ class PromptGenerator @Inject constructor(
             model = m
         } catch (e: Exception) {
             Log.w(TAG, "LLM initialization failed; notification generation will use templates, AI autofill will throw", e)
+            Sentry.captureException(e) { scope ->
+                scope.setTag("component", "llm-init")
+            }
             model = null
         }
     }
@@ -59,7 +63,12 @@ class PromptGenerator @Inject constructor(
         |Time of day: $timeOfDay""".trimMargin()
 
     suspend fun generateHabitFields(title: String): AiHabitFields {
-        val m = model ?: throw IllegalStateException("LLM unavailable")
+        val m = model ?: run {
+            Sentry.captureMessage("generateHabitFields called with null model") { scope ->
+                scope.setTag("component", "llm-generate-fields")
+            }
+            throw IllegalStateException("LLM unavailable")
+        }
         return try {
             withTimeout(5_000) {
                 val prompt = buildHabitFieldsPrompt(title)
@@ -84,7 +93,12 @@ class PromptGenerator @Inject constructor(
     }
 
     suspend fun previewHabitNotification(habit: HabitEntity, locationName: String = "Anywhere"): String {
-        val m = model ?: throw IllegalStateException("LLM unavailable")
+        val m = model ?: run {
+            Sentry.captureMessage("previewHabitNotification called with null model") { scope ->
+                scope.setTag("component", "llm-preview")
+            }
+            throw IllegalStateException("LLM unavailable")
+        }
         return withTimeout(5_000) {
             // "now" tells the LLM to generate a notification appropriate for the current moment
             val prompt = buildPrompt(habit, locationName, "now")

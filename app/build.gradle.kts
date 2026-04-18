@@ -24,6 +24,7 @@ android {
             "GITHUB_FEEDBACK_TOKEN",
             "\"${System.getenv("GITHUB_FEEDBACK_TOKEN") ?: project.findProperty("githubFeedbackToken") ?: ""}\""
         )
+        buildConfigField("String", "SENTRY_DSN", "\"${System.getenv("SENTRY_DSN") ?: ""}\"")
     }
 
     signingConfigs {
@@ -116,6 +117,9 @@ dependencies {
     // Coroutines
     implementation(libs.coroutines.android)
     implementation(libs.coroutines.play.services)
+
+    // Sentry
+    implementation(libs.sentry.android)
 
     // Testing
     testImplementation(libs.junit)

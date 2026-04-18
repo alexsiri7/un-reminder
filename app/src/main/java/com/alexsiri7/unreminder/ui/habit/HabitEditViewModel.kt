@@ -9,6 +9,7 @@ import com.alexsiri7.unreminder.data.repository.HabitRepository
 import com.alexsiri7.unreminder.data.repository.LocationRepository
 import com.alexsiri7.unreminder.service.llm.PromptGenerator
 import dagger.hilt.android.lifecycle.HiltViewModel
+import io.sentry.Sentry
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -136,6 +137,9 @@ class HabitEditViewModel @Inject constructor(
                 block()
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
+                Sentry.captureException(e) { scope ->
+                    scope.setTag("component", "ai-ui")
+                }
                 _uiState.value = _uiState.value.copy(isGeneratingFields = false, errorMessage = errorMsg)
             }
         }
