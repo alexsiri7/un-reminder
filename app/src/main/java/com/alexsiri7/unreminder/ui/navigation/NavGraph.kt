@@ -1,10 +1,8 @@
 package com.alexsiri7.unreminder.ui.navigation
 
 import android.graphics.Bitmap
-import android.graphics.PixelCopy
+import android.graphics.Canvas
 import android.net.Uri
-import android.os.Handler
-import android.os.Looper
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.History
@@ -73,18 +71,19 @@ fun NavGraph(navViewModel: NavViewModel = hiltViewModel()) {
     var feedbackScreenshot by remember { mutableStateOf<Bitmap?>(null) }
     val activity = LocalContext.current as? android.app.Activity
     // Screenshot must be captured before navigating so we get the current screen,
-    // not the FeedbackScreen overlay. Navigate inside the PixelCopy callback to
-    // guarantee ordering. Clear any stale screenshot first so a failed capture
-    // never shows a bitmap from a previous session.
+    // not the FeedbackScreen overlay. Clear any stale screenshot first so a failed
+    // capture never shows a bitmap from a previous session.
     fun captureAndNavigate(destination: String) {
-        val window = activity?.window ?: return
-        feedbackScreenshot = null  // clear stale state before async capture
-        val view = window.decorView
-        val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
-        PixelCopy.request(window, bitmap, { result ->
-            if (result == PixelCopy.SUCCESS) feedbackScreenshot = bitmap
-            navController.navigate(destination)  // navigate AFTER capture completes
-        }, Handler(Looper.getMainLooper()))
+        val view = activity?.window?.decorView ?: return
+        feedbackScreenshot = null  // clear stale state before capture
+        try {
+            val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+            view.draw(Canvas(bitmap))
+            feedbackScreenshot = bitmap
+        } catch (_: Exception) {
+            // capture failed, navigate with null screenshot
+        }
+        navController.navigate(destination)
     }
 
     val showBottomBar = currentDestination?.route != "onboarding"
