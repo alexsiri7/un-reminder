@@ -1,10 +1,15 @@
 package com.alexsiri7.unreminder.ui.habit
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -14,8 +19,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -47,6 +54,7 @@ fun HabitEditScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val allLocations by viewModel.allLocations.collectAsStateWithLifecycle()
+    val flashAlpha = remember { Animatable(0f) }
 
     LaunchedEffect(habitId) {
         if (habitId != null) viewModel.loadHabit(habitId)
@@ -62,6 +70,14 @@ fun HabitEditScreen(
         val msg = uiState.errorMessage ?: return@LaunchedEffect
         snackbarHostState.showSnackbar(msg)
         viewModel.clearError()
+    }
+
+    LaunchedEffect(uiState.fieldsFlashing) {
+        if (uiState.fieldsFlashing) {
+            flashAlpha.snapTo(0.3f)
+            flashAlpha.animateTo(0f, animationSpec = tween(durationMillis = 600))
+            viewModel.clearFieldsFlash()
+        }
     }
 
     val previewText = uiState.previewNotification
@@ -107,20 +123,30 @@ fun HabitEditScreen(
                 label = { Text("Name") },
                 modifier = Modifier.fillMaxWidth()
             )
-            OutlinedTextField(
-                value = uiState.fullDescription,
-                onValueChange = viewModel::updateFullDescription,
-                label = { Text("Full description") },
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 2
-            )
-            OutlinedTextField(
-                value = uiState.lowFloorDescription,
-                onValueChange = viewModel::updateLowFloorDescription,
-                label = { Text("Low-floor description (minimum viable)") },
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 2
-            )
+            Box(modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = flashAlpha.value))
+            ) {
+                OutlinedTextField(
+                    value = uiState.fullDescription,
+                    onValueChange = viewModel::updateFullDescription,
+                    label = { Text("Full description") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2
+                )
+            }
+            Box(modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = flashAlpha.value))
+            ) {
+                OutlinedTextField(
+                    value = uiState.lowFloorDescription,
+                    onValueChange = viewModel::updateLowFloorDescription,
+                    label = { Text("Low-floor description (minimum viable)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2
+                )
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -136,6 +162,8 @@ fun HabitEditScreen(
                             modifier = Modifier.size(16.dp),
                             strokeWidth = 2.dp
                         )
+                        Spacer(modifier = Modifier.size(ButtonDefaults.IconSpacing))
+                        Text("Generating\u2026")
                     } else {
                         Text("Autofill with AI")
                     }
@@ -148,6 +176,13 @@ fun HabitEditScreen(
                               !uiState.isGeneratingFields,
                     modifier = Modifier.weight(1f)
                 ) {
+                    if (uiState.isGeneratingFields) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.size(ButtonDefaults.IconSpacing))
+                    }
                     Text("Preview notification")
                 }
             }
