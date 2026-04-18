@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.Constraints
+import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
@@ -84,14 +85,22 @@ class FeedbackViewModel @Inject constructor(
                     gitHubApiService.createIssue(title, body)
                     screenshotPath?.let { File(it).delete() }
                     _uiState.value = _uiState.value.copy(isSubmitting = false, submitted = true)
-                } catch (e: Exception) {
-                    if (e is CancellationException) throw e
-                    Log.w(TAG, "Direct submit failed, queuing for retry", e)
+                } catch (e: java.io.IOException) {
+                    // Transient network failure — queue for retry when connectivity returns.
+                    Log.w(TAG, "Direct submit failed (network), queuing for retry", e)
                     feedbackRepository.queue(screenshotPath, _uiState.value.description)
                     scheduleUploadWorker()
                     _uiState.value = _uiState.value.copy(
                         isSubmitting = false,
                         errorMessage = "Offline — queued for retry when connected."
+                    )
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    // Permanent failure (e.g. auth error) — do not queue; inform the user.
+                    Log.e(TAG, "Direct submit failed (permanent)", e)
+                    _uiState.value = _uiState.value.copy(
+                        isSubmitting = false,
+                        errorMessage = "Submission failed — please check your feedback token."
                     )
                 }
             } catch (e: Exception) {
@@ -138,6 +147,10 @@ class FeedbackViewModel @Inject constructor(
         val work = OneTimeWorkRequestBuilder<FeedbackUploadWorker>()
             .setConstraints(constraints)
             .build()
-        WorkManager.getInstance(context).enqueue(work)
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            FeedbackUploadWorker.WORK_NAME,
+            ExistingWorkPolicy.KEEP,
+            work
+        )
     }
 }

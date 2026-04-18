@@ -2,7 +2,7 @@
 
 A native Android app that replaces fixed-time reminders with **stochastic, context-aware, AI-generated habit prompts** — designed to defeat notification blindness.
 
-Built fully on-device. No backend, no cloud, no account. Works offline.
+Built fully on-device. No backend, no cloud, no account. Works offline. Optional in-app feedback submits annotated screenshots to GitHub (user-initiated only).
 
 ---
 
@@ -40,6 +40,7 @@ Solo user (the author). Single-device, single-user. Personal productivity / well
 | Map UI | **osmdroid** | OpenStreetMap-based map picker for location selection; tiles cached automatically on-device. |
 | Notifications | **NotificationManager** (Android 13+ runtime permission) | Native. |
 | LLM | **Gemma 4 E2B on-device** via **ML Kit GenAI Prompt API** / **AICore** (Pixel 8 Pro is AICore-supported). | Zero-cost, offline, private, low-latency. |
+| Network | **OkHttp** | HTTP client for GitHub feedback API (optional in-app feedback feature). |
 | DI | Hilt | |
 | Testing | JUnit + Compose UI tests | |
 
@@ -184,9 +185,10 @@ Parsed via `lines().firstOrNull { it.startsWith("Full:") }` / `"Low-floor:"`. Th
    osmdroid map with a draggable pin and a bottom sheet for name, radius (50–500 m), and Save.
    Location is stored as lat/lng + radius; osmdroid caches tiles automatically (no offline pre-caching UI).
    Habits link to zero or more locations via the `habit_location` junction table; no selection means "Anywhere".
-6. **Recent triggers screen** — last 20 fired triggers with their generated prompts and outcomes. Read-only.
-7. **Settings screen** — notification permission status, background location permission status, a manual "Test trigger now" button, and a button to regenerate tomorrow's scheduled triggers.
+6. **Recent triggers screen** — last 20 fired triggers with their generated prompts and outcomes. Read-only. Includes a "Send Feedback" button in the top bar.
+7. **Settings screen** — notification permission status, background location permission status, a manual "Test trigger now" button, a button to regenerate tomorrow's scheduled triggers, and a "Send Feedback" button.
 8. **Onboarding screen** — shown once on first launch. Walks the user through three collapsible steps: (1) granting Notifications and Location permissions, (2) creating a first habit with name/descriptions and weekday schedule, (3) creating a first time window. Includes a "Skip" action in the top bar. Completion (or skip) is persisted via DataStore (`onboarding_done` key) and never shown again. Bottom navigation bar is hidden while onboarding is active.
+9. **Feedback screen** — annotated screenshot tool. Captures the current screen, lets the user draw annotations (red/yellow/green strokes), type a description, and submit as a GitHub issue. Falls back to an offline queue (WorkManager) when connectivity is unavailable.
 
 ---
 
@@ -197,19 +199,20 @@ Parsed via `lines().firstOrNull { it.startsWith("Full:") }` / `"Low-floor:"`. Th
 - `ACCESS_BACKGROUND_LOCATION` (requested separately after fine location grant, with clear in-app explanation of why)
 - `SCHEDULE_EXACT_ALARM` (Android 12+)
 - `FOREGROUND_SERVICE` for the geofence service if needed.
-- `INTERNET` — map tile downloads for the location picker (OpenStreetMap; no personal data transmitted).
+- `INTERNET` — two purposes: (1) map tile downloads for the location picker (OpenStreetMap; no personal data transmitted); and (2) optional in-app feedback upload to GitHub (user-initiated; sends annotated screenshot and description).
 
 ---
 
 ## 8. Database Schema (Room)
 
 ```kotlin
-// DB version 2
+// DB version 4
 @Entity Habit(id, name, full_description, low_floor_description, active, created_at, updated_at)
 @Entity Window(id, start_time, end_time, days_of_week_bitmask, frequency_per_day, active)
 @Entity Location(id, name /* user-defined, e.g. "Home", "Gym", "Office" */, lat, lng, radius_m)
 @Entity HabitLocationCrossRef(habit_id → Habit.id CASCADE, location_id → Location.id CASCADE)  // junction
 @Entity Trigger(id, window_id?, habit_id?, scheduled_at, fired_at?, status, generated_prompt?)
+@Entity PendingFeedback(id, screenshot_path? /* nullable */, description, queued_at)  // offline upload queue
 ```
 
 ---

@@ -72,13 +72,18 @@ fun NavGraph(navViewModel: NavViewModel = hiltViewModel()) {
 
     var feedbackScreenshot by remember { mutableStateOf<Bitmap?>(null) }
     val activity = LocalContext.current as? android.app.Activity
+    // Screenshot must be captured before navigating so we get the current screen,
+    // not the FeedbackScreen overlay. Navigate inside the PixelCopy callback to
+    // guarantee ordering. Clear any stale screenshot first so a failed capture
+    // never shows a bitmap from a previous session.
     fun captureAndNavigate(destination: String) {
         val window = activity?.window ?: return
+        feedbackScreenshot = null  // clear stale state before async capture
         val view = window.decorView
         val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
         PixelCopy.request(window, bitmap, { result ->
             if (result == PixelCopy.SUCCESS) feedbackScreenshot = bitmap
-            navController.navigate(destination)
+            navController.navigate(destination)  // navigate AFTER capture completes
         }, Handler(Looper.getMainLooper()))
     }
 

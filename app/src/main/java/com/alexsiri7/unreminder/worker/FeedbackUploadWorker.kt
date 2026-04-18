@@ -2,6 +2,7 @@ package com.alexsiri7.unreminder.worker
 
 import android.content.Context
 import android.os.Build
+import android.util.Log
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
@@ -10,7 +11,9 @@ import com.alexsiri7.unreminder.data.repository.FeedbackRepository
 import com.alexsiri7.unreminder.service.github.GitHubApiService
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import kotlinx.coroutines.CancellationException
 import java.io.File
+import java.io.IOException
 
 @HiltWorker
 class FeedbackUploadWorker @AssistedInject constructor(
@@ -21,7 +24,8 @@ class FeedbackUploadWorker @AssistedInject constructor(
 ) : CoroutineWorker(appContext, workerParams) {
 
     companion object {
-        const val WORK_NAME_PREFIX = "feedback_upload_"
+        const val WORK_NAME = "feedback_upload"
+        private const val TAG = "FeedbackUploadWorker"
     }
 
     override suspend fun doWork(): Result {
@@ -51,7 +55,10 @@ class FeedbackUploadWorker @AssistedInject constructor(
                 feedbackRepository.deleteById(item.id)
                 item.screenshotPath?.let { File(it).delete() }
             } catch (e: Exception) {
-                return Result.retry()
+                if (e is CancellationException) throw e
+                Log.w(TAG, "Upload failed for item ${item.id}", e)
+                val isTransient = e is IOException || e.cause is IOException
+                return if (isTransient) Result.retry() else Result.failure()
             }
         }
 

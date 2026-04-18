@@ -2,6 +2,8 @@ package com.alexsiri7.unreminder.service.github
 
 import android.util.Base64
 import com.alexsiri7.unreminder.BuildConfig
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -23,7 +25,7 @@ class GitHubApiService @Inject constructor(
         private const val PAGES_BASE = "https://alexsiri7.github.io/un-reminder/feedback-screenshots"
     }
 
-    suspend fun uploadImage(imageFile: File): String {
+    suspend fun uploadImage(imageFile: File): String = withContext(Dispatchers.IO) {
         val uuid = UUID.randomUUID().toString()
         val fileName = "$uuid.png"
         val base64Content = Base64.encodeToString(imageFile.readBytes(), Base64.NO_WRAP)
@@ -46,10 +48,10 @@ class GitHubApiService @Inject constructor(
                 throw RuntimeException("Image upload failed: ${response.code} ${response.body?.string()}")
             }
         }
-        return "$PAGES_BASE/$fileName"
+        "$PAGES_BASE/$fileName"
     }
 
-    suspend fun createIssue(title: String, body: String) {
+    suspend fun createIssue(title: String, body: String) = withContext(Dispatchers.IO) {
         val json = JSONObject().apply {
             put("title", title)
             put("body", body)

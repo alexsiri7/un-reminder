@@ -143,6 +143,9 @@ fun FeedbackScreen(
                                     onDrag = { change, _ ->
                                         change.consume()
                                         currentPath?.lineTo(change.position.x, change.position.y)
+                                        // Create a new Path instance to trigger Compose recomposition —
+                                        // Path has no structural equality, so mutating in place is
+                                        // invisible to state tracking and the canvas would not redraw.
                                         currentPath = currentPath?.let { Path().apply { addPath(it) } }
                                     },
                                     onDragEnd = {
@@ -172,8 +175,11 @@ fun FeedbackScreen(
                                 .clip(CircleShape)
                                 .background(color)
                                 .then(
-                                    if (currentColor == color) Modifier.border(3.dp, Color.White, CircleShape)
-                                        .border(3.dp, Color.Black, CircleShape)
+                                    if (currentColor == color)
+                                        Modifier
+                                            .border(3.dp, Color.Black, CircleShape)
+                                            .padding(2.dp)
+                                            .border(3.dp, Color.White, CircleShape)
                                     else Modifier
                                 )
                                 .clickable { currentColor = color }

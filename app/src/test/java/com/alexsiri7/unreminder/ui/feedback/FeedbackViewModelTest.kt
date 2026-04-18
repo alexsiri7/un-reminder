@@ -1,6 +1,7 @@
 package com.alexsiri7.unreminder.ui.feedback
 
 import android.content.Context
+import android.graphics.Bitmap
 import com.alexsiri7.unreminder.data.repository.FeedbackRepository
 import com.alexsiri7.unreminder.service.github.GitHubApiService
 import io.mockk.mockk
@@ -12,8 +13,10 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 
@@ -39,5 +42,26 @@ class FeedbackViewModelTest {
         val state = viewModel.uiState.value
         assertFalse(state.isSubmitting)
         assertNotNull(state.errorMessage)
+    }
+
+    @Test fun `updateDescription updates description in state`() {
+        viewModel.updateDescription("some description")
+        assertEquals("some description", viewModel.uiState.value.description)
+    }
+
+    @Test fun `clearError clears errorMessage in state`() = runTest {
+        // Trigger an error first via blank-token submit path
+        viewModel.submit(mockk(relaxed = true))
+        advanceUntilIdle()
+        assertNotNull(viewModel.uiState.value.errorMessage)
+
+        viewModel.clearError()
+        assertNull(viewModel.uiState.value.errorMessage)
+    }
+
+    @Test fun `setScreenshot updates screenshotBitmap in state`() {
+        val bitmap = mockk<Bitmap>(relaxed = true)
+        viewModel.setScreenshot(bitmap)
+        assertEquals(bitmap, viewModel.uiState.value.screenshotBitmap)
     }
 }
