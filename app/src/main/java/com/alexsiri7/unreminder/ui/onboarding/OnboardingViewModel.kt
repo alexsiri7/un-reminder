@@ -77,10 +77,11 @@ class OnboardingViewModel @Inject constructor(
     fun completeOnboarding(saveHabit: Boolean, saveWindow: Boolean) {
         viewModelScope.launch {
             try {
-                if (saveHabit && _uiState.value.habitName.isNotBlank()) {
+                val state = _uiState.value
+                if (saveHabit && state.habitName.isNotBlank()) {
                     habitRepository.insert(
                         HabitEntity(
-                            name = _uiState.value.habitName,
+                            name = state.habitName,
                             fullDescription = "",
                             lowFloorDescription = "",
                             active = true
@@ -90,8 +91,8 @@ class OnboardingViewModel @Inject constructor(
                 if (saveWindow) {
                     windowRepository.insert(
                         WindowEntity(
-                            startTime = _uiState.value.windowStartTime,
-                            endTime = _uiState.value.windowEndTime,
+                            startTime = state.windowStartTime,
+                            endTime = state.windowEndTime,
                             // Mon–Fri: bit 0 = Monday, bit 4 = Friday (matches DailySchedulerWorkerTest convention)
                             daysOfWeekBitmask = 0b0011111,
                             frequencyPerDay = 1,

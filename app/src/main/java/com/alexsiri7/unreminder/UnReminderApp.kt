@@ -6,9 +6,14 @@ import androidx.work.Configuration
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.alexsiri7.unreminder.service.llm.PromptGenerator
 import com.alexsiri7.unreminder.service.notification.NotificationHelper
 import com.alexsiri7.unreminder.worker.DailySchedulerWorker
 import dagger.hilt.android.HiltAndroidApp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
@@ -21,6 +26,11 @@ class UnReminderApp : Application(), Configuration.Provider {
     @Inject
     lateinit var notificationHelper: NotificationHelper
 
+    @Inject
+    lateinit var promptGenerator: PromptGenerator
+
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
             .setWorkerFactory(workerFactory)
@@ -30,6 +40,7 @@ class UnReminderApp : Application(), Configuration.Provider {
         super.onCreate()
         notificationHelper.createNotificationChannel()
         scheduleDailyWorker()
+        appScope.launch { promptGenerator.initialize() }
     }
 
     private fun scheduleDailyWorker() {
