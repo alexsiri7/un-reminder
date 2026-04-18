@@ -42,8 +42,6 @@ class HabitRepository @Inject constructor(
 
     suspend fun setLocations(habitId: Long, locationIds: Set<Long>) {
         crossRefDao.deleteByHabitId(habitId)
-        for (locId in locationIds) {
-            crossRefDao.insert(HabitLocationCrossRef(habitId = habitId, locationId = locId))
-        }
+        crossRefDao.insertAll(locationIds.map { HabitLocationCrossRef(habitId = habitId, locationId = it) })
     }
 }

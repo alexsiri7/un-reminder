@@ -100,6 +100,9 @@ dependencies {
     // ML Kit GenAI
     implementation(libs.mlkit.genai.prompt)
 
+    // DataStore
+    implementation(libs.androidx.datastore.preferences)
+
     // Coroutines
     implementation(libs.coroutines.android)
     implementation(libs.coroutines.play.services)

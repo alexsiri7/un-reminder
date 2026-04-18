@@ -14,8 +14,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -28,6 +32,7 @@ import com.alexsiri7.unreminder.ui.habit.HabitEditScreen
 import com.alexsiri7.unreminder.ui.habit.HabitListScreen
 import com.alexsiri7.unreminder.ui.location.LocationScreen
 import com.alexsiri7.unreminder.ui.location.MapPickerScreen
+import com.alexsiri7.unreminder.ui.onboarding.OnboardingScreen
 import com.alexsiri7.unreminder.ui.recent.RecentTriggersScreen
 import com.alexsiri7.unreminder.ui.settings.SettingsScreen
 import com.alexsiri7.unreminder.ui.window.WindowEditScreen
@@ -43,14 +48,26 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector)
 val bottomNavItems = listOf(Screen.Habits, Screen.Windows, Screen.Recent, Screen.Settings)
 
 @Composable
-fun NavGraph() {
+fun NavGraph(navViewModel: NavViewModel = hiltViewModel()) {
+    val isOnboarded by navViewModel.isOnboarded.collectAsStateWithLifecycle()
+
+    // Lock startDestination once: prevents NavHost from re-routing after onboarding
+    // completes and isOnboarded flips from false → true during the same session.
+    val startDestination = remember { mutableStateOf<String?>(null) }
+    if (startDestination.value == null && isOnboarded != null) {
+        startDestination.value = if (isOnboarded == true) Screen.Habits.route else "onboarding"
+    }
+    val resolvedStart = startDestination.value ?: return
+
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
+    val showBottomBar = currentDestination?.route != "onboarding"
+
     Scaffold(
         bottomBar = {
-            NavigationBar {
+            if (showBottomBar) NavigationBar {
                 bottomNavItems.forEach { screen ->
                     NavigationBarItem(
                         icon = { Icon(screen.icon, contentDescription = screen.label) },
@@ -72,7 +89,7 @@ fun NavGraph() {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = Screen.Habits.route,
+            startDestination = resolvedStart,
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(Screen.Habits.route) {
@@ -144,6 +161,15 @@ fun NavGraph() {
             composable(Screen.Settings.route) {
                 SettingsScreen(
                     onNavigateToLocations = { navController.navigate("locations") }
+                )
+            }
+            composable("onboarding") {
+                OnboardingScreen(
+                    onFinished = {
+                        navController.navigate(Screen.Habits.route) {
+                            popUpTo("onboarding") { inclusive = true }
+                        }
+                    }
                 )
             }
         }

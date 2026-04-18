@@ -34,7 +34,7 @@ Solo user (the author). Single-device, single-user. Personal productivity / well
 | Platform | **Android native** (min SDK 31, target 34+) | Background geofencing, reliable notifications, on-device LLM support. |
 | Language | **Kotlin** | |
 | UI | **Jetpack Compose** + Material 3 | |
-| Local storage | **Room** (SQLite) | Local-first. |
+| Local storage | **Room** (SQLite) + **DataStore Preferences** | Room for structured data (habits, triggers, locations). DataStore for simple key/value app preferences (e.g. onboarding state). |
 | Scheduling | **WorkManager** + **AlarmManager** (exact alarms) | Stochastic trigger firing inside windows. |
 | Geofencing | **Android `GeofencingClient`** (Google Play Services Location API) | Background location; requires `ACCESS_BACKGROUND_LOCATION`. |
 | Map UI | **osmdroid** | OpenStreetMap-based map picker for location selection; tiles cached automatically on-device. |
@@ -186,8 +186,7 @@ Parsed via `lines().firstOrNull { it.startsWith("Full:") }` / `"Low-floor:"`. Th
    Habits link to zero or more locations via the `habit_location` junction table; no selection means "Anywhere".
 6. **Recent triggers screen** — last 20 fired triggers with their generated prompts and outcomes. Read-only.
 7. **Settings screen** — notification permission status, background location permission status, a manual "Test trigger now" button, and a button to regenerate tomorrow's scheduled triggers.
-
-No onboarding flow for MVP beyond permission requests on first launch. User is expected to add habits and windows themselves.
+8. **Onboarding screen** — shown once on first launch. Walks the user through three collapsible steps: (1) granting Notifications and Location permissions, (2) creating a first habit with name/descriptions and weekday schedule, (3) creating a first time window. Includes a "Skip" action in the top bar. Completion (or skip) is persisted via DataStore (`onboarding_done` key) and never shown again. Bottom navigation bar is hidden while onboarding is active.
 
 ---
 
