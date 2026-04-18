@@ -57,27 +57,22 @@ class SettingsViewModel @Inject constructor(
         )
     }
 
-    fun testTriggerNow() {
-        viewModelScope.launch {
-            val trigger = TriggerEntity(
-                scheduledAt = Instant.now(),
-                status = TriggerStatus.SCHEDULED
-            )
-            val id = triggerRepository.insert(trigger)
-            triggerPipeline.execute(id)
-            _uiState.value = _uiState.value.copy(testTriggered = true)
-        }
-    }
+    fun testTriggerNow() = executeTrigger(onComplete = {
+        _uiState.value = _uiState.value.copy(testTriggered = true)
+    })
 
-    fun surpriseMe() {
+    fun surpriseMe() = executeTrigger(source = "MANUAL")
+
+    private fun executeTrigger(source: String? = null, onComplete: (() -> Unit)? = null) {
         viewModelScope.launch {
             val trigger = TriggerEntity(
                 scheduledAt = Instant.now(),
                 status = TriggerStatus.SCHEDULED,
-                source = "MANUAL"
+                source = source
             )
             val id = triggerRepository.insert(trigger)
             triggerPipeline.execute(id)
+            onComplete?.invoke()
         }
     }
 

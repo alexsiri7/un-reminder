@@ -18,6 +18,12 @@ android {
         versionName = System.getenv("VERSION_NAME") ?: "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField(
+            "String",
+            "GITHUB_FEEDBACK_TOKEN",
+            "\"${System.getenv("GITHUB_FEEDBACK_TOKEN") ?: project.findProperty("githubFeedbackToken") ?: ""}\""
+        )
     }
 
     signingConfigs {
@@ -55,6 +61,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     testOptions {
@@ -92,6 +99,9 @@ dependencies {
 
     // WorkManager
     implementation(libs.work.runtime.ktx)
+
+    // OkHttp
+    implementation(libs.okhttp)
 
     // Play Services Location (geofencing)
     implementation(libs.play.services.location)

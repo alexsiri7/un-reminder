@@ -8,8 +8,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SuggestionChip
@@ -33,6 +37,7 @@ import java.time.format.DateTimeFormatter
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RecentTriggersScreen(
+    onNavigateToFeedback: () -> Unit = {},
     viewModel: RecentTriggersViewModel = hiltViewModel()
 ) {
     val triggers by viewModel.triggers.collectAsStateWithLifecycle()
@@ -41,6 +46,11 @@ fun RecentTriggersScreen(
     Scaffold(
         topBar = {
             TopAppBar(title = { Text("Recent Triggers") })
+        },
+        floatingActionButton = {
+            FloatingActionButton(onClick = onNavigateToFeedback) {
+                Icon(Icons.Default.BugReport, contentDescription = "Send Feedback")
+            }
         }
     ) { padding ->
         if (triggers.isEmpty()) {
