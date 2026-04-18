@@ -8,7 +8,7 @@ import androidx.room.Query
 @Dao
 interface HabitLocationCrossRefDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insert(crossRef: HabitLocationCrossRef)
+    suspend fun insertAll(crossRefs: List<HabitLocationCrossRef>)
 
     @Query("DELETE FROM habit_location WHERE habit_id = :habitId")
     suspend fun deleteByHabitId(habitId: Long)

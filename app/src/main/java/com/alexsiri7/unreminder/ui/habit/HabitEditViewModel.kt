@@ -124,57 +124,47 @@ class HabitEditViewModel @Inject constructor(
         }
     }
 
-    fun autofillWithAi() {
+    private fun launchWithAi(errorMsg: String, block: suspend () -> Unit) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isGeneratingFields = true, errorMessage = null)
             try {
-                val fields = promptGenerator.generateHabitFields(_uiState.value.name)
-                _uiState.value = _uiState.value.copy(
-                    fullDescription = fields.fullDescription,
-                    lowFloorDescription = fields.lowFloorDescription,
-                    isGeneratingFields = false
-                )
+                block()
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                _uiState.value = _uiState.value.copy(
-                    isGeneratingFields = false,
-                    errorMessage = "AI unavailable — fill in manually."
-                )
+                _uiState.value = _uiState.value.copy(isGeneratingFields = false, errorMessage = errorMsg)
             }
         }
     }
 
-    fun previewNotification() {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isGeneratingFields = true, errorMessage = null)
-            try {
-                val state = _uiState.value
-                val tempHabit = HabitEntity(
-                    name = state.name,
-                    fullDescription = state.fullDescription,
-                    lowFloorDescription = state.lowFloorDescription
-                )
-                val locationName = if (state.selectedLocationIds.isEmpty()) {
-                    "Anywhere"
-                } else {
-                    locationRepository.getByIds(state.selectedLocationIds)
-                        .joinToString(", ") { it.name }
-                        .ifBlank { "Anywhere" }
-                }
-                val text = promptGenerator.previewHabitNotification(tempHabit, locationName)
-                _uiState.value = _uiState.value.copy(
-                    isGeneratingFields = false,
-                    previewNotification = text,
-                    showPreviewDialog = true
-                )
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                _uiState.value = _uiState.value.copy(
-                    isGeneratingFields = false,
-                    errorMessage = "AI unavailable — preview not available."
-                )
-            }
+    fun autofillWithAi() = launchWithAi("AI unavailable — fill in manually.") {
+        val fields = promptGenerator.generateHabitFields(_uiState.value.name)
+        _uiState.value = _uiState.value.copy(
+            fullDescription = fields.fullDescription,
+            lowFloorDescription = fields.lowFloorDescription,
+            isGeneratingFields = false
+        )
+    }
+
+    fun previewNotification() = launchWithAi("AI unavailable — preview not available.") {
+        val state = _uiState.value
+        val tempHabit = HabitEntity(
+            name = state.name,
+            fullDescription = state.fullDescription,
+            lowFloorDescription = state.lowFloorDescription
+        )
+        val locationName = if (state.selectedLocationIds.isEmpty()) {
+            "Anywhere"
+        } else {
+            locationRepository.getByIds(state.selectedLocationIds)
+                .joinToString(", ") { it.name }
+                .ifBlank { "Anywhere" }
         }
+        val text = promptGenerator.previewHabitNotification(tempHabit, locationName)
+        _uiState.value = _uiState.value.copy(
+            isGeneratingFields = false,
+            previewNotification = text,
+            showPreviewDialog = true
+        )
     }
 
     fun dismissPreviewDialog() {
