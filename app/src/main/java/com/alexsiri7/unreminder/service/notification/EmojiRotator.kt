@@ -12,6 +12,7 @@ class EmojiRotator @Inject constructor() {
         )
     }
 
+    // .mod() (not %) ensures a non-negative index when triggerId is negative
     fun pick(triggerId: Long): String =
-        EMOJIS[Math.floorMod(triggerId, EMOJIS.size.toLong()).toInt()]
+        EMOJIS[triggerId.mod(EMOJIS.size)]
 }

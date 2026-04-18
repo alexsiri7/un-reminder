@@ -1,7 +1,6 @@
 package com.alexsiri7.unreminder.service.notification
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class EmojiRotatorTest {
@@ -27,8 +26,8 @@ class EmojiRotatorTest {
     }
 
     @Test
-    fun `negative triggerId does not throw`() {
-        val result = rotator.pick(-1L)
-        assertTrue(result.isNotEmpty())
+    fun `negative triggerId maps to correct slot via mod`() {
+        // mod(-1, 20) == 19 → same slot as triggerId 19
+        assertEquals(rotator.pick(19L), rotator.pick(-1L))
     }
 }

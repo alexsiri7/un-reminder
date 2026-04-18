@@ -9,7 +9,7 @@ Built fully on-device. No backend, no cloud, no account. Works offline. Optional
 ## 1. Core Objectives
 
 1. **Decouple time from habit** — move away from "Do X at 7:00 PM."
-2. **Defeat habituation** — every notification looks and reads differently, so the brain doesn't filter them out.
+2. **Defeat habituation** — every notification looks and reads differently, so the brain doesn't filter them out. Notification titles rotate through 20 emoji keyed on the trigger ID, so each prompt has a distinct visual signature.
 3. **Align with energy & context** — only prompt habits the user can actually do in their current location/state.
 4. **Zero-friction adoption** — install once, add a few habits, done. No companion setup, no OS-level automation configuration.
 
@@ -247,7 +247,6 @@ Tracked manually by glancing at the Recent triggers screen. Not a feature.
 
 ## 11. Out of Scope for MVP (explicit v0.2+ backlog)
 
-- Emoji/icon shuffling on notifications.
 - Cloud sync & multi-device (would re-introduce Supabase + Google OAuth).
 - iOS version.
 - A "Surprise Me" quick-pick screen.
