@@ -51,6 +51,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
@@ -218,12 +219,7 @@ fun FeedbackScreen(
                             isAntiAlias = true
                         }
                         for (stroke in strokes) {
-                            paint.color = android.graphics.Color.argb(
-                                (stroke.color.alpha * 255).toInt(),
-                                (stroke.color.red * 255).toInt(),
-                                (stroke.color.green * 255).toInt(),
-                                (stroke.color.blue * 255).toInt()
-                            )
+                            paint.color = stroke.color.toArgb()
                             canvas.drawPath(stroke.path.asAndroidPath(), paint)
                         }
                         annBitmap

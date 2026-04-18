@@ -3,6 +3,7 @@ package com.alexsiri7.unreminder.di
 import android.content.Context
 import com.alexsiri7.unreminder.service.alarm.AlarmScheduler
 import com.alexsiri7.unreminder.service.geofence.GeofenceManager
+import com.alexsiri7.unreminder.service.notification.EmojiRotator
 import com.alexsiri7.unreminder.service.notification.NotificationHelper
 import dagger.Module
 import dagger.Provides
@@ -30,8 +31,8 @@ object ServiceModule {
 
     @Provides
     @Singleton
-    fun provideNotificationHelper(@ApplicationContext context: Context): NotificationHelper {
-        return NotificationHelper(context)
+    fun provideNotificationHelper(@ApplicationContext context: Context, emojiRotator: EmojiRotator): NotificationHelper {
+        return NotificationHelper(context, emojiRotator)
     }
 
     @Provides
