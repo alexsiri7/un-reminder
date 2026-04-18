@@ -57,7 +57,7 @@ class BootReschedulerWorkerTest {
 
         coEvery { mockGeofenceManager.registerAllFromDb() } returns Unit
         coEvery { mockTriggerRepository.getAllScheduled() } returns listOf(futureTrigger, pastTrigger)
-        coEvery { mockAlarmScheduler.scheduleExactAlarm(any(), any()) } returns Unit
+        coEvery { mockAlarmScheduler.scheduleExactAlarm(any(), any()) } returns true
 
         val result = worker.doWork()
 
