@@ -14,7 +14,8 @@ import javax.inject.Singleton
 
 @Singleton
 class GeofenceManager @Inject constructor(
-    private val context: Context
+    private val context: Context,
+    private val locationRepository: LocationRepository
 ) {
     companion object {
         private const val TAG = "GeofenceManager"
@@ -27,9 +28,6 @@ class GeofenceManager @Inject constructor(
         private set
 
     private val geofencingClient = LocationServices.getGeofencingClient(context)
-
-    @Inject
-    lateinit var locationRepository: LocationRepository
 
     fun addLocationId(id: Long) = synchronized(locationIdLock) { currentLocationIds = currentLocationIds + id }
     fun removeLocationId(id: Long) = synchronized(locationIdLock) { currentLocationIds = currentLocationIds - id }
