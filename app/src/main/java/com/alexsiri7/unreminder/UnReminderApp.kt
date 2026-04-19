@@ -9,6 +9,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.alexsiri7.unreminder.service.llm.PromptGenerator
 import com.alexsiri7.unreminder.service.notification.NotificationHelper
+import com.alexsiri7.unreminder.service.sentry.LaunchSmokeTest
 import com.alexsiri7.unreminder.service.sentry.applyOptions
 import com.alexsiri7.unreminder.service.sentry.shouldInitSentry
 import com.alexsiri7.unreminder.worker.DailySchedulerWorker
@@ -62,6 +63,11 @@ class UnReminderApp : Application(), Configuration.Provider {
                     versionCode = BuildConfig.VERSION_CODE
                 )
             }
+            LaunchSmokeTest.maybeFire(
+                context = this,
+                versionName = BuildConfig.VERSION_NAME,
+                versionCode = BuildConfig.VERSION_CODE
+            )
         } catch (e: Throwable) {
             Log.w(TAG, "Sentry init failed", e)
         }
