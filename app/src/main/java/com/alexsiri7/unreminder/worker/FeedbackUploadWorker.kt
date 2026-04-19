@@ -52,8 +52,9 @@ class FeedbackUploadWorker @AssistedInject constructor(
                 gitHubApiService.submit(title, body, screenshotFile)
                 feedbackRepository.deleteById(item.id)
                 screenshotFile?.delete()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                if (e is CancellationException) throw e
                 Log.w(TAG, "Upload failed for item ${item.id}", e)
                 val isTransient = e is IOException || e.cause is IOException
                 return if (isTransient) Result.retry() else Result.failure()

@@ -20,24 +20,22 @@ object ServiceModule {
 
     @Provides
     @Singleton
-    fun provideAlarmScheduler(@ApplicationContext context: Context): AlarmScheduler {
-        return AlarmScheduler(context)
-    }
+    fun provideAlarmScheduler(@ApplicationContext context: Context): AlarmScheduler =
+        AlarmScheduler(context)
 
     @Provides
     @Singleton
     fun provideGeofenceManager(
         @ApplicationContext context: Context,
         locationRepository: LocationRepository
-    ): GeofenceManager {
-        return GeofenceManager(context, locationRepository)
-    }
+    ): GeofenceManager = GeofenceManager(context, locationRepository)
 
     @Provides
     @Singleton
-    fun provideNotificationHelper(@ApplicationContext context: Context, emojiRotator: EmojiRotator): NotificationHelper {
-        return NotificationHelper(context, emojiRotator)
-    }
+    fun provideNotificationHelper(
+        @ApplicationContext context: Context,
+        emojiRotator: EmojiRotator
+    ): NotificationHelper = NotificationHelper(context, emojiRotator)
 
     @Provides
     @Singleton

@@ -84,6 +84,8 @@ class FeedbackViewModel @Inject constructor(
                     gitHubApiService.submit(title, body, screenshotFile)
                     screenshotFile?.delete()
                     _uiState.value = _uiState.value.copy(isSubmitting = false, submitted = true)
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: IOException) {
                     // Transient network failure — queue for retry when connectivity returns.
                     Log.w(TAG, "Direct submit failed (network), queuing for retry", e)
@@ -94,15 +96,15 @@ class FeedbackViewModel @Inject constructor(
                         errorMessage = "Offline — queued for retry when connected."
                     )
                 } catch (e: Exception) {
-                    if (e is CancellationException) throw e
                     Log.e(TAG, "Direct submit failed (permanent)", e)
                     _uiState.value = _uiState.value.copy(
                         isSubmitting = false,
                         errorMessage = "Submission failed."
                     )
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                if (e is CancellationException) throw e
                 Log.e(TAG, "submit failed", e)
                 _uiState.value = _uiState.value.copy(
                     isSubmitting = false,
