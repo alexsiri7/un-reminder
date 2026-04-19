@@ -3,6 +3,7 @@ package net.interstellarai.unreminder.di
 import android.content.Context
 import net.interstellarai.unreminder.BuildConfig
 import net.interstellarai.unreminder.data.repository.LocationRepository
+import net.interstellarai.unreminder.data.repository.ModelDownloadProgressRepository
 import net.interstellarai.unreminder.service.alarm.AlarmScheduler
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.llm.PromptGenerator
@@ -47,8 +48,14 @@ object ServiceModule {
 
     @Provides
     @Singleton
-    fun providePromptGenerator(@ApplicationContext context: Context): PromptGenerator =
-        PromptGeneratorImpl(context)
+    fun providePromptGenerator(
+        @ApplicationContext context: Context,
+        modelDownloadProgressRepository: ModelDownloadProgressRepository,
+    ): PromptGenerator =
+        PromptGeneratorImpl(
+            context = context,
+            progressRepository = modelDownloadProgressRepository,
+        )
 
     @Provides
     @Named("modelCdnUrl")
