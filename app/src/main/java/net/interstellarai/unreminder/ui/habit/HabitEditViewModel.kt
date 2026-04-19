@@ -7,6 +7,7 @@ import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.db.LocationEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
+import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.service.llm.PromptGenerator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.sentry.Sentry
@@ -47,6 +48,12 @@ class HabitEditViewModel @Inject constructor(
 
     val allLocations: StateFlow<List<LocationEntity>> = locationRepository.getAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Pass-through of the model download fraction (0..1), or null when idle. */
+    val downloadProgress: StateFlow<Float?> = promptGenerator.downloadProgress
+
+    /** Pass-through of the coarse AI readiness state, used to pick Autofill helper copy. */
+    val aiStatus: StateFlow<AiStatus> = promptGenerator.aiStatus
 
     companion object {
         private const val TAG = "HabitEditViewModel"

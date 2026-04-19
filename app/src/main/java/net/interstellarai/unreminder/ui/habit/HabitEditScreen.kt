@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.ui.theme.Dimens
 import net.interstellarai.unreminder.ui.theme.DisplayLarge
 import net.interstellarai.unreminder.ui.theme.DisplayMedium
@@ -76,6 +77,8 @@ fun HabitEditScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val allLocations by viewModel.allLocations.collectAsStateWithLifecycle()
+    val downloadProgress by viewModel.downloadProgress.collectAsStateWithLifecycle()
+    val aiStatus by viewModel.aiStatus.collectAsStateWithLifecycle()
     val flashAlpha = remember { Animatable(0f) }
 
     LaunchedEffect(habitId) {
@@ -143,9 +146,22 @@ fun HabitEditScreen(
                 )
             }
 
+            val aiHelper: String? = when {
+                downloadProgress != null -> {
+                    val pct = ((downloadProgress ?: 0f).coerceIn(0f, 1f) * 100).toInt()
+                    "Model downloading… ${pct}%"
+                }
+                aiStatus is AiStatus.Unavailable -> "AI unavailable on this build"
+                aiStatus is AiStatus.Failed -> "AI unavailable on this build"
+                else -> null
+            }
             AiAssistStrip(
-                enabled = uiState.name.length >= 2 && !uiState.isGeneratingFields,
+                enabled = uiState.name.length >= 2 &&
+                    !uiState.isGeneratingFields &&
+                    downloadProgress == null &&
+                    aiStatus is AiStatus.Ready,
                 loading = uiState.isGeneratingFields,
+                helperText = aiHelper,
                 onAutofill = { viewModel.autofillWithAi() },
                 modifier = Modifier.padding(horizontal = Dimens.xl),
             )
@@ -308,47 +324,63 @@ private fun UnderlinedDisplayField(
 private fun AiAssistStrip(
     enabled: Boolean,
     loading: Boolean,
+    helperText: String?,
     onAutofill: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceVariant, UnReminderShapes.small)
-            .padding(horizontal = Dimens.lg, vertical = Dimens.md + 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            MonoSectionLabel("gemma · on-device")
-            Spacer(Modifier.height(2.dp))
-            Text(
-                "Autofill descriptions",
-                style = SansBodyStrong,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Box(
+    val buttonAlpha = if (enabled) 1f else 0.4f
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
             modifier = Modifier
-                .background(MaterialTheme.colorScheme.primary, UnReminderShapes.small)
-                .let {
-                    if (enabled) it.clickable(onClick = onAutofill) else it
-                }
-                .padding(horizontal = Dimens.md + 2.dp, vertical = Dimens.sm),
-            contentAlignment = Alignment.Center,
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surfaceVariant, UnReminderShapes.small)
+                .padding(horizontal = Dimens.lg, vertical = Dimens.md + 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (loading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(14.dp),
-                    strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.onPrimary,
-                )
-            } else {
+            Column(modifier = Modifier.weight(1f)) {
+                MonoSectionLabel("gemma · on-device")
+                Spacer(Modifier.height(2.dp))
                 Text(
-                    "\u2726 autofill",
-                    style = MonoLabel.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
-                    color = MaterialTheme.colorScheme.onPrimary,
+                    "Autofill descriptions",
+                    style = SansBodyStrong,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            Box(
+                modifier = Modifier
+                    .background(
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = buttonAlpha),
+                        shape = UnReminderShapes.small,
+                    )
+                    .let {
+                        if (enabled) it.clickable(onClick = onAutofill) else it
+                    }
+                    .padding(horizontal = Dimens.md + 2.dp, vertical = Dimens.sm),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (loading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(14.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                    )
+                } else {
+                    Text(
+                        "\u2726 autofill",
+                        style = MonoLabel.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onPrimary,
+                    )
+                }
+            }
+        }
+        if (helperText != null) {
+            Spacer(Modifier.height(Dimens.xs))
+            Text(
+                text = helperText,
+                style = MonoLabelTiny,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f),
+                modifier = Modifier.padding(start = Dimens.md + 2.dp),
+            )
         }
     }
 }

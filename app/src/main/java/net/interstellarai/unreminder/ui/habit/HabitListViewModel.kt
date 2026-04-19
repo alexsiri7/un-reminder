@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
+import net.interstellarai.unreminder.service.llm.AiStatus
+import net.interstellarai.unreminder.service.llm.PromptGenerator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -13,11 +15,18 @@ import javax.inject.Inject
 
 @HiltViewModel
 class HabitListViewModel @Inject constructor(
-    private val habitRepository: HabitRepository
+    private val habitRepository: HabitRepository,
+    private val promptGenerator: PromptGenerator,
 ) : ViewModel() {
 
     val habits: StateFlow<List<HabitEntity>> = habitRepository.getAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** Fractional 0..1 progress of the on-device model download, or null when not downloading. */
+    val downloadProgress: StateFlow<Float?> = promptGenerator.downloadProgress
+
+    /** Coarse AI readiness — drives the "AI unavailable — tap to retry" variant of the banner. */
+    val aiStatus: StateFlow<AiStatus> = promptGenerator.aiStatus
 
     fun toggleActive(habit: HabitEntity) {
         viewModelScope.launch {
@@ -29,5 +38,10 @@ class HabitListViewModel @Inject constructor(
         viewModelScope.launch {
             habitRepository.delete(habit)
         }
+    }
+
+    /** Wired to the retry action on the "AI unavailable" banner variant. */
+    fun retryModelDownload() {
+        promptGenerator.retryModelDownload()
     }
 }
