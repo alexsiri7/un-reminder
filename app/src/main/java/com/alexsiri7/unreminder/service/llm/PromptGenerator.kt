@@ -2,14 +2,25 @@ package com.alexsiri7.unreminder.service.llm
 
 import android.content.Context
 import android.util.Log
+import androidx.work.Constraints
+import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import com.alexsiri7.unreminder.data.db.HabitEntity
 import com.alexsiri7.unreminder.domain.model.AiHabitFields
-import com.google.mlkit.genai.prompt.Generation
-import com.google.mlkit.genai.prompt.GenerativeModel
+import com.alexsiri7.unreminder.worker.ModelDownloadWorker
+import com.google.ai.edge.litertlm.ConversationConfig
+import com.google.ai.edge.litertlm.Engine
+import com.google.ai.edge.litertlm.EngineConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.sentry.Sentry
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withTimeout
+import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -19,37 +30,105 @@ class PromptGenerator @Inject constructor(
 ) {
     companion object {
         private const val TAG = "PromptGenerator"
+        private const val MODEL_FILENAME = "gemma3-1b-it-int4.task"
     }
 
-    private var model: GenerativeModel? = null
+    private var engine: Engine? = null
+
+    private val _downloadProgress = MutableStateFlow<Float?>(null)
+    val downloadProgress: StateFlow<Float?> = _downloadProgress.asStateFlow()
 
     suspend fun initialize() {
+        val modelFile = File(context.filesDir, MODEL_FILENAME)
+        if (!modelFile.exists()) {
+            enqueueModelDownload()
+            observeDownloadProgress()
+            // Model not yet available — initialize() completes with engine = null
+            return
+        }
         try {
-            val m = Generation.getClient()
-            m.warmup()
-            model = m
+            val config = EngineConfig(
+                modelPath = modelFile.absolutePath,
+                cacheDir = context.cacheDir.path
+            )
+            val e = Engine(config)
+            e.initialize()
+            engine = e
+            _downloadProgress.value = null
         } catch (e: Exception) {
-            Log.w(TAG, "LLM initialization failed; notification generation will use templates, AI autofill will throw", e)
+            Log.w(TAG, "LiteRT-LM initialization failed; AI features will be unavailable", e)
             Sentry.captureException(e) { scope ->
-                scope.setTag("component", "llm-init")
+                scope.setTag("component", "litert-lm-init")
             }
-            model = null
+            engine = null
         }
     }
 
+    private fun enqueueModelDownload() {
+        val request = OneTimeWorkRequestBuilder<ModelDownloadWorker>()
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .build()
+            )
+            .build()
+        WorkManager.getInstance(context)
+            .enqueueUniqueWork(ModelDownloadWorker.WORK_NAME, ExistingWorkPolicy.KEEP, request)
+    }
+
+    private fun observeDownloadProgress() {
+        WorkManager.getInstance(context)
+            .getWorkInfosForUniqueWorkLiveData(ModelDownloadWorker.WORK_NAME)
+        // Progress is observed; when complete, caller must call initialize() again
+    }
+
     suspend fun generate(habit: HabitEntity, locationName: String, timeOfDay: String): String {
-        val m = model ?: return fallback(habit)
+        val e = engine ?: return fallback(habit)
         return try {
             withTimeout(5_000) {
+                val conversation = e.createConversation(ConversationConfig())
                 val prompt = buildPrompt(habit, locationName, timeOfDay)
-                val response = m.generateContent(prompt)
-                response.candidates.firstOrNull()?.text?.take(80) ?: fallback(habit)
+                conversation.sendMessage(prompt).take(80)
             }
-        } catch (e: CancellationException) {
-            throw e  // must propagate: cancellation is not an error
-        } catch (e: Exception) {
-            Log.w(TAG, "LLM generation failed, using fallback", e)
+        } catch (ex: CancellationException) {
+            throw ex
+        } catch (ex: Exception) {
+            Log.w(TAG, "LLM generation failed, using fallback", ex)
             fallback(habit)
+        }
+    }
+
+    suspend fun generateHabitFields(title: String): AiHabitFields {
+        val e = engine ?: throw IllegalStateException("LLM unavailable")
+        return try {
+            withTimeout(5_000) {
+                val conversation = e.createConversation(ConversationConfig())
+                val prompt = buildHabitFieldsPrompt(title)
+                val text = conversation.sendMessage(prompt)
+                val lines = text.lines()
+                val full = lines.firstOrNull { it.startsWith("Full:") }
+                    ?.removePrefix("Full:")?.trim()
+                    ?: throw IllegalStateException("Could not parse Full: line")
+                val low = lines.firstOrNull { it.startsWith("Low-floor:") }
+                    ?.removePrefix("Low-floor:")?.trim()
+                    ?: throw IllegalStateException("Could not parse Low-floor: line")
+                AiHabitFields(full, low)
+            }
+        } catch (ex: CancellationException) {
+            throw ex
+        } catch (ex: Exception) {
+            Log.w(TAG, "LLM habit field generation failed", ex)
+            throw ex
+        }
+    }
+
+    suspend fun previewHabitNotification(habit: HabitEntity, locationName: String = "Anywhere"): String {
+        val e = engine ?: throw IllegalStateException("LLM unavailable")
+        return withTimeout(5_000) {
+            val conversation = e.createConversation(ConversationConfig())
+            val prompt = buildPrompt(habit, locationName, "now")
+            conversation.sendMessage(prompt).take(80)
+                .ifBlank { throw IllegalStateException("Empty LLM response") }
         }
     }
 
@@ -61,42 +140,6 @@ class PromptGenerator @Inject constructor(
         |Low-floor version: ${habit.lowFloorDescription}
         |Current location: $locationName
         |Time of day: $timeOfDay""".trimMargin()
-
-    suspend fun generateHabitFields(title: String): AiHabitFields {
-        val m = model ?: throw IllegalStateException("LLM unavailable")
-        return try {
-            withTimeout(5_000) {
-                val prompt = buildHabitFieldsPrompt(title)
-                val response = m.generateContent(prompt)
-                val text = response.candidates.firstOrNull()?.text
-                    ?: throw IllegalStateException("Empty LLM response")
-                val lines = text.lines()
-                val full = lines.firstOrNull { it.startsWith("Full:") }
-                    ?.removePrefix("Full:")?.trim()
-                    ?: throw IllegalStateException("Could not parse Full: line")
-                val low = lines.firstOrNull { it.startsWith("Low-floor:") }
-                    ?.removePrefix("Low-floor:")?.trim()
-                    ?: throw IllegalStateException("Could not parse Low-floor: line")
-                AiHabitFields(full, low)
-            }
-        } catch (e: CancellationException) {
-            throw e  // must propagate: cancellation is not an error
-        } catch (e: Exception) {
-            Log.w(TAG, "LLM habit field generation failed", e)
-            throw e
-        }
-    }
-
-    suspend fun previewHabitNotification(habit: HabitEntity, locationName: String = "Anywhere"): String {
-        val m = model ?: throw IllegalStateException("LLM unavailable")
-        return withTimeout(5_000) {
-            // "now" tells the LLM to generate a notification appropriate for the current moment
-            val prompt = buildPrompt(habit, locationName, "now")
-            val response = m.generateContent(prompt)
-            response.candidates.firstOrNull()?.text?.take(80)
-                ?: throw IllegalStateException("Empty LLM response")
-        }
-    }
 
     private fun buildHabitFieldsPrompt(title: String): String =
         """System: You are generating habit description fields for a productivity app.

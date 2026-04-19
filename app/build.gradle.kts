@@ -114,8 +114,8 @@ dependencies {
     implementation(libs.play.services.location)
     implementation(libs.osmdroid.android)
 
-    // ML Kit GenAI
-    implementation(libs.mlkit.genai.prompt)
+    // LiteRT-LM (on-device Gemma)
+    implementation(libs.litert.lm)
 
     // DataStore
     implementation(libs.androidx.datastore.preferences)

@@ -23,51 +23,41 @@ class PromptGeneratorTest {
         updatedAt = Instant.now()
     )
 
+    // --- null-engine paths (engine not initialized) ---
+
     @Test
-    fun `generate returns fallback when model is null`() = runTest {
-        // model is null by default (initialize() not called in unit tests)
+    fun `generate returns fallback when engine is null`() = runTest {
         val result = generator.generate(habit, "Home", "morning")
         assertEquals("meditation: 3 deep breaths", result)
     }
 
     @Test
     fun `generate returns fallback with empty low floor description`() = runTest {
-        val emptyHabit = habit.copy(
-            id = 2,
-            name = "exercise",
-            lowFloorDescription = ""
-        )
+        val emptyHabit = habit.copy(id = 2, name = "exercise", lowFloorDescription = "")
         val result = generator.generate(emptyHabit, "Work", "afternoon")
         assertEquals("exercise: ", result)
     }
 
     @Test
     fun `fallback format is name colon lowFloorDescription`() = runTest {
-        val customHabit = habit.copy(
-            name = "reading",
-            lowFloorDescription = "read one page"
-        )
+        val customHabit = habit.copy(name = "reading", lowFloorDescription = "read one page")
         val result = generator.generate(customHabit, "any location", "evening")
         assertEquals("reading: read one page", result)
     }
 
     @Test
-    fun `generateHabitFields throws when model is null`() = runTest {
-        val result = runCatching {
-            generator.generateHabitFields("meditation")
-        }
+    fun `generateHabitFields throws when engine is null`() = runTest {
+        val result = runCatching { generator.generateHabitFields("meditation") }
         assertTrue(result.isFailure)
-        assertTrue("Expected IllegalStateException, got ${result.exceptionOrNull()?.javaClass}", result.exceptionOrNull() is IllegalStateException)
+        assertTrue(result.exceptionOrNull() is IllegalStateException)
         assertEquals("LLM unavailable", result.exceptionOrNull()?.message)
     }
 
     @Test
-    fun `previewHabitNotification throws when model is null`() = runTest {
-        val result = runCatching {
-            generator.previewHabitNotification(habit, "Anywhere")
-        }
+    fun `previewHabitNotification throws when engine is null`() = runTest {
+        val result = runCatching { generator.previewHabitNotification(habit, "Anywhere") }
         assertTrue(result.isFailure)
-        assertTrue("Expected IllegalStateException, got ${result.exceptionOrNull()?.javaClass}", result.exceptionOrNull() is IllegalStateException)
+        assertTrue(result.exceptionOrNull() is IllegalStateException)
         assertEquals("LLM unavailable", result.exceptionOrNull()?.message)
     }
 }
