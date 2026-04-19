@@ -8,11 +8,11 @@ plugins {
 }
 
 android {
-    namespace = "com.alexsiri7.unreminder"
+    namespace = "net.interstellarai.unreminder"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.alexsiri7.unreminder"
+        applicationId = "net.interstellarai.unreminder"
         minSdk = 31
         targetSdk = 34
         versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 1
