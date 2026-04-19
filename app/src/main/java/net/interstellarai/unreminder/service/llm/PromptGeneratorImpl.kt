@@ -7,14 +7,17 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import net.interstellarai.unreminder.BuildConfig
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.domain.model.AiHabitFields
+import net.interstellarai.unreminder.service.llm.ModelConfig
 import net.interstellarai.unreminder.worker.ModelDownloadWorker
 import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
 import io.sentry.Sentry
+import io.sentry.SentryLevel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -34,6 +37,22 @@ class PromptGeneratorImpl(private val context: Context) : PromptGenerator {
     val downloadProgress: StateFlow<Float?> = _downloadProgress.asStateFlow()
 
     override suspend fun initialize() {
+        if (ModelConfig.isPlaceholderUrl(BuildConfig.MODEL_CDN_URL)) {
+            // Build misconfiguration: the MODEL_CDN_URL env var was not supplied at build time,
+            // so the APK was built with the "https://placeholder.invalid/model.task" default.
+            // Any download attempt would fail with UnknownHostException and AI features would
+            // silently do nothing. Log, flag to Sentry, and skip enqueueing the download.
+            Log.w(
+                TAG,
+                "MODEL_CDN_URL is a placeholder (${BuildConfig.MODEL_CDN_URL}) — " +
+                    "AI features disabled. Set the MODEL_CDN_URL secret in CI to fix."
+            )
+            Sentry.captureMessage(
+                "MODEL_CDN_URL is a placeholder — AI features disabled",
+                SentryLevel.WARNING
+            ) { scope -> scope.setTag("component", "litert-lm-init") }
+            return
+        }
         val modelFile = File(context.filesDir, ModelDownloadWorker.MODEL_FILENAME)
         if (!modelFile.exists()) {
             try {

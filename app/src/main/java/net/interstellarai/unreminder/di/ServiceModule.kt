@@ -1,6 +1,7 @@
 package net.interstellarai.unreminder.di
 
 import android.content.Context
+import net.interstellarai.unreminder.BuildConfig
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.service.alarm.AlarmScheduler
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
@@ -14,6 +15,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import okhttp3.OkHttpClient
+import javax.inject.Named
 import javax.inject.Singleton
 
 @Module
@@ -47,4 +49,8 @@ object ServiceModule {
     @Singleton
     fun providePromptGenerator(@ApplicationContext context: Context): PromptGenerator =
         PromptGeneratorImpl(context)
+
+    @Provides
+    @Named("modelCdnUrl")
+    fun provideModelCdnUrl(): String = BuildConfig.MODEL_CDN_URL
 }

@@ -11,6 +11,7 @@ import io.mockk.Runs
 import io.mockk.verify
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
+import net.interstellarai.unreminder.service.llm.ModelConfig
 import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -30,6 +31,7 @@ class ModelDownloadWorkerTest {
     private val mockContext: Context = mockk(relaxed = true)
     private val mockWorkerParams: WorkerParameters = mockk(relaxed = true)
     private val mockOkHttpClient: OkHttpClient = mockk()
+    private val testModelUrl = "https://example.test/model.task"
 
     private lateinit var filesDir: File
     private lateinit var worker: ModelDownloadWorker
@@ -38,7 +40,7 @@ class ModelDownloadWorkerTest {
     fun setup() {
         filesDir = createTempDir()
         every { mockContext.filesDir } returns filesDir
-        worker = ModelDownloadWorker(mockContext, mockWorkerParams, mockOkHttpClient)
+        worker = ModelDownloadWorker(mockContext, mockWorkerParams, mockOkHttpClient, testModelUrl)
     }
 
     @After
@@ -174,5 +176,37 @@ class ModelDownloadWorkerTest {
     @Test
     fun `MODEL_FILENAME constant is defined`() {
         assertEquals("gemma3-1b-it-int4.task", ModelDownloadWorker.MODEL_FILENAME)
+    }
+
+    // --- placeholder URL guard ---
+
+    @Test
+    fun `doWork returns failure and skips network when URL is the placeholder`() = runTest {
+        val placeholderWorker = ModelDownloadWorker(
+            mockContext,
+            mockWorkerParams,
+            mockOkHttpClient,
+            ModelConfig.PLACEHOLDER_URL
+        )
+
+        val result = placeholderWorker.doWork()
+
+        assertEquals(Result.failure(), result)
+        verify { mockOkHttpClient wasNot Called }
+    }
+
+    @Test
+    fun `doWork returns failure and skips network when URL is blank`() = runTest {
+        val blankWorker = ModelDownloadWorker(
+            mockContext,
+            mockWorkerParams,
+            mockOkHttpClient,
+            ""
+        )
+
+        val result = blankWorker.doWork()
+
+        assertEquals(Result.failure(), result)
+        verify { mockOkHttpClient wasNot Called }
     }
 }
