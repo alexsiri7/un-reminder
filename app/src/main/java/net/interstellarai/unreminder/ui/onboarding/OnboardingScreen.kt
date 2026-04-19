@@ -5,42 +5,68 @@ import android.app.TimePickerDialog
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
-import java.time.LocalTime
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import java.time.LocalTime
+import androidx.compose.ui.platform.LocalContext
+import net.interstellarai.unreminder.ui.theme.Dimens
+import net.interstellarai.unreminder.ui.theme.DisplayHuge
+import net.interstellarai.unreminder.ui.theme.DisplaySmall
+import net.interstellarai.unreminder.ui.theme.MonoContextStrip
+import net.interstellarai.unreminder.ui.theme.MonoLabel
+import net.interstellarai.unreminder.ui.theme.MonoLabelTiny
+import net.interstellarai.unreminder.ui.theme.MonoSectionLabel
+import net.interstellarai.unreminder.ui.theme.NavPill
+import net.interstellarai.unreminder.ui.theme.SansBody
+import net.interstellarai.unreminder.ui.theme.SansBodyStrong
+import net.interstellarai.unreminder.ui.theme.UnReminderShapes
+
+// ─────────────────────────────────────────────────────────────────────────
+// Onboarding — three-step "get started" flow. The design handoff doesn't
+// include a dedicated onboarding screen, so this reuses the language of the
+// home and editor refs: big italic serif header, mono uppercase section
+// labels, sharp-cornered accent buttons, and the soft surface "cards" that
+// the home screen uses for its context strip.
+// ViewModel untouched.
+// ─────────────────────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OnboardingScreen(
     onFinished: () -> Unit,
-    viewModel: OnboardingViewModel = hiltViewModel()
+    viewModel: OnboardingViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -50,141 +76,169 @@ fun OnboardingScreen(
     }
 
     val notifLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
+        ActivityResultContracts.RequestPermission(),
     ) { viewModel.refreshPermissions() }
 
     val locationLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
+        ActivityResultContracts.RequestMultiplePermissions(),
     ) { viewModel.refreshPermissions() }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Get Started") },
-                actions = {
-                    TextButton(onClick = { viewModel.skip() }) { Text("Skip") }
-                }
-            )
-        }
+        containerColor = MaterialTheme.colorScheme.background,
     ) { padding ->
         Column(
             modifier = Modifier
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(horizontal = Dimens.xxl, vertical = Dimens.xl),
+            verticalArrangement = Arrangement.spacedBy(Dimens.md),
         ) {
-            // Step 1: Permissions
+            Column(modifier = Modifier.padding(bottom = Dimens.sm)) {
+                MonoContextStrip("get started")
+                Spacer(Modifier.height(Dimens.sm))
+                Text(
+                    "welcome",
+                    style = DisplayHuge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+                Spacer(Modifier.height(Dimens.sm))
+                Text(
+                    "un-reminder nudges you toward habits at moments you might actually do them. three small steps.",
+                    style = SansBody,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+                )
+            }
+
+            Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "skip \u2192",
+                    style = MonoLabel,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                    modifier = Modifier.clickable { viewModel.skip() },
+                )
+            }
+
             StepCard(
                 number = 1,
-                title = "Grant Permissions",
+                title = "grant permissions",
                 isActive = uiState.step == 0,
-                isDone = uiState.step > 0
+                isDone = uiState.step > 0,
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(Dimens.sm),
                 ) {
-                    OutlinedButton(
-                        onClick = {
-                            notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        },
+                    PermissionButton(
+                        label = if (uiState.hasNotificationPermission) "Notifications \u2713"
+                            else "Grant Notifications",
                         enabled = !uiState.hasNotificationPermission,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
                     ) {
-                        Text(if (uiState.hasNotificationPermission) "Notifications \u2713" else "Grant Notifications")
+                        notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                     }
-                    OutlinedButton(
-                        onClick = {
-                            locationLauncher.launch(
-                                arrayOf(
-                                    Manifest.permission.ACCESS_FINE_LOCATION,
-                                    Manifest.permission.ACCESS_COARSE_LOCATION
-                                )
-                            )
-                        },
+                    PermissionButton(
+                        label = if (uiState.hasFineLocationPermission) "Location \u2713"
+                            else "Grant Location",
                         enabled = !uiState.hasFineLocationPermission,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
                     ) {
-                        Text(if (uiState.hasFineLocationPermission) "Location \u2713" else "Grant Location")
+                        locationLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION,
+                            ),
+                        )
                     }
                 }
-                Button(
+                Spacer(Modifier.height(Dimens.sm))
+                AccentPillButton(
+                    label = "next",
                     onClick = { viewModel.advanceToStep(1) },
-                    modifier = Modifier.align(Alignment.End)
-                ) { Text("Next") }
+                    modifier = Modifier.align(Alignment.End),
+                )
             }
 
-            // Step 2: Add First Habit
             StepCard(
                 number = 2,
-                title = "Add Your First Habit",
+                title = "name a habit",
                 isActive = uiState.step == 1,
-                isDone = uiState.step > 1
+                isDone = uiState.step > 1,
             ) {
                 OutlinedTextField(
                     value = uiState.habitName,
                     onValueChange = { viewModel.updateHabitName(it) },
-                    label = { Text("Habit name") },
+                    label = { Text("Habit name", style = MonoLabel) },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = UnReminderShapes.small,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f),
+                        cursorColor = MaterialTheme.colorScheme.primary,
+                    ),
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
+                    horizontalArrangement = Arrangement.End,
                 ) {
-                    TextButton(onClick = { viewModel.advanceToStep(2) }) { Text("Skip") }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
+                    GhostButton(label = "skip") { viewModel.advanceToStep(2) }
+                    Spacer(modifier = Modifier.width(Dimens.sm))
+                    AccentPillButton(
+                        label = "next",
                         onClick = { viewModel.advanceToStep(2) },
-                        enabled = uiState.habitName.isNotBlank()
-                    ) { Text("Next") }
+                        enabled = uiState.habitName.isNotBlank(),
+                    )
                 }
             }
 
-            // Step 3: Set a Reminder Window
             StepCard(
                 number = 3,
-                title = "Set a Reminder Window",
+                title = "set a reminder window",
                 isActive = uiState.step == 2,
-                isDone = uiState.step > 2
+                isDone = uiState.step > 2,
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(Dimens.sm),
                 ) {
-                    OutlinedButton(
-                        onClick = {
-                            TimePickerDialog(context, { _, h, m ->
-                                viewModel.updateWindowStartTime(LocalTime.of(h, m))
-                            }, uiState.windowStartTime.hour, uiState.windowStartTime.minute, true).show()
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) { Text("From: ${uiState.windowStartTime}") }
-                    OutlinedButton(
-                        onClick = {
-                            TimePickerDialog(context, { _, h, m ->
-                                viewModel.updateWindowEndTime(LocalTime.of(h, m))
-                            }, uiState.windowEndTime.hour, uiState.windowEndTime.minute, true).show()
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) { Text("To: ${uiState.windowEndTime}") }
+                    PermissionButton(
+                        label = "From: ${uiState.windowStartTime}",
+                        enabled = true,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        TimePickerDialog(context, { _, h, m ->
+                            viewModel.updateWindowStartTime(LocalTime.of(h, m))
+                        }, uiState.windowStartTime.hour, uiState.windowStartTime.minute, true).show()
+                    }
+                    PermissionButton(
+                        label = "To: ${uiState.windowEndTime}",
+                        enabled = true,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        TimePickerDialog(context, { _, h, m ->
+                            viewModel.updateWindowEndTime(LocalTime.of(h, m))
+                        }, uiState.windowEndTime.hour, uiState.windowEndTime.minute, true).show()
+                    }
                 }
                 Text(
-                    "Monday \u2013 Friday",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(top = 4.dp)
+                    "monday \u2013 friday",
+                    style = MonoLabelTiny,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f),
+                    modifier = Modifier.padding(top = Dimens.sm - 2.dp),
                 )
-                Button(
+                AccentPillButton(
+                    label = "done",
                     onClick = {
                         viewModel.completeOnboarding(
                             saveHabit = uiState.habitName.isNotBlank(),
-                            saveWindow = true
+                            saveWindow = true,
                         )
                     },
-                    modifier = Modifier.align(Alignment.End)
-                ) { Text("Done") }
+                    modifier = Modifier.align(Alignment.End),
+                )
             }
+
+            NavPill()
         }
     }
 }
@@ -195,22 +249,121 @@ private fun StepCard(
     title: String,
     isActive: Boolean,
     isDone: Boolean,
-    content: @Composable ColumnScope.() -> Unit
+    content: @Composable ColumnScope.() -> Unit,
 ) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
+    val accent = MaterialTheme.colorScheme.primary
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant, UnReminderShapes.small)
+            .padding(Dimens.lg),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(26.dp)
+                    .clip(CircleShape)
+                    .background(if (isDone || isActive) accent else Color.Transparent)
+                    .border(
+                        1.dp,
+                        if (isDone || isActive) accent else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f),
+                        CircleShape,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = if (isDone) "\u2713" else number.toString(),
+                    style = MonoLabelTiny.copy(fontWeight = FontWeight.SemiBold),
+                    color = if (isDone || isActive) MaterialTheme.colorScheme.onPrimary
+                        else MaterialTheme.colorScheme.onBackground,
+                )
+            }
+            Spacer(modifier = Modifier.width(Dimens.md - 2.dp))
             Text(
-                text = if (isDone) "\u2713 $title" else "$number. $title",
-                style = MaterialTheme.typography.titleMedium
+                text = title,
+                style = DisplaySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            AnimatedVisibility(visible = isActive) {
-                Column(
-                    modifier = Modifier.padding(top = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    content()
-                }
+        }
+        AnimatedVisibility(visible = isActive) {
+            Column(
+                modifier = Modifier.padding(top = Dimens.md),
+                verticalArrangement = Arrangement.spacedBy(Dimens.sm),
+            ) {
+                content()
             }
         }
+    }
+}
+
+@Composable
+private fun PermissionButton(
+    label: String,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val fg = MaterialTheme.colorScheme.onBackground
+    Box(
+        modifier = modifier
+            .background(Color.Transparent, UnReminderShapes.small)
+            .border(
+                1.5.dp,
+                if (enabled) MaterialTheme.colorScheme.primary else fg.copy(alpha = 0.2f),
+                UnReminderShapes.small,
+            )
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = Dimens.md, vertical = Dimens.sm + 2.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label,
+            style = SansBodyStrong,
+            color = if (enabled) MaterialTheme.colorScheme.onBackground
+                else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+        )
+    }
+}
+
+@Composable
+private fun AccentPillButton(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    val bg = if (enabled) MaterialTheme.colorScheme.primary
+        else MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
+    Box(
+        modifier = modifier
+            .background(bg, UnReminderShapes.small)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = Dimens.lg, vertical = Dimens.sm + 2.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label.uppercase(),
+            style = MonoLabel.copy(fontWeight = FontWeight.SemiBold),
+            color = MaterialTheme.colorScheme.onPrimary,
+        )
+    }
+}
+
+@Composable
+private fun GhostButton(
+    label: String,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .padding(horizontal = Dimens.md, vertical = Dimens.sm + 2.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label,
+            style = MonoLabel,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+        )
     }
 }

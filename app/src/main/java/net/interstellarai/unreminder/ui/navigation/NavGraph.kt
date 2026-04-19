@@ -21,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -89,12 +90,21 @@ fun NavGraph(navViewModel: NavViewModel = hiltViewModel()) {
     val showBottomBar = currentDestination?.route != "onboarding"
 
     Scaffold(
+        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.background,
         bottomBar = {
-            if (showBottomBar) NavigationBar {
+            if (showBottomBar) NavigationBar(
+                containerColor = androidx.compose.material3.MaterialTheme.colorScheme.background,
+                tonalElevation = 0.dp,
+            ) {
                 bottomNavItems.forEach { screen ->
                     NavigationBarItem(
                         icon = { Icon(screen.icon, contentDescription = screen.label) },
-                        label = { Text(screen.label) },
+                        label = {
+                            Text(
+                                screen.label.lowercase(),
+                                style = net.interstellarai.unreminder.ui.theme.MonoLabel,
+                            )
+                        },
                         selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
                         onClick = {
                             navController.navigate(screen.route) {
@@ -104,11 +114,20 @@ fun NavGraph(navViewModel: NavViewModel = hiltViewModel()) {
                                 launchSingleTop = true
                                 restoreState = true
                             }
-                        }
+                        },
+                        colors = androidx.compose.material3.NavigationBarItemDefaults.colors(
+                            selectedIconColor = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+                            selectedTextColor = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+                            unselectedIconColor = androidx.compose.material3.MaterialTheme.colorScheme.onBackground
+                                .copy(alpha = 0.6f),
+                            unselectedTextColor = androidx.compose.material3.MaterialTheme.colorScheme.onBackground
+                                .copy(alpha = 0.6f),
+                            indicatorColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+                        ),
                     )
                 }
             }
-        }
+        },
     ) { innerPadding ->
         NavHost(
             navController = navController,

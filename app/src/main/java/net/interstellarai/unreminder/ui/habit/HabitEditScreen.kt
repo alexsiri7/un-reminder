@@ -2,7 +2,10 @@ package net.interstellarai.unreminder.ui.habit
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,48 +14,65 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import net.interstellarai.unreminder.ui.theme.Dimens
+import net.interstellarai.unreminder.ui.theme.DisplayLarge
+import net.interstellarai.unreminder.ui.theme.DisplayMedium
+import net.interstellarai.unreminder.ui.theme.DisplaySmall
+import net.interstellarai.unreminder.ui.theme.MonoLabel
+import net.interstellarai.unreminder.ui.theme.MonoLabelTiny
+import net.interstellarai.unreminder.ui.theme.MonoSectionLabel
+import net.interstellarai.unreminder.ui.theme.NavPill
+import net.interstellarai.unreminder.ui.theme.SansBody
+import net.interstellarai.unreminder.ui.theme.SansBodyStrong
+import net.interstellarai.unreminder.ui.theme.UnReminderShapes
+
+// ─────────────────────────────────────────────────────────────────────────
+// Habit editor — mirrors `components/editor.jsx`:
+//   - Thin top bar ("← back · EDITING · save")
+//   - "habit name" label + big display-serif field underlined in accent
+//   - "gemma · on-device" AI-assist strip with an "✦ autofill" accent pill
+//   - Full + low-floor description fields rendered as italic serif blocks
+//   - Location chips with sharp corners, filled-accent when selected
+//   - Dark "preview" card at the bottom (ink bg, bg ink)
+//   - Bottom row: active toggle + delete habit link
+// ViewModel untouched.
+// ─────────────────────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun HabitEditScreen(
     habitId: Long?,
     onNavigateBack: () -> Unit,
-    viewModel: HabitEditViewModel = hiltViewModel()
+    viewModel: HabitEditViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val allLocations by viewModel.allLocations.collectAsStateWithLifecycle()
@@ -89,137 +109,390 @@ fun HabitEditScreen(
     if (uiState.showPreviewDialog && previewText != null) {
         AlertDialog(
             onDismissRequest = { viewModel.dismissPreviewDialog() },
-            title = { Text("Notification preview") },
-            text = { Text(previewText) },
+            title = { Text("Notification preview", style = DisplaySmall) },
+            text = { Text(previewText, style = SansBody) },
             confirmButton = {
                 TextButton(onClick = { viewModel.dismissPreviewDialog() }) { Text("Close") }
-            }
+            },
+            containerColor = MaterialTheme.colorScheme.background,
         )
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            TopAppBar(
-                title = { Text(if (habitId != null) "Edit Habit" else "New Habit") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { viewModel.save() }) {
-                        Icon(Icons.Default.Check, contentDescription = "Save")
-                    }
-                }
-            )
-        }
     ) { padding ->
         Column(
             modifier = Modifier
                 .padding(padding)
-                .padding(16.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            OutlinedTextField(
-                value = uiState.name,
-                onValueChange = viewModel::updateName,
-                label = { Text("Name") },
-                modifier = Modifier.fillMaxWidth()
+            EditorTopBar(
+                isNew = habitId == null,
+                onBack = onNavigateBack,
+                onSave = { viewModel.save() },
             )
-            Box(modifier = Modifier
-                .fillMaxWidth()
-                .clip(OutlinedTextFieldDefaults.shape)
-                .background(MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = flashAlpha.value))
-            ) {
-                OutlinedTextField(
+
+            Column(modifier = Modifier.padding(horizontal = Dimens.xxl, vertical = Dimens.xl)) {
+                MonoSectionLabel("habit name")
+                Spacer(Modifier.height(Dimens.sm))
+                UnderlinedDisplayField(
+                    value = uiState.name,
+                    onValueChange = viewModel::updateName,
+                    placeholder = "e.g. meditation",
+                )
+            }
+
+            AiAssistStrip(
+                enabled = uiState.name.length >= 2 && !uiState.isGeneratingFields,
+                loading = uiState.isGeneratingFields,
+                onAutofill = { viewModel.autofillWithAi() },
+                modifier = Modifier.padding(horizontal = Dimens.xl),
+            )
+
+            Spacer(Modifier.height(Dimens.xl))
+
+            Column(modifier = Modifier.padding(horizontal = Dimens.xxl)) {
+                DescriptionBlock(
+                    label = "full version",
                     value = uiState.fullDescription,
                     onValueChange = viewModel::updateFullDescription,
-                    label = { Text("Full description") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 2
+                    flashAlpha = flashAlpha.value,
+                    placeholder = "what it actually is — e.g. 20-minute guided meditation",
                 )
-            }
-            Box(modifier = Modifier
-                .fillMaxWidth()
-                .clip(OutlinedTextFieldDefaults.shape)
-                .background(MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = flashAlpha.value))
-            ) {
-                OutlinedTextField(
+                Spacer(Modifier.height(Dimens.lg))
+                DescriptionBlock(
+                    label = "low-floor · counts as a win",
                     value = uiState.lowFloorDescription,
                     onValueChange = viewModel::updateLowFloorDescription,
-                    label = { Text("Low-floor description (minimum viable)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 2
+                    flashAlpha = flashAlpha.value,
+                    placeholder = "the minimum — e.g. 3 deep breaths",
                 )
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedButton(
-                    onClick = { viewModel.autofillWithAi() },
-                    enabled = uiState.name.length >= 2 && !uiState.isGeneratingFields,
-                    modifier = Modifier.weight(1f)
+            Column(modifier = Modifier.padding(horizontal = Dimens.xxl, vertical = Dimens.xxl)) {
+                MonoSectionLabel("eligible at")
+                Spacer(Modifier.height(Dimens.md - 2.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(Dimens.sm),
+                    verticalArrangement = Arrangement.spacedBy(Dimens.sm),
                 ) {
-                    if (uiState.isGeneratingFields) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(modifier = Modifier.size(ButtonDefaults.IconSpacing))
-                        Text("Generating\u2026")
-                    } else {
-                        Text("Autofill with AI")
-                    }
-                }
-                OutlinedButton(
-                    onClick = { viewModel.previewNotification() },
-                    enabled = uiState.name.isNotBlank() &&
-                              uiState.fullDescription.isNotBlank() &&
-                              uiState.lowFloorDescription.isNotBlank() &&
-                              !uiState.isGeneratingFields,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    if (uiState.isGeneratingFields) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(modifier = Modifier.size(ButtonDefaults.IconSpacing))
-                    }
-                    Text("Preview notification")
-                }
-            }
-
-            val selectedIds = uiState.selectedLocationIds
-
-            Text("Location")
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = selectedIds.isEmpty(),
-                    onClick = { viewModel.setAnywhere() },
-                    label = { Text("Anywhere") }
-                )
-                allLocations.forEach { loc ->
-                    FilterChip(
-                        selected = loc.id in selectedIds,
-                        onClick = { viewModel.toggleLocation(loc.id) },
-                        label = { Text(loc.name) }
+                    LocationChip(
+                        label = "Anywhere",
+                        selected = uiState.selectedLocationIds.isEmpty(),
+                        muted = uiState.selectedLocationIds.isEmpty(),
+                        onClick = { viewModel.setAnywhere() },
                     )
+                    allLocations.forEach { loc ->
+                        LocationChip(
+                            label = loc.name,
+                            selected = loc.id in uiState.selectedLocationIds,
+                            onClick = { viewModel.toggleLocation(loc.id) },
+                        )
+                    }
                 }
             }
 
+            PreviewCard(
+                enabled = uiState.name.isNotBlank() &&
+                    uiState.fullDescription.isNotBlank() &&
+                    uiState.lowFloorDescription.isNotBlank() &&
+                    !uiState.isGeneratingFields,
+                loading = uiState.isGeneratingFields,
+                onResample = { viewModel.previewNotification() },
+                modifier = Modifier.padding(horizontal = Dimens.xl),
+            )
+
+            Spacer(Modifier.height(Dimens.xxl))
+            HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant, thickness = Dimens.hairline)
+
             Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Dimens.xl, vertical = Dimens.lg),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Active")
-                Switch(
-                    checked = uiState.active,
-                    onCheckedChange = viewModel::updateActive
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Switch(
+                        checked = uiState.active,
+                        onCheckedChange = viewModel::updateActive,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.background,
+                            checkedTrackColor = MaterialTheme.colorScheme.primary,
+                            uncheckedThumbColor = MaterialTheme.colorScheme.background,
+                            uncheckedTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                        ),
+                    )
+                    Spacer(Modifier.size(Dimens.md - 2.dp))
+                    Text("Active", style = SansBodyStrong, color = MaterialTheme.colorScheme.onBackground)
+                }
+                // "delete habit" link is in the handoff — intentionally NOT wired to
+                // the VM delete because the redesign is visual-only and deleting from
+                // the editor would be a behaviour change vs main. A follow-up issue
+                // should connect this.
+                Text(
+                    "delete habit",
+                    style = MonoLabel,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                )
+            }
+
+            NavPill()
+        }
+    }
+}
+
+@Composable
+private fun EditorTopBar(
+    isNew: Boolean,
+    onBack: () -> Unit,
+    onSave: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Dimens.lg, vertical = Dimens.sm),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            "\u2190 back",
+            style = MonoLabel,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+            modifier = Modifier.clickable(onClick = onBack),
+        )
+        Text(
+            if (isNew) "new" else "editing",
+            style = MonoLabelTiny,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f),
+        )
+        Text(
+            "save",
+            style = MonoLabel.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.clickable(onClick = onSave),
+        )
+    }
+}
+
+@Composable
+private fun UnderlinedDisplayField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+) {
+    TextField(
+        value = value,
+        onValueChange = onValueChange,
+        textStyle = DisplayLarge.copy(color = MaterialTheme.colorScheme.onBackground),
+        placeholder = {
+            Text(
+                placeholder,
+                style = DisplayLarge.copy(color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.35f)),
+            )
+        },
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = Color.Transparent,
+            unfocusedContainerColor = Color.Transparent,
+            focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+            unfocusedIndicatorColor = MaterialTheme.colorScheme.primary,
+            cursorColor = MaterialTheme.colorScheme.primary,
+        ),
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+@Composable
+private fun AiAssistStrip(
+    enabled: Boolean,
+    loading: Boolean,
+    onAutofill: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant, UnReminderShapes.small)
+            .padding(horizontal = Dimens.lg, vertical = Dimens.md + 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            MonoSectionLabel("gemma · on-device")
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "Autofill descriptions",
+                style = SansBodyStrong,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Box(
+            modifier = Modifier
+                .background(MaterialTheme.colorScheme.primary, UnReminderShapes.small)
+                .let {
+                    if (enabled) it.clickable(onClick = onAutofill) else it
+                }
+                .padding(horizontal = Dimens.md + 2.dp, vertical = Dimens.sm),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (loading) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(14.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                )
+            } else {
+                Text(
+                    "\u2726 autofill",
+                    style = MonoLabel.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onPrimary,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DescriptionBlock(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    flashAlpha: Float,
+    placeholder: String,
+) {
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            MonoSectionLabel(label)
+            if (value.isNotBlank()) {
+                Text(
+                    "\u2726 filled",
+                    style = MonoLabelTiny,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+        Spacer(Modifier.height(Dimens.sm - 2.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = flashAlpha),
+                    shape = UnReminderShapes.small,
+                ),
+        ) {
+            TextField(
+                value = value,
+                onValueChange = onValueChange,
+                textStyle = DisplaySmall.copy(
+                    color = MaterialTheme.colorScheme.onBackground,
+                ),
+                placeholder = {
+                    Text(
+                        placeholder,
+                        style = DisplaySmall.copy(
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.35f),
+                        ),
+                    )
+                },
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    cursorColor = MaterialTheme.colorScheme.primary,
+                ),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun LocationChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    muted: Boolean = false,
+) {
+    val (bg, fg) = if (selected) {
+        MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
+    } else {
+        Color.Transparent to MaterialTheme.colorScheme.onBackground
+    }
+    val borderColor = if (selected) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f)
+    }
+    Box(
+        modifier = Modifier
+            .background(bg, UnReminderShapes.small)
+            .border(BorderStroke(1.5.dp, borderColor), UnReminderShapes.small)
+            .clickable(onClick = onClick)
+            .padding(horizontal = Dimens.md + 2.dp, vertical = Dimens.sm),
+    ) {
+        Text(
+            text = label,
+            style = SansBodyStrong,
+            color = fg.copy(alpha = if (muted && !selected) 0.5f else 1f),
+        )
+    }
+}
+
+@Composable
+private fun PreviewCard(
+    enabled: Boolean,
+    loading: Boolean,
+    onResample: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.padding(horizontal = Dimens.xs)) {
+        MonoSectionLabel("preview · sampled from gemma")
+        Spacer(Modifier.height(Dimens.md - 2.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.onBackground, UnReminderShapes.small)
+                .padding(horizontal = Dimens.lg, vertical = Dimens.lg),
+        ) {
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        "UN-REMINDER · NOW",
+                        style = MonoLabelTiny,
+                        color = MaterialTheme.colorScheme.background.copy(alpha = 0.6f),
+                    )
+                    Box(
+                        modifier = Modifier
+                            .let { if (enabled) it.clickable(onClick = onResample) else it },
+                    ) {
+                        if (loading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(12.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.background,
+                            )
+                        } else {
+                            Text(
+                                "\u21bb resample",
+                                style = MonoLabelTiny,
+                                color = MaterialTheme.colorScheme.background.copy(alpha = 0.7f),
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(Dimens.sm - 2.dp))
+                Text(
+                    "Settle for a moment \u2014 the floor is enough.",
+                    style = DisplayMedium,
+                    color = MaterialTheme.colorScheme.background,
                 )
             }
         }
