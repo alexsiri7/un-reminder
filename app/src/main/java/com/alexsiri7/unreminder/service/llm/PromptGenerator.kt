@@ -30,7 +30,6 @@ class PromptGenerator @Inject constructor(
 ) {
     companion object {
         private const val TAG = "PromptGenerator"
-        private const val MODEL_FILENAME = "gemma3-1b-it-int4.task"
     }
 
     private var engine: Engine? = null
@@ -39,7 +38,7 @@ class PromptGenerator @Inject constructor(
     val downloadProgress: StateFlow<Float?> = _downloadProgress.asStateFlow()
 
     suspend fun initialize() {
-        val modelFile = File(context.filesDir, MODEL_FILENAME)
+        val modelFile = File(context.filesDir, ModelDownloadWorker.MODEL_FILENAME)
         if (!modelFile.exists()) {
             enqueueModelDownload()
             observeDownloadProgress()
@@ -77,9 +76,10 @@ class PromptGenerator @Inject constructor(
     }
 
     private fun observeDownloadProgress() {
+        // TODO: observe WorkInfo flow and call initialize() on SUCCEEDED state so the
+        // engine activates without requiring an app restart (follow-up issue).
         WorkManager.getInstance(context)
             .getWorkInfosForUniqueWorkLiveData(ModelDownloadWorker.WORK_NAME)
-        // Progress is observed; when complete, caller must call initialize() again
     }
 
     suspend fun generate(habit: HabitEntity, locationName: String, timeOfDay: String): String {

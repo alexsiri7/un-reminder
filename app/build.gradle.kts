@@ -30,6 +30,11 @@ android {
             "\"alexsiri7/un-reminder\""
         )
         buildConfigField("String", "SENTRY_DSN", "\"${System.getenv("SENTRY_DSN") ?: ""}\"")
+        buildConfigField(
+            "String",
+            "MODEL_CDN_URL",
+            "\"${System.getenv("MODEL_CDN_URL") ?: ""}\""
+        )
 
     }
 

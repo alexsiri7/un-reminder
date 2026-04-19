@@ -6,6 +6,7 @@ import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import com.alexsiri7.unreminder.BuildConfig
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CancellationException
@@ -23,9 +24,8 @@ class ModelDownloadWorker @AssistedInject constructor(
     companion object {
         const val WORK_NAME = "model_download"
         const val KEY_PROGRESS = "progress"
-        // Replace with real CDN URL before shipping
-        private const val MODEL_URL = "https://YOUR_CDN/gemma3-1b-it-int4.task"
-        private const val MODEL_FILENAME = "gemma3-1b-it-int4.task"
+        const val MODEL_FILENAME = "gemma3-1b-it-int4.task"
+        private const val MODEL_URL = BuildConfig.MODEL_CDN_URL
         private const val TAG = "ModelDownloadWorker"
     }
 
@@ -39,11 +39,15 @@ class ModelDownloadWorker @AssistedInject constructor(
             okHttpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
                     Log.w(TAG, "Download failed: HTTP ${response.code}")
-                    return Result.retry()
+                    return if (response.code in 500..599) Result.retry() else Result.failure()
                 }
-                val body = response.body ?: return Result.failure()
+                val body = response.body ?: run {
+                    Log.e(TAG, "Download failed: null body on HTTP ${response.code}")
+                    return Result.failure()
+                }
                 val contentLength = body.contentLength()
                 var bytesRead = 0L
+                var lastReportedProgress = -1
                 body.byteStream().use { input ->
                     tmpFile.outputStream().use { output ->
                         val buffer = ByteArray(8 * 1024)
@@ -53,14 +57,21 @@ class ModelDownloadWorker @AssistedInject constructor(
                             bytesRead += bytes
                             if (contentLength > 0) {
                                 val progress = (bytesRead * 100 / contentLength).toInt()
-                                setProgress(workDataOf(KEY_PROGRESS to progress))
+                                if (progress != lastReportedProgress) {
+                                    lastReportedProgress = progress
+                                    setProgress(workDataOf(KEY_PROGRESS to progress))
+                                }
                             }
                             bytes = input.read(buffer)
                         }
                     }
                 }
             }
-            tmpFile.renameTo(modelFile)
+            if (!tmpFile.renameTo(modelFile)) {
+                Log.w(TAG, "Rename failed: $tmpFile -> $modelFile")
+                tmpFile.delete()
+                return Result.retry()
+            }
             Result.success()
         } catch (e: CancellationException) {
             tmpFile.delete()

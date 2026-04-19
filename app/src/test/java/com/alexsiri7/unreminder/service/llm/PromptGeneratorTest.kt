@@ -5,6 +5,7 @@ import com.alexsiri7.unreminder.data.db.HabitEntity
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
@@ -59,5 +60,12 @@ class PromptGeneratorTest {
         assertTrue(result.isFailure)
         assertTrue(result.exceptionOrNull() is IllegalStateException)
         assertEquals("LLM unavailable", result.exceptionOrNull()?.message)
+    }
+
+    @Test
+    fun `downloadProgress is null when model file is absent`() = runTest {
+        assertNull(generator.downloadProgress.value)
+        generator.initialize()
+        assertNull(generator.downloadProgress.value)
     }
 }

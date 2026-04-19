@@ -40,14 +40,14 @@ Solo user (the author). Single-device, single-user. Personal productivity / well
 | Map UI | **osmdroid** | OpenStreetMap-based map picker for location selection; tiles cached automatically on-device. |
 | Notifications | **NotificationManager** (Android 13+ runtime permission) | Native. |
 | Crash reporting | **Sentry** (`sentry-android`) | On-device-only gating via blank DSN; no PII, habit content, or location data sent. |
-| LLM | **Gemma 4 E2B on-device** via **ML Kit GenAI Prompt API** / **AICore** (Pixel 8 Pro is AICore-supported). | Zero-cost, offline, private, low-latency. |
+| LLM | **Gemma 3 1B (int4)** on-device via **LiteRT-LM** (`com.google.ai.edge.litertlm:litertlm-android:0.10.2`). Model downloaded on first launch (`ModelDownloadWorker`). | Zero-cost after download, offline, private, low-latency. GPU-accelerated on supported devices (OpenCL / vndksupport). |
 | Network | **OkHttp** | HTTP client for GitHub feedback API (optional in-app feedback feature). |
 | Error reporting | **Sentry Android SDK** (`sentry-android 7.14.0`) | Automatic exception capture for LLM subsystem errors in release builds; opt-in via `SENTRY_DSN` build-config field. No PII, no performance tracing. |
 | DI | Hilt | |
 | Testing | JUnit + Compose UI tests | |
 
-**Target device for MVP:** Pixel 8 Pro (AICore available, Gemma 4 runs natively).
-**Fallback:** bundle ML Kit GenAI Prompt API for devices without AICore (post-MVP).
+**Target device for MVP:** Any Android device with min SDK 31. Model is downloaded on first launch; GPU backend is optional (app falls back to CPU if OpenCL/vndksupport are absent).
+**Post-MVP:** Surface download progress to the user; retry/cancel UI.
 
 ### Build Configuration / GitHub Secrets
 
@@ -142,13 +142,13 @@ updated by geofence `ENTER`/`EXIT` callbacks. Empty set means no known location.
    not recently prompted. Weight formula: `1 + min(minutesSince, 1440) / 120`, where
    `minutesSince` is minutes since the habit was last fired (cap: 1440 min = 24 h). A habit
    never fired receives the maximum weight (~13×). If the eligible set is empty, skip silently.
-4. Call Gemma 4 E2B with a structured prompt (see below) to generate a fresh, actionable one-liner for this habit instance.
+4. Call **Gemma 3 1B (int4, via LiteRT-LM)** with a structured prompt (see below) to generate a fresh, actionable one-liner for this habit instance.
 5. Post the notification with the generated text. Action buttons: **Did the full version**, **Did the low-floor**, **Dismiss**.
 6. Record the trigger row with the generated prompt and the outcome when the user responds.
    If the last 3 triggers for the same habit are all `DISMISSED`, the habit is automatically set to
    `active = false` (auto-paused). The user can re-activate it by editing the habit.
 
-### LLM prompt shape (on-device Gemma 4)
+### LLM prompt shape (on-device Gemma 3 1B)
 
 ```
 System: You are generating a one-line notification that nudges the user
@@ -168,9 +168,9 @@ Expected output example for *gratefulness*:
 - "Name one thing that went better than expected today."
 
 ### Fallback
-If Gemma 4 inference fails or takes >5s, fall back to a static template: *"{name}: {low_floor_description}"*. Note: the AI autofill and notification preview features throw on failure (no silent fallback) so the UI can surface a clear error message.
+If Gemma 3 1B inference fails or takes >5s, fall back to a static template: *"{name}: {low_floor_description}"*. Note: the AI autofill and notification preview features throw on failure (no silent fallback) so the UI can surface a clear error message.
 
-### Habit-field autofill prompt (on-device Gemma 4)
+### Habit-field autofill prompt (on-device Gemma 3 1B)
 
 Used to generate `full_description` and `low_floor_description` when the user taps "Autofill with AI" in the Habit editor. Takes only the habit title as input.
 
@@ -244,7 +244,7 @@ The app is considered MVP-complete when:
 
 1. User can CRUD habits, windows, and locations in the UI.
 2. Daily schedule job correctly populates `Trigger` rows for the next 24h based on active windows.
-3. At least one window trigger fires during its window with a Gemma 4-generated prompt.
+3. At least one window trigger fires during its window with a Gemma 3 1B-generated prompt.
 4. Entering the registered `HOME` geofence triggers exactly one notification 5 minutes later (debounced).
 5. Notification actions correctly record `COMPLETED_FULL`, `COMPLETED_LOW_FLOOR`, or `DISMISSED`.
 6. Recent triggers screen displays the last 20 triggers with their generated prompts.
@@ -266,7 +266,7 @@ Tracked manually by glancing at the Recent triggers screen. Not a feature.
 - Cloud sync & multi-device (would re-introduce Supabase + Google OAuth).
 - iOS version.
 - A "Surprise Me" quick-pick screen.
-- Multi-modal habits (image/audio prompts from Gemma 4 multimodal).
+- Multi-modal habits (image/audio prompts from future multimodal models).
 - Tasker/IFTTT webhooks for external triggers.
 - Habit templates / suggested habits library.
 
@@ -274,7 +274,7 @@ Tracked manually by glancing at the Recent triggers screen. Not a feature.
 
 ## 12. Risks & Open Questions
 
-- **AICore availability for Gemma 4 E2B on Pixel 8 Pro** — confirmed in developer preview; verify it runs end-to-end before wiring the fallback.
+- **LiteRT-LM GPU acceleration on target device** — verify OpenCL path; app falls back to CPU automatically via `libvndksupport.so`/`libOpenCL.so` `required="false"` manifest entries.
 - **Background location reliability** — Android is aggressive about killing background geofence receivers on some OEMs. Pixel stock ROM is the friendliest; still needs a foreground service fallback if misses are frequent.
 - **Exact alarms under Doze** — `setExactAndAllowWhileIdle` should be reliable for our use case; verify during dev.
-- **Gemma 4 E2B latency on-device** — must stay under 5s for notification generation; fallback path handles slow cases.
+- **Gemma 3 1B int4 latency on-device** — must stay under 5s for notification generation; fallback path handles slow cases.
