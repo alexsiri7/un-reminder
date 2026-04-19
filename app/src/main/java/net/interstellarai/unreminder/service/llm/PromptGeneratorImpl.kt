@@ -6,11 +6,11 @@ import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import net.interstellarai.unreminder.BuildConfig
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.domain.model.AiHabitFields
-import net.interstellarai.unreminder.service.llm.ModelConfig
 import net.interstellarai.unreminder.worker.ModelDownloadWorker
 import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.ConversationConfig
@@ -19,13 +19,36 @@ import com.google.ai.edge.litertlm.EngineConfig
 import io.sentry.Sentry
 import io.sentry.SentryLevel
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import java.io.File
 
-class PromptGeneratorImpl(private val context: Context) : PromptGenerator {
+class PromptGeneratorImpl(
+    private val context: Context,
+    /**
+     * Supplier for the [WorkInfo] progress stream. Defaults to the real
+     * [WorkManager] unique-work flow; tests inject a fake to drive state
+     * transitions without needing a live WorkManager.
+     */
+    private val workInfoFlowProvider: () -> Flow<List<WorkInfo>> = {
+        WorkManager.getInstance(context)
+            .getWorkInfosForUniqueWorkFlow(ModelDownloadWorker.WORK_NAME)
+    },
+    /**
+     * Scope the progress collector runs in. Defaults to a long-lived
+     * application-scoped supervisor; tests pass a TestScope so collection
+     * can be driven and cancelled deterministically.
+     */
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+) : PromptGenerator {
 
     companion object {
         private const val TAG = "PromptGenerator"
@@ -34,7 +57,12 @@ class PromptGeneratorImpl(private val context: Context) : PromptGenerator {
     private var engine: Engine? = null
 
     private val _downloadProgress = MutableStateFlow<Float?>(null)
-    val downloadProgress: StateFlow<Float?> = _downloadProgress.asStateFlow()
+    override val downloadProgress: StateFlow<Float?> = _downloadProgress.asStateFlow()
+
+    private val _aiStatus = MutableStateFlow<AiStatus>(AiStatus.Idle)
+    override val aiStatus: StateFlow<AiStatus> = _aiStatus.asStateFlow()
+
+    private var progressCollectorJob: Job? = null
 
     override suspend fun initialize() {
         if (ModelConfig.isPlaceholderUrl(BuildConfig.MODEL_CDN_URL)) {
@@ -51,6 +79,7 @@ class PromptGeneratorImpl(private val context: Context) : PromptGenerator {
                 "MODEL_CDN_URL is a placeholder — AI features disabled",
                 SentryLevel.WARNING
             ) { scope -> scope.setTag("component", "litert-lm-init") }
+            _aiStatus.value = AiStatus.Unavailable
             return
         }
         val modelFile = File(context.filesDir, ModelDownloadWorker.MODEL_FILENAME)
@@ -61,9 +90,15 @@ class PromptGeneratorImpl(private val context: Context) : PromptGenerator {
             } catch (e: Throwable) {
                 Log.w(TAG, "WorkManager unavailable in this environment; model download skipped", e)
             }
-            // Model not yet available — initialize() completes with engine = null
+            // Model not yet available — initialize() completes with engine = null.
+            // The progress collector will re-trigger initializeEngineFromFile() on SUCCEEDED.
             return
         }
+        initializeEngineFromFile(modelFile)
+    }
+
+    private fun initializeEngineFromFile(modelFile: File) {
+        if (engine != null) return
         try {
             val config = EngineConfig(
                 modelPath = modelFile.absolutePath,
@@ -73,12 +108,15 @@ class PromptGeneratorImpl(private val context: Context) : PromptGenerator {
             e.initialize()
             engine = e
             _downloadProgress.value = null
+            _aiStatus.value = AiStatus.Ready
         } catch (e: Exception) {
             Log.w(TAG, "LiteRT-LM initialization failed; AI features will be unavailable", e)
             Sentry.captureException(e) { scope ->
                 scope.setTag("component", "litert-lm-init")
             }
             engine = null
+            _downloadProgress.value = null
+            _aiStatus.value = AiStatus.Failed
         }
     }
 
@@ -94,9 +132,112 @@ class PromptGeneratorImpl(private val context: Context) : PromptGenerator {
             .enqueueUniqueWork(ModelDownloadWorker.WORK_NAME, ExistingWorkPolicy.KEEP, request)
     }
 
-    private fun observeDownloadProgress() {
-        // TODO: observe WorkInfo flow and call initialize() on SUCCEEDED state so the
-        // engine activates without requiring an app restart (follow-up issue).
+    override fun retryModelDownload() {
+        if (ModelConfig.isPlaceholderUrl(BuildConfig.MODEL_CDN_URL)) {
+            Log.w(TAG, "retryModelDownload: placeholder URL — ignoring")
+            return
+        }
+        val modelFile = File(context.filesDir, ModelDownloadWorker.MODEL_FILENAME)
+        if (modelFile.exists()) {
+            // File already on disk — re-attempt engine init instead of re-downloading.
+            initializeEngineFromFile(modelFile)
+            return
+        }
+        try {
+            // REPLACE so a failed/cancelled prior run doesn't block the retry.
+            val request = OneTimeWorkRequestBuilder<ModelDownloadWorker>()
+                .setConstraints(
+                    Constraints.Builder()
+                        .setRequiredNetworkType(NetworkType.CONNECTED)
+                        .build()
+                )
+                .build()
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                ModelDownloadWorker.WORK_NAME,
+                ExistingWorkPolicy.REPLACE,
+                request,
+            )
+            observeDownloadProgress()
+        } catch (e: Throwable) {
+            Log.w(TAG, "retryModelDownload: WorkManager unavailable", e)
+        }
+    }
+
+    /**
+     * Wires WorkManager's per-worker progress + state stream into [_downloadProgress]
+     * and [_aiStatus]. Idempotent — if a collector is already running, does nothing.
+     *
+     * Progress key note: [ModelDownloadWorker] emits an Int percent (0..100) under
+     * [ModelDownloadWorker.KEY_PROGRESS], not a float fraction. We normalise to
+     * a 0.0..1.0 Float here so UI can drive [androidx.compose.material3.LinearProgressIndicator]
+     * directly.
+     */
+    internal fun observeDownloadProgress() {
+        val existing = progressCollectorJob
+        if (existing != null && existing.isActive) return
+        progressCollectorJob = scope.launch {
+            try {
+                workInfoFlowProvider().collect { infos ->
+                    // getWorkInfosForUniqueWorkFlow returns the list for this unique-work
+                    // name; under normal operation there is at most one active entry.
+                    val info = infos.firstOrNull() ?: return@collect
+                    when (info.state) {
+                        WorkInfo.State.RUNNING -> {
+                            val pct = info.progress.getInt(ModelDownloadWorker.KEY_PROGRESS, -1)
+                            if (pct in 0..100) {
+                                val fraction = pct / 100f
+                                _downloadProgress.value = fraction
+                                _aiStatus.value = AiStatus.Downloading(fraction)
+                            } else {
+                                // RUNNING but no progress datum yet (initial HTTP handshake);
+                                // show an indeterminate 0% so the banner can render.
+                                if (_downloadProgress.value == null) {
+                                    _downloadProgress.value = 0f
+                                    _aiStatus.value = AiStatus.Downloading(0f)
+                                }
+                            }
+                        }
+                        WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED -> {
+                            // Not yet started (e.g. waiting for network). Keep banner hidden
+                            // unless we were already showing one.
+                            if (_downloadProgress.value == null) {
+                                _aiStatus.value = AiStatus.Downloading(0f)
+                                _downloadProgress.value = 0f
+                            }
+                        }
+                        WorkInfo.State.SUCCEEDED -> {
+                            _downloadProgress.value = null
+                            // Transition to engine init. initializeEngineFromFile guards
+                            // against double-init.
+                            val modelFile = File(
+                                context.filesDir,
+                                ModelDownloadWorker.MODEL_FILENAME,
+                            )
+                            if (modelFile.exists()) {
+                                initializeEngineFromFile(modelFile)
+                            } else {
+                                // Unusual: worker reported success but file is missing.
+                                Log.w(TAG, "Download SUCCEEDED but model file missing")
+                                _aiStatus.value = AiStatus.Failed
+                            }
+                        }
+                        WorkInfo.State.FAILED, WorkInfo.State.CANCELLED -> {
+                            Log.w(
+                                TAG,
+                                "Model download ${info.state} — AI remains unavailable " +
+                                    "(WorkManager's own retry policy applies for FAILED)",
+                            )
+                            _downloadProgress.value = null
+                            _aiStatus.value = AiStatus.Failed
+                        }
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                Log.w(TAG, "observeDownloadProgress: collector crashed", e)
+            }
+        }
     }
 
     override suspend fun generate(habit: HabitEntity, locationName: String, timeOfDay: String): String {

@@ -4,6 +4,7 @@ import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.domain.model.AiHabitFields
+import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.service.llm.PromptGenerator
 import io.mockk.coEvery
 import io.mockk.every
@@ -16,6 +17,7 @@ import io.sentry.protocol.SentryId
 import io.sentry.ScopeCallback
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -54,6 +56,8 @@ class HabitEditViewModelTest {
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         every { mockLocationRepository.getAll() } returns flowOf(emptyList())
+        every { mockPromptGenerator.downloadProgress } returns MutableStateFlow<Float?>(null)
+        every { mockPromptGenerator.aiStatus } returns MutableStateFlow<AiStatus>(AiStatus.Ready)
         viewModel = HabitEditViewModel(mockHabitRepository, mockLocationRepository, mockPromptGenerator)
         viewModel.updateName("meditation")
         viewModel.updateFullDescription("20-minute guided meditation")
