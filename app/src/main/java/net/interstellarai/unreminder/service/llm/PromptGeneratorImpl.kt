@@ -13,6 +13,7 @@ import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.repository.ModelDownloadProgressRepository
 import net.interstellarai.unreminder.domain.model.AiHabitFields
 import net.interstellarai.unreminder.worker.ModelDownloadWorker
+import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
@@ -58,6 +59,32 @@ class PromptGeneratorImpl(
      * the old constructor arity compatible.
      */
     private val progressRepository: ModelDownloadProgressRepository? = null,
+    /**
+     * Factory for constructing the underlying LiteRT-LM engine given a model
+     * path and a backend hint ("gpu" or "cpu"). Tests override this to
+     * simulate GPU-init failure + CPU fallback without needing a real model
+     * file or native libraries. Production defaults to [::defaultEngineFactory].
+     *
+     * Both the factory's parameter types and its return type are deliberately
+     * kept free of `com.google.ai.edge.litertlm.*` references (we use [String]
+     * for the backend hint and [Any] for the returned engine). Rationale: the
+     * LiteRT-LM 0.10.2 AAR ships class-file v65 (JDK 21) but our unit-test JVM
+     * runs JDK 17 both locally and in CI. When the Kotlin compiler synthesises
+     * static lambda methods on a *test* class that references this factory
+     * signature, those synthetic method descriptors would include the v65
+     * types and JUnit's `MethodSorter.getDeclaredMethods` eagerly resolves
+     * them, failing with `UnsupportedClassVersionError` before any test runs.
+     * Returning [Any] lets tests stay class-version-clean; we cast to [Engine]
+     * internally on the production default path.
+     *
+     * The default is supplied as a function reference (not an inline lambda)
+     * so the litertlm types are only touched when the factory is *invoked*,
+     * never when `PromptGeneratorImpl` is merely constructed. Inline lambda
+     * defaults get loaded at `<init>` time by Kotlin's $default mechanism,
+     * which would pull in [Engine] / [EngineConfig] / [Backend] eagerly.
+     */
+    private val engineFactory: (modelPath: String, cacheDir: String, backendName: String) -> Any =
+        ::defaultEngineFactory,
 ) : PromptGenerator {
 
     companion object {
@@ -149,24 +176,46 @@ class PromptGeneratorImpl(
             return
         }
 
+        // Backend selection: try GPU first, fall back to CPU on failure.
+        //
+        // Why GPU first? Gemma 4 `.litertlm` containers require a backend to be
+        // specified in EngineConfig or the engine throws
+        // `LiteRtLmJniException: Unable to open zip archive` during load — see
+        // https://github.com/google-ai-edge/LiteRT-LM/blob/main/docs/api/kotlin/getting_started.md.
+        // Google AI Edge Gallery's own model_allowlist.json ships Gemma 4 E2B
+        // with `accelerators: "gpu,cpu"`, confirming GPU is the primary path.
+        //
+        // Why CPU fallback? Devices without OpenCL (emulators, stripped-down
+        // vendor images) will fail GPU init. The CPU backend has no such
+        // dependency, so retrying once on CPU keeps the app usable on those
+        // devices. Only if both attempts fail do we surface AiStatus.Failed.
         try {
-            val config = EngineConfig(
-                modelPath = modelFile.absolutePath,
-                cacheDir = context.cacheDir.path
-            )
-            val e = Engine(config)
+            val e = engineFactory(modelFile.absolutePath, context.cacheDir.path, "gpu") as Engine
             e.initialize()
             engine = e
             _downloadProgress.value = null
             _aiStatus.value = AiStatus.Ready
-        } catch (e: Exception) {
-            Log.w(TAG, "LiteRT-LM initialization failed; AI features will be unavailable", e)
-            Sentry.captureException(e) { scope ->
-                scope.setTag("component", "litert-lm-init")
+        } catch (gpuErr: Exception) {
+            Log.w(TAG, "GPU backend init failed; retrying on CPU", gpuErr)
+            try {
+                val e = engineFactory(modelFile.absolutePath, context.cacheDir.path, "cpu") as Engine
+                e.initialize()
+                engine = e
+                _downloadProgress.value = null
+                _aiStatus.value = AiStatus.Ready
+            } catch (cpuErr: Exception) {
+                Log.w(TAG, "LiteRT-LM initialization failed on both GPU and CPU; AI features will be unavailable", cpuErr)
+                // Attach both errors to Sentry so we can see whether it's a
+                // universal-failure (bad model file) or GPU-only (device).
+                Sentry.captureException(cpuErr) { scope ->
+                    scope.setTag("component", "litert-lm-init")
+                    scope.setTag("backend", "cpu-after-gpu-fallback")
+                    scope.setExtra("gpuError", gpuErr.toString())
+                }
+                engine = null
+                _downloadProgress.value = null
+                _aiStatus.value = AiStatus.Failed
             }
-            engine = null
-            _downloadProgress.value = null
-            _aiStatus.value = AiStatus.Failed
         }
     }
 
@@ -390,3 +439,30 @@ class PromptGeneratorImpl(
 
 private fun com.google.ai.edge.litertlm.Message.toText(): String =
     contents.contents.filterIsInstance<Content.Text>().joinToString("") { it.text }
+
+/**
+ * Production default for `PromptGeneratorImpl.engineFactory`. Kept as a
+ * top-level function (rather than an inline lambda default) so the LiteRT-LM
+ * classes ([Engine], [EngineConfig], [Backend]) are only loaded when the
+ * factory is actually invoked — never at `PromptGeneratorImpl.<init>` time.
+ * This keeps unit tests runnable on JDK 17 against the JDK-21-compiled
+ * litertlm-android 0.10.2 AAR.
+ */
+private fun defaultEngineFactory(
+    modelPath: String,
+    cacheDir: String,
+    backendName: String,
+): Any {
+    val backend: Backend = when (backendName) {
+        "gpu" -> Backend.GPU()
+        "cpu" -> Backend.CPU()
+        else -> error("Unknown backend: $backendName")
+    }
+    return Engine(
+        EngineConfig(
+            modelPath = modelPath,
+            cacheDir = cacheDir,
+            backend = backend,
+        )
+    )
+}

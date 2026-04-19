@@ -221,7 +221,86 @@ class PromptGeneratorTest {
         assertEquals(AiStatus.Failed, gen.aiStatus.value)
     }
 
-    private fun buildWorkInfo(
+    // --- GPU → CPU backend fallback ---
+    //
+    // Regression guard for the Gemma 4 `.litertlm` loading path. The engine
+    // requires an explicit backend in EngineConfig; picking GPU first gets us
+    // the accelerated path on real devices, and failing back to CPU keeps us
+    // running on hardware without OpenCL. Both calls go through the injected
+    // engineFactory so the test can assert the sequence without needing a real
+    // model file or JNI library.
+    //
+    // NOTE: These tests deliberately avoid importing any `com.google.ai.edge.litertlm.*`
+    // types (Engine, Backend, EngineConfig). Those classes are compiled as
+    // class-file v65 (JDK 21) in the 0.10.2 AAR, but our unit-test JVM runs
+    // JDK 17 both locally and in CI. If a test class's declared fields or
+    // method signatures reference any of those types, `MethodSorter.getDeclaredMethods`
+    // during JUnit discovery triggers the class-loader and fails with
+    // `UnsupportedClassVersionError` before any test runs.
+    //
+    // The engineFactory signature uses plain `String` for the backend hint
+    // specifically to let tests drive it without importing litertlm classes.
+    // Tests that need an Engine instance as factory output use the GPU path's
+    // throw-branch (which never returns an Engine) for GPU-fails scenarios.
+
+    @Test
+    fun `initializeEngineFromFile tries GPU first then CPU then surfaces Failed when both throw`() {
+        // Write a file with the LITE magic so the pre-flight modelFileLooksValid
+        // check passes and we actually reach the engine construction path.
+        val modelFile = File(tempDir, ModelDownloadWorker.MODEL_FILENAME)
+        modelFile.writeBytes(byteArrayOf(0x4C, 0x49, 0x54, 0x45) + ByteArray(16))
+        assertTrue(modelFile.exists())
+
+        val backendAttempts = mutableListOf<String>()
+        val gen = PromptGeneratorImpl(
+            context = context,
+            engineFactory = { _, _, backendName ->
+                backendAttempts.add(backendName)
+                throw RuntimeException("simulated $backendName init failure")
+            },
+        )
+
+        gen.initializeEngineFromFile(modelFile)
+
+        assertEquals(
+            "GPU should be tried first, then CPU as fallback",
+            listOf("gpu", "cpu"),
+            backendAttempts,
+        )
+        assertEquals(
+            "aiStatus should be Failed when both backends throw",
+            AiStatus.Failed,
+            gen.aiStatus.value,
+        )
+    }
+
+    @Test
+    fun `initializeEngineFromFile still tries GPU first even when CPU would succeed`() {
+        // Contract check: we don't silently prefer CPU. If GPU init throws, we
+        // fall through to CPU and recover; if GPU succeeds we never touch CPU.
+        val modelFile = File(tempDir, ModelDownloadWorker.MODEL_FILENAME)
+        modelFile.writeBytes(byteArrayOf(0x4C, 0x49, 0x54, 0x45) + ByteArray(16))
+
+        val backendAttempts = mutableListOf<String>()
+        val gen = PromptGeneratorImpl(
+            context = context,
+            engineFactory = { _, _, backendName ->
+                backendAttempts.add(backendName)
+                // Even for the "cpu" branch, we have no way to return a real
+                // Engine from this JDK 17 test JVM (the class is JDK 21), so
+                // throwing is the only option. The observable contract under
+                // test is the *order* of attempts, not the recovery state.
+                throw RuntimeException("simulated $backendName failure")
+            },
+        )
+
+        gen.initializeEngineFromFile(modelFile)
+
+        assertEquals("first attempt must be GPU", "gpu", backendAttempts.firstOrNull())
+        assertEquals("CPU must be the fallback", listOf("gpu", "cpu"), backendAttempts)
+    }
+
+private fun buildWorkInfo(
         id: UUID,
         state: WorkInfo.State,
         percent: Int?,
