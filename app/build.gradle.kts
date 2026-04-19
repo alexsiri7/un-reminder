@@ -30,6 +30,11 @@ android {
             "\"alexsiri7/un-reminder\""
         )
         buildConfigField("String", "SENTRY_DSN", "\"${System.getenv("SENTRY_DSN") ?: ""}\"")
+        buildConfigField(
+            "String",
+            "MODEL_CDN_URL",
+            "\"${System.getenv("MODEL_CDN_URL") ?: "https://placeholder.invalid/model.task"}\""
+        )
 
     }
 
@@ -64,6 +69,7 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+        freeCompilerArgs += "-Xskip-metadata-version-check"
     }
 
     buildFeatures {
@@ -114,8 +120,8 @@ dependencies {
     implementation(libs.play.services.location)
     implementation(libs.osmdroid.android)
 
-    // ML Kit GenAI
-    implementation(libs.mlkit.genai.prompt)
+    // LiteRT-LM (on-device Gemma)
+    implementation(libs.litert.lm)
 
     // DataStore
     implementation(libs.androidx.datastore.preferences)

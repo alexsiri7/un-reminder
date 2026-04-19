@@ -68,7 +68,7 @@ class HabitEditViewModelTest {
     // --- autofillWithAi ---
 
     @Test
-    fun `autofillWithAi updates fields and clears isGeneratingFields on success`() = runTest {
+    fun `autofillWithAi updates fields and clears isGeneratingFields on success`() = runTest(testDispatcher) {
         coEvery { mockPromptGenerator.generateHabitFields("meditation") } returns
             AiHabitFields("20-min guided session", "3 deep breaths")
 
@@ -83,7 +83,7 @@ class HabitEditViewModelTest {
     }
 
     @Test
-    fun `autofillWithAi sets errorMessage and resets isGeneratingFields on failure`() = runTest {
+    fun `autofillWithAi sets errorMessage and resets isGeneratingFields on failure`() = runTest(testDispatcher) {
         coEvery { mockPromptGenerator.generateHabitFields(any()) } throws
             IllegalStateException("LLM unavailable")
 
@@ -97,7 +97,7 @@ class HabitEditViewModelTest {
     }
 
     @Test
-    fun `autofillWithAi captures exception to Sentry on failure`() = runTest {
+    fun `autofillWithAi captures exception to Sentry on failure`() = runTest(testDispatcher) {
         mockkStatic(Sentry::class)
         every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
 
@@ -114,7 +114,7 @@ class HabitEditViewModelTest {
     // --- previewNotification ---
 
     @Test
-    fun `previewNotification shows dialog with text and clears flag on success`() = runTest {
+    fun `previewNotification shows dialog with text and clears flag on success`() = runTest(testDispatcher) {
         coEvery {
             mockPromptGenerator.previewHabitNotification(any(), any())
         } returns "Time to meditate — even 3 breaths counts"
@@ -130,7 +130,7 @@ class HabitEditViewModelTest {
     }
 
     @Test
-    fun `previewNotification sets errorMessage and resets flag on failure`() = runTest {
+    fun `previewNotification sets errorMessage and resets flag on failure`() = runTest(testDispatcher) {
         coEvery {
             mockPromptGenerator.previewHabitNotification(any(), any())
         } throws IllegalStateException("LLM unavailable")
@@ -147,7 +147,7 @@ class HabitEditViewModelTest {
     // --- dismissPreviewDialog ---
 
     @Test
-    fun `dismissPreviewDialog clears showPreviewDialog and previewNotification`() = runTest {
+    fun `dismissPreviewDialog clears showPreviewDialog and previewNotification`() = runTest(testDispatcher) {
         coEvery { mockPromptGenerator.previewHabitNotification(any(), any()) } returns "preview"
         viewModel.previewNotification()
         advanceUntilIdle()
@@ -163,7 +163,7 @@ class HabitEditViewModelTest {
     // --- clearError ---
 
     @Test
-    fun `clearError nullifies errorMessage`() = runTest {
+    fun `clearError nullifies errorMessage`() = runTest(testDispatcher) {
         coEvery { mockPromptGenerator.generateHabitFields(any()) } throws RuntimeException("boom")
         viewModel.autofillWithAi()
         advanceUntilIdle()
@@ -177,7 +177,7 @@ class HabitEditViewModelTest {
     // --- fieldsFlashing ---
 
     @Test
-    fun `autofillWithAi success sets fieldsFlashing to true`() = runTest {
+    fun `autofillWithAi success sets fieldsFlashing to true`() = runTest(testDispatcher) {
         coEvery { mockPromptGenerator.generateHabitFields("meditation") } returns
             AiHabitFields("desc", "low")
 
@@ -188,7 +188,7 @@ class HabitEditViewModelTest {
     }
 
     @Test
-    fun `clearFieldsFlash resets fieldsFlashing to false`() = runTest {
+    fun `clearFieldsFlash resets fieldsFlashing to false`() = runTest(testDispatcher) {
         coEvery { mockPromptGenerator.generateHabitFields("meditation") } returns
             AiHabitFields("desc", "low")
 
