@@ -10,6 +10,7 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import net.interstellarai.unreminder.BuildConfig
 import net.interstellarai.unreminder.data.db.HabitEntity
+import net.interstellarai.unreminder.data.repository.ModelDownloadProgressRepository
 import net.interstellarai.unreminder.domain.model.AiHabitFields
 import net.interstellarai.unreminder.worker.ModelDownloadWorker
 import com.google.ai.edge.litertlm.Content
@@ -48,6 +49,15 @@ class PromptGeneratorImpl(
      * can be driven and cancelled deterministically.
      */
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+    /**
+     * Optional repo for reading the last persisted download fraction on cold
+     * start. Seeding from this value prevents the UI from briefly flashing
+     * "0%" when the app process is killed mid-download and recreated — the
+     * StateFlow inside this class would otherwise revert to `null`/`Idle`
+     * until WorkManager's [WorkInfo] flow catches up. Tests omit to keep
+     * the old constructor arity compatible.
+     */
+    private val progressRepository: ModelDownloadProgressRepository? = null,
 ) : PromptGenerator {
 
     companion object {
@@ -84,6 +94,19 @@ class PromptGeneratorImpl(
         }
         val modelFile = File(context.filesDir, ModelDownloadWorker.MODEL_FILENAME)
         if (!modelFile.exists()) {
+            // Seed the StateFlows from DataStore *before* enqueueing so the UI
+            // shows a non-zero fraction immediately on cold start if a previous
+            // worker had made progress. Without this the banner reads 0% for
+            // ~1-2s until the WorkInfo flow fires its first RUNNING emission.
+            try {
+                val persisted = progressRepository?.peek()
+                if (persisted != null && persisted in 0f..1f) {
+                    _downloadProgress.value = persisted
+                    _aiStatus.value = AiStatus.Downloading(persisted)
+                }
+            } catch (e: Throwable) {
+                Log.w(TAG, "Failed to read persisted download progress — continuing", e)
+            }
             try {
                 enqueueModelDownload()
                 observeDownloadProgress()
