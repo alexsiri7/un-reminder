@@ -33,7 +33,7 @@ android {
         buildConfigField(
             "String",
             "MODEL_CDN_URL",
-            "\"${System.getenv("MODEL_CDN_URL") ?: ""}\""
+            "\"${System.getenv("MODEL_CDN_URL") ?: "https://placeholder.invalid/model.task"}\""
         )
 
     }

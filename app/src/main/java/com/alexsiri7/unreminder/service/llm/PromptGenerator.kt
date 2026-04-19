@@ -41,8 +41,12 @@ class PromptGenerator @Inject constructor(
     suspend fun initialize() {
         val modelFile = File(context.filesDir, ModelDownloadWorker.MODEL_FILENAME)
         if (!modelFile.exists()) {
-            enqueueModelDownload()
-            observeDownloadProgress()
+            try {
+                enqueueModelDownload()
+                observeDownloadProgress()
+            } catch (e: Exception) {
+                Log.w(TAG, "WorkManager unavailable in this environment; model download skipped", e)
+            }
             // Model not yet available — initialize() completes with engine = null
             return
         }
@@ -83,7 +87,7 @@ class PromptGenerator @Inject constructor(
             .getWorkInfosForUniqueWorkLiveData(ModelDownloadWorker.WORK_NAME)
     }
 
-    suspend fun generate(habit: HabitEntity, locationName: String, timeOfDay: String): String {
+    open suspend fun generate(habit: HabitEntity, locationName: String, timeOfDay: String): String {
         val e = engine ?: return fallback(habit)
         return try {
             withTimeout(5_000) {
@@ -99,7 +103,7 @@ class PromptGenerator @Inject constructor(
         }
     }
 
-    suspend fun generateHabitFields(title: String): AiHabitFields {
+    open suspend fun generateHabitFields(title: String): AiHabitFields {
         val e = engine ?: throw IllegalStateException("LLM unavailable")
         return try {
             withTimeout(5_000) {
@@ -123,7 +127,7 @@ class PromptGenerator @Inject constructor(
         }
     }
 
-    suspend fun previewHabitNotification(habit: HabitEntity, locationName: String = "Anywhere"): String {
+    open suspend fun previewHabitNotification(habit: HabitEntity, locationName: String = "Anywhere"): String {
         val e = engine ?: throw IllegalStateException("LLM unavailable")
         return withTimeout(5_000) {
             val conversation = e.createConversation(ConversationConfig())
