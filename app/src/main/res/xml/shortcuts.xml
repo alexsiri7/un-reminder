@@ -8,8 +8,8 @@
         android:shortcutLongLabel="@string/shortcut_surprise_long">
         <intent
             android:action="android.intent.action.VIEW"
-            android:targetPackage="com.alexsiri7.unreminder"
-            android:targetClass="com.alexsiri7.unreminder.ui.shortcut.SurpriseMeActivity" />
+            android:targetPackage="net.interstellarai.unreminder"
+            android:targetClass="net.interstellarai.unreminder.ui.shortcut.SurpriseMeActivity" />
         <categories android:name="android.shortcut.conversation" />
     </shortcut>
 </shortcuts>
