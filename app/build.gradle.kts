@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.sentry)
 }
 
 android {
@@ -80,6 +81,17 @@ android {
     testOptions {
         unitTests.isReturnDefaultValues = true
     }
+}
+
+sentry {
+    autoInstallation { enabled.set(false) }
+    org.set("alex-siri")
+    projectName.set("un-reminder")
+    includeProguardMapping.set(false)
+    includeSourceContext.set(true)
+    autoUploadProguardMapping.set(false)
+    autoUploadSourceContext.set(!System.getenv("SENTRY_AUTH_TOKEN").isNullOrBlank())
+    uploadNativeSymbols.set(false)
 }
 
 dependencies {
