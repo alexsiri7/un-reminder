@@ -97,8 +97,35 @@ class PromptGeneratorImpl(
         initializeEngineFromFile(modelFile)
     }
 
-    private fun initializeEngineFromFile(modelFile: File) {
+    internal fun initializeEngineFromFile(modelFile: File) {
         if (engine != null) return
+
+        // Pre-flight magic-byte check. The LiteRT-LM engine throws a cryptic
+        // `LiteRtLmJniException: Unable to open zip archive` on any corrupt
+        // model file, without ever deleting it — so the next app start would
+        // simply re-throw the same JNI exception. Catch obvious corruption
+        // here (HTML error body, truncated download that somehow slipped past
+        // the worker, leftover partial from a previous build) and re-enqueue
+        // the download cleanly.
+        if (!modelFileLooksValid(modelFile)) {
+            val hex = readFirst8(modelFile).joinToString(" ") { "%02x".format(it) }
+            Log.w(
+                TAG,
+                "Model file magic looks wrong (got: $hex) — deleting and re-enqueuing download",
+            )
+            modelFile.delete()
+            try {
+                enqueueModelDownload()
+                observeDownloadProgress()
+                _aiStatus.value = AiStatus.Downloading(0f)
+                _downloadProgress.value = 0f
+            } catch (e: Throwable) {
+                Log.w(TAG, "Failed to re-enqueue model download after magic-byte mismatch", e)
+                _aiStatus.value = AiStatus.Failed
+            }
+            return
+        }
+
         try {
             val config = EngineConfig(
                 modelPath = modelFile.absolutePath,
@@ -117,6 +144,32 @@ class PromptGeneratorImpl(
             engine = null
             _downloadProgress.value = null
             _aiStatus.value = AiStatus.Failed
+        }
+    }
+
+    /**
+     * Cheap pre-check: does [modelFile] start with `LITE…` or `PK`? A negative
+     * result is a strong signal that the file on disk is not a LiteRT-LM
+     * container (see ModelDownloadWorker for the full magic-byte list and
+     * rationale).
+     */
+    private fun modelFileLooksValid(modelFile: File): Boolean {
+        if (!modelFile.exists() || modelFile.length() < 4) return false
+        val first8 = readFirst8(modelFile)
+        val isLitertlm = first8.take(4).toByteArray()
+            .contentEquals(byteArrayOf(0x4C, 0x49, 0x54, 0x45)) // "LITE"
+        val isZip = first8.take(2).toByteArray()
+            .contentEquals(byteArrayOf(0x50, 0x4B)) // "PK"
+        return isLitertlm || isZip
+    }
+
+    private fun readFirst8(modelFile: File): ByteArray {
+        val buf = ByteArray(8)
+        return try {
+            modelFile.inputStream().use { it.read(buf) }
+            buf
+        } catch (_: Exception) {
+            ByteArray(8)
         }
     }
 

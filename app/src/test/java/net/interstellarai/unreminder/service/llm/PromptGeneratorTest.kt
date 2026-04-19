@@ -96,6 +96,44 @@ class PromptGeneratorTest {
         assertNull(generator.downloadProgress.value)
     }
 
+    // --- corrupt model file pre-check ---
+    //
+    // Regression guard for the on-device `LiteRtLmJniException: Unable to open
+    // zip archive` bug. If a previous run left a truncated/HTML body under the
+    // model filename, the old code would feed it to `Engine.initialize()` and
+    // fail the same way on every app launch. The new pre-check must delete the
+    // file before attempting engine init so the re-download can overwrite it.
+
+    @Test
+    fun `initializeEngineFromFile deletes model file with bogus magic bytes`() = runTest {
+        // Write an HTML-error-page body under the model filename — matches the
+        // worst-case field scenario where a misconfigured CDN returned 200 OK
+        // with a maintenance page instead of the model bytes. In that state,
+        // the old code would hand the corrupt file straight to LiteRT-LM,
+        // catch the JNI exception, and leave the bad file on disk to fail the
+        // same way on every subsequent app launch.
+        val modelFile = File(tempDir, ModelDownloadWorker.MODEL_FILENAME)
+        modelFile.writeBytes("<!DOCTYPE html><html>oops</html>".toByteArray())
+        assertTrue("precondition: corrupt model file must exist", modelFile.exists())
+
+        // Bypass initialize() (which short-circuits on the placeholder
+        // MODEL_CDN_URL in test BuildConfig) and exercise the pre-init check
+        // directly. WorkManager is unavailable here, so the re-enqueue attempt
+        // will throw and the catch-branch sets aiStatus = Failed — that's OK,
+        // the contract under test is "corrupt file is removed".
+        generator.initializeEngineFromFile(modelFile)
+
+        assertTrue(
+            "corrupt model file must be deleted so a fresh download can land",
+            !modelFile.exists(),
+        )
+        val status = generator.aiStatus.value
+        assertTrue(
+            "aiStatus must not be Ready after corrupt-file cleanup (was $status)",
+            status !is AiStatus.Ready,
+        )
+    }
+
     // --- observeDownloadProgress: WorkManager flow wiring ---
     //
     // PromptGeneratorImpl takes an injectable workInfoFlowProvider so tests can

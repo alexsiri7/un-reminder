@@ -36,10 +36,17 @@ class ModelDownloadWorkerTest {
     private lateinit var filesDir: File
     private lateinit var worker: ModelDownloadWorker
 
+    // 8-byte LITERTLM magic prefix + arbitrary padding to form a believable
+    // model-file body in happy-path tests. The worker verifies size (via
+    // Content-Length match) and magic before renaming tmp → final.
+    private val litertlmMagic = byteArrayOf(0x4C, 0x49, 0x54, 0x45, 0x52, 0x54, 0x4C, 0x4D)
+    private val validModelBytes = litertlmMagic + "-fake-model-payload".toByteArray()
+
     @Before
     fun setup() {
         filesDir = createTempDir()
         every { mockContext.filesDir } returns filesDir
+        every { mockWorkerParams.runAttemptCount } returns 0
         worker = ModelDownloadWorker(mockContext, mockWorkerParams, mockOkHttpClient, testModelUrl)
     }
 
@@ -51,8 +58,10 @@ class ModelDownloadWorkerTest {
     // --- idempotency ---
 
     @Test
-    fun `doWork returns success immediately when model file already exists`() = runTest {
-        File(filesDir, ModelDownloadWorker.MODEL_FILENAME).createNewFile()
+    fun `doWork returns success immediately when valid model file already exists`() = runTest {
+        // Existing file with valid LITERTLM magic bytes passes the pre-download
+        // integrity check and short-circuits without hitting the network.
+        File(filesDir, ModelDownloadWorker.MODEL_FILENAME).writeBytes(validModelBytes)
 
         val result = worker.doWork()
 
@@ -67,13 +76,12 @@ class ModelDownloadWorkerTest {
         val mockCall: Call = mockk()
         val mockResponse: Response = mockk()
         val mockBody: ResponseBody = mockk()
-        val content = "fake-model-bytes".toByteArray()
         every { mockOkHttpClient.newCall(any<Request>()) } returns mockCall
         every { mockCall.execute() } returns mockResponse
         every { mockResponse.isSuccessful } returns true
         every { mockResponse.body } returns mockBody
-        every { mockBody.contentLength() } returns content.size.toLong()
-        every { mockBody.byteStream() } returns content.inputStream()
+        every { mockBody.contentLength() } returns validModelBytes.size.toLong()
+        every { mockBody.byteStream() } returns validModelBytes.inputStream()
         every { mockBody.close() } just Runs
         every { mockResponse.close() } just Runs
 
@@ -82,6 +90,120 @@ class ModelDownloadWorkerTest {
         assertEquals(Result.success(), result)
         assertTrue(File(filesDir, ModelDownloadWorker.MODEL_FILENAME).exists())
         assertFalse(File(filesDir, "${ModelDownloadWorker.MODEL_FILENAME}.tmp").exists())
+    }
+
+    // --- size mismatch -> retry + cleanup ---
+
+    @Test
+    fun `doWork returns retry and deletes tmp when body is shorter than Content-Length`() = runTest {
+        // Regression guard for the field bug: server promises 100 bytes, only
+        // delivers 50 — stream ends without throwing, but the on-disk file is
+        // truncated. Worker must detect this and NOT rename to the final name.
+        val content = litertlmMagic + ByteArray(42) // 50 bytes total
+        val declaredLength = 100L
+        val mockCall: Call = mockk()
+        val mockResponse: Response = mockk()
+        val mockBody: ResponseBody = mockk()
+        every { mockOkHttpClient.newCall(any<Request>()) } returns mockCall
+        every { mockCall.execute() } returns mockResponse
+        every { mockResponse.isSuccessful } returns true
+        every { mockResponse.body } returns mockBody
+        every { mockBody.contentLength() } returns declaredLength
+        every { mockBody.byteStream() } returns content.inputStream()
+        every { mockBody.close() } just Runs
+        every { mockResponse.close() } just Runs
+
+        val result = worker.doWork()
+
+        assertEquals(Result.retry(), result)
+        assertFalse(
+            "tmp file should be deleted on size mismatch",
+            File(filesDir, "${ModelDownloadWorker.MODEL_FILENAME}.tmp").exists(),
+        )
+        assertFalse(
+            "model file should NOT exist when the download was truncated",
+            File(filesDir, ModelDownloadWorker.MODEL_FILENAME).exists(),
+        )
+    }
+
+    // --- bad magic bytes (HTML error body served as 200) -> retry + cleanup ---
+
+    @Test
+    fun `doWork returns retry and deletes tmp when body has wrong magic bytes`() = runTest {
+        // Regression guard: a misconfigured CDN / Cloudflare-interstitial can
+        // return HTTP 200 with `<!DOCTYPE html>...` which would sail through
+        // the stream copy but LiteRT-LM cannot parse.
+        val htmlErrorBody = "<!DOCTYPE html><html>503 maintenance</html>".toByteArray()
+        val mockCall: Call = mockk()
+        val mockResponse: Response = mockk()
+        val mockBody: ResponseBody = mockk()
+        every { mockOkHttpClient.newCall(any<Request>()) } returns mockCall
+        every { mockCall.execute() } returns mockResponse
+        every { mockResponse.isSuccessful } returns true
+        every { mockResponse.body } returns mockBody
+        every { mockBody.contentLength() } returns htmlErrorBody.size.toLong()
+        every { mockBody.byteStream() } returns htmlErrorBody.inputStream()
+        every { mockBody.close() } just Runs
+        every { mockResponse.close() } just Runs
+
+        val result = worker.doWork()
+
+        assertEquals(Result.retry(), result)
+        assertFalse(
+            "tmp file should be deleted on magic-byte mismatch",
+            File(filesDir, "${ModelDownloadWorker.MODEL_FILENAME}.tmp").exists(),
+        )
+        assertFalse(
+            "model file should NOT exist when the download has wrong magic",
+            File(filesDir, ModelDownloadWorker.MODEL_FILENAME).exists(),
+        )
+    }
+
+    // --- pre-existing corrupt file -> re-downloads over it ---
+
+    @Test
+    fun `doWork deletes pre-existing corrupt model file and re-downloads`() = runTest {
+        // The old worker short-circuited on `modelFile.exists()` and never
+        // re-downloaded. A truncated or HTML body persisted under the final
+        // filename meant AI mode was permanently broken until reinstall.
+        val corruptExisting = "<!DOCTYPE html>oops".toByteArray()
+        File(filesDir, ModelDownloadWorker.MODEL_FILENAME).writeBytes(corruptExisting)
+
+        val mockCall: Call = mockk()
+        val mockResponse: Response = mockk()
+        val mockBody: ResponseBody = mockk()
+        every { mockOkHttpClient.newCall(any<Request>()) } returns mockCall
+        every { mockCall.execute() } returns mockResponse
+        every { mockResponse.isSuccessful } returns true
+        every { mockResponse.body } returns mockBody
+        every { mockBody.contentLength() } returns validModelBytes.size.toLong()
+        every { mockBody.byteStream() } returns validModelBytes.inputStream()
+        every { mockBody.close() } just Runs
+        every { mockResponse.close() } just Runs
+
+        val result = worker.doWork()
+
+        assertEquals(Result.success(), result)
+        val finalFile = File(filesDir, ModelDownloadWorker.MODEL_FILENAME)
+        assertTrue(finalFile.exists())
+        assertTrue(
+            "existing file should have been replaced with fresh download",
+            finalFile.readBytes().contentEquals(validModelBytes),
+        )
+    }
+
+    // --- attempt cap ---
+
+    @Test
+    fun `doWork returns failure when runAttemptCount has reached the cap`() = runTest {
+        every { mockWorkerParams.runAttemptCount } returns ModelDownloadWorker.MAX_ATTEMPTS
+        val cappedWorker =
+            ModelDownloadWorker(mockContext, mockWorkerParams, mockOkHttpClient, testModelUrl)
+
+        val result = cappedWorker.doWork()
+
+        assertEquals(Result.failure(), result)
+        verify { mockOkHttpClient wasNot Called }
     }
 
     // --- HTTP 5xx error -> retry ---
