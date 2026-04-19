@@ -7,6 +7,18 @@ plugins {
     alias(libs.plugins.sentry)
 }
 
+// Reads an environment variable via gradle's `providers` API so the lookup is
+// tracked by the configuration cache (plain `System.getenv` is not tracked and
+// can cause the cached value to be reused across CI builds). Also treats a
+// blank/empty string as "unset" so `?:` style fallbacks actually fire when the
+// env var exists but was exported as "" — otherwise BuildConfig ends up with a
+// literal empty string. Bug history: `BuildConfig.MODEL_CDN_URL` was resolving
+// to "" at runtime even though CI logs showed `MODEL_CDN_URL: ***` masked.
+fun envOrDefault(name: String, default: String): String =
+    providers.environmentVariable(name).orNull
+        ?.takeUnless { it.isBlank() }
+        ?: default
+
 android {
     namespace = "net.interstellarai.unreminder"
     compileSdk = 35
@@ -20,21 +32,35 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
+        val resolvedFeedbackUrl = envOrDefault(
+            "FEEDBACK_ENDPOINT_URL",
+            "https://feedback.alexsiri7.workers.dev/"
+        )
+        val resolvedSentryDsn = envOrDefault("SENTRY_DSN", "")
+        val resolvedModelUrl = envOrDefault(
+            "MODEL_CDN_URL",
+            "https://placeholder.invalid/model.task"
+        )
+
+        println("[gradle] FEEDBACK_ENDPOINT_URL resolved at configuration: ${resolvedFeedbackUrl.take(60)}…")
+        println("[gradle] SENTRY_DSN resolved at configuration: ${if (resolvedSentryDsn.isBlank()) "empty" else "set"}")
+        println("[gradle] MODEL_CDN_URL resolved at configuration: ${resolvedModelUrl.take(60)}…")
+
         buildConfigField(
             "String",
             "FEEDBACK_ENDPOINT_URL",
-            "\"${System.getenv("FEEDBACK_ENDPOINT_URL") ?: "https://feedback.alexsiri7.workers.dev/"}\""
+            "\"${resolvedFeedbackUrl}\""
         )
         buildConfigField(
             "String",
             "FEEDBACK_REPO",
             "\"alexsiri7/un-reminder\""
         )
-        buildConfigField("String", "SENTRY_DSN", "\"${System.getenv("SENTRY_DSN") ?: ""}\"")
+        buildConfigField("String", "SENTRY_DSN", "\"${resolvedSentryDsn}\"")
         buildConfigField(
             "String",
             "MODEL_CDN_URL",
-            "\"${System.getenv("MODEL_CDN_URL") ?: "https://placeholder.invalid/model.task"}\""
+            "\"${resolvedModelUrl}\""
         )
 
     }
