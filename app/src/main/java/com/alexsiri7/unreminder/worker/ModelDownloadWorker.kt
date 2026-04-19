@@ -59,7 +59,10 @@ class ModelDownloadWorker @AssistedInject constructor(
                                 val progress = (bytesRead * 100 / contentLength).toInt()
                                 if (progress != lastReportedProgress) {
                                     lastReportedProgress = progress
-                                    setProgress(workDataOf(KEY_PROGRESS to progress))
+                                    try {
+                                        setProgress(workDataOf(KEY_PROGRESS to progress))
+                                    } catch (_: Exception) {
+                                    }
                                 }
                             }
                             bytes = input.read(buffer)

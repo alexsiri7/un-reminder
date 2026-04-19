@@ -26,7 +26,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class PromptGenerator @Inject constructor(
+open class PromptGenerator @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     companion object {
@@ -44,7 +44,7 @@ class PromptGenerator @Inject constructor(
             try {
                 enqueueModelDownload()
                 observeDownloadProgress()
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Log.w(TAG, "WorkManager unavailable in this environment; model download skipped", e)
             }
             // Model not yet available — initialize() completes with engine = null
