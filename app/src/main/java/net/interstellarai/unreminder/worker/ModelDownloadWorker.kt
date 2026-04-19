@@ -15,7 +15,9 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import net.interstellarai.unreminder.R
 import net.interstellarai.unreminder.data.repository.ModelDownloadProgressRepository
+import net.interstellarai.unreminder.service.llm.ModelCatalog
 import net.interstellarai.unreminder.service.llm.ModelConfig
+import net.interstellarai.unreminder.service.llm.ModelDescriptor
 import net.interstellarai.unreminder.service.notification.NotificationHelper
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -26,21 +28,27 @@ import java.io.File
 import java.io.FileOutputStream
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
-import javax.inject.Named
 
 @HiltWorker
 class ModelDownloadWorker @AssistedInject constructor(
     @Assisted appContext: Context,
     @Assisted workerParams: WorkerParameters,
     private val okHttpClient: OkHttpClient,
-    @Named("modelCdnUrl") private val modelUrl: String,
     private val progressRepository: ModelDownloadProgressRepository,
 ) : CoroutineWorker(appContext, workerParams) {
 
     companion object {
         const val WORK_NAME = "model_download"
         const val KEY_PROGRESS = "progress"
+        const val KEY_MODEL_ID = "modelId"
+
+        /**
+         * Legacy constant retained for backwards compatibility with tests and
+         * any cached WorkManager state from pre-catalog installs. New code
+         * must derive the filename from a [ModelDescriptor] instead.
+         */
         const val MODEL_FILENAME = "gemma3-1b-it-int4.task"
+
         private const val TAG = "ModelDownloadWorker"
 
         // Foreground-service notification id. Constant — the FGS is a singleton
@@ -51,20 +59,20 @@ class ModelDownloadWorker @AssistedInject constructor(
         /** Cap retry attempts so a genuinely broken URL doesn't loop forever. */
         const val MAX_ATTEMPTS = 5
 
-        // Magic-byte prefixes for the two model container formats LiteRT-LM
-        // understands. Verified on-wire against the HF-hosted bundles:
-        //   - `.litertlm` files begin with the ASCII bytes "LITERTLM".
-        //   - `.task` files are zip containers; stored-entry zips begin with
-        //     `PK\x03\x04`, empty-zips with `PK\x05\x06`.
-        // Any other prefix (e.g. `<!DOCTYPE` from an HTML error body, or
-        // zeroed bytes from a truncated write) means the download is corrupt
-        // and `Engine.initialize()` would later throw
-        // `LiteRtLmJniException: Unable to open zip archive`.
+        // Magic-byte prefixes accepted when a descriptor doesn't ship its own.
+        // Kept as a safety net; all catalog entries currently set magicPrefix
+        // explicitly, so these are only hit by the legacy non-catalog path.
         private val MAGIC_LITERTLM = byteArrayOf(0x4C, 0x49, 0x54, 0x45, 0x52, 0x54, 0x4C, 0x4D)
         private val MAGIC_ZIP_LOCAL = byteArrayOf(0x50, 0x4B, 0x03, 0x04)
         private val MAGIC_ZIP_EMPTY = byteArrayOf(0x50, 0x4B, 0x05, 0x06)
         private val KNOWN_MAGICS = listOf(MAGIC_LITERTLM, MAGIC_ZIP_LOCAL, MAGIC_ZIP_EMPTY)
     }
+
+    /**
+     * Resolved at [doWork] entry from the worker's inputData. Null only when
+     * the caller forgot to pass [KEY_MODEL_ID] — treated as a Result.failure().
+     */
+    private var descriptor: ModelDescriptor? = null
 
     /**
      * Called once by WorkManager before [doWork] so the worker has a valid
@@ -83,19 +91,33 @@ class ModelDownloadWorker @AssistedInject constructor(
             return Result.failure()
         }
 
+        // Resolve which model to download from the inputData. Default to the
+        // catalog default so historical callers that didn't pass a modelId
+        // still work (e.g. a WorkManager request persisted before this
+        // rolled out).
+        val modelId = inputData.getString(KEY_MODEL_ID) ?: ModelCatalog.default.id
+        val desc = ModelCatalog.byId(modelId)
+        if (desc == null) {
+            Log.e(TAG, "Unknown modelId='$modelId' — catalog has no matching entry")
+            return Result.failure()
+        }
+        descriptor = desc
+        val modelUrl = desc.url
+        val filename = desc.fileName
+
         // Promote to FGS up-front so the OS knows to keep us alive even if the
         // user presses HOME before the first progress tick lands.
         runCatching { setForeground(createForegroundInfo(progress = -1)) }
             .onFailure { Log.w(TAG, "setForeground(initial) failed — FGS may be throttled", it) }
 
-        val modelFile = File(applicationContext.filesDir, MODEL_FILENAME)
+        val modelFile = File(applicationContext.filesDir, filename)
         if (modelFile.exists()) {
             // Guard against a previously-persisted corrupt download: a truncated
             // body or an HTML error page saved under the final filename would
             // otherwise cause `Engine.initialize()` to throw
             // "Unable to open zip archive" on every app start forever, because
             // the old early-return below never re-fetched.
-            if (fileLooksValid(modelFile)) {
+            if (fileLooksValid(modelFile, desc)) {
                 progressRepository.clear()
                 return Result.success()
             }
@@ -108,13 +130,13 @@ class ModelDownloadWorker @AssistedInject constructor(
         if (ModelConfig.isPlaceholderUrl(modelUrl)) {
             Log.w(
                 TAG,
-                "MODEL_CDN_URL is a placeholder ($modelUrl) — skipping download. " +
-                    "Set the MODEL_CDN_URL secret in CI."
+                "Model '${desc.id}' has a placeholder URL ($modelUrl) — skipping download. " +
+                    "Self-host the file and point the catalog entry at it.",
             )
             return Result.failure()
         }
 
-        val tmpFile = File(applicationContext.filesDir, "$MODEL_FILENAME.tmp")
+        val tmpFile = File(applicationContext.filesDir, "$filename.tmp")
         return try {
             // Resume-from-partial: if a previous attempt wrote bytes to `.tmp`,
             // request only the remainder via a Range header instead of restarting
@@ -229,12 +251,13 @@ class ModelDownloadWorker @AssistedInject constructor(
                 return Result.retry()
             }
 
-            // Verify first 8 bytes match a known model-container magic. Catches
-            // HTML error bodies served with a 200 status (CDN 503 → maintenance
-            // page, region-locked, etc.) and any other garbage that would later
-            // surface as a cryptic `Unable to open zip archive` on-device.
-            if (!fileLooksValid(tmpFile)) {
-                val hex = readFirst8(tmpFile).joinToString(" ") { "%02x".format(it) }
+            // Verify first bytes match the descriptor's declared magic prefix.
+            // Catches HTML error bodies served with a 200 status (CDN 503 →
+            // maintenance page, region-locked, etc.) and any other garbage
+            // that would later surface as a cryptic `Unable to open zip
+            // archive` on-device.
+            if (!fileLooksValid(tmpFile, desc)) {
+                val hex = readFirst(tmpFile, 8).joinToString(" ") { "%02x".format(it) }
                 Log.w(TAG, "Download magic bytes unrecognised (got: $hex) — deleting and retrying")
                 tmpFile.delete()
                 return Result.retry()
@@ -277,11 +300,12 @@ class ModelDownloadWorker @AssistedInject constructor(
      */
     private fun createForegroundInfo(progress: Int): ForegroundInfo {
         val indeterminate = progress !in 0..100
+        val label = descriptor?.displayName ?: "AI model"
         val notification = NotificationCompat.Builder(
             applicationContext,
             NotificationHelper.MODEL_DOWNLOAD_CHANNEL_ID,
         )
-            .setContentTitle("Downloading AI model")
+            .setContentTitle("Downloading $label")
             .setContentText(if (indeterminate) "Preparing…" else "$progress%")
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setOngoing(true)
@@ -315,24 +339,31 @@ class ModelDownloadWorker @AssistedInject constructor(
     }
 
     /**
-     * True iff [file] starts with one of [KNOWN_MAGICS]. Non-existent or
-     * unreadable files are treated as invalid.
+     * True iff [file] starts with the magic declared by [desc]. Falls back to
+     * any of the known generic magics when [desc] is absent (legacy path).
+     * Non-existent or unreadable files are treated as invalid.
      */
-    private fun fileLooksValid(file: File): Boolean {
+    private fun fileLooksValid(file: File, desc: ModelDescriptor?): Boolean {
+        val expected = desc?.magicPrefix
+        if (expected != null) {
+            if (!file.exists() || file.length() < expected.size) return false
+            val first = readFirst(file, expected.size)
+            return first.contentEquals(expected)
+        }
         if (!file.exists() || file.length() < MAGIC_LITERTLM.size) return false
-        val first8 = readFirst8(file)
-        return KNOWN_MAGICS.any { expected ->
-            first8.take(expected.size).toByteArray().contentEquals(expected)
+        val first8 = readFirst(file, MAGIC_LITERTLM.size)
+        return KNOWN_MAGICS.any { magic ->
+            first8.take(magic.size).toByteArray().contentEquals(magic)
         }
     }
 
-    private fun readFirst8(file: File): ByteArray {
-        val buf = ByteArray(MAGIC_LITERTLM.size)
+    private fun readFirst(file: File, size: Int): ByteArray {
+        val buf = ByteArray(size)
         return try {
             file.inputStream().use { it.read(buf) }
             buf
         } catch (_: Exception) {
-            ByteArray(MAGIC_LITERTLM.size)
+            ByteArray(size)
         }
     }
 }

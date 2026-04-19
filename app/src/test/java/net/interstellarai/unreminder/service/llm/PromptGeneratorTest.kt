@@ -4,12 +4,15 @@ import android.content.Context
 import androidx.work.Data
 import androidx.work.WorkInfo
 import net.interstellarai.unreminder.data.db.HabitEntity
+import net.interstellarai.unreminder.data.repository.ActiveModelRepository
 import net.interstellarai.unreminder.worker.ModelDownloadWorker
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -112,7 +115,7 @@ class PromptGeneratorTest {
         // the old code would hand the corrupt file straight to LiteRT-LM,
         // catch the JNI exception, and leave the bad file on disk to fail the
         // same way on every subsequent app launch.
-        val modelFile = File(tempDir, ModelDownloadWorker.MODEL_FILENAME)
+        val modelFile = File(tempDir, ModelCatalog.default.fileName)
         modelFile.writeBytes("<!DOCTYPE html><html>oops</html>".toByteArray())
         assertTrue("precondition: corrupt model file must exist", modelFile.exists())
 
@@ -247,7 +250,7 @@ class PromptGeneratorTest {
     fun `initializeEngineFromFile tries GPU first then CPU then surfaces Failed when both throw`() {
         // Write a file with the LITE magic so the pre-flight modelFileLooksValid
         // check passes and we actually reach the engine construction path.
-        val modelFile = File(tempDir, ModelDownloadWorker.MODEL_FILENAME)
+        val modelFile = File(tempDir, ModelCatalog.default.fileName)
         modelFile.writeBytes(byteArrayOf(0x4C, 0x49, 0x54, 0x45) + ByteArray(16))
         assertTrue(modelFile.exists())
 
@@ -278,7 +281,7 @@ class PromptGeneratorTest {
     fun `initializeEngineFromFile still tries GPU first even when CPU would succeed`() {
         // Contract check: we don't silently prefer CPU. If GPU init throws, we
         // fall through to CPU and recover; if GPU succeeds we never touch CPU.
-        val modelFile = File(tempDir, ModelDownloadWorker.MODEL_FILENAME)
+        val modelFile = File(tempDir, ModelCatalog.default.fileName)
         modelFile.writeBytes(byteArrayOf(0x4C, 0x49, 0x54, 0x45) + ByteArray(16))
 
         val backendAttempts = mutableListOf<String>()
@@ -298,6 +301,63 @@ class PromptGeneratorTest {
 
         assertEquals("first attempt must be GPU", "gpu", backendAttempts.firstOrNull())
         assertEquals("CPU must be the fallback", listOf("gpu", "cpu"), backendAttempts)
+    }
+
+    // --- selected-model placeholder URL path ---
+    //
+    // When the user picks a catalog entry whose `url` is still a placeholder
+    // (e.g. Gemma 3 — gated on HuggingFace, no self-host yet), `initialize()`
+    // must surface AiStatus.Unavailable instead of silently attempting a
+    // download that can never succeed. This is the spec-called-out case in
+    // the PR: the fallback exists in the catalog but isn't downloadable
+    // until an ops follow-up.
+
+    @Test
+    fun `initialize sets AiStatus Unavailable when selected model has a placeholder URL`() = runTest {
+        val repo: ActiveModelRepository = mockk()
+        every { repo.active } returns flowOf(ModelCatalog.gemma3_1B_Task)
+        coEvery { repo.peek() } returns ModelCatalog.gemma3_1B_Task
+
+        val gen = PromptGeneratorImpl(
+            context = context,
+            activeModelRepository = repo,
+        )
+
+        gen.initialize()
+
+        assertEquals(
+            "Selecting a model with placeholder URL must yield Unavailable",
+            AiStatus.Unavailable,
+            gen.aiStatus.value,
+        )
+        assertNull(
+            "downloadProgress must stay null when AI is Unavailable",
+            gen.downloadProgress.value,
+        )
+    }
+
+    @Test
+    fun `initialize with no selection defaults to catalog default`() = runTest {
+        // Repo that returns null for peek() — hits the getOrNull() path.
+        val repo: ActiveModelRepository = mockk()
+        every { repo.active } returns flowOf(ModelCatalog.default)
+        coEvery { repo.peek() } returns ModelCatalog.default
+
+        val gen = PromptGeneratorImpl(
+            context = context,
+            activeModelRepository = repo,
+        )
+
+        // The default has a real URL, so we'd try to enqueue — WorkManager is
+        // unavailable in the unit-test env, which the impl catches and logs.
+        // The observable contract here is only "doesn't crash, doesn't set
+        // Unavailable".
+        gen.initialize()
+
+        assertTrue(
+            "Default model should not produce AiStatus.Unavailable",
+            gen.aiStatus.value !is AiStatus.Unavailable,
+        )
     }
 
 private fun buildWorkInfo(

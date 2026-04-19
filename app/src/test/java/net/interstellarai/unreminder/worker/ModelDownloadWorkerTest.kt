@@ -1,6 +1,7 @@
 package net.interstellarai.unreminder.worker
 
 import android.content.Context
+import androidx.work.Data
 import androidx.work.ListenableWorker.Result
 import androidx.work.WorkerParameters
 import io.mockk.Called
@@ -15,7 +16,7 @@ import io.mockk.verify
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import net.interstellarai.unreminder.data.repository.ModelDownloadProgressRepository
-import net.interstellarai.unreminder.service.llm.ModelConfig
+import net.interstellarai.unreminder.service.llm.ModelCatalog
 import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -35,11 +36,19 @@ class ModelDownloadWorkerTest {
     private val mockContext: Context = mockk(relaxed = true)
     private val mockWorkerParams: WorkerParameters = mockk(relaxed = true)
     private val mockOkHttpClient: OkHttpClient = mockk()
-    private val testModelUrl = "https://example.test/model.task"
     private val mockProgressRepository: ModelDownloadProgressRepository = mockk(relaxed = true)
 
     private lateinit var filesDir: File
     private lateinit var worker: ModelDownloadWorker
+
+    /**
+     * The worker now resolves URL + filename + magic from [ModelCatalog] using
+     * the `modelId` work-data key. Use Gemma 4 as the default test target
+     * because it has a non-placeholder URL (the worker short-circuits
+     * placeholder URLs to Result.failure() early).
+     */
+    private val defaultModel = ModelCatalog.gemma4E2BLitertlm
+    private val defaultFilename = defaultModel.fileName
 
     // 8-byte LITERTLM magic prefix + arbitrary padding to form a believable
     // model-file body in happy-path tests. The worker verifies size (via
@@ -47,11 +56,16 @@ class ModelDownloadWorkerTest {
     private val litertlmMagic = byteArrayOf(0x4C, 0x49, 0x54, 0x45, 0x52, 0x54, 0x4C, 0x4D)
     private val validModelBytes = litertlmMagic + "-fake-model-payload".toByteArray()
 
+    /** Build inputData containing [KEY_MODEL_ID] → [id]. */
+    private fun inputDataFor(id: String): Data =
+        Data.Builder().putString(ModelDownloadWorker.KEY_MODEL_ID, id).build()
+
     @Before
     fun setup() {
         filesDir = createTempDir()
         every { mockContext.filesDir } returns filesDir
         every { mockWorkerParams.runAttemptCount } returns 0
+        every { mockWorkerParams.inputData } returns inputDataFor(defaultModel.id)
         // `mockk(relaxed = true)` returns default values for non-suspend calls
         // but still throws for suspend functions — stub those explicitly so the
         // worker's `progressRepository.write(...)` / `clear()` calls don't
@@ -63,7 +77,6 @@ class ModelDownloadWorkerTest {
             mockContext,
             mockWorkerParams,
             mockOkHttpClient,
-            testModelUrl,
             mockProgressRepository,
         )
     }
@@ -79,7 +92,7 @@ class ModelDownloadWorkerTest {
     fun `doWork returns success immediately when valid model file already exists`() = runTest {
         // Existing file with valid LITERTLM magic bytes passes the pre-download
         // integrity check and short-circuits without hitting the network.
-        File(filesDir, ModelDownloadWorker.MODEL_FILENAME).writeBytes(validModelBytes)
+        File(filesDir, defaultFilename).writeBytes(validModelBytes)
 
         val result = worker.doWork()
 
@@ -107,8 +120,8 @@ class ModelDownloadWorkerTest {
         val result = worker.doWork()
 
         assertEquals(Result.success(), result)
-        assertTrue(File(filesDir, ModelDownloadWorker.MODEL_FILENAME).exists())
-        assertFalse(File(filesDir, "${ModelDownloadWorker.MODEL_FILENAME}.tmp").exists())
+        assertTrue(File(filesDir, defaultFilename).exists())
+        assertFalse(File(filesDir, "$defaultFilename.tmp").exists())
     }
 
     // --- size mismatch -> retry + cleanup ---
@@ -144,7 +157,7 @@ class ModelDownloadWorkerTest {
         val result = worker.doWork()
 
         assertEquals(Result.retry(), result)
-        val tmp = File(filesDir, "${ModelDownloadWorker.MODEL_FILENAME}.tmp")
+        val tmp = File(filesDir, "$defaultFilename.tmp")
         assertTrue(
             "tmp file should be retained so resume-from-partial can continue",
             tmp.exists(),
@@ -156,7 +169,7 @@ class ModelDownloadWorkerTest {
         )
         assertFalse(
             "model file should NOT exist when the download was truncated",
-            File(filesDir, ModelDownloadWorker.MODEL_FILENAME).exists(),
+            File(filesDir, defaultFilename).exists(),
         )
     }
 
@@ -186,11 +199,11 @@ class ModelDownloadWorkerTest {
         assertEquals(Result.retry(), result)
         assertFalse(
             "tmp file should be deleted on magic-byte mismatch",
-            File(filesDir, "${ModelDownloadWorker.MODEL_FILENAME}.tmp").exists(),
+            File(filesDir, "$defaultFilename.tmp").exists(),
         )
         assertFalse(
             "model file should NOT exist when the download has wrong magic",
-            File(filesDir, ModelDownloadWorker.MODEL_FILENAME).exists(),
+            File(filesDir, defaultFilename).exists(),
         )
     }
 
@@ -202,7 +215,7 @@ class ModelDownloadWorkerTest {
         // re-downloaded. A truncated or HTML body persisted under the final
         // filename meant AI mode was permanently broken until reinstall.
         val corruptExisting = "<!DOCTYPE html>oops".toByteArray()
-        File(filesDir, ModelDownloadWorker.MODEL_FILENAME).writeBytes(corruptExisting)
+        File(filesDir, defaultFilename).writeBytes(corruptExisting)
 
         val mockCall: Call = mockk()
         val mockResponse: Response = mockk()
@@ -220,7 +233,7 @@ class ModelDownloadWorkerTest {
         val result = worker.doWork()
 
         assertEquals(Result.success(), result)
-        val finalFile = File(filesDir, ModelDownloadWorker.MODEL_FILENAME)
+        val finalFile = File(filesDir, defaultFilename)
         assertTrue(finalFile.exists())
         assertTrue(
             "existing file should have been replaced with fresh download",
@@ -237,7 +250,6 @@ class ModelDownloadWorkerTest {
             mockContext,
             mockWorkerParams,
             mockOkHttpClient,
-            testModelUrl,
             mockProgressRepository,
         )
 
@@ -308,7 +320,7 @@ class ModelDownloadWorkerTest {
         // attempt will send `Range: bytes=<length>-` and continue. The
         // previous "delete on any failure" behaviour was the root cause of
         // the user-visible "went back to 0%" bug.
-        val tmpFile = File(filesDir, "${ModelDownloadWorker.MODEL_FILENAME}.tmp")
+        val tmpFile = File(filesDir, "$defaultFilename.tmp")
         // Simulate some prior progress so we can assert it survives.
         tmpFile.writeBytes(litertlmMagic + ByteArray(100))
         val priorLen = tmpFile.length()
@@ -325,7 +337,7 @@ class ModelDownloadWorkerTest {
 
     @Test
     fun `doWork preserves tmp and rethrows on cancellation`() = runTest {
-        val tmpFile = File(filesDir, "${ModelDownloadWorker.MODEL_FILENAME}.tmp")
+        val tmpFile = File(filesDir, "$defaultFilename.tmp")
         tmpFile.writeBytes(litertlmMagic + ByteArray(50))
         val priorLen = tmpFile.length()
         every { mockOkHttpClient.newCall(any<Request>()) } throws CancellationException("cancelled")
@@ -353,15 +365,23 @@ class ModelDownloadWorkerTest {
         assertEquals("gemma3-1b-it-int4.task", ModelDownloadWorker.MODEL_FILENAME)
     }
 
+    @Test
+    fun `KEY_MODEL_ID constant is defined`() {
+        assertEquals("modelId", ModelDownloadWorker.KEY_MODEL_ID)
+    }
+
     // --- placeholder URL guard ---
 
     @Test
-    fun `doWork returns failure and skips network when URL is the placeholder`() = runTest {
+    fun `doWork returns failure and skips network when catalog entry has placeholder URL`() = runTest {
+        // Gemma 3 descriptor in the catalog ships with a placeholder URL
+        // (HF-gated), so selecting it triggers the short-circuit path before
+        // any HTTP call lands.
+        every { mockWorkerParams.inputData } returns inputDataFor(ModelCatalog.gemma3_1B_Task.id)
         val placeholderWorker = ModelDownloadWorker(
             mockContext,
             mockWorkerParams,
             mockOkHttpClient,
-            ModelConfig.PLACEHOLDER_URL,
             mockProgressRepository,
         )
 
@@ -371,6 +391,61 @@ class ModelDownloadWorkerTest {
         verify { mockOkHttpClient wasNot Called }
     }
 
+    // --- unknown model id -> failure ---
+
+    @Test
+    fun `doWork returns failure when modelId is not in the catalog`() = runTest {
+        every { mockWorkerParams.inputData } returns inputDataFor("nonexistent-model-id")
+        val strayWorker = ModelDownloadWorker(
+            mockContext,
+            mockWorkerParams,
+            mockOkHttpClient,
+            mockProgressRepository,
+        )
+
+        val result = strayWorker.doWork()
+
+        assertEquals(Result.failure(), result)
+        verify { mockOkHttpClient wasNot Called }
+    }
+
+    // --- model id drives URL + filename ---
+
+    @Test
+    fun `doWork given a modelId uses that descriptor's URL and filename`() = runTest {
+        // Contract: swapping the modelId in inputData swaps the download
+        // target (URL written into the Request) and the on-disk filename
+        // without the caller needing to tell the worker directly.
+        every { mockWorkerParams.inputData } returns inputDataFor(defaultModel.id)
+
+        val capturedRequest = slot<Request>()
+        val mockCall: Call = mockk()
+        val mockResponse: Response = mockk()
+        val mockBody: ResponseBody = mockk()
+        every { mockOkHttpClient.newCall(capture(capturedRequest)) } returns mockCall
+        every { mockCall.execute() } returns mockResponse
+        every { mockResponse.isSuccessful } returns true
+        every { mockResponse.code } returns 200
+        every { mockResponse.body } returns mockBody
+        every { mockBody.contentLength() } returns validModelBytes.size.toLong()
+        every { mockBody.byteStream() } returns validModelBytes.inputStream()
+        every { mockBody.close() } just Runs
+        every { mockResponse.close() } just Runs
+
+        val result = worker.doWork()
+
+        assertEquals(Result.success(), result)
+        assertEquals(
+            "URL must come from the descriptor, not a constant",
+            defaultModel.url,
+            capturedRequest.captured.url.toString(),
+        )
+        assertTrue(
+            "final file must use the descriptor's fileName",
+            File(filesDir, defaultModel.fileName).exists(),
+        )
+    }
+
     // --- resume-from-partial semantics ---
 
     @Test
@@ -378,7 +453,7 @@ class ModelDownloadWorkerTest {
         // Pre-seed tmp with 100 bytes of "previous attempt" payload. The new
         // worker should see the tmp, send `Range: bytes=100-`, append the
         // remaining bytes returned as 206 Partial Content, then finalise.
-        val tmpFile = File(filesDir, "${ModelDownloadWorker.MODEL_FILENAME}.tmp")
+        val tmpFile = File(filesDir, "$defaultFilename.tmp")
         val firstHalf = litertlmMagic + ByteArray(92) { it.toByte() } // 100 bytes
         tmpFile.writeBytes(firstHalf)
 
@@ -407,7 +482,7 @@ class ModelDownloadWorkerTest {
             "bytes=100-",
             capturedRequest.captured.header("Range"),
         )
-        val finalFile = File(filesDir, ModelDownloadWorker.MODEL_FILENAME)
+        val finalFile = File(filesDir, defaultFilename)
         assertTrue("final file should exist", finalFile.exists())
         assertEquals(
             "final file should be the pre-existing partial + remainder",
@@ -427,7 +502,7 @@ class ModelDownloadWorkerTest {
         // Partial tmp is larger than the server's current total, or tmp is
         // corrupt somehow — 416 means "your Range is outside the resource".
         // The safe recovery is to drop the tmp and retry from zero.
-        val tmpFile = File(filesDir, "${ModelDownloadWorker.MODEL_FILENAME}.tmp")
+        val tmpFile = File(filesDir, "$defaultFilename.tmp")
         tmpFile.writeBytes(ByteArray(200))
 
         val mockCall: Call = mockk()
@@ -450,7 +525,7 @@ class ModelDownloadWorkerTest {
         // If we naively appended that to the existing tmp we'd double the
         // file size and the integrity check would fire. Worker must detect
         // the 200 and truncate the tmp before writing.
-        val tmpFile = File(filesDir, "${ModelDownloadWorker.MODEL_FILENAME}.tmp")
+        val tmpFile = File(filesDir, "$defaultFilename.tmp")
         tmpFile.writeBytes(ByteArray(100) { 0xAA.toByte() })
 
         val mockCall: Call = mockk()
@@ -469,23 +544,7 @@ class ModelDownloadWorkerTest {
         val result = worker.doWork()
 
         assertEquals(Result.success(), result)
-        val finalFile = File(filesDir, ModelDownloadWorker.MODEL_FILENAME)
+        val finalFile = File(filesDir, defaultFilename)
         assertTrue(finalFile.readBytes().contentEquals(validModelBytes))
-    }
-
-    @Test
-    fun `doWork returns failure and skips network when URL is blank`() = runTest {
-        val blankWorker = ModelDownloadWorker(
-            mockContext,
-            mockWorkerParams,
-            mockOkHttpClient,
-            "",
-            mockProgressRepository,
-        )
-
-        val result = blankWorker.doWork()
-
-        assertEquals(Result.failure(), result)
-        verify { mockOkHttpClient wasNot Called }
     }
 }
