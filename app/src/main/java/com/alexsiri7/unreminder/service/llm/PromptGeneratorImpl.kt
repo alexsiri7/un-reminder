@@ -78,8 +78,6 @@ class PromptGeneratorImpl(private val context: Context) : PromptGenerator {
     private fun observeDownloadProgress() {
         // TODO: observe WorkInfo flow and call initialize() on SUCCEEDED state so the
         // engine activates without requiring an app restart (follow-up issue).
-        WorkManager.getInstance(context)
-            .getWorkInfosForUniqueWorkLiveData(ModelDownloadWorker.WORK_NAME)
     }
 
     override suspend fun generate(habit: HabitEntity, locationName: String, timeOfDay: String): String {
