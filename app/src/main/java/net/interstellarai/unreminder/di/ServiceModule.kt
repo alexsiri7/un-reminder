@@ -1,7 +1,7 @@
 package net.interstellarai.unreminder.di
 
 import android.content.Context
-import net.interstellarai.unreminder.BuildConfig
+import net.interstellarai.unreminder.data.repository.ActiveModelRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.data.repository.ModelDownloadProgressRepository
 import net.interstellarai.unreminder.service.alarm.AlarmScheduler
@@ -16,7 +16,6 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import okhttp3.OkHttpClient
-import javax.inject.Named
 import javax.inject.Singleton
 
 @Module
@@ -51,13 +50,17 @@ object ServiceModule {
     fun providePromptGenerator(
         @ApplicationContext context: Context,
         modelDownloadProgressRepository: ModelDownloadProgressRepository,
+        activeModelRepository: ActiveModelRepository,
     ): PromptGenerator =
         PromptGeneratorImpl(
             context = context,
             progressRepository = modelDownloadProgressRepository,
+            activeModelRepository = activeModelRepository,
         )
 
-    @Provides
-    @Named("modelCdnUrl")
-    fun provideModelCdnUrl(): String = BuildConfig.MODEL_CDN_URL
+    // Note: the old `@Named("modelCdnUrl")` binding for `BuildConfig.MODEL_CDN_URL`
+    // has been deleted. The model URL is now looked up via the catalog
+    // (`ModelCatalog.byId(...).url`) keyed on the user's active-model selection.
+    // BuildConfig.MODEL_CDN_URL remains compiled in but unread — left in place
+    // so the CI secret doesn't have to be rotated just for this refactor.
 }

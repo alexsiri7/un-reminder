@@ -3,20 +3,29 @@ package net.interstellarai.unreminder.service.llm
 /**
  * Model-download configuration helpers.
  *
- * The on-device LLM model is downloaded on first launch from a CDN URL baked into
- * the APK at build time via `BuildConfig.MODEL_CDN_URL`. When CI is missing the
- * `MODEL_CDN_URL` secret, the build falls back to a placeholder host that will
- * never resolve — this helper lets callers detect that misconfiguration and fail
- * loudly instead of silently attempting a download that can never succeed.
+ * Historically the on-device LLM URL lived exclusively in
+ * `BuildConfig.MODEL_CDN_URL` (a CI-wired secret). That single URL has been
+ * superseded by the per-descriptor [ModelCatalog] mechanism, but a handful
+ * of catalog entries still ship with `https://placeholder.invalid/...`
+ * sentinel URLs — either because we haven't self-hosted a gated model yet,
+ * or because CI hasn't been given the real URL. Callers use
+ * [isPlaceholderUrl] to detect that state and surface `AiStatus.Unavailable`
+ * instead of attempting a download that can never succeed.
  */
 object ModelConfig {
     /** Matches the fallback in `app/build.gradle.kts` when `MODEL_CDN_URL` is unset. */
     const val PLACEHOLDER_URL = "https://placeholder.invalid/model.task"
 
+    /** Host used for all sentinel URLs we treat as "not really downloadable". */
+    private const val PLACEHOLDER_HOST_PREFIX = "https://placeholder.invalid/"
+
     /**
-     * @return true when [url] is blank or equals the build-time placeholder, indicating
-     * that no real model URL was wired through CI and AI features cannot work.
+     * @return true when [url] is blank, equals the legacy build-time
+     * placeholder, or points at the generic `placeholder.invalid` host
+     * we reserve for unresolved catalog entries.
      */
     fun isPlaceholderUrl(url: String?): Boolean =
-        url.isNullOrBlank() || url == PLACEHOLDER_URL
+        url.isNullOrBlank() ||
+            url == PLACEHOLDER_URL ||
+            url.startsWith(PLACEHOLDER_HOST_PREFIX)
 }

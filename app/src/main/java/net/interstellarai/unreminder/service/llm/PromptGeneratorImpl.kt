@@ -8,8 +8,9 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
-import net.interstellarai.unreminder.BuildConfig
+import androidx.work.workDataOf
 import net.interstellarai.unreminder.data.db.HabitEntity
+import net.interstellarai.unreminder.data.repository.ActiveModelRepository
 import net.interstellarai.unreminder.data.repository.ModelDownloadProgressRepository
 import net.interstellarai.unreminder.domain.model.AiHabitFields
 import net.interstellarai.unreminder.worker.ModelDownloadWorker
@@ -60,6 +61,12 @@ class PromptGeneratorImpl(
      */
     private val progressRepository: ModelDownloadProgressRepository? = null,
     /**
+     * Source of truth for which model the user has selected. When absent
+     * (e.g. unit tests that haven't wired this up) we fall back to
+     * [ModelCatalog.default].
+     */
+    private val activeModelRepository: ActiveModelRepository? = null,
+    /**
      * Factory for constructing the underlying LiteRT-LM engine given a model
      * path and a backend hint ("gpu" or "cpu"). Tests override this to
      * simulate GPU-init failure + CPU fallback without needing a real model
@@ -101,25 +108,39 @@ class PromptGeneratorImpl(
 
     private var progressCollectorJob: Job? = null
 
+    /**
+     * Currently-selected descriptor. Cached at each `initialize()` entry so
+     * observeDownloadProgress()'s SUCCEEDED branch can locate the correct
+     * on-disk file without an extra DataStore read on the hot path.
+     */
+    private var activeDescriptor: ModelDescriptor = ModelCatalog.default
+
     override suspend fun initialize() {
-        if (ModelConfig.isPlaceholderUrl(BuildConfig.MODEL_CDN_URL)) {
-            // Build misconfiguration: the MODEL_CDN_URL env var was not supplied at build time,
-            // so the APK was built with the "https://placeholder.invalid/model.task" default.
-            // Any download attempt would fail with UnknownHostException and AI features would
-            // silently do nothing. Log, flag to Sentry, and skip enqueueing the download.
+        // Read the user's current selection. Fresh installs and any test
+        // config that omits the repo both fall back to the catalog default.
+        val desc = runCatching { activeModelRepository?.peek() }
+            .getOrNull()
+            ?: ModelCatalog.default
+        activeDescriptor = desc
+
+        if (ModelConfig.isPlaceholderUrl(desc.url)) {
+            // Catalog entry ships with a sentinel URL (e.g. Gemma 3 is gated
+            // on HF and nobody has plugged in a self-host yet). Surface as
+            // Unavailable so the UI can render a descriptive message instead
+            // of a perpetual "Downloading 0%".
             Log.w(
                 TAG,
-                "MODEL_CDN_URL is a placeholder (${BuildConfig.MODEL_CDN_URL}) — " +
-                    "AI features disabled. Set the MODEL_CDN_URL secret in CI to fix."
+                "Active model '${desc.id}' has a placeholder URL — AI features disabled. " +
+                    "Pick a different model in Settings or self-host this one.",
             )
             Sentry.captureMessage(
-                "MODEL_CDN_URL is a placeholder — AI features disabled",
-                SentryLevel.WARNING
+                "Active model '${desc.id}' has placeholder URL — AI features disabled",
+                SentryLevel.WARNING,
             ) { scope -> scope.setTag("component", "litert-lm-init") }
             _aiStatus.value = AiStatus.Unavailable
             return
         }
-        val modelFile = File(context.filesDir, ModelDownloadWorker.MODEL_FILENAME)
+        val modelFile = File(context.filesDir, desc.fileName)
         if (!modelFile.exists()) {
             // Seed the StateFlows from DataStore *before* enqueueing so the UI
             // shows a non-zero fraction immediately on cold start if a previous
@@ -135,7 +156,7 @@ class PromptGeneratorImpl(
                 Log.w(TAG, "Failed to read persisted download progress — continuing", e)
             }
             try {
-                enqueueModelDownload()
+                enqueueModelDownload(desc)
                 observeDownloadProgress()
             } catch (e: Throwable) {
                 Log.w(TAG, "WorkManager unavailable in this environment; model download skipped", e)
@@ -165,7 +186,7 @@ class PromptGeneratorImpl(
             )
             modelFile.delete()
             try {
-                enqueueModelDownload()
+                enqueueModelDownload(activeDescriptor)
                 observeDownloadProgress()
                 _aiStatus.value = AiStatus.Downloading(0f)
                 _downloadProgress.value = 0f
@@ -245,24 +266,26 @@ class PromptGeneratorImpl(
         }
     }
 
-    private fun enqueueModelDownload() {
+    private fun enqueueModelDownload(desc: ModelDescriptor) {
         val request = OneTimeWorkRequestBuilder<ModelDownloadWorker>()
             .setConstraints(
                 Constraints.Builder()
                     .setRequiredNetworkType(NetworkType.CONNECTED)
                     .build()
             )
+            .setInputData(workDataOf(ModelDownloadWorker.KEY_MODEL_ID to desc.id))
             .build()
         WorkManager.getInstance(context)
             .enqueueUniqueWork(ModelDownloadWorker.WORK_NAME, ExistingWorkPolicy.KEEP, request)
     }
 
     override fun retryModelDownload() {
-        if (ModelConfig.isPlaceholderUrl(BuildConfig.MODEL_CDN_URL)) {
-            Log.w(TAG, "retryModelDownload: placeholder URL — ignoring")
+        val desc = activeDescriptor
+        if (ModelConfig.isPlaceholderUrl(desc.url)) {
+            Log.w(TAG, "retryModelDownload: placeholder URL for '${desc.id}' — ignoring")
             return
         }
-        val modelFile = File(context.filesDir, ModelDownloadWorker.MODEL_FILENAME)
+        val modelFile = File(context.filesDir, desc.fileName)
         if (modelFile.exists()) {
             // File already on disk — re-attempt engine init instead of re-downloading.
             initializeEngineFromFile(modelFile)
@@ -276,6 +299,7 @@ class PromptGeneratorImpl(
                         .setRequiredNetworkType(NetworkType.CONNECTED)
                         .build()
                 )
+                .setInputData(workDataOf(ModelDownloadWorker.KEY_MODEL_ID to desc.id))
                 .build()
             WorkManager.getInstance(context).enqueueUniqueWork(
                 ModelDownloadWorker.WORK_NAME,
@@ -336,7 +360,7 @@ class PromptGeneratorImpl(
                             // against double-init.
                             val modelFile = File(
                                 context.filesDir,
-                                ModelDownloadWorker.MODEL_FILENAME,
+                                activeDescriptor.fileName,
                             )
                             if (modelFile.exists()) {
                                 initializeEngineFromFile(modelFile)

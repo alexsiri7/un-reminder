@@ -33,4 +33,17 @@ class ModelConfigTest {
     fun `isPlaceholderUrl returns false for a real URL`() {
         assertFalse(ModelConfig.isPlaceholderUrl("https://cdn.example.com/gemma3-1b-it-int4.task"))
     }
+
+    @Test
+    fun `isPlaceholderUrl catches any URL on the placeholder_invalid host`() {
+        // Introduced with the model-catalog PR: multiple catalog entries may
+        // ship with different filenames under the same sentinel host. The old
+        // exact-match check missed those; the host-prefix check covers them.
+        assertTrue(
+            ModelConfig.isPlaceholderUrl("https://placeholder.invalid/gemma3-1b-it-int4.task"),
+        )
+        assertTrue(
+            ModelConfig.isPlaceholderUrl("https://placeholder.invalid/some-future-model.litertlm"),
+        )
+    }
 }
