@@ -10,6 +10,7 @@ import androidx.work.WorkManager
 import com.alexsiri7.unreminder.data.db.HabitEntity
 import com.alexsiri7.unreminder.domain.model.AiHabitFields
 import com.alexsiri7.unreminder.worker.ModelDownloadWorker
+import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
@@ -88,7 +89,7 @@ class PromptGenerator @Inject constructor(
             withTimeout(5_000) {
                 val conversation = e.createConversation(ConversationConfig())
                 val prompt = buildPrompt(habit, locationName, timeOfDay)
-                conversation.sendMessage(prompt).take(80)
+                conversation.sendMessage(prompt).toText().take(80)
             }
         } catch (ex: CancellationException) {
             throw ex
@@ -104,7 +105,7 @@ class PromptGenerator @Inject constructor(
             withTimeout(5_000) {
                 val conversation = e.createConversation(ConversationConfig())
                 val prompt = buildHabitFieldsPrompt(title)
-                val text = conversation.sendMessage(prompt)
+                val text = conversation.sendMessage(prompt).toText()
                 val lines = text.lines()
                 val full = lines.firstOrNull { it.startsWith("Full:") }
                     ?.removePrefix("Full:")?.trim()
@@ -127,7 +128,7 @@ class PromptGenerator @Inject constructor(
         return withTimeout(5_000) {
             val conversation = e.createConversation(ConversationConfig())
             val prompt = buildPrompt(habit, locationName, "now")
-            conversation.sendMessage(prompt).take(80)
+            conversation.sendMessage(prompt).toText().take(80)
                 .ifBlank { throw IllegalStateException("Empty LLM response") }
         }
     }
@@ -153,3 +154,6 @@ class PromptGenerator @Inject constructor(
     private fun fallback(habit: HabitEntity): String =
         "${habit.name}: ${habit.lowFloorDescription}"
 }
+
+private fun com.google.ai.edge.litertlm.Message.toText(): String =
+    contents.contents.filterIsInstance<Content.Text>().joinToString("") { it.text }
