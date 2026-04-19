@@ -1,10 +1,59 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Un-Reminder launcher icon — orbit mark adapted from the interstellarai.net
+    nav-brand SVG (two intersecting orbits + center dot + satellite) into the
+    app's sage / olive palette.
+
+    Source SVG viewBox 64x64 → this VectorDrawable viewport 108x108 (Android
+    adaptive-icon standard). Scale factor ≈ 1.5×, content centered on (54,54).
+
+    Geometry (pre-rotation ellipses):
+      outer orbit: cx=54 cy=54 rx=39 ry=15  rotate(-24°)  stroke #4D6B3A (olive)
+      inner orbit: cx=54 cy=54 rx=30 ry=12  rotate(+24°)  stroke #4D6B3A @ 0.45
+      center dot : cx=54 cy=54 r=9          fill  #D97757 (coral — brand accent)
+      satellite  : cx=84 cy=39 r=3.3        fill  #1F2A1A (deep olive-black)
+
+    Ellipse paths are expressed as 4 cubic beziers (kappa ≈ 0.5523) with each
+    control/end point pre-rotated around (54,54); VectorDrawable does not
+    support <ellipse> nor transform="rotate(...)" on paths.
+
+    The second orbit is rendered as a *solid* translucent stroke rather than
+    dashed because VectorDrawable has no stroke-dasharray support and dashes
+    collapse visually at launcher-icon display sizes anyway.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- Outer orbit (solid olive) -->
     <path
-        android:fillColor="#3DDC84"
-        android:pathData="M54,54m-36,0a36,36 0,1 1,72 0a36,36 0,1 1,-72 0" />
+        android:pathData="M89.628,38.137 C86.259,30.569 67.576,31.536 47.899,40.297 C28.222,49.058 15.002,62.295 18.372,69.863 C21.741,77.431 40.424,76.464 60.101,67.703 C79.778,58.942 92.998,45.705 89.628,38.137 Z"
+        android:strokeColor="#FF4D6B3A"
+        android:strokeWidth="4.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+
+    <!-- Inner orbit (olive at reduced opacity, substituting for the dashed stroke) -->
+    <path
+        android:pathData="M81.406,66.202 C84.102,60.148 74.017,49.776 58.881,43.037 C43.745,36.298 29.289,35.743 26.594,41.798 C23.898,47.852 33.983,58.224 49.119,64.963 C64.255,71.702 78.711,72.257 81.406,66.202 Z"
+        android:strokeColor="#FF4D6B3A"
+        android:strokeAlpha="0.45"
+        android:strokeWidth="2.0"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+
+    <!-- Center dot (coral — preserved brand accent) -->
+    <path
+        android:pathData="M45,54 a9,9 0 1,0 18,0 a9,9 0 1,0 -18,0 Z"
+        android:fillColor="#FFD97757" />
+
+    <!-- Satellite (deep olive-black for contrast on cream) -->
+    <path
+        android:pathData="M80.7,39 a3.3,3.3 0 1,0 6.6,0 a3.3,3.3 0 1,0 -6.6,0 Z"
+        android:fillColor="#FF1F2A1A" />
+
 </vector>
