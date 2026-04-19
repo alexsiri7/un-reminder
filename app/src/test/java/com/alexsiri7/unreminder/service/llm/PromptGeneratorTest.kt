@@ -2,18 +2,23 @@ package com.alexsiri7.unreminder.service.llm
 
 import android.content.Context
 import com.alexsiri7.unreminder.data.db.HabitEntity
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
+import java.io.File
 import java.time.Instant
 
 class PromptGeneratorTest {
 
     private val context: Context = mockk(relaxed = true)
-    private val generator = PromptGenerator(context)
+    private lateinit var tempDir: File
+    private lateinit var generator: PromptGeneratorImpl
 
     private val habit = HabitEntity(
         id = 1,
@@ -23,6 +28,19 @@ class PromptGeneratorTest {
         createdAt = Instant.now(),
         updatedAt = Instant.now()
     )
+
+    @Before
+    fun setup() {
+        tempDir = createTempDir()
+        every { context.filesDir } returns tempDir
+        every { context.cacheDir } returns tempDir
+        generator = PromptGeneratorImpl(context)
+    }
+
+    @After
+    fun tearDown() {
+        tempDir.deleteRecursively()
+    }
 
     // --- null-engine paths (engine not initialized) ---
 

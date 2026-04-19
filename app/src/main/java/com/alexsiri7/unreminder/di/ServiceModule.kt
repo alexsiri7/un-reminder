@@ -4,6 +4,8 @@ import android.content.Context
 import com.alexsiri7.unreminder.data.repository.LocationRepository
 import com.alexsiri7.unreminder.service.alarm.AlarmScheduler
 import com.alexsiri7.unreminder.service.geofence.GeofenceManager
+import com.alexsiri7.unreminder.service.llm.PromptGenerator
+import com.alexsiri7.unreminder.service.llm.PromptGeneratorImpl
 import com.alexsiri7.unreminder.service.notification.EmojiRotator
 import com.alexsiri7.unreminder.service.notification.NotificationHelper
 import dagger.Module
@@ -40,4 +42,9 @@ object ServiceModule {
     @Provides
     @Singleton
     fun provideOkHttpClient(): OkHttpClient = OkHttpClient.Builder().build()
+
+    @Provides
+    @Singleton
+    fun providePromptGenerator(@ApplicationContext context: Context): PromptGenerator =
+        PromptGeneratorImpl(context)
 }
