@@ -150,7 +150,7 @@ describe('un-reminder-worker', () => {
     const e = testEnv()
     const d = new Date()
     const dayKey = `spend:daily:${d.toISOString().slice(0, 10)}`
-    await (env.SPEND_KV as KVNamespace).put(dayKey, '999')
+    await (e.SPEND_KV as KVNamespace).put(dayKey, '999')
 
     const req = makeRequest('/v1/generate/batch', {
       method: 'POST',
@@ -167,14 +167,14 @@ describe('un-reminder-worker', () => {
     const body = (await res.json()) as { error: string }
     expect(body.error.toLowerCase()).toContain('daily')
 
-    await (env.SPEND_KV as KVNamespace).delete(dayKey)
+    await (e.SPEND_KV as KVNamespace).delete(dayKey)
   })
 
   it('returns 429 when monthly spend cap is exceeded', async () => {
     const e = testEnv()
     const d = new Date()
     const mKey = `spend:monthly:${d.toISOString().slice(0, 7)}`
-    await (env.SPEND_KV as KVNamespace).put(mKey, '999')
+    await (e.SPEND_KV as KVNamespace).put(mKey, '999')
 
     const req = makeRequest('/v1/generate/batch', {
       method: 'POST',
@@ -191,7 +191,7 @@ describe('un-reminder-worker', () => {
     const body = (await res.json()) as { error: string }
     expect(body.error.toLowerCase()).toContain('monthly')
 
-    await (env.SPEND_KV as KVNamespace).delete(mKey)
+    await (e.SPEND_KV as KVNamespace).delete(mKey)
   })
 
   // ---- Success tests ----
@@ -241,6 +241,36 @@ describe('un-reminder-worker', () => {
       variants: Array<{ habitId: string; texts: string[] }>
     }
     expect(body.variants[0].texts).toHaveLength(3)
+  })
+
+  it('returns variants for multiple habits', async () => {
+    mockRequestyReply('Stretch!')
+    mockRequestyReply('Read now!')
+
+    const req = makeRequest('/v1/generate/batch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-UR-Secret': SECRET,
+      },
+      body: {
+        habits: [
+          validHabit(),
+          { id: 'habit-2', name: 'Read', fullDescription: 'Read a book.', lowFloorDescription: 'Read one page.' },
+        ],
+        count: 1,
+      },
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, testEnv(), ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as {
+      variants: Array<{ habitId: string; texts: string[] }>
+    }
+    expect(body.variants).toHaveLength(2)
+    expect(body.variants[0].habitId).toBe('habit-1')
+    expect(body.variants[1].habitId).toBe('habit-2')
   })
 
   // ---- Upstream error handling ----
@@ -322,7 +352,7 @@ describe('un-reminder-worker', () => {
 
     const d = new Date()
     const dayKey = `spend:daily:${d.toISOString().slice(0, 10)}`
-    const dailySpend = await (env.SPEND_KV as KVNamespace).get(dayKey)
+    const dailySpend = await (e.SPEND_KV as KVNamespace).get(dayKey)
     expect(Number(dailySpend)).toBeGreaterThan(0)
   })
 

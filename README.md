@@ -146,6 +146,15 @@ A named geofence the user has registered. Each location has:
 - `lat`, `lng` — coordinates captured at registration time (current GPS).
 - `radius_m` — geofence radius (default 100 m).
 
+### Variation
+A pre-generated prompt text for a habit, stored in a local pool to avoid LLM latency at fire time.
+- `id`
+- `habit_id` — FK → `habits.id` (CASCADE DELETE). Each habit has its own pool.
+- `text` — the generated prompt text.
+- `prompt_fingerprint` — hash of the LLM prompt that produced this variation; used with `(habit_id, text)` as a composite unique constraint to prevent duplicates.
+- `generated_at` — when the variation was generated.
+- `consumed_at` — nullable; set when the variation is picked for a notification. Unconsumed variations form the available pool.
+
 ### Location state
 In-memory set of `location_id` values for the geofences the user is currently inside,
 updated by geofence `ENTER`/`EXIT` callbacks. Empty set means no known location.

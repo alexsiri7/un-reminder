@@ -46,6 +46,9 @@ async function generateOne(
     usage?: { completion_tokens?: number; prompt_tokens?: number }
   }
   const text = json.choices?.[0]?.message?.content?.trim() ?? ''
+  if (!text) {
+    console.warn('[generateOne] Empty/missing content in Requesty response:', JSON.stringify({ choices_length: json.choices?.length, first_choice: json.choices?.[0] }))
+  }
   const outputTokens = json.usage?.completion_tokens ?? 0
   const inputTokens = json.usage?.prompt_tokens ?? 0
   return { text, outputTokens, inputTokens }
@@ -55,7 +58,8 @@ export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promi
   let body: GenerateBatchRequest
   try {
     body = await c.req.json<GenerateBatchRequest>()
-  } catch {
+  } catch (err) {
+    console.warn('[generateBatch] Invalid JSON body:', err)
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
 
