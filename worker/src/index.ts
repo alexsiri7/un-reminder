@@ -5,17 +5,21 @@ import { rateLimitMiddleware } from './middleware/rateLimit'
 import { spendGate } from './middleware/spendGate'
 import { healthHandler } from './routes/health'
 import { generateBatchHandler } from './routes/generateBatch'
+import { habitFieldsHandler } from './routes/habitFields'
+import { previewHandler } from './routes/preview'
 
 const app = new Hono<{ Bindings: Env }>()
 
 // Public — no auth
 app.get('/v1/health', healthHandler)
 
-// All /v1/generate/* require rate limiting, auth, and spend gate (in that order)
-app.use('/v1/generate/*', rateLimitMiddleware)
-app.use('/v1/generate/*', authMiddleware)
-app.use('/v1/generate/*', spendGate)
+// Shared protection for all AI generation routes
+for (const path of ['/v1/generate/*', '/v1/habit-fields', '/v1/preview']) {
+  app.use(path, rateLimitMiddleware, authMiddleware, spendGate)
+}
 
 app.post('/v1/generate/batch', generateBatchHandler)
+app.post('/v1/habit-fields', habitFieldsHandler)
+app.post('/v1/preview', previewHandler)
 
 export default app

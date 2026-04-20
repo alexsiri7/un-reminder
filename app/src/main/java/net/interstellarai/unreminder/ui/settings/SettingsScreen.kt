@@ -71,6 +71,8 @@ fun SettingsScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val activeModel by viewModel.activeModel.collectAsStateWithLifecycle()
     val aiStatus by viewModel.aiStatus.collectAsStateWithLifecycle()
+    val workerUrl by viewModel.workerUrl.collectAsStateWithLifecycle()
+    val workerSecret by viewModel.workerSecret.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
         viewModel.refreshPermissions()
@@ -120,6 +122,30 @@ fun SettingsScreen(
                 },
                 modifier = Modifier.padding(horizontal = Dimens.xxl),
             )
+
+            Spacer(Modifier.height(Dimens.xxl))
+
+            SettingsSection(
+                label = "cloud ai (optional)",
+                modifier = Modifier.padding(horizontal = Dimens.xxl),
+            ) {
+                androidx.compose.material3.OutlinedTextField(
+                    value = workerUrl,
+                    onValueChange = { viewModel.setWorkerUrl(it) },
+                    label = { Text("worker url", style = MonoLabel) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(Dimens.sm))
+                androidx.compose.material3.OutlinedTextField(
+                    value = workerSecret,
+                    onValueChange = { viewModel.setWorkerSecret(it) },
+                    label = { Text("worker secret", style = MonoLabel) },
+                    singleLine = true,
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
 
             Spacer(Modifier.height(Dimens.xxl))
 

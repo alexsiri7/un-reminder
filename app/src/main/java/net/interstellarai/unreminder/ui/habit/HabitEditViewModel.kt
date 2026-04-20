@@ -7,8 +7,11 @@ import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.db.LocationEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
+import net.interstellarai.unreminder.data.repository.WorkerSettingsRepository
 import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.service.llm.PromptGenerator
+import net.interstellarai.unreminder.service.worker.RequestyProxyClient
+import net.interstellarai.unreminder.service.worker.SpendCapExceededException
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.sentry.Sentry
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,14 +36,17 @@ data class HabitEditUiState(
     val fieldsFlashing: Boolean = false,
     val previewNotification: String? = null,
     val showPreviewDialog: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val showSpendCapLink: Boolean = false
 )
 
 @HiltViewModel
 class HabitEditViewModel @Inject constructor(
     private val habitRepository: HabitRepository,
     private val locationRepository: LocationRepository,
-    private val promptGenerator: PromptGenerator
+    private val promptGenerator: PromptGenerator,
+    private val requestyProxyClient: RequestyProxyClient,
+    private val workerSettingsRepository: WorkerSettingsRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HabitEditUiState())
@@ -142,6 +148,12 @@ class HabitEditViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isGeneratingFields = true, errorMessage = null)
             try {
                 block()
+            } catch (e: SpendCapExceededException) {
+                _uiState.value = _uiState.value.copy(
+                    isGeneratingFields = false,
+                    errorMessage = "Spend cap reached — check Settings for today's usage.",
+                    showSpendCapLink = true,
+                )
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "launchWithAi failed", e)
@@ -154,7 +166,13 @@ class HabitEditViewModel @Inject constructor(
     }
 
     fun autofillWithAi() = launchWithAi("AI unavailable — fill in manually.") {
-        val fields = promptGenerator.generateHabitFields(_uiState.value.name)
+        val url = workerSettingsRepository.workerUrl.first()
+        val secret = workerSettingsRepository.workerSecret.first()
+        val fields = if (url.isNotBlank() && secret.isNotBlank()) {
+            requestyProxyClient.habitFields(_uiState.value.name, url, secret)
+        } else {
+            promptGenerator.generateHabitFields(_uiState.value.name)
+        }
         _uiState.value = _uiState.value.copy(
             fullDescription = fields.fullDescription,
             lowFloorDescription = fields.lowFloorDescription,
@@ -177,7 +195,13 @@ class HabitEditViewModel @Inject constructor(
                 .joinToString(", ") { it.name }
                 .ifBlank { "Anywhere" }
         }
-        val text = promptGenerator.previewHabitNotification(tempHabit, locationName)
+        val url = workerSettingsRepository.workerUrl.first()
+        val secret = workerSettingsRepository.workerSecret.first()
+        val text = if (url.isNotBlank() && secret.isNotBlank()) {
+            requestyProxyClient.preview(tempHabit, locationName, url, secret)
+        } else {
+            promptGenerator.previewHabitNotification(tempHabit, locationName)
+        }
         _uiState.value = _uiState.value.copy(
             isGeneratingFields = false,
             previewNotification = text,
@@ -190,4 +214,5 @@ class HabitEditViewModel @Inject constructor(
     }
     fun clearError() { _uiState.value = _uiState.value.copy(errorMessage = null) }
     fun clearFieldsFlash() { _uiState.value = _uiState.value.copy(fieldsFlashing = false) }
+    fun clearSpendCapLink() { _uiState.value = _uiState.value.copy(showSpendCapLink = false) }
 }

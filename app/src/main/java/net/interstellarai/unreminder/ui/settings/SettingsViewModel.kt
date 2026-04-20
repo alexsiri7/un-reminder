@@ -16,6 +16,7 @@ import androidx.work.workDataOf
 import net.interstellarai.unreminder.data.db.TriggerEntity
 import net.interstellarai.unreminder.data.repository.ActiveModelRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
+import net.interstellarai.unreminder.data.repository.WorkerSettingsRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.service.llm.ModelCatalog
@@ -51,6 +52,7 @@ class SettingsViewModel @Inject constructor(
     private val triggerRepository: TriggerRepository,
     private val activeModelRepository: ActiveModelRepository,
     private val promptGenerator: PromptGenerator,
+    private val workerSettingsRepository: WorkerSettingsRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -68,6 +70,20 @@ class SettingsViewModel @Inject constructor(
 
     /** 0..1 download fraction, or null when no download is active. */
     val downloadProgress: StateFlow<Float?> = promptGenerator.downloadProgress
+
+    val workerUrl: StateFlow<String> = workerSettingsRepository.workerUrl
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
+
+    val workerSecret: StateFlow<String> = workerSettingsRepository.workerSecret
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
+
+    fun setWorkerUrl(url: String) {
+        viewModelScope.launch { workerSettingsRepository.setWorkerUrl(url) }
+    }
+
+    fun setWorkerSecret(secret: String) {
+        viewModelScope.launch { workerSettingsRepository.setWorkerSecret(secret) }
+    }
 
     fun refreshPermissions() {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager

@@ -1,15 +1,19 @@
 package net.interstellarai.unreminder.di
 
 import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
 import net.interstellarai.unreminder.data.repository.ActiveModelRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.data.repository.ModelDownloadProgressRepository
+import net.interstellarai.unreminder.data.repository.WorkerSettingsRepository
 import net.interstellarai.unreminder.service.alarm.AlarmScheduler
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.llm.PromptGenerator
 import net.interstellarai.unreminder.service.llm.PromptGeneratorImpl
 import net.interstellarai.unreminder.service.notification.EmojiRotator
 import net.interstellarai.unreminder.service.notification.NotificationHelper
+import net.interstellarai.unreminder.service.worker.RequestyProxyClient
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -58,9 +62,13 @@ object ServiceModule {
             activeModelRepository = activeModelRepository,
         )
 
-    // Note: the old `@Named("modelCdnUrl")` binding for `BuildConfig.MODEL_CDN_URL`
-    // has been deleted. The model URL is now looked up via the catalog
-    // (`ModelCatalog.byId(...).url`) keyed on the user's active-model selection.
-    // BuildConfig.MODEL_CDN_URL remains compiled in but unread — left in place
-    // so the CI secret doesn't have to be rotated just for this refactor.
+    @Provides
+    @Singleton
+    fun provideWorkerSettingsRepository(dataStore: DataStore<Preferences>): WorkerSettingsRepository =
+        WorkerSettingsRepository(dataStore)
+
+    @Provides
+    @Singleton
+    fun provideRequestyProxyClient(okHttpClient: OkHttpClient): RequestyProxyClient =
+        RequestyProxyClient(okHttpClient)
 }

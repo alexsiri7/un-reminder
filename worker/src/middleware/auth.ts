@@ -4,7 +4,7 @@ import { timingSafeEqual } from '../lib/timing'
 
 export const authMiddleware: MiddlewareHandler<{ Bindings: Env }> = async (c, next) => {
   const provided = c.req.header('X-UR-Secret') ?? ''
-  if (!timingSafeEqual(provided, c.env.UR_SECRET)) {
+  if (!timingSafeEqual(provided, c.env.UR_SHARED_SECRET)) {
     return c.json({ error: 'Unauthorized' }, 401)
   }
   await next()
