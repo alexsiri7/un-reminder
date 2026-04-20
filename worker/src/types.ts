@@ -20,7 +20,7 @@ export interface HabitInput {
 
 export interface GenerateBatchRequest {
   habits: HabitInput[]
-  count: number          // variants per habit, clamped to 1–10
+  count?: number         // variants per habit, clamped to 1–10; defaults to 1
 }
 
 export interface HabitVariants {

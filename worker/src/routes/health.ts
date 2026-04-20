@@ -3,7 +3,14 @@ import type { Env, HealthResponse } from '../types'
 import { getSpend } from '../lib/spend'
 
 export async function healthHandler(c: Context<{ Bindings: Env }>): Promise<Response> {
-  const { daily, monthly } = await getSpend(c.env.SPEND_KV)
+  let daily = 0, monthly = 0
+  try {
+    ;({ daily, monthly } = await getSpend(c.env.SPEND_KV))
+  } catch (err) {
+    console.error('[healthHandler] KV read failed:', err)
+    return c.json({ error: 'KV unavailable' }, 503)
+  }
+
   const body: HealthResponse = {
     status: 'ok',
     spendUsedToday: parseFloat(daily.toFixed(4)),

@@ -6,6 +6,8 @@ const REQUESTY_URL = 'https://router.requesty.ai/v1/chat/completions'
 const MODEL = 'google/gemini-2.0-flash'
 // Gemini Flash approximate pricing via Requesty (2026-04): ~$0.000075 per 1K output tokens
 const COST_PER_OUTPUT_TOKEN = 0.000075 / 1000
+// Gemini Flash input token pricing via Requesty (2026-04): ~$0.000075 per 1K input tokens
+const COST_PER_INPUT_TOKEN = 0.000075 / 1000
 
 function buildPrompt(habitName: string, fullDesc: string, lowFloorDesc: string): string {
   return (
@@ -22,7 +24,7 @@ function buildPrompt(habitName: string, fullDesc: string, lowFloorDesc: string):
 async function generateOne(
   apiKey: string,
   prompt: string,
-): Promise<{ text: string; outputTokens: number }> {
+): Promise<{ text: string; outputTokens: number; inputTokens: number }> {
   const resp = await fetch(REQUESTY_URL, {
     method: 'POST',
     headers: {
@@ -44,11 +46,12 @@ async function generateOne(
 
   const json = await resp.json() as {
     choices: { message: { content: string } }[]
-    usage?: { completion_tokens?: number }
+    usage?: { completion_tokens?: number; prompt_tokens?: number }
   }
   const text = json.choices?.[0]?.message?.content?.trim() ?? ''
   const outputTokens = json.usage?.completion_tokens ?? 0
-  return { text, outputTokens }
+  const inputTokens = json.usage?.prompt_tokens ?? 0
+  return { text, outputTokens, inputTokens }
 }
 
 export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promise<Response> {
@@ -66,6 +69,7 @@ export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promi
   const clampedCount = Math.min(Math.max(1, count ?? 1), 10)
 
   let totalOutputTokens = 0
+  let totalInputTokens = 0
   const variantResults: HabitVariants[] = []
 
   for (const habit of habits) {
@@ -75,21 +79,33 @@ export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promi
       generateOne(c.env.REQUESTY_API_KEY, prompt),
     )
     const results = await Promise.allSettled(calls)
-    const texts: string[] = results
-      .filter((r): r is PromiseFulfilledResult<{ text: string; outputTokens: number }> =>
-        r.status === 'fulfilled',
-      )
-      .map((r) => {
+    const texts: string[] = []
+
+    for (const r of results) {
+      if (r.status === 'fulfilled') {
         totalOutputTokens += r.value.outputTokens
-        return r.value.text
-      })
+        totalInputTokens += r.value.inputTokens
+        if (r.value.text) {
+          texts.push(r.value.text)
+        } else {
+          console.warn(`[generateBatch] Empty text returned for habit ${habit.id}`)
+        }
+      } else {
+        console.error(`[generateBatch] Requesty call failed for habit ${habit.id}:`, r.reason)
+      }
+    }
 
     variantResults.push({ habitId: habit.id, texts })
   }
 
-  const spendDollars = totalOutputTokens * COST_PER_OUTPUT_TOKEN
+  const spendDollars =
+    totalOutputTokens * COST_PER_OUTPUT_TOKEN + totalInputTokens * COST_PER_INPUT_TOKEN
   // Fire-and-forget spend accumulation (don't block response)
-  c.executionCtx.waitUntil(addSpend(c.env.SPEND_KV, spendDollars))
+  c.executionCtx.waitUntil(
+    addSpend(c.env.SPEND_KV, spendDollars).catch((err) =>
+      console.error('[generateBatch] addSpend failed, spend not tracked:', err, { spendDollars }),
+    ),
+  )
 
   const response: GenerateBatchResponse = {
     variants: variantResults,
