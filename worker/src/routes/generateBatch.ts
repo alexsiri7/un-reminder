@@ -55,6 +55,7 @@ export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promi
     strictPrompt,
     validateVariants,
     maxTokens,
+    0.9,
   )
 
   if (!result) {

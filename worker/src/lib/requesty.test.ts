@@ -43,6 +43,23 @@ describe('callRequesty', () => {
     await expect(callRequesty('key', 'model', 'prompt')).rejects.toThrow('Requesty 500')
   })
 
+  it('forwards custom temperature to the request body', async () => {
+    let sentBody: { temperature: number } | undefined
+    globalThis.fetch = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      sentBody = JSON.parse(init?.body as string)
+      return new Response(
+        JSON.stringify({
+          choices: [{ message: { content: 'hi' } }],
+          usage: { prompt_tokens: 1, completion_tokens: 1 },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      )
+    }) as typeof fetch
+
+    await callRequesty('key', 'model', 'prompt', 200, 0.9)
+    expect(sentBody?.temperature).toBe(0.9)
+  })
+
   it('defaults tokens to 0 when usage is missing', async () => {
     mockFetchResponses({
       status: 200,

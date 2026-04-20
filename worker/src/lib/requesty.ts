@@ -18,6 +18,7 @@ export async function callRequesty(
   model: string,
   prompt: string,
   maxTokens = 200,
+  temperature = 0.7,
 ): Promise<RequestyResult> {
   const resp = await fetch(REQUESTY_URL, {
     method: 'POST',
@@ -29,7 +30,7 @@ export async function callRequesty(
       model,
       messages: [{ role: 'user', content: prompt }],
       max_tokens: maxTokens,
-      temperature: 0.7,
+      temperature,
     }),
   })
 
@@ -60,6 +61,7 @@ export async function callRequestyWithSchemaRetry<T>(
   stricterPrompt: string,
   validate: (parsed: unknown) => T | null,
   maxTokens = 200,
+  temperature = 0.7,
 ): Promise<{ data: T; outputTokens: number; inputTokens: number } | null> {
   let totalOutputTokens = 0
   let totalInputTokens = 0
@@ -67,7 +69,7 @@ export async function callRequestyWithSchemaRetry<T>(
   for (const isRetry of [false, true]) {
     let result: RequestyResult
     try {
-      result = await callRequesty(apiKey, model, isRetry ? stricterPrompt : prompt, maxTokens)
+      result = await callRequesty(apiKey, model, isRetry ? stricterPrompt : prompt, maxTokens, temperature)
     } catch (err) {
       // HTTP errors (non-200) are not retryable — upstream is down or rate-limiting.
       console.error('[requesty] callRequesty failed', { isRetry, err })
