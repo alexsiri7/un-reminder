@@ -5,6 +5,7 @@ import android.content.Context
 import net.interstellarai.unreminder.data.db.TriggerEntity
 import net.interstellarai.unreminder.data.repository.ActiveModelRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
+import net.interstellarai.unreminder.data.repository.WorkerSettingsRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.service.llm.ModelCatalog
@@ -33,6 +34,7 @@ class SettingsViewModelTest {
     private lateinit var triggerPipeline: TriggerPipeline
     private lateinit var activeModelRepository: ActiveModelRepository
     private lateinit var promptGenerator: PromptGenerator
+    private lateinit var workerSettingsRepository: WorkerSettingsRepository
     private lateinit var context: Context
     private lateinit var viewModel: SettingsViewModel
 
@@ -50,6 +52,10 @@ class SettingsViewModelTest {
             every { aiStatus } returns MutableStateFlow<AiStatus>(AiStatus.Idle)
             every { downloadProgress } returns MutableStateFlow<Float?>(null)
         }
+        workerSettingsRepository = mockk(relaxed = true) {
+            every { workerUrl } returns flowOf("")
+            every { workerSecret } returns flowOf("")
+        }
         context = mockk(relaxed = true)
         every { context.getSystemService(Context.ALARM_SERVICE) } returns mockk<AlarmManager>(relaxed = true)
 
@@ -59,6 +65,7 @@ class SettingsViewModelTest {
             triggerRepository = triggerRepository,
             activeModelRepository = activeModelRepository,
             promptGenerator = promptGenerator,
+            workerSettingsRepository = workerSettingsRepository,
         )
     }
 
@@ -92,5 +99,25 @@ class SettingsViewModelTest {
         testDispatcher.scheduler.advanceUntilIdle()
 
         coVerify { triggerPipeline.execute(triggerId) }
+    }
+
+    @Test
+    fun `setWorkerUrl delegates to repository`() = runTest {
+        coEvery { workerSettingsRepository.setWorkerUrl(any()) } returns Unit
+
+        viewModel.setWorkerUrl("https://example.com")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify { workerSettingsRepository.setWorkerUrl("https://example.com") }
+    }
+
+    @Test
+    fun `setWorkerSecret delegates to repository`() = runTest {
+        coEvery { workerSettingsRepository.setWorkerSecret(any()) } returns Unit
+
+        viewModel.setWorkerSecret("s3cret")
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        coVerify { workerSettingsRepository.setWorkerSecret("s3cret") }
     }
 }

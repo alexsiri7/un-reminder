@@ -21,7 +21,10 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -34,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -71,6 +75,8 @@ fun SettingsScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val activeModel by viewModel.activeModel.collectAsStateWithLifecycle()
     val aiStatus by viewModel.aiStatus.collectAsStateWithLifecycle()
+    val workerUrl by viewModel.workerUrl.collectAsStateWithLifecycle()
+    val workerSecret by viewModel.workerSecret.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
         viewModel.refreshPermissions()
@@ -88,7 +94,18 @@ fun SettingsScreen(
     // newly-chosen) so the dialog can name both models explicitly.
     var pendingSelection by remember { mutableStateOf<Pair<ModelDescriptor, ModelDescriptor>?>(null) }
 
-    Scaffold(containerColor = MaterialTheme.colorScheme.background) { padding ->
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(uiState.errorMessage) {
+        val msg = uiState.errorMessage ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(msg)
+        viewModel.clearError()
+    }
+
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+    ) { padding ->
         Column(
             modifier = Modifier
                 .padding(padding)
@@ -120,6 +137,30 @@ fun SettingsScreen(
                 },
                 modifier = Modifier.padding(horizontal = Dimens.xxl),
             )
+
+            Spacer(Modifier.height(Dimens.xxl))
+
+            SettingsSection(
+                label = "cloud ai (optional)",
+                modifier = Modifier.padding(horizontal = Dimens.xxl),
+            ) {
+                OutlinedTextField(
+                    value = workerUrl,
+                    onValueChange = { viewModel.setWorkerUrl(it) },
+                    label = { Text("worker url", style = MonoLabel) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(Dimens.sm))
+                OutlinedTextField(
+                    value = workerSecret,
+                    onValueChange = { viewModel.setWorkerSecret(it) },
+                    label = { Text("worker secret", style = MonoLabel) },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
 
             Spacer(Modifier.height(Dimens.xxl))
 

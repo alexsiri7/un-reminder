@@ -58,9 +58,4 @@ object ServiceModule {
             activeModelRepository = activeModelRepository,
         )
 
-    // Note: the old `@Named("modelCdnUrl")` binding for `BuildConfig.MODEL_CDN_URL`
-    // has been deleted. The model URL is now looked up via the catalog
-    // (`ModelCatalog.byId(...).url`) keyed on the user's active-model selection.
-    // BuildConfig.MODEL_CDN_URL remains compiled in but unread — left in place
-    // so the CI secret doesn't have to be rotated just for this refactor.
 }

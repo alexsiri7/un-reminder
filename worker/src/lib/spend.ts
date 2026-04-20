@@ -1,9 +1,11 @@
 function dailyKey(): string {
-  return `spend:daily:${new Date().toISOString().slice(0, 10)}`
+  const d = new Date()
+  return `day:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
 }
 
 function monthlyKey(): string {
-  return `spend:monthly:${new Date().toISOString().slice(0, 7)}`
+  const d = new Date()
+  return `month:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
 }
 
 function secondsUntilMidnightUTC(): number {

@@ -1,18 +1,19 @@
 # Required secrets (set via wrangler secret put):
-#   UR_SECRET        — shared auth secret for X-UR-Secret header
-#   REQUESTY_API_KEY — Requesty.ai API key for LLM calls
+#   UR_SHARED_SECRET — shared auth secret for X-UR-Secret header
+#   UR_REQUESTY_KEY  — Requesty.ai API key for LLM calls
 
 name = "un-reminder-worker"
 main = "src/index.ts"
 compatibility_date = "2026-04-18"
 
 [vars]
-SPEND_CAP_DAILY_USD  = "0.50"
-SPEND_CAP_MONTHLY_USD = "5.00"
+UR_DAILY_CAP_CENTS  = "50"
+UR_MONTHLY_CAP_CENTS = "500"
+UR_MODEL = "gemini-3-flash-preview"
 
 [[kv_namespaces]]
-binding = "SPEND_KV"
-id      = "REPLACE_WITH_REAL_ID"          # run: wrangler kv namespace create SPEND_KV
+binding = "UR_SPEND"
+id      = "REPLACE_WITH_REAL_ID"          # run: wrangler kv namespace create UR_SPEND
 
 [[ratelimits]]
 name         = "REQUEST_LIMITER"

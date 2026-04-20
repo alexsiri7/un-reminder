@@ -1,129 +1,75 @@
 import type { Context } from 'hono'
-import type { Env, GenerateBatchRequest, GenerateBatchResponse, HabitVariants } from '../types'
+import type { Env, GenerateBatchRequest, GenerateBatchResponse } from '../types'
 import { addSpend } from '../lib/spend'
+import { callRequestyWithSchemaRetry, COST_PER_OUTPUT_TOKEN, COST_PER_INPUT_TOKEN } from '../lib/requesty'
 
-const REQUESTY_URL = 'https://router.requesty.ai/v1/chat/completions'
-const MODEL = 'google/gemini-2.0-flash'
-// Gemini Flash approximate pricing via Requesty (2026-04): ~$0.000075 per 1K output tokens
-const COST_PER_OUTPUT_TOKEN = 0.000075 / 1000
-// Gemini Flash input token pricing via Requesty (2026-04): ~$0.000075 per 1K input tokens
-const COST_PER_INPUT_TOKEN = 0.000075 / 1000
-
-function buildPrompt(habitName: string, fullDesc: string, lowFloorDesc: string): string {
-  return `You are a notification writer for a habit-tracker app.
-Habit: "${habitName}"
-Full description: "${fullDesc}"
-Low-floor option: "${lowFloorDesc}"
-
-Write a single short notification message (max 80 characters) that prompts the user to do this habit. Be varied, warm, and specific. Output ONLY the notification text — no quotes, no commentary.`
+function buildPrompt(habitTitle: string, habitTags: string[], locationName: string, timeOfDay: string, n: number, strict = false): string {
+  const outputInstruction = strict
+    ? `Output ONLY a raw JSON array of ${n} strings. No markdown, no commentary, no code blocks.`
+    : `Output a JSON array of ${n} strings. No markdown, no commentary.`
+  return (
+    `You are a notification writer for a habit-tracker app.\n` +
+    `Habit: "${habitTitle}"\n` +
+    `Tags: ${habitTags.join(', ')}\n` +
+    `Location: "${locationName}"\n` +
+    `Time of day: "${timeOfDay}"\n\n` +
+    `Write ${n} short notification messages (max 80 characters each) that prompt ` +
+    `the user to do this habit. Be varied, warm, and specific.\n` +
+    outputInstruction
+  )
 }
 
-async function generateOne(
-  apiKey: string,
-  prompt: string,
-): Promise<{ text: string; outputTokens: number; inputTokens: number }> {
-  const resp = await fetch(REQUESTY_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: 80,
-      temperature: 0.9,
-    }),
-  })
-
-  if (!resp.ok) {
-    const err = await resp.text()
-    throw new Error(`Requesty ${resp.status}: ${err}`)
-  }
-
-  const json = await resp.json() as {
-    choices: { message: { content: string } }[]
-    usage?: { completion_tokens?: number; prompt_tokens?: number }
-  }
-  const text = json.choices?.[0]?.message?.content?.trim() ?? ''
-  if (!text) {
-    console.warn('[generateOne] Empty/missing content in Requesty response:', JSON.stringify({ choices_length: json.choices?.length, first_choice: json.choices?.[0] }))
-  }
-  const outputTokens = json.usage?.completion_tokens ?? 0
-  const inputTokens = json.usage?.prompt_tokens ?? 0
-  return { text, outputTokens, inputTokens }
+function validateVariants(parsed: unknown): string[] | null {
+  if (!Array.isArray(parsed)) return null
+  if (!parsed.every((s) => typeof s === 'string')) return null
+  return parsed as string[]
 }
 
 export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promise<Response> {
   let body: GenerateBatchRequest
   try {
     body = await c.req.json<GenerateBatchRequest>()
-  } catch (err) {
-    console.warn('[generateBatch] Invalid JSON body:', err)
+  } catch {
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
 
-  const { habits, count } = body
-  if (!Array.isArray(habits) || habits.length === 0) {
-    return c.json({ error: 'habits must be a non-empty array' }, 400)
+  const { habitTitle, habitTags, locationName, timeOfDay, n } = body
+  if (!habitTitle || typeof habitTitle !== 'string') {
+    return c.json({ error: 'habitTitle must be a non-empty string' }, 400)
   }
-  const clampedCount = Math.min(Math.max(1, count ?? 1), 10)
-
-  // Validate all habits upfront before any API calls
-  for (const habit of habits) {
-    if (!habit.id || !habit.name || !habit.fullDescription || !habit.lowFloorDescription) {
-      return c.json({ error: `habit ${habit.id ?? '?'} missing required fields (id, name, fullDescription, lowFloorDescription)` }, 400)
-    }
+  if (typeof n !== 'number' || !Number.isInteger(n) || n < 1 || n > 50) {
+    return c.json({ error: 'n must be an integer between 1 and 50' }, 400)
   }
 
-  let totalOutputTokens = 0
-  let totalInputTokens = 0
-  const variantResults: HabitVariants[] = []
+  const tags = Array.isArray(habitTags) ? habitTags : []
+  const args = [habitTitle, tags, locationName ?? '', timeOfDay ?? '', n] as const
+  const prompt = buildPrompt(...args)
+  const strictPrompt = buildPrompt(...args, true)
 
-  for (const habit of habits) {
-    const prompt = buildPrompt(habit.name, habit.fullDescription, habit.lowFloorDescription)
-    // Fan out `clampedCount` parallel calls per habit
-    const calls = Array.from({ length: clampedCount }, () =>
-      generateOne(c.env.REQUESTY_API_KEY, prompt),
-    )
-    const results = await Promise.allSettled(calls)
-    const texts: string[] = []
-    let failCount = 0
+  const maxTokens = Math.min(n * 60, 4096)
 
-    for (const r of results) {
-      if (r.status === 'fulfilled') {
-        totalOutputTokens += r.value.outputTokens
-        totalInputTokens += r.value.inputTokens
-        if (r.value.text) {
-          texts.push(r.value.text)
-        } else {
-          console.warn(`[generateBatch] Empty text returned for habit ${habit.id}`)
-        }
-      } else {
-        failCount++
-        console.error(`[generateBatch] Requesty call failed for habit ${habit.id}:`, r.reason)
-      }
-    }
+  const result = await callRequestyWithSchemaRetry(
+    c.env.UR_REQUESTY_KEY,
+    c.env.UR_MODEL,
+    prompt,
+    strictPrompt,
+    validateVariants,
+    maxTokens,
+    0.9,
+  )
 
-    const entry: HabitVariants = { habitId: habit.id, texts }
-    if (failCount === clampedCount) {
-      entry.error = 'all upstream calls failed'
-    }
-    variantResults.push(entry)
+  if (!result) {
+    return c.json({ error: 'Upstream unavailable or returned invalid response' }, 502)
   }
 
   const spendDollars =
-    totalOutputTokens * COST_PER_OUTPUT_TOKEN + totalInputTokens * COST_PER_INPUT_TOKEN
-  // Fire-and-forget spend accumulation (don't block response)
+    result.outputTokens * COST_PER_OUTPUT_TOKEN + result.inputTokens * COST_PER_INPUT_TOKEN
   c.executionCtx.waitUntil(
-    addSpend(c.env.SPEND_KV, spendDollars).catch((err) =>
-      console.error('[generateBatch] addSpend failed, spend not tracked:', err, { spendDollars }),
+    addSpend(c.env.UR_SPEND, spendDollars).catch((err) =>
+      console.error('[generateBatch] addSpend failed:', err, { spendDollars }),
     ),
   )
 
-  const response: GenerateBatchResponse = {
-    variants: variantResults,
-    spendDollars: parseFloat(spendDollars.toFixed(6)),
-  }
+  const response: GenerateBatchResponse = { variants: result.data }
   return c.json(response)
 }

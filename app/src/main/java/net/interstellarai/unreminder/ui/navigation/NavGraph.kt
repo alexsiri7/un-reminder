@@ -143,7 +143,12 @@ fun NavGraph(navViewModel: NavViewModel = hiltViewModel()) {
             composable("habit_add") {
                 HabitEditScreen(
                     habitId = null,
-                    onNavigateBack = { navController.popBackStack() }
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToSettings = {
+                        navController.navigate(Screen.Settings.route) {
+                            launchSingleTop = true
+                        }
+                    },
                 )
             }
             composable(
@@ -152,7 +157,12 @@ fun NavGraph(navViewModel: NavViewModel = hiltViewModel()) {
             ) { backStackEntry ->
                 HabitEditScreen(
                     habitId = backStackEntry.arguments?.getLong("id"),
-                    onNavigateBack = { navController.popBackStack() }
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToSettings = {
+                        navController.navigate(Screen.Settings.route) {
+                            launchSingleTop = true
+                        }
+                    },
                 )
             }
             composable(Screen.Windows.route) {

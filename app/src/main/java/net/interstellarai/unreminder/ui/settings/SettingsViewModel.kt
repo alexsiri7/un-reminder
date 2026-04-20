@@ -3,6 +3,7 @@ package net.interstellarai.unreminder.ui.settings
 import android.Manifest
 import android.app.AlarmManager
 import android.content.Context
+import android.util.Log
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
@@ -16,6 +17,7 @@ import androidx.work.workDataOf
 import net.interstellarai.unreminder.data.db.TriggerEntity
 import net.interstellarai.unreminder.data.repository.ActiveModelRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
+import net.interstellarai.unreminder.data.repository.WorkerSettingsRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.service.llm.ModelCatalog
@@ -26,6 +28,7 @@ import net.interstellarai.unreminder.worker.DailySchedulerWorker
 import net.interstellarai.unreminder.worker.ModelDownloadWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -42,6 +45,7 @@ data class SettingsUiState(
     val hasBackgroundLocationPermission: Boolean = false,
     val hasExactAlarmPermission: Boolean = false,
     val testTriggered: Boolean = false,
+    val errorMessage: String? = null,
 )
 
 @HiltViewModel
@@ -51,7 +55,12 @@ class SettingsViewModel @Inject constructor(
     private val triggerRepository: TriggerRepository,
     private val activeModelRepository: ActiveModelRepository,
     private val promptGenerator: PromptGenerator,
+    private val workerSettingsRepository: WorkerSettingsRepository,
 ) : ViewModel() {
+
+    companion object {
+        private const val TAG = "SettingsViewModel"
+    }
 
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
@@ -68,6 +77,40 @@ class SettingsViewModel @Inject constructor(
 
     /** 0..1 download fraction, or null when no download is active. */
     val downloadProgress: StateFlow<Float?> = promptGenerator.downloadProgress
+
+    val workerUrl: StateFlow<String> = workerSettingsRepository.workerUrl
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
+
+    val workerSecret: StateFlow<String> = workerSettingsRepository.workerSecret
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
+
+    fun setWorkerUrl(url: String) {
+        viewModelScope.launch {
+            try {
+                workerSettingsRepository.setWorkerUrl(url)
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                Log.e(TAG, "Failed to persist worker URL", e)
+                _uiState.value = _uiState.value.copy(errorMessage = "Failed to save worker URL.")
+            }
+        }
+    }
+
+    fun setWorkerSecret(secret: String) {
+        viewModelScope.launch {
+            try {
+                workerSettingsRepository.setWorkerSecret(secret)
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                Log.e(TAG, "Failed to persist worker secret", e)
+                _uiState.value = _uiState.value.copy(errorMessage = "Failed to save worker secret.")
+            }
+        }
+    }
+
+    fun clearError() {
+        _uiState.value = _uiState.value.copy(errorMessage = null)
+    }
 
     fun refreshPermissions() {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager

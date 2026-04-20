@@ -52,12 +52,14 @@ Solo user (the author). Single-device, single-user. Personal productivity / well
 
 ### Cloudflare Worker (`worker/`)
 
-Runs as a Cloudflare Worker (Hono framework). Exposes two routes:
+Runs as a Cloudflare Worker (Hono framework). Exposes these routes:
 
 | Route | Auth | Description |
 |---|---|---|
 | `GET /v1/health` | Public | Returns `{ status, spendUsedToday, spendUsedMonth, capDaily, capMonthly }` |
-| `POST /v1/generate/batch` | `X-UR-Secret` header | Accepts `{ habits[], count? }`, fans out to Requesty (Gemini Flash), returns `{ variants[], spendDollars }` |
+| `POST /v1/generate/batch` | `X-UR-Secret` header | Accepts `{ habitTitle, habitTags, locationName, timeOfDay, n }`, returns `{ variants: string[] }` via Requesty |
+| `POST /v1/habit-fields` | `X-UR-Secret` header | Accepts `{ title }`, returns `{ fullDescription, lowFloorDescription }` via Requesty |
+| `POST /v1/preview` | `X-UR-Secret` header | Accepts `{ habit: { title, tags, notes }, locationName }`, returns `{ text }` notification preview |
 
 **Local dev:**
 ```sh
@@ -67,9 +69,9 @@ wrangler dev
 
 **Deploy:**
 ```sh
-wrangler secret put UR_SECRET
-wrangler secret put REQUESTY_API_KEY
-wrangler kv namespace create SPEND_KV  # copy the returned ID into worker/wrangler.toml
+wrangler secret put UR_SHARED_SECRET
+wrangler secret put UR_REQUESTY_KEY
+wrangler kv namespace create UR_SPEND  # copy the returned ID into worker/wrangler.toml
 wrangler deploy
 ```
 
@@ -91,11 +93,11 @@ The following must be set via `wrangler secret put` before deploying the CF Work
 
 | Secret / Config | Purpose | How to set |
 |---|---|---|
-| `UR_SECRET` | Shared auth secret validated in `X-UR-Secret` header | `wrangler secret put UR_SECRET` |
-| `REQUESTY_API_KEY` | Requesty.ai API key for Gemini Flash calls | `wrangler secret put REQUESTY_API_KEY` |
-| `SPEND_KV` namespace ID | KV namespace for spend tracking | `wrangler kv namespace create SPEND_KV` → paste ID into `worker/wrangler.toml` |
+| `UR_SHARED_SECRET` | Shared auth secret validated in `X-UR-Secret` header | `wrangler secret put UR_SHARED_SECRET` |
+| `UR_REQUESTY_KEY` | Requesty.ai API key for Gemini Flash calls | `wrangler secret put UR_REQUESTY_KEY` |
+| `UR_SPEND` namespace ID | KV namespace for spend tracking | `wrangler kv namespace create UR_SPEND` → paste ID into `worker/wrangler.toml` |
 
-`SPEND_CAP_DAILY_USD` (default `0.50`) and `SPEND_CAP_MONTHLY_USD` (default `5.00`) are plain vars in `worker/wrangler.toml` and can be edited directly.
+`UR_DAILY_CAP_CENTS` (default `50`, i.e. $0.50) and `UR_MONTHLY_CAP_CENTS` (default `500`, i.e. $5.00) are plain vars in `worker/wrangler.toml` and can be edited directly. Note the unit is **cents**, not dollars.
 
 ---
 
@@ -252,7 +254,7 @@ Parsed via `lines().firstOrNull { it.startsWith("Full:") }` / `"Low-floor:"`. Th
    Location is stored as lat/lng + radius; osmdroid caches tiles automatically (no offline pre-caching UI).
    Habits link to zero or more locations via the `habit_location` junction table; no selection means "Anywhere".
 6. **Recent triggers screen** — last 20 fired triggers with their generated prompts and outcomes. Read-only. Includes a "Send Feedback" button in the top bar.
-7. **Settings screen** — notification permission status, background location permission status, a manual "Test trigger now" button, a button to regenerate tomorrow's scheduled triggers, and a "Send Feedback" button.
+7. **Settings screen** — notification permission status, background location permission status, worker URL and shared secret for cloud generation, a manual "Test trigger now" button, a button to regenerate tomorrow's scheduled triggers, and a "Send Feedback" button.
 8. **Onboarding screen** — shown once on first launch. Walks the user through three collapsible steps: (1) granting Notifications and Location permissions, (2) creating a first habit with name/descriptions and weekday schedule, (3) creating a first time window. Includes a "Skip" action in the top bar. Completion (or skip) is persisted via DataStore (`onboarding_done` key) and never shown again. Bottom navigation bar is hidden while onboarding is active.
 9. **Feedback screen** — annotated screenshot tool. Captures the current screen, lets the user draw annotations (red/yellow/green strokes), type a description, and submit as a GitHub issue. Falls back to an offline queue (WorkManager) when connectivity is unavailable.
 

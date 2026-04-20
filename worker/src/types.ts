@@ -1,39 +1,28 @@
 export interface Env {
   // KV namespace for spend tracking
-  SPEND_KV: KVNamespace
+  UR_SPEND: KVNamespace
   // Rate limit binding
   REQUEST_LIMITER: RateLimit
   // Secrets (set via `wrangler secret put`)
-  UR_SECRET: string
-  REQUESTY_API_KEY: string
+  UR_SHARED_SECRET: string
+  UR_REQUESTY_KEY: string
   // Vars (from wrangler.toml [vars])
-  SPEND_CAP_DAILY_USD: string
-  SPEND_CAP_MONTHLY_USD: string
-}
-
-export interface HabitInput {
-  id: string
-  name: string
-  fullDescription: string
-  lowFloorDescription: string
+  UR_DAILY_CAP_CENTS: string
+  UR_MONTHLY_CAP_CENTS: string
+  UR_MODEL: string
 }
 
 export interface GenerateBatchRequest {
-  habits: HabitInput[]
-  count?: number         // variants per habit, clamped to 1–10; defaults to 1
+  habitTitle: string
+  habitTags: string[]
+  locationName: string
+  timeOfDay: string
+  /** Number of notification variants to generate (1–50). */
+  n: number
 }
 
-export interface HabitVariants {
-  habitId: string
-  texts: string[]
-  /** Set when all upstream generation calls failed for this habit. */
-  error?: string
-}
-
-/** Once validation passes, returns 200 with per-habit results; check individual `HabitVariants.error` on partial failure. */
 export interface GenerateBatchResponse {
-  variants: HabitVariants[]
-  spendDollars: number   // approximate cost of this request
+  variants: string[]
 }
 
 export interface HealthResponse {

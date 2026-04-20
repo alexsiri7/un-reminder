@@ -25,8 +25,10 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -73,6 +75,7 @@ import net.interstellarai.unreminder.ui.theme.UnReminderShapes
 fun HabitEditScreen(
     habitId: Long?,
     onNavigateBack: () -> Unit,
+    onNavigateToSettings: () -> Unit = {},
     viewModel: HabitEditViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -95,6 +98,19 @@ fun HabitEditScreen(
         val msg = uiState.errorMessage ?: return@LaunchedEffect
         snackbarHostState.showSnackbar(msg)
         viewModel.clearError()
+    }
+
+    LaunchedEffect(uiState.showSpendCapLink) {
+        if (!uiState.showSpendCapLink) return@LaunchedEffect
+        val result = snackbarHostState.showSnackbar(
+            message = "Spend cap reached — check Settings for today's usage.",
+            actionLabel = "Settings",
+            duration = SnackbarDuration.Long,
+        )
+        if (result == SnackbarResult.ActionPerformed) {
+            onNavigateToSettings()
+        }
+        viewModel.clearSpendCapLink()
     }
 
     LaunchedEffect(uiState.fieldsFlashing) {

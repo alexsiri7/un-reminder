@@ -21,9 +21,12 @@ describe('getSpend', () => {
   })
 
   it('returns parsed values when KV has data', async () => {
+    const d = new Date()
+    const dayKey = `day:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+    const monthKey = `month:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
     const store = new Map([
-      [`spend:daily:${new Date().toISOString().slice(0, 10)}`, '0.123456'],
-      [`spend:monthly:${new Date().toISOString().slice(0, 7)}`, '1.234567'],
+      [dayKey, '0.123456'],
+      [monthKey, '1.234567'],
     ])
     const kv = mockKV(store)
     const result = await getSpend(kv)
@@ -46,8 +49,9 @@ describe('addSpend', () => {
     const store = new Map<string, string>()
     const kv = mockKV(store)
     await addSpend(kv, 0.01)
-    const dailyKey = `spend:daily:${new Date().toISOString().slice(0, 10)}`
-    const monthlyKey = `spend:monthly:${new Date().toISOString().slice(0, 7)}`
+    const d = new Date()
+    const dailyKey = `day:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+    const monthlyKey = `month:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
     expect(store.has(dailyKey)).toBe(true)
     expect(store.has(monthlyKey)).toBe(true)
   })
