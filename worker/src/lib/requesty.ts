@@ -72,9 +72,8 @@ export async function callRequestyWithSchemaRetry<T>(
       result = await callRequesty(apiKey, model, isRetry ? stricterPrompt : prompt, maxTokens, temperature)
     } catch (err) {
       // HTTP errors (non-200) are not retryable — upstream is down or rate-limiting.
-      const status = err instanceof Error && err.message.match(/Requesty (\d+)/)
-        ? parseInt(err.message.match(/Requesty (\d+)/)![1], 10)
-        : 0
+      const match = err instanceof Error ? err.message.match(/Requesty (\d+)/) : null
+      const status = match ? parseInt(match[1], 10) : 0
       console.error('[requesty] callRequesty failed', { isRetry, status, err })
       return null
     }

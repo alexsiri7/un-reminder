@@ -37,8 +37,8 @@ export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promi
   if (!habitTitle || typeof habitTitle !== 'string') {
     return c.json({ error: 'habitTitle must be a non-empty string' }, 400)
   }
-  if (typeof n !== 'number' || n < 1 || n > 50) {
-    return c.json({ error: 'n must be between 1 and 50' }, 400)
+  if (typeof n !== 'number' || !Number.isInteger(n) || n < 1 || n > 50) {
+    return c.json({ error: 'n must be an integer between 1 and 50' }, 400)
   }
 
   const tags = Array.isArray(habitTags) ? habitTags : []
