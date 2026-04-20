@@ -41,7 +41,8 @@ export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promi
     return c.json({ error: 'n must be between 1 and 50' }, 400)
   }
 
-  const args = [habitTitle, habitTags ?? [], locationName ?? '', timeOfDay ?? '', n] as const
+  const tags = Array.isArray(habitTags) ? habitTags : []
+  const args = [habitTitle, tags, locationName ?? '', timeOfDay ?? '', n] as const
   const prompt = buildPrompt(...args)
   const strictPrompt = buildPrompt(...args, true)
 

@@ -87,7 +87,9 @@ class HabitEditViewModel @Inject constructor(
                     active = habit.active
                 )
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 Log.e(TAG, "loadHabit: failed to load habit $id", e)
+                _uiState.value = _uiState.value.copy(errorMessage = "Failed to load habit.")
             } finally {
                 _uiState.value = _uiState.value.copy(isLoading = false)
             }
@@ -139,7 +141,9 @@ class HabitEditViewModel @Inject constructor(
                 habitRepository.setLocations(habitId, state.selectedLocationIds)
                 _uiState.value = _uiState.value.copy(isSaved = true)
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 Log.e(TAG, "save failed", e)
+                _uiState.value = _uiState.value.copy(errorMessage = "Save failed — try again.")
             }
         }
     }

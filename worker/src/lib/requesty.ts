@@ -1,7 +1,7 @@
 const REQUESTY_URL = 'https://router.requesty.ai/v1/chat/completions'
 
-// Pricing for gemini-3-flash-preview via Requesty (as of 2026-04-20).
-// Update both constants if UR_MODEL changes.
+// Pricing for the model set in UR_MODEL (wrangler.toml) via Requesty (as of 2026-04-20).
+// These constants MUST match the model configured in UR_MODEL. If you change the model, update pricing here too.
 export const COST_PER_OUTPUT_TOKEN = 0.000075 / 1000
 export const COST_PER_INPUT_TOKEN = 0.000075 / 1000
 
@@ -69,7 +69,7 @@ export async function callRequestyWithSchemaRetry<T>(
       result = await callRequesty(apiKey, model, isRetry ? stricterPrompt : prompt, maxTokens)
     } catch (err) {
       // HTTP errors (non-200) are not retryable — upstream is down or rate-limiting.
-      console.warn('[requesty] callRequesty failed', { isRetry, err })
+      console.error('[requesty] callRequesty failed', { isRetry, err })
       return null
     }
 

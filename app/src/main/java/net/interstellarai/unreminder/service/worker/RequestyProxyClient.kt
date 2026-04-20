@@ -43,7 +43,10 @@ class RequestyProxyClient @Inject constructor(
                         lowFloorDescription = body.getString("lowFloorDescription"),
                     )
                 }
-                else -> throw RuntimeException("Worker error: ${response.code}")
+                else -> {
+                    val body = response.body?.string() ?: ""
+                    throw RuntimeException("Worker error ${response.code}: $body")
+                }
             }
         }
     }
@@ -80,7 +83,10 @@ class RequestyProxyClient @Inject constructor(
                     val body = JSONObject(rawBody)
                     body.getString("text")
                 }
-                else -> throw RuntimeException("Worker error: ${response.code}")
+                else -> {
+                    val body = response.body?.string() ?: ""
+                    throw RuntimeException("Worker error ${response.code}: $body")
+                }
             }
         }
     }
