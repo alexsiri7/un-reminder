@@ -23,6 +23,8 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
+import kotlin.coroutines.cancellation.CancellationException
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
@@ -255,6 +257,23 @@ class TriggerPipelineTest {
 
         coVerify { triggerRepository.updateFired(42L, 1L, "meditation") }
         coVerify { refillScheduler.enqueueForHabit(1L) }
+    }
+
+    @Test
+    fun `flag ON pickRandomUnused throws CancellationException - propagates`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
+        every { featureFlagsRepository.useCloudPool } returns flowOf(true)
+        coEvery { variationRepository.pickRandomUnused(1L) } throws CancellationException("cancelled")
+
+        try {
+            pipeline.execute(42L)
+            fail("Expected CancellationException to propagate")
+        } catch (e: CancellationException) {
+            // expected
+        }
+
+        coVerify(exactly = 0) { triggerRepository.updateFired(any(), any(), any()) }
     }
 
     @Test
