@@ -4,15 +4,20 @@ import net.interstellarai.unreminder.data.db.HabitDao
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.db.HabitLocationCrossRef
 import net.interstellarai.unreminder.data.db.HabitLocationCrossRefDao
+import net.interstellarai.unreminder.data.db.HabitWindowCrossRef
+import net.interstellarai.unreminder.data.db.HabitWindowCrossRefDao
 import kotlinx.coroutines.flow.Flow
 import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class HabitRepository @Inject constructor(
     private val habitDao: HabitDao,
-    private val crossRefDao: HabitLocationCrossRefDao
+    private val crossRefDao: HabitLocationCrossRefDao,
+    private val windowCrossRefDao: HabitWindowCrossRefDao
 ) {
     fun getAll(): Flow<List<HabitEntity>> = habitDao.getAll()
 
@@ -36,7 +41,9 @@ class HabitRepository @Inject constructor(
         // Room crashes if IN-clause receives an empty list. Use an impossible ID (-1) so the
         // clause is syntactically valid but never matches any real habit row.
         val ids = if (currentLocationIds.isEmpty()) listOf(-1L) else currentLocationIds.toList()
-        return habitDao.getEligibleHabits(ids, cutoff)
+        val currentSecondOfDay = LocalTime.now().toSecondOfDay()
+        val dayOfWeekBit = 1 shl (LocalDate.now().dayOfWeek.value - 1)
+        return habitDao.getEligibleHabits(ids, cutoff, currentSecondOfDay, dayOfWeekBit)
     }
 
     suspend fun getLocationIds(habitId: Long): List<Long> =
@@ -45,5 +52,13 @@ class HabitRepository @Inject constructor(
     suspend fun setLocations(habitId: Long, locationIds: Set<Long>) {
         crossRefDao.deleteByHabitId(habitId)
         crossRefDao.insertAll(locationIds.map { HabitLocationCrossRef(habitId = habitId, locationId = it) })
+    }
+
+    suspend fun getWindowIds(habitId: Long): List<Long> =
+        windowCrossRefDao.getWindowIdsForHabit(habitId)
+
+    suspend fun setWindows(habitId: Long, windowIds: Set<Long>) {
+        windowCrossRefDao.deleteByHabitId(habitId)
+        windowCrossRefDao.insertAll(windowIds.map { HabitWindowCrossRef(habitId = habitId, windowId = it) })
     }
 }

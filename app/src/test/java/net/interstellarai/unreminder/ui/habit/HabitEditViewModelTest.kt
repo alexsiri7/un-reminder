@@ -4,6 +4,7 @@ import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
+import net.interstellarai.unreminder.data.repository.WindowRepository
 import net.interstellarai.unreminder.domain.model.AiHabitFields
 import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.service.llm.PromptGenerator
@@ -48,6 +49,7 @@ class HabitEditViewModelTest {
     private val mockLocationRepository: LocationRepository = mockk(relaxed = true)
     private val mockRefillScheduler: RefillScheduler = mockk(relaxed = true)
     private val mockVariationRepository: VariationRepository = mockk(relaxUnitFun = true)
+    private val mockWindowRepository: WindowRepository = mockk(relaxed = true)
     private lateinit var viewModel: HabitEditViewModel
 
     private val testHabit = HabitEntity(
@@ -63,10 +65,12 @@ class HabitEditViewModelTest {
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         every { mockLocationRepository.getAll() } returns flowOf(emptyList())
+        every { mockWindowRepository.getAll() } returns flowOf(emptyList())
         every { mockPromptGenerator.aiStatus } returns MutableStateFlow<AiStatus>(AiStatus.Ready)
         viewModel = HabitEditViewModel(
             mockHabitRepository,
             mockLocationRepository,
+            mockWindowRepository,
             mockPromptGenerator,
             mockRefillScheduler,
             mockVariationRepository,
@@ -341,8 +345,8 @@ class HabitEditViewModelTest {
     fun `aiStatus delegates directly to promptGenerator aiStatus`() = runTest(testDispatcher) {
         every { mockPromptGenerator.aiStatus } returns MutableStateFlow(AiStatus.Unavailable)
         val vm = HabitEditViewModel(
-            mockHabitRepository, mockLocationRepository, mockPromptGenerator,
-            mockRefillScheduler, mockVariationRepository,
+            mockHabitRepository, mockLocationRepository, mockWindowRepository,
+            mockPromptGenerator, mockRefillScheduler, mockVariationRepository,
         )
         assertEquals(AiStatus.Unavailable, vm.aiStatus.value)
     }
@@ -351,9 +355,49 @@ class HabitEditViewModelTest {
     fun `aiStatus is Ready when promptGenerator reports Ready`() = runTest(testDispatcher) {
         every { mockPromptGenerator.aiStatus } returns MutableStateFlow(AiStatus.Ready)
         val vm = HabitEditViewModel(
-            mockHabitRepository, mockLocationRepository, mockPromptGenerator,
-            mockRefillScheduler, mockVariationRepository,
+            mockHabitRepository, mockLocationRepository, mockWindowRepository,
+            mockPromptGenerator, mockRefillScheduler, mockVariationRepository,
         )
         assertEquals(AiStatus.Ready, vm.aiStatus.value)
+    }
+
+    // --- toggleWindow ---
+
+    @Test
+    fun `toggleWindow adds window id to selectedWindowIds`() = runTest(testDispatcher) {
+        viewModel.toggleWindow(10L)
+        assertTrue(10L in viewModel.uiState.value.selectedWindowIds)
+    }
+
+    @Test
+    fun `toggleWindow removes window id when already selected`() = runTest(testDispatcher) {
+        viewModel.toggleWindow(10L)
+        assertTrue(10L in viewModel.uiState.value.selectedWindowIds)
+
+        viewModel.toggleWindow(10L)
+        assertFalse(10L in viewModel.uiState.value.selectedWindowIds)
+    }
+
+    @Test
+    fun `setAnyTime clears selectedWindowIds`() = runTest(testDispatcher) {
+        viewModel.toggleWindow(10L)
+        viewModel.toggleWindow(20L)
+        assertEquals(setOf(10L, 20L), viewModel.uiState.value.selectedWindowIds)
+
+        viewModel.setAnyTime()
+        assertTrue(viewModel.uiState.value.selectedWindowIds.isEmpty())
+    }
+
+    @Test
+    fun `save calls setWindows with selected window ids`() = runTest(testDispatcher) {
+        coEvery { mockHabitRepository.insert(any()) } returns 42L
+
+        viewModel.toggleWindow(5L)
+        viewModel.toggleWindow(7L)
+        viewModel.save()
+        advanceUntilIdle()
+
+        coVerify { mockHabitRepository.setWindows(42L, setOf(5L, 7L)) }
+        assertTrue(viewModel.uiState.value.isSaved)
     }
 }

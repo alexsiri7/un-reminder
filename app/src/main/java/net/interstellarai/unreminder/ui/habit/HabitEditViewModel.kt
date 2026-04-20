@@ -6,9 +6,11 @@ import androidx.lifecycle.viewModelScope
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.db.LocationEntity
 import net.interstellarai.unreminder.data.db.VariationEntity
+import net.interstellarai.unreminder.data.db.WindowEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
+import net.interstellarai.unreminder.data.repository.WindowRepository
 import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.service.llm.PromptGenerator
 import net.interstellarai.unreminder.service.worker.RefillScheduler
@@ -34,6 +36,7 @@ data class HabitEditUiState(
     val fullDescription: String = "",
     val lowFloorDescription: String = "",
     val selectedLocationIds: Set<Long> = emptySet(),
+    val selectedWindowIds: Set<Long> = emptySet(),
     val active: Boolean = true,
     val isLoading: Boolean = false,
     val isSaved: Boolean = false,
@@ -50,6 +53,7 @@ data class HabitEditUiState(
 class HabitEditViewModel @Inject constructor(
     private val habitRepository: HabitRepository,
     private val locationRepository: LocationRepository,
+    private val windowRepository: WindowRepository,
     private val promptGenerator: PromptGenerator,
     private val refillScheduler: RefillScheduler,
     private val variationRepository: VariationRepository,
@@ -59,6 +63,9 @@ class HabitEditViewModel @Inject constructor(
     val uiState: StateFlow<HabitEditUiState> = _uiState.asStateFlow()
 
     val allLocations: StateFlow<List<LocationEntity>> = locationRepository.getAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val allWindows: StateFlow<List<WindowEntity>> = windowRepository.getAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val aiStatus: StateFlow<AiStatus> = promptGenerator.aiStatus
@@ -98,12 +105,14 @@ class HabitEditViewModel @Inject constructor(
                     return@launch
                 }
                 val locationIds = habitRepository.getLocationIds(id).toSet()
+                val windowIds = habitRepository.getWindowIds(id).toSet()
                 existingHabit = habit
                 _uiState.value = HabitEditUiState(
                     name = habit.name,
                     fullDescription = habit.fullDescription,
                     lowFloorDescription = habit.lowFloorDescription,
                     selectedLocationIds = locationIds,
+                    selectedWindowIds = windowIds,
                     active = habit.active
                 )
             } catch (e: Exception) {
@@ -128,6 +137,16 @@ class HabitEditViewModel @Inject constructor(
 
     fun setAnywhere() {
         _uiState.value = _uiState.value.copy(selectedLocationIds = emptySet())
+    }
+
+    fun toggleWindow(windowId: Long) {
+        val current = _uiState.value.selectedWindowIds
+        val updated = if (windowId in current) current - windowId else current + windowId
+        _uiState.value = _uiState.value.copy(selectedWindowIds = updated)
+    }
+
+    fun setAnyTime() {
+        _uiState.value = _uiState.value.copy(selectedWindowIds = emptySet())
     }
 
     fun updateActive(active: Boolean) { _uiState.value = _uiState.value.copy(active = active) }
@@ -160,6 +179,7 @@ class HabitEditViewModel @Inject constructor(
                     )
                 }
                 habitRepository.setLocations(habitId, state.selectedLocationIds)
+                habitRepository.setWindows(habitId, state.selectedWindowIds)
                 _uiState.value = _uiState.value.copy(isSaved = true)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
