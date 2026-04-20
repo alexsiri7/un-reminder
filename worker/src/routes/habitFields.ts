@@ -28,9 +28,9 @@ function buildPrompt(title: string, strict = false): string {
 
 function validate(parsed: unknown): HabitFieldsResult | null {
   if (typeof parsed !== 'object' || parsed === null) return null
-  const p = parsed as Record<string, unknown>
-  if (typeof p.fullDescription !== 'string' || typeof p.lowFloorDescription !== 'string') return null
-  return { fullDescription: p.fullDescription, lowFloorDescription: p.lowFloorDescription }
+  const { fullDescription, lowFloorDescription } = parsed as Record<string, unknown>
+  if (typeof fullDescription !== 'string' || typeof lowFloorDescription !== 'string') return null
+  return { fullDescription, lowFloorDescription }
 }
 
 export async function habitFieldsHandler(c: Context<{ Bindings: Env }>): Promise<Response> {
