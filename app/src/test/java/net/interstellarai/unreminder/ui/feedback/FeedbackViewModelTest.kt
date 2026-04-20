@@ -10,6 +10,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -24,7 +25,7 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class FeedbackViewModelTest {
-    private val testDispatcher = StandardTestDispatcher()
+    private val testDispatcher = StandardTestDispatcher(TestCoroutineScheduler())
     private val mockFeedbackRepository: FeedbackRepository = mockk(relaxUnitFun = true)
     private val mockGitHubApiService: GitHubApiService = mockk()
     private val mockContext: Context = mockk(relaxed = true)
@@ -32,7 +33,11 @@ class FeedbackViewModelTest {
 
     @Before fun setup() {
         Dispatchers.setMain(testDispatcher)
-        viewModel = FeedbackViewModel(mockFeedbackRepository, mockGitHubApiService, mockContext)
+        viewModel = FeedbackViewModel(
+            mockFeedbackRepository, mockGitHubApiService, mockContext,
+            ioDispatcher = testDispatcher,
+            defaultDispatcher = testDispatcher
+        )
     }
     @After fun tearDown() { Dispatchers.resetMain() }
 
@@ -89,6 +94,7 @@ class FeedbackViewModelTest {
             kotlinx.coroutines.delay(100)
         }
         viewModel.submit(mockk(relaxed = true))
+        testDispatcher.scheduler.runCurrent()
         assert(viewModel.uiState.value.isSubmitting)
         advanceUntilIdle()
         assertFalse(viewModel.uiState.value.isSubmitting)

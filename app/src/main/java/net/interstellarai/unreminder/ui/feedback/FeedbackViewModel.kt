@@ -13,11 +13,14 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import net.interstellarai.unreminder.BuildConfig
 import net.interstellarai.unreminder.data.repository.FeedbackRepository
+import net.interstellarai.unreminder.di.DefaultDispatcher
+import net.interstellarai.unreminder.di.IoDispatcher
 import net.interstellarai.unreminder.service.github.GitHubApiService
 import net.interstellarai.unreminder.worker.FeedbackUploadWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -41,7 +44,9 @@ data class FeedbackUiState(
 class FeedbackViewModel @Inject constructor(
     private val feedbackRepository: FeedbackRepository,
     private val gitHubApiService: GitHubApiService,
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    @DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher = Dispatchers.Default
 ) : ViewModel() {
 
     companion object {
@@ -67,8 +72,8 @@ class FeedbackViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isSubmitting = true, errorMessage = null)
             try {
-                val merged = withContext(Dispatchers.Default) { mergeAnnotations(annotationBitmap) }
-                val screenshotPath = merged?.let { withContext(Dispatchers.IO) { saveToCacheDir(it) } }
+                val merged = withContext(defaultDispatcher) { mergeAnnotations(annotationBitmap) }
+                val screenshotPath = merged?.let { withContext(ioDispatcher) { saveToCacheDir(it) } }
 
                 if (BuildConfig.FEEDBACK_ENDPOINT_URL.isBlank()) {
                     _uiState.value = _uiState.value.copy(
