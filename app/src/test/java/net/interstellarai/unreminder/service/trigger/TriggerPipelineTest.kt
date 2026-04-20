@@ -3,18 +3,23 @@ package net.interstellarai.unreminder.service.trigger
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.db.LocationEntity
 import net.interstellarai.unreminder.data.db.TriggerEntity
+import net.interstellarai.unreminder.data.db.VariationEntity
+import net.interstellarai.unreminder.data.repository.FeatureFlagsRepository
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
+import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.llm.PromptGenerator
 import net.interstellarai.unreminder.service.notification.NotificationHelper
+import net.interstellarai.unreminder.service.worker.RefillScheduler
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -30,6 +35,9 @@ class TriggerPipelineTest {
     private lateinit var geofenceManager: GeofenceManager
     private lateinit var promptGenerator: PromptGenerator
     private lateinit var notificationHelper: NotificationHelper
+    private lateinit var featureFlagsRepository: FeatureFlagsRepository
+    private lateinit var variationRepository: VariationRepository
+    private lateinit var refillScheduler: RefillScheduler
     private lateinit var pipeline: TriggerPipeline
 
     private val testHabit = HabitEntity(
@@ -55,6 +63,9 @@ class TriggerPipelineTest {
         geofenceManager = mockk()
         promptGenerator = mockk()
         notificationHelper = mockk(relaxUnitFun = true)
+        featureFlagsRepository = mockk()
+        variationRepository = mockk()
+        refillScheduler = mockk(relaxUnitFun = true)
 
         pipeline = TriggerPipeline(
             habitRepository = habitRepository,
@@ -62,9 +73,13 @@ class TriggerPipelineTest {
             locationRepository = locationRepository,
             geofenceManager = geofenceManager,
             promptGenerator = promptGenerator,
-            notificationHelper = notificationHelper
+            notificationHelper = notificationHelper,
+            featureFlagsRepository = featureFlagsRepository,
+            variationRepository = variationRepository,
+            refillScheduler = refillScheduler,
         )
 
+        every { featureFlagsRepository.useCloudPool } returns flowOf(false)
         every { geofenceManager.currentLocationIds } returns setOf(1L)
         coEvery { locationRepository.getByIds(any()) } returns emptyList()
         coEvery { triggerRepository.getLastFiredForHabit(any()) } returns null
@@ -164,6 +179,68 @@ class TriggerPipelineTest {
         pipeline.execute(42L)
 
         coVerify { promptGenerator.generate(testHabit, "any location", any()) }
+    }
+    @Test
+    fun `flag ON pool has variants - uses variation text`() = runTest {
+        val variation = VariationEntity(
+            id = 7L, habitId = 1L, text = "Cloud notification body",
+            promptFingerprint = "fp", generatedAt = Instant.now(), consumedAt = null
+        )
+        coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
+        every { featureFlagsRepository.useCloudPool } returns flowOf(true)
+        coEvery { variationRepository.pickRandomUnused(1L) } returns variation
+        coEvery { variationRepository.needsRefill(1L) } returns false
+
+        pipeline.execute(42L)
+
+        coVerify { triggerRepository.updateFired(42L, 1L, "Cloud notification body") }
+        coVerify {
+            notificationHelper.postTriggerNotification(
+                triggerId = 42L,
+                promptText = "Cloud notification body",
+                habitName = "meditation"
+            )
+        }
+        coVerify(exactly = 0) { refillScheduler.enqueueForHabit(any()) }
+    }
+
+    @Test
+    fun `flag ON pool empty - falls back to habit name and enqueues refill`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
+        every { featureFlagsRepository.useCloudPool } returns flowOf(true)
+        coEvery { variationRepository.pickRandomUnused(1L) } returns null
+
+        pipeline.execute(42L)
+
+        coVerify { triggerRepository.updateFired(42L, 1L, "meditation") }
+        coVerify {
+            notificationHelper.postTriggerNotification(
+                triggerId = 42L,
+                promptText = "meditation",
+                habitName = "meditation"
+            )
+        }
+        coVerify { refillScheduler.enqueueForHabit(1L) }
+    }
+
+    @Test
+    fun `flag OFF - uses promptGenerator and does not touch variationRepository`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
+        every { featureFlagsRepository.useCloudPool } returns flowOf(false)
+        coEvery { promptGenerator.generate(any(), any(), any()) } returns "On-device text"
+
+        pipeline.execute(42L)
+
+        coVerify { promptGenerator.generate(testHabit, any(), any()) }
+        coVerify(exactly = 0) { variationRepository.pickRandomUnused(any()) }
+        coVerify {
+            notificationHelper.postTriggerNotification(
+                triggerId = 42L, promptText = "On-device text", habitName = "meditation"
+            )
+        }
     }
 }
 

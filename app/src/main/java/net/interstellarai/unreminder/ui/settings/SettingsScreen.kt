@@ -425,6 +425,7 @@ private fun statusLabel(status: AiStatus): String = when (status) {
     is AiStatus.Downloading -> "downloading ${(status.fraction * 100).toInt()}%"
     is AiStatus.Failed -> "failed \u2014 tap to change model"
     is AiStatus.Unavailable -> "unavailable \u2014 url is placeholder"
+    is AiStatus.Empty -> "pool empty \u2014 variants being generated"
     is AiStatus.Idle -> "not downloaded"
 }
 
@@ -432,7 +433,7 @@ private fun statusLabel(status: AiStatus): String = when (status) {
 private fun statusColor(status: AiStatus): Color = when (status) {
     is AiStatus.Ready -> MaterialTheme.colorScheme.primary
     is AiStatus.Downloading -> MaterialTheme.colorScheme.primary
-    is AiStatus.Failed, is AiStatus.Unavailable ->
+    is AiStatus.Failed, is AiStatus.Unavailable, is AiStatus.Empty ->
         MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
     is AiStatus.Idle -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
 }

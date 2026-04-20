@@ -2,13 +2,18 @@ package net.interstellarai.unreminder.service.trigger
 
 import android.util.Log
 import net.interstellarai.unreminder.data.db.HabitEntity
+import net.interstellarai.unreminder.data.repository.FeatureFlagsRepository
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
+import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.llm.PromptGenerator
 import net.interstellarai.unreminder.service.notification.NotificationHelper
+import net.interstellarai.unreminder.service.worker.RefillScheduler
+import io.sentry.Sentry
+import kotlinx.coroutines.flow.first
 import java.time.LocalTime
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -21,7 +26,10 @@ class TriggerPipeline @Inject constructor(
     private val locationRepository: LocationRepository,
     private val geofenceManager: GeofenceManager,
     private val promptGenerator: PromptGenerator,
-    private val notificationHelper: NotificationHelper
+    private val notificationHelper: NotificationHelper,
+    private val featureFlagsRepository: FeatureFlagsRepository,
+    private val variationRepository: VariationRepository,
+    private val refillScheduler: RefillScheduler,
 ) {
     companion object {
         private const val TAG = "TriggerPipeline"
@@ -75,7 +83,26 @@ class TriggerPipeline @Inject constructor(
         try {
             val timeOfDay = resolveTimeOfDay()
             val locationName = resolveLocationName(locationIds)
-            val prompt = promptGenerator.generate(habit, locationName, timeOfDay)
+
+            val prompt: String
+            if (featureFlagsRepository.useCloudPool.first()) {
+                val variation = variationRepository.pickRandomUnused(habit.id)
+                if (variation != null) {
+                    prompt = variation.text
+                    if (variationRepository.needsRefill(habit.id)) {
+                        refillScheduler.enqueueForHabit(habit.id)
+                    }
+                } else {
+                    // Pool exhausted — fall back to habit title
+                    prompt = habit.name
+                    Sentry.captureMessage("pool empty for habit ${habit.id}") { scope ->
+                        scope.setTag("component", "pool-empty")
+                    }
+                    refillScheduler.enqueueForHabit(habit.id)
+                }
+            } else {
+                prompt = promptGenerator.generate(habit, locationName, timeOfDay)
+            }
 
             triggerRepository.updateFired(
                 id = triggerId,
