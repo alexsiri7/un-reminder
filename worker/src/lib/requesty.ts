@@ -1,5 +1,7 @@
 const REQUESTY_URL = 'https://router.requesty.ai/v1/chat/completions'
 
+// Pricing for gemini-3-flash-preview via Requesty (as of 2026-04-20).
+// Update both constants if UR_MODEL changes.
 export const COST_PER_OUTPUT_TOKEN = 0.000075 / 1000
 export const COST_PER_INPUT_TOKEN = 0.000075 / 1000
 
@@ -65,9 +67,11 @@ export async function callRequestyWithSchemaRetry<T>(
     let result: RequestyResult
     try {
       result = await callRequesty(apiKey, model, isRetry ? stricterPrompt : prompt, maxTokens)
-    } catch {
+    } catch (err) {
+      // HTTP errors (non-200) are not retryable — upstream is down or rate-limiting.
+      console.warn('[requesty] callRequesty failed', { isRetry, err })
       if (isRetry) return null
-      continue
+      return null
     }
 
     totalOutputTokens += result.outputTokens
@@ -79,8 +83,9 @@ export async function callRequestyWithSchemaRetry<T>(
       if (validated !== null) {
         return { data: validated, outputTokens: totalOutputTokens, inputTokens: totalInputTokens }
       }
-    } catch {
-      /* fall through to retry */
+      console.warn('[requesty] schema validation failed', { isRetry, text: result.text.slice(0, 200) })
+    } catch (err) {
+      console.warn('[requesty] JSON.parse failed', { isRetry, err, text: result.text.slice(0, 200) })
     }
 
     if (isRetry) return null

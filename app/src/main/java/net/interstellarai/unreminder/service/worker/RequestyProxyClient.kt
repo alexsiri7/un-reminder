@@ -24,7 +24,7 @@ class RequestyProxyClient @Inject constructor(
     ): AiHabitFields = withContext(Dispatchers.IO) {
         val payload = JSONObject().apply { put("title", title) }
         val request = Request.Builder()
-            .url("$workerUrl/v1/habit-fields")
+            .url("${workerUrl.trimEnd('/')}/v1/habit-fields")
             .addHeader("X-UR-Secret", secret)
             .addHeader("Accept", "application/json")
             .post(payload.toString().toRequestBody("application/json".toMediaType()))
@@ -34,7 +34,9 @@ class RequestyProxyClient @Inject constructor(
             when (response.code) {
                 402 -> throw SpendCapExceededException()
                 in 200..299 -> {
-                    val body = JSONObject(response.body!!.string())
+                    val rawBody = response.body?.string()
+                        ?: throw RuntimeException("Worker returned empty body")
+                    val body = JSONObject(rawBody)
                     AiHabitFields(
                         fullDescription = body.getString("fullDescription"),
                         lowFloorDescription = body.getString("lowFloorDescription"),
@@ -61,7 +63,7 @@ class RequestyProxyClient @Inject constructor(
             put("locationName", locationName)
         }
         val request = Request.Builder()
-            .url("$workerUrl/v1/preview")
+            .url("${workerUrl.trimEnd('/')}/v1/preview")
             .addHeader("X-UR-Secret", secret)
             .addHeader("Accept", "application/json")
             .post(payload.toString().toRequestBody("application/json".toMediaType()))
@@ -71,7 +73,9 @@ class RequestyProxyClient @Inject constructor(
             when (response.code) {
                 402 -> throw SpendCapExceededException()
                 in 200..299 -> {
-                    val body = JSONObject(response.body!!.string())
+                    val rawBody = response.body?.string()
+                        ?: throw RuntimeException("Worker returned empty body")
+                    val body = JSONObject(rawBody)
                     body.getString("text")
                 }
                 else -> throw RuntimeException("Worker error: ${response.code}")

@@ -13,7 +13,7 @@ const app = new Hono<{ Bindings: Env }>()
 // Public — no auth
 app.get('/v1/health', healthHandler)
 
-// Shared protection for all AI generation routes
+// Shared protection for all AI generation routes — applied in order: rate-limit → auth → spend gate
 for (const path of ['/v1/generate/*', '/v1/habit-fields', '/v1/preview']) {
   app.use(path, rateLimitMiddleware, authMiddleware, spendGate)
 }

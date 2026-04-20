@@ -61,14 +61,15 @@ export async function previewHandler(c: Context<{ Bindings: Env }>): Promise<Res
     return c.json({ error: 'habit.title must be a non-empty string' }, 400)
   }
 
-  const { title, tags, notes } = body.habit
+  const { title, notes } = body.habit
+  const tags = Array.isArray(body.habit?.tags) ? (body.habit.tags as string[]) : []
   const locationName = body.locationName ?? ''
 
   const result = await callRequestyWithSchemaRetry(
     c.env.UR_REQUESTY_KEY,
     c.env.UR_MODEL,
-    buildPrompt(title, tags ?? [], notes ?? '', locationName),
-    buildStrictPrompt(title, tags ?? [], notes ?? '', locationName),
+    buildPrompt(title, tags, notes ?? '', locationName),
+    buildStrictPrompt(title, tags, notes ?? '', locationName),
     validate,
     100,
   )

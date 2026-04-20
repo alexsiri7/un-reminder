@@ -1,13 +1,13 @@
 package net.interstellarai.unreminder.service.worker
 
 import kotlinx.coroutines.test.runTest
+import kotlin.test.assertFailsWith
 import net.interstellarai.unreminder.data.db.HabitEntity
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 
@@ -48,10 +48,8 @@ class RequestyProxyClientTest {
     fun `habitFields throws SpendCapExceededException on 402`() = runTest {
         server.enqueue(MockResponse().setResponseCode(402).setBody("""{"error":"cap"}"""))
 
-        assertThrows(SpendCapExceededException::class.java) {
-            kotlinx.coroutines.test.runTest {
-                proxyClient.habitFields("Meditate", baseUrl(), "secret")
-            }
+        assertFailsWith<SpendCapExceededException> {
+            proxyClient.habitFields("Meditate", baseUrl(), "secret")
         }
     }
 
@@ -59,10 +57,8 @@ class RequestyProxyClientTest {
     fun `habitFields throws RuntimeException on 500`() = runTest {
         server.enqueue(MockResponse().setResponseCode(500).setBody("Internal Server Error"))
 
-        assertThrows(RuntimeException::class.java) {
-            kotlinx.coroutines.test.runTest {
-                proxyClient.habitFields("Meditate", baseUrl(), "secret")
-            }
+        assertFailsWith<RuntimeException> {
+            proxyClient.habitFields("Meditate", baseUrl(), "secret")
         }
     }
 
@@ -85,10 +81,18 @@ class RequestyProxyClientTest {
         server.enqueue(MockResponse().setResponseCode(402).setBody("""{"error":"cap"}"""))
 
         val habit = HabitEntity(name = "Meditate", fullDescription = "Daily practice", lowFloorDescription = "Sit")
-        assertThrows(SpendCapExceededException::class.java) {
-            kotlinx.coroutines.test.runTest {
-                proxyClient.preview(habit, "Home", baseUrl(), "secret")
-            }
+        assertFailsWith<SpendCapExceededException> {
+            proxyClient.preview(habit, "Home", baseUrl(), "secret")
+        }
+    }
+
+    @Test
+    fun `preview throws RuntimeException on 500`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(500).setBody("Internal Server Error"))
+
+        val habit = HabitEntity(name = "Meditate", fullDescription = "Daily practice", lowFloorDescription = "Sit")
+        assertFailsWith<RuntimeException> {
+            proxyClient.preview(habit, "Home", baseUrl(), "secret")
         }
     }
 }

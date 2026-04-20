@@ -3,9 +3,12 @@ package net.interstellarai.unreminder.ui.habit
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
+import net.interstellarai.unreminder.data.repository.WorkerSettingsRepository
 import net.interstellarai.unreminder.domain.model.AiHabitFields
 import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.service.llm.PromptGenerator
+import net.interstellarai.unreminder.service.worker.RequestyProxyClient
+import net.interstellarai.unreminder.service.worker.SpendCapExceededException
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -41,6 +44,8 @@ class HabitEditViewModelTest {
     private val mockPromptGenerator: PromptGenerator = mockk()
     private val mockHabitRepository: HabitRepository = mockk(relaxed = true)
     private val mockLocationRepository: LocationRepository = mockk(relaxed = true)
+    private val mockRequestyProxyClient: RequestyProxyClient = mockk()
+    private val mockWorkerSettingsRepository: WorkerSettingsRepository = mockk()
     private lateinit var viewModel: HabitEditViewModel
 
     private val testHabit = HabitEntity(
@@ -58,7 +63,16 @@ class HabitEditViewModelTest {
         every { mockLocationRepository.getAll() } returns flowOf(emptyList())
         every { mockPromptGenerator.downloadProgress } returns MutableStateFlow<Float?>(null)
         every { mockPromptGenerator.aiStatus } returns MutableStateFlow<AiStatus>(AiStatus.Ready)
-        viewModel = HabitEditViewModel(mockHabitRepository, mockLocationRepository, mockPromptGenerator)
+        // Default: no worker configured — routes all AI calls to on-device promptGenerator
+        every { mockWorkerSettingsRepository.workerUrl } returns flowOf("")
+        every { mockWorkerSettingsRepository.workerSecret } returns flowOf("")
+        viewModel = HabitEditViewModel(
+            mockHabitRepository,
+            mockLocationRepository,
+            mockPromptGenerator,
+            mockRequestyProxyClient,
+            mockWorkerSettingsRepository,
+        )
         viewModel.updateName("meditation")
         viewModel.updateFullDescription("20-minute guided meditation")
         viewModel.updateLowFloorDescription("3 deep breaths")
@@ -204,4 +218,25 @@ class HabitEditViewModelTest {
 
         assertFalse(viewModel.uiState.value.fieldsFlashing)
     }
+
+    // --- SpendCap via proxy ---
+
+    @Test
+    fun `autofillWithAi sets showSpendCapLink and no errorMessage on SpendCapExceededException`() =
+        runTest(testDispatcher) {
+            // Route through proxy by providing a non-blank URL + secret
+            every { mockWorkerSettingsRepository.workerUrl } returns flowOf("https://worker.example.com")
+            every { mockWorkerSettingsRepository.workerSecret } returns flowOf("secret")
+            coEvery {
+                mockRequestyProxyClient.habitFields(any(), any(), any())
+            } throws SpendCapExceededException()
+
+            viewModel.autofillWithAi()
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertTrue(state.showSpendCapLink)
+            assertNull(state.errorMessage)
+            assertFalse(state.isGeneratingFields)
+        }
 }

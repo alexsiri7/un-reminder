@@ -552,4 +552,31 @@ describe('un-reminder-worker', () => {
     await waitOnExecutionContext(ctx)
     expect(res.status).toBe(502)
   })
+
+  it('returns 400 on /v1/preview with empty title', async () => {
+    const req = makeRequest('/v1/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
+      body: { habit: { title: '', tags: [], notes: '' }, locationName: 'Park' },
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, testEnv(), ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 502 on /v1/habit-fields when upstream throws on both attempts', async () => {
+    // Enqueue two 500s — callRequesty throws, no retry on HTTP errors
+    enqueueResponse(500, 'Internal Server Error')
+
+    const req = makeRequest('/v1/habit-fields', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
+      body: { title: 'Meditate' },
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, testEnv(), ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(502)
+  })
 })
