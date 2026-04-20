@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -38,14 +40,19 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.service.llm.AiStatus
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import net.interstellarai.unreminder.ui.theme.Dimens
 import net.interstellarai.unreminder.ui.theme.DisplayLarge
 import net.interstellarai.unreminder.ui.theme.DisplayMedium
@@ -82,6 +89,9 @@ fun HabitEditScreen(
     val allLocations by viewModel.allLocations.collectAsStateWithLifecycle()
     val downloadProgress by viewModel.downloadProgress.collectAsStateWithLifecycle()
     val aiStatus by viewModel.aiStatus.collectAsStateWithLifecycle()
+    val unusedVariations by viewModel.unusedVariations.collectAsStateWithLifecycle()
+    val recentlyUsedVariations by viewModel.recentlyUsedVariations.collectAsStateWithLifecycle()
+    val totalVariationCount by viewModel.totalVariationCount.collectAsStateWithLifecycle()
     val flashAlpha = remember { Animatable(0f) }
 
     LaunchedEffect(habitId) {
@@ -237,6 +247,18 @@ fun HabitEditScreen(
             )
 
             Spacer(Modifier.height(Dimens.xxl))
+
+            if (habitId != null) {
+                QueuedNotificationsSection(
+                    unused = unusedVariations,
+                    recentlyUsed = recentlyUsedVariations,
+                    totalCount = totalVariationCount,
+                    onRemove = viewModel::deleteVariation,
+                    modifier = Modifier.padding(horizontal = Dimens.xl),
+                )
+                Spacer(Modifier.height(Dimens.xl))
+            }
+
             HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant, thickness = Dimens.hairline)
 
             Row(
@@ -542,6 +564,191 @@ private fun PreviewCard(
                     "Settle for a moment \u2014 the floor is enough.",
                     style = DisplayMedium,
                     color = MaterialTheme.colorScheme.background,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun QueuedNotificationsSection(
+    unused: List<VariationEntity>,
+    recentlyUsed: List<VariationEntity>,
+    totalCount: Int,
+    onRemove: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val formatter = remember { DateTimeFormatter.ofPattern("MMM d · HH:mm") }
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        // Header row — always visible, toggles expansion
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded }
+                .padding(vertical = Dimens.sm),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            MonoSectionLabel("queued notifications")
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "${unused.size} / $totalCount",
+                    style = MonoLabelTiny,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f),
+                )
+                Spacer(Modifier.size(Dimens.xs))
+                Text(
+                    if (expanded) "▾" else "▸",
+                    style = MonoLabelTiny,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f),
+                )
+            }
+        }
+
+        if (expanded) {
+            Spacer(Modifier.height(Dimens.sm))
+
+            // Count summary + last refilled
+            val lastRefilled = unused.maxByOrNull { it.generatedAt }?.generatedAt
+            val usedTodayCount = recentlyUsed.count { v ->
+                v.consumedAt?.atZone(ZoneId.systemDefault())?.toLocalDate() ==
+                    java.time.LocalDate.now()
+            }
+            Text(
+                buildString {
+                    append("${unused.size} unused")
+                    append(" · $usedTodayCount used today")
+                    append(" · $totalCount total")
+                    if (lastRefilled != null) {
+                        append(" · last refilled: ")
+                        append(lastRefilled.atZone(ZoneId.systemDefault()).format(
+                            DateTimeFormatter.ofPattern("MMM d")
+                        ))
+                    }
+                },
+                style = MonoLabelTiny,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f),
+            )
+
+            Spacer(Modifier.height(Dimens.md))
+
+            if (unused.isEmpty()) {
+                Text(
+                    "pool empty — refill pending",
+                    style = SansBody,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                )
+            } else {
+                MonoSectionLabel("unused")
+                Spacer(Modifier.height(Dimens.sm))
+                unused.forEach { variation ->
+                    VariationRow(
+                        variation = variation,
+                        onRemove = { onRemove(variation.id) },
+                        formatter = formatter,
+                    )
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        thickness = Dimens.hairline,
+                    )
+                }
+            }
+
+            if (recentlyUsed.isNotEmpty()) {
+                Spacer(Modifier.height(Dimens.lg))
+                MonoSectionLabel("recently used")
+                Spacer(Modifier.height(Dimens.sm))
+                recentlyUsed.forEach { variation ->
+                    RecentlyUsedVariationRow(variation = variation, formatter = formatter)
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        thickness = Dimens.hairline,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VariationRow(
+    variation: VariationEntity,
+    onRemove: () -> Unit,
+    formatter: DateTimeFormatter,
+) {
+    var menuExpanded by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = Dimens.md),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = variation.text,
+                style = SansBody,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            Spacer(Modifier.height(Dimens.xs))
+            Text(
+                text = variation.generatedAt
+                    .atZone(ZoneId.systemDefault())
+                    .format(formatter),
+                style = MonoLabelTiny,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f),
+            )
+        }
+        Box {
+            Text(
+                "⋮",
+                style = MonoLabel,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                modifier = Modifier
+                    .clickable { menuExpanded = true }
+                    .padding(start = Dimens.sm),
+            )
+            DropdownMenu(
+                expanded = menuExpanded,
+                onDismissRequest = { menuExpanded = false },
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Remove", style = SansBody) },
+                    onClick = {
+                        menuExpanded = false
+                        onRemove()
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecentlyUsedVariationRow(
+    variation: VariationEntity,
+    formatter: DateTimeFormatter,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = Dimens.md),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Column {
+            Text(
+                text = variation.text,
+                style = SansBody,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.65f),
+            )
+            Spacer(Modifier.height(Dimens.xs))
+            val firedAt = variation.consumedAt
+            if (firedAt != null) {
+                Text(
+                    text = "fired ${firedAt.atZone(ZoneId.systemDefault()).format(formatter)}",
+                    style = MonoLabelTiny,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.35f),
                 )
             }
         }

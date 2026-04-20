@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.db.LocationEntity
+import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.data.repository.FeatureFlagsRepository
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
@@ -24,7 +25,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -81,14 +84,33 @@ class HabitEditViewModel @Inject constructor(
         else AiStatus.Ready
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), promptGenerator.aiStatus.value)
 
+    private val _habitId = MutableStateFlow<Long?>(null)
+
+    val unusedVariations: StateFlow<List<VariationEntity>> = _habitId
+        .filterNotNull()
+        .flatMapLatest { variationRepository.unusedVariationsFlow(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val recentlyUsedVariations: StateFlow<List<VariationEntity>> = _habitId
+        .filterNotNull()
+        .flatMapLatest { variationRepository.recentlyUsedFlow(it, RECENTLY_USED_LIMIT) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val totalVariationCount: StateFlow<Int> = _habitId
+        .filterNotNull()
+        .flatMapLatest { variationRepository.countTotalFlow(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
     companion object {
         private const val TAG = "HabitEditViewModel"
+        private const val RECENTLY_USED_LIMIT = 10
     }
 
     private var existingHabit: HabitEntity? = null
 
     fun loadHabit(id: Long) {
         viewModelScope.launch {
+            _habitId.value = id
             _uiState.value = _uiState.value.copy(isLoading = true)
             try {
                 val habit = habitRepository.getById(id).first()
@@ -264,4 +286,15 @@ class HabitEditViewModel @Inject constructor(
     fun clearError() { _uiState.value = _uiState.value.copy(errorMessage = null) }
     fun clearFieldsFlash() { _uiState.value = _uiState.value.copy(fieldsFlashing = false) }
     fun clearSpendCapLink() { _uiState.value = _uiState.value.copy(showSpendCapLink = false) }
+
+    fun deleteVariation(id: Long) {
+        viewModelScope.launch {
+            try {
+                variationRepository.deleteById(id)
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                Log.w(TAG, "deleteVariation: failed to delete variation $id", e)
+            }
+        }
+    }
 }
