@@ -2,13 +2,19 @@ package net.interstellarai.unreminder.service.trigger
 
 import android.util.Log
 import net.interstellarai.unreminder.data.db.HabitEntity
+import net.interstellarai.unreminder.data.repository.FeatureFlagsRepository
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
+import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.llm.PromptGenerator
 import net.interstellarai.unreminder.service.notification.NotificationHelper
+import net.interstellarai.unreminder.service.worker.RefillScheduler
+import io.sentry.Sentry
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
 import java.time.LocalTime
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -21,7 +27,10 @@ class TriggerPipeline @Inject constructor(
     private val locationRepository: LocationRepository,
     private val geofenceManager: GeofenceManager,
     private val promptGenerator: PromptGenerator,
-    private val notificationHelper: NotificationHelper
+    private val notificationHelper: NotificationHelper,
+    private val featureFlagsRepository: FeatureFlagsRepository,
+    private val variationRepository: VariationRepository,
+    private val refillScheduler: RefillScheduler,
 ) {
     companion object {
         private const val TAG = "TriggerPipeline"
@@ -75,7 +84,7 @@ class TriggerPipeline @Inject constructor(
         try {
             val timeOfDay = resolveTimeOfDay()
             val locationName = resolveLocationName(locationIds)
-            val prompt = promptGenerator.generate(habit, locationName, timeOfDay)
+            val prompt = resolvePrompt(habit, locationName, timeOfDay)
 
             triggerRepository.updateFired(
                 id = triggerId,
@@ -89,9 +98,46 @@ class TriggerPipeline @Inject constructor(
                 habitName = habit.name
             )
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Log.e(TAG, "Trigger pipeline failed for trigger=$triggerId habit=${habit.name}", e)
             triggerRepository.updateOutcome(triggerId, TriggerStatus.DISMISSED)
         }
+    }
+
+    private suspend fun resolvePrompt(habit: HabitEntity, locationName: String, timeOfDay: String): String {
+        if (!featureFlagsRepository.useCloudPool.first()) {
+            return promptGenerator.generate(habit, locationName, timeOfDay)
+        }
+
+        val variation = try {
+            variationRepository.pickRandomUnused(habit.id)
+        } catch (e: Exception) {
+            Log.w(TAG, "variationRepository.pickRandomUnused failed — falling back to habit.name", e)
+            null
+        }
+
+        if (variation != null) {
+            try {
+                if (variationRepository.needsRefill(habit.id)) {
+                    refillScheduler.enqueueForHabit(habit.id)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "needsRefill/enqueue failed — non-fatal, continuing", e)
+            }
+            return variation.text
+        }
+
+        // Pool exhausted — fall back to habit name
+        Log.w(TAG, "pool empty for habit ${habit.id} — falling back to habit.name")
+        Sentry.captureMessage("pool empty for habit ${habit.id}") { scope ->
+            scope.setTag("component", "pool-empty")
+        }
+        try {
+            refillScheduler.enqueueForHabit(habit.id)
+        } catch (e: Exception) {
+            Log.w(TAG, "refill enqueue failed for habit=${habit.id} — non-fatal", e)
+        }
+        return habit.name
     }
 
     private suspend fun resolveLocationName(locationIds: Set<Long>): String {

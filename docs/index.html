@@ -72,8 +72,13 @@
 <ul>
   <li>Exception type and stack trace.</li>
   <li>App version and build environment ("release").</li>
-  <li>A component tag identifying the error source (e.g. "litert-lm-init", "ai-ui").</li>
+  <li>A component tag identifying the error source (e.g. "litert-lm-init", "ai-ui", "pool-empty").</li>
 </ul>
+<p>
+  In addition to unhandled exceptions, the app may emit non-crash diagnostic events to Sentry —
+  for example, when the cloud notification variant pool is exhausted for a habit. These events
+  carry the same minimal metadata (component tag, app version, build environment) and no personal data.
+</p>
 <p>
   No personal data is attached: <code>isSendDefaultPii = false</code>, screenshots are not captured
   (<code>isAttachScreenshot = false</code>), UI snapshots are not captured

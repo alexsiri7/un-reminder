@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.db.LocationEntity
+import net.interstellarai.unreminder.data.repository.FeatureFlagsRepository
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
@@ -22,6 +23,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -52,6 +54,7 @@ class HabitEditViewModel @Inject constructor(
     private val workerSettingsRepository: WorkerSettingsRepository,
     private val refillScheduler: RefillScheduler,
     private val variationRepository: VariationRepository,
+    private val featureFlagsRepository: FeatureFlagsRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HabitEditUiState())
@@ -63,8 +66,20 @@ class HabitEditViewModel @Inject constructor(
     /** Pass-through of the model download fraction (0..1), or null when idle. */
     val downloadProgress: StateFlow<Float?> = promptGenerator.downloadProgress
 
-    /** Pass-through of the coarse AI readiness state, used to pick Autofill helper copy. */
-    val aiStatus: StateFlow<AiStatus> = promptGenerator.aiStatus
+    /** Cloud-aware AI status: when use_cloud_pool is ON, reflects worker configuration. */
+    val aiStatus: StateFlow<AiStatus> = combine(
+        featureFlagsRepository.useCloudPool,
+        workerSettingsRepository.effectiveWorkerUrl,
+        workerSettingsRepository.effectiveWorkerSecret,
+        promptGenerator.aiStatus,
+    ) { useCloud, url, secret, onDeviceStatus ->
+        if (!useCloud) onDeviceStatus
+        else if (url.isBlank() && secret.isBlank()) AiStatus.Unavailable
+        // TODO Phase 5: add pool-empty signal here once VariationRepository exposes
+        // a reactive count flow. AiStatus.Empty UI branches are forward-compatible
+        // scaffolding — they will never be reached until this is wired.
+        else AiStatus.Ready
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), promptGenerator.aiStatus.value)
 
     companion object {
         private const val TAG = "HabitEditViewModel"

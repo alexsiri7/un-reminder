@@ -1,6 +1,7 @@
 package net.interstellarai.unreminder.ui.habit
 
 import net.interstellarai.unreminder.data.db.HabitEntity
+import net.interstellarai.unreminder.data.repository.FeatureFlagsRepository
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
@@ -24,6 +25,7 @@ import io.sentry.protocol.SentryId
 import io.sentry.ScopeCallback
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -52,6 +54,7 @@ class HabitEditViewModelTest {
     private val mockWorkerSettingsRepository: WorkerSettingsRepository = mockk()
     private val mockRefillScheduler: RefillScheduler = mockk(relaxed = true)
     private val mockVariationRepository: VariationRepository = mockk(relaxUnitFun = true)
+    private val mockFeatureFlagsRepository: FeatureFlagsRepository = mockk()
     private lateinit var viewModel: HabitEditViewModel
 
     private val testHabit = HabitEntity(
@@ -72,6 +75,7 @@ class HabitEditViewModelTest {
         // Default: no worker configured — routes all AI calls to on-device promptGenerator
         every { mockWorkerSettingsRepository.effectiveWorkerUrl } returns flowOf("")
         every { mockWorkerSettingsRepository.effectiveWorkerSecret } returns flowOf("")
+        every { mockFeatureFlagsRepository.useCloudPool } returns flowOf(false)
         viewModel = HabitEditViewModel(
             mockHabitRepository,
             mockLocationRepository,
@@ -80,6 +84,7 @@ class HabitEditViewModelTest {
             mockWorkerSettingsRepository,
             mockRefillScheduler,
             mockVariationRepository,
+            mockFeatureFlagsRepository,
         )
         viewModel.updateName("meditation")
         viewModel.updateFullDescription("20-minute guided meditation")
@@ -418,5 +423,39 @@ class HabitEditViewModelTest {
         assertEquals("On-device full", viewModel.uiState.value.fullDescription)
         assertEquals("On-device low", viewModel.uiState.value.lowFloorDescription)
         coVerify(exactly = 0) { mockRequestyProxyClient.habitFields(any(), any(), any()) }
+    }
+
+    // --- aiStatus cloud-aware derivation ---
+
+    @Test
+    fun `aiStatus is Unavailable when cloud flag ON and worker url blank`() = runTest(testDispatcher) {
+        every { mockFeatureFlagsRepository.useCloudPool } returns flowOf(true)
+        every { mockWorkerSettingsRepository.effectiveWorkerUrl } returns flowOf("")
+        every { mockWorkerSettingsRepository.effectiveWorkerSecret } returns flowOf("")
+        val vm = HabitEditViewModel(
+            mockHabitRepository, mockLocationRepository, mockPromptGenerator,
+            mockRequestyProxyClient, mockWorkerSettingsRepository, mockRefillScheduler,
+            mockVariationRepository, mockFeatureFlagsRepository,
+        )
+        val job = launch { vm.aiStatus.collect {} }
+        advanceUntilIdle()
+        assertEquals(AiStatus.Unavailable, vm.aiStatus.value)
+        job.cancel()
+    }
+
+    @Test
+    fun `aiStatus is Ready when cloud ON and worker configured`() = runTest(testDispatcher) {
+        every { mockFeatureFlagsRepository.useCloudPool } returns flowOf(true)
+        every { mockWorkerSettingsRepository.effectiveWorkerUrl } returns flowOf("https://worker.example.com")
+        every { mockWorkerSettingsRepository.effectiveWorkerSecret } returns flowOf("secret")
+        val vm = HabitEditViewModel(
+            mockHabitRepository, mockLocationRepository, mockPromptGenerator,
+            mockRequestyProxyClient, mockWorkerSettingsRepository, mockRefillScheduler,
+            mockVariationRepository, mockFeatureFlagsRepository,
+        )
+        val job = launch { vm.aiStatus.collect {} }
+        advanceUntilIdle()
+        assertEquals(AiStatus.Ready, vm.aiStatus.value)
+        job.cancel()
     }
 }

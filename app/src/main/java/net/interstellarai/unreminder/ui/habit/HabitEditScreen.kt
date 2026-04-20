@@ -169,6 +169,7 @@ fun HabitEditScreen(
                 }
                 aiStatus is AiStatus.Unavailable -> "AI unavailable on this build"
                 aiStatus is AiStatus.Failed -> "AI unavailable on this build"
+                aiStatus is AiStatus.Empty -> "pool empty — AI variants being regenerated"
                 else -> null
             }
             AiAssistStrip(

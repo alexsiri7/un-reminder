@@ -214,11 +214,12 @@ private fun AiDownloadBanner(
     }
 
     val isDownloading = progress != null
-    val isUnavailableRetryable = progress == null && aiStatus is AiStatus.Failed
-    val shouldRender = isDownloading || showReadyFlash || isUnavailableRetryable
+    val isUnavailableOrEmpty = progress == null &&
+        (aiStatus is AiStatus.Failed || aiStatus is AiStatus.Unavailable || aiStatus is AiStatus.Empty)
+    val shouldRender = isDownloading || showReadyFlash || isUnavailableOrEmpty
     if (!shouldRender) return
 
-    val clickMod = if (isUnavailableRetryable) {
+    val clickMod = if (isUnavailableOrEmpty && aiStatus is AiStatus.Failed) {
         Modifier.clickable(onClick = onRetry)
     } else {
         Modifier
@@ -255,7 +256,17 @@ private fun AiDownloadBanner(
                         .background(MaterialTheme.colorScheme.primary),
                 )
             }
-            isUnavailableRetryable -> {
+            aiStatus is AiStatus.Empty -> {
+                MonoSectionLabel("cloud pool empty — variants being generated")
+                Spacer(Modifier.height(Dimens.xs + 2.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(2.dp)
+                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)),
+                )
+            }
+            isUnavailableOrEmpty -> {
                 MonoSectionLabel("AI unavailable — tap to retry")
                 Spacer(Modifier.height(Dimens.xs + 2.dp))
                 Box(

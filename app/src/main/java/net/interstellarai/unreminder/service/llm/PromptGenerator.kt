@@ -52,6 +52,13 @@ sealed interface AiStatus {
      */
     object Failed : AiStatus
 
+    /**
+     * Cloud pool mode is on but the pool for the current habit has no unused
+     * variants — `TriggerPipeline` fell back to `habit.name`. A refill has
+     * been enqueued; the next trigger should find variants ready.
+     */
+    object Empty : AiStatus
+
     /** Initial / not-yet-started state. */
     object Idle : AiStatus
 }
