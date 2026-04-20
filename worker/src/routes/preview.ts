@@ -55,12 +55,12 @@ export async function previewHandler(c: Context<{ Bindings: Env }>): Promise<Res
   const tags = Array.isArray(body.habit.tags) ? body.habit.tags : []
   const locationName = body.locationName ?? ''
 
-  const args = [title, tags, notes ?? '', locationName] as const
+  const normalizedNotes = notes ?? ''
   const result = await callRequestyWithSchemaRetry(
     c.env.UR_REQUESTY_KEY,
     c.env.UR_MODEL,
-    buildPrompt(...args),
-    buildPrompt(...args, true),
+    buildPrompt(title, tags, normalizedNotes, locationName),
+    buildPrompt(title, tags, normalizedNotes, locationName, true),
     validate,
     100,
   )

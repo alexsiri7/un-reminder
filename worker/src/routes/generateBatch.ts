@@ -42,9 +42,10 @@ export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promi
   }
 
   const tags = Array.isArray(habitTags) ? habitTags : []
-  const args = [habitTitle, tags, locationName ?? '', timeOfDay ?? '', n] as const
-  const prompt = buildPrompt(...args)
-  const strictPrompt = buildPrompt(...args, true)
+  const loc = locationName ?? ''
+  const tod = timeOfDay ?? ''
+  const prompt = buildPrompt(habitTitle, tags, loc, tod, n)
+  const strictPrompt = buildPrompt(habitTitle, tags, loc, tod, n, true)
 
   const maxTokens = Math.min(n * 60, 4096)
 
