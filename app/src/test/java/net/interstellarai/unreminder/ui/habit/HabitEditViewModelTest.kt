@@ -10,6 +10,7 @@ import net.interstellarai.unreminder.service.llm.PromptGenerator
 import net.interstellarai.unreminder.service.worker.RequestyProxyClient
 import net.interstellarai.unreminder.service.worker.SpendCapExceededException
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -239,4 +240,73 @@ class HabitEditViewModelTest {
             assertNull(state.errorMessage)
             assertFalse(state.isGeneratingFields)
         }
+
+    @Test
+    fun `autofillWithAi via proxy updates fields on success`() = runTest(testDispatcher) {
+        every { mockWorkerSettingsRepository.workerUrl } returns flowOf("https://worker.example.com")
+        every { mockWorkerSettingsRepository.workerSecret } returns flowOf("secret")
+        coEvery {
+            mockRequestyProxyClient.habitFields(any(), any(), any())
+        } returns AiHabitFields("Cloud full desc", "Cloud low floor")
+
+        viewModel.autofillWithAi()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isGeneratingFields)
+        assertEquals("Cloud full desc", state.fullDescription)
+        assertEquals("Cloud low floor", state.lowFloorDescription)
+        assertTrue(state.fieldsFlashing)
+        assertNull(state.errorMessage)
+    }
+
+    @Test
+    fun `previewNotification via proxy shows dialog on success`() = runTest(testDispatcher) {
+        every { mockWorkerSettingsRepository.workerUrl } returns flowOf("https://worker.example.com")
+        every { mockWorkerSettingsRepository.workerSecret } returns flowOf("secret")
+        coEvery {
+            mockRequestyProxyClient.preview(any(), any(), any(), any())
+        } returns "Cloud preview text"
+
+        viewModel.previewNotification()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state.showPreviewDialog)
+        assertEquals("Cloud preview text", state.previewNotification)
+        assertFalse(state.isGeneratingFields)
+        assertNull(state.errorMessage)
+    }
+
+    @Test
+    fun `previewNotification sets showSpendCapLink on SpendCapExceededException`() =
+        runTest(testDispatcher) {
+            every { mockWorkerSettingsRepository.workerUrl } returns flowOf("https://worker.example.com")
+            every { mockWorkerSettingsRepository.workerSecret } returns flowOf("secret")
+            coEvery {
+                mockRequestyProxyClient.preview(any(), any(), any(), any())
+            } throws SpendCapExceededException()
+
+            viewModel.previewNotification()
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertTrue(state.showSpendCapLink)
+            assertNull(state.errorMessage)
+            assertFalse(state.isGeneratingFields)
+        }
+
+    @Test
+    fun `autofillWithAi falls back to on-device when workerUrl is blank`() = runTest(testDispatcher) {
+        // Default setup has empty URL/secret — should use promptGenerator
+        coEvery { mockPromptGenerator.generateHabitFields("meditation") } returns
+            AiHabitFields("On-device full", "On-device low")
+
+        viewModel.autofillWithAi()
+        advanceUntilIdle()
+
+        assertEquals("On-device full", viewModel.uiState.value.fullDescription)
+        assertEquals("On-device low", viewModel.uiState.value.lowFloorDescription)
+        coVerify(exactly = 0) { mockRequestyProxyClient.habitFields(any(), any(), any()) }
+    }
 }

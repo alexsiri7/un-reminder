@@ -3,6 +3,13 @@ import type { Env, HealthResponse } from '../types'
 import { getSpend } from '../lib/spend'
 
 export async function healthHandler(c: Context<{ Bindings: Env }>): Promise<Response> {
+  const capDailyCents = parseInt(c.env.UR_DAILY_CAP_CENTS, 10)
+  const capMonthlyCents = parseInt(c.env.UR_MONTHLY_CAP_CENTS, 10)
+  if (isNaN(capDailyCents) || isNaN(capMonthlyCents)) {
+    console.error('[healthHandler] Spend cap env vars missing or invalid')
+    return c.json({ error: 'Service misconfigured' }, 503)
+  }
+
   let daily = 0, monthly = 0
   try {
     ;({ daily, monthly } = await getSpend(c.env.UR_SPEND))
@@ -15,8 +22,8 @@ export async function healthHandler(c: Context<{ Bindings: Env }>): Promise<Resp
     status: 'ok',
     spendUsedToday: parseFloat(daily.toFixed(4)),
     spendUsedMonth: parseFloat(monthly.toFixed(4)),
-    capDaily: parseInt(c.env.UR_DAILY_CAP_CENTS, 10) / 100,
-    capMonthly: parseInt(c.env.UR_MONTHLY_CAP_CENTS, 10) / 100,
+    capDaily: capDailyCents / 100,
+    capMonthly: capMonthlyCents / 100,
   }
   return c.json(body)
 }
