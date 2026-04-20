@@ -70,8 +70,8 @@ class HabitEditViewModelTest {
         every { mockPromptGenerator.downloadProgress } returns MutableStateFlow<Float?>(null)
         every { mockPromptGenerator.aiStatus } returns MutableStateFlow<AiStatus>(AiStatus.Ready)
         // Default: no worker configured — routes all AI calls to on-device promptGenerator
-        every { mockWorkerSettingsRepository.workerUrl } returns flowOf("")
-        every { mockWorkerSettingsRepository.workerSecret } returns flowOf("")
+        every { mockWorkerSettingsRepository.effectiveWorkerUrl } returns flowOf("")
+        every { mockWorkerSettingsRepository.effectiveWorkerSecret } returns flowOf("")
         viewModel = HabitEditViewModel(
             mockHabitRepository,
             mockLocationRepository,
@@ -233,8 +233,8 @@ class HabitEditViewModelTest {
     fun `autofillWithAi sets showSpendCapLink and no errorMessage on SpendCapExceededException`() =
         runTest(testDispatcher) {
             // Route through proxy by providing a non-blank URL + secret
-            every { mockWorkerSettingsRepository.workerUrl } returns flowOf("https://worker.example.com")
-            every { mockWorkerSettingsRepository.workerSecret } returns flowOf("secret")
+            every { mockWorkerSettingsRepository.effectiveWorkerUrl } returns flowOf("https://worker.example.com")
+            every { mockWorkerSettingsRepository.effectiveWorkerSecret } returns flowOf("secret")
             coEvery {
                 mockRequestyProxyClient.habitFields(any(), any(), any())
             } throws SpendCapExceededException()
@@ -250,8 +250,8 @@ class HabitEditViewModelTest {
 
     @Test
     fun `autofillWithAi via proxy updates fields on success`() = runTest(testDispatcher) {
-        every { mockWorkerSettingsRepository.workerUrl } returns flowOf("https://worker.example.com")
-        every { mockWorkerSettingsRepository.workerSecret } returns flowOf("secret")
+        every { mockWorkerSettingsRepository.effectiveWorkerUrl } returns flowOf("https://worker.example.com")
+        every { mockWorkerSettingsRepository.effectiveWorkerSecret } returns flowOf("secret")
         coEvery {
             mockRequestyProxyClient.habitFields(any(), any(), any())
         } returns AiHabitFields("Cloud full desc", "Cloud low floor")
@@ -269,8 +269,8 @@ class HabitEditViewModelTest {
 
     @Test
     fun `previewNotification via proxy shows dialog on success`() = runTest(testDispatcher) {
-        every { mockWorkerSettingsRepository.workerUrl } returns flowOf("https://worker.example.com")
-        every { mockWorkerSettingsRepository.workerSecret } returns flowOf("secret")
+        every { mockWorkerSettingsRepository.effectiveWorkerUrl } returns flowOf("https://worker.example.com")
+        every { mockWorkerSettingsRepository.effectiveWorkerSecret } returns flowOf("secret")
         coEvery {
             mockRequestyProxyClient.preview(any(), any(), any(), any())
         } returns "Cloud preview text"
@@ -288,8 +288,8 @@ class HabitEditViewModelTest {
     @Test
     fun `previewNotification sets showSpendCapLink on SpendCapExceededException`() =
         runTest(testDispatcher) {
-            every { mockWorkerSettingsRepository.workerUrl } returns flowOf("https://worker.example.com")
-            every { mockWorkerSettingsRepository.workerSecret } returns flowOf("secret")
+            every { mockWorkerSettingsRepository.effectiveWorkerUrl } returns flowOf("https://worker.example.com")
+            every { mockWorkerSettingsRepository.effectiveWorkerSecret } returns flowOf("secret")
             coEvery {
                 mockRequestyProxyClient.preview(any(), any(), any(), any())
             } throws SpendCapExceededException()
@@ -308,8 +308,8 @@ class HabitEditViewModelTest {
     @Test
     fun `autofillWithAi sets errorMessage on WorkerAuthException`() =
         runTest(testDispatcher) {
-            every { mockWorkerSettingsRepository.workerUrl } returns flowOf("https://worker.example.com")
-            every { mockWorkerSettingsRepository.workerSecret } returns flowOf("secret")
+            every { mockWorkerSettingsRepository.effectiveWorkerUrl } returns flowOf("https://worker.example.com")
+            every { mockWorkerSettingsRepository.effectiveWorkerSecret } returns flowOf("secret")
             coEvery {
                 mockRequestyProxyClient.habitFields(any(), any(), any())
             } throws WorkerAuthException()
@@ -326,8 +326,8 @@ class HabitEditViewModelTest {
     @Test
     fun `previewNotification sets errorMessage on WorkerAuthException`() =
         runTest(testDispatcher) {
-            every { mockWorkerSettingsRepository.workerUrl } returns flowOf("https://worker.example.com")
-            every { mockWorkerSettingsRepository.workerSecret } returns flowOf("secret")
+            every { mockWorkerSettingsRepository.effectiveWorkerUrl } returns flowOf("https://worker.example.com")
+            every { mockWorkerSettingsRepository.effectiveWorkerSecret } returns flowOf("secret")
             coEvery {
                 mockRequestyProxyClient.preview(any(), any(), any(), any())
             } throws WorkerAuthException()
