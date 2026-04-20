@@ -107,7 +107,7 @@ fun CloudSettingsScreen(
                             MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f),
                             UnReminderShapes.small,
                         )
-                        .clickable { viewModel.regenerateAll() }
+                        .clickable(enabled = !uiState.isRegenerating) { viewModel.regenerateAll() }
                         .padding(vertical = Dimens.md + 2.dp),
                     contentAlignment = Alignment.Center,
                 ) {

@@ -64,6 +64,13 @@ class RefillWorkerTest {
     }
 
     @Test
+    fun `doWork returns failure when workerSecret is blank`() = runTest {
+        coEvery { mockWorkerSettings.workerSecret } returns flowOf("")
+        val worker = createWorker()
+        assertEquals(Result.failure(), worker.doWork())
+    }
+
+    @Test
     fun `doWork returns failure when habit not found`() = runTest {
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns null
         val worker = createWorker()

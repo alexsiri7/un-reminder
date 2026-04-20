@@ -20,6 +20,7 @@ import javax.inject.Inject
 
 data class CloudSettingsUiState(
     val errorMessage: String? = null,
+    val isRegenerating: Boolean = false,
 )
 
 @HiltViewModel
@@ -69,6 +70,7 @@ class CloudSettingsViewModel @Inject constructor(
 
     fun regenerateAll() {
         viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isRegenerating = true)
             try {
                 val habits = habitRepository.getAllActive().first()
                 var failCount = 0
@@ -86,11 +88,17 @@ class CloudSettingsViewModel @Inject constructor(
                     _uiState.value = _uiState.value.copy(
                         errorMessage = "Failed to regenerate $failCount variant(s)."
                     )
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        errorMessage = "Queued regeneration for ${habits.size} habit(s)."
+                    )
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "regenerateAll: failed to load habits", e)
                 _uiState.value = _uiState.value.copy(errorMessage = "Failed to regenerate variants.")
+            } finally {
+                _uiState.value = _uiState.value.copy(isRegenerating = false)
             }
         }
     }

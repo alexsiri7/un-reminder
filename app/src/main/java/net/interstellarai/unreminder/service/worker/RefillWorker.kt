@@ -34,13 +34,27 @@ class RefillWorker @AssistedInject constructor(
 
     override suspend fun doWork(): Result {
         val habitId = inputData.getLong(KEY_HABIT_ID, -1L)
-        if (habitId == -1L) return Result.failure()
+        if (habitId == -1L) {
+            Log.w(TAG, "No habit_id in input data")
+            return Result.failure()
+        }
 
         val url = workerSettingsRepository.workerUrl.first()
-        if (url.isBlank()) return Result.failure()
+        if (url.isBlank()) {
+            Log.w(TAG, "Worker URL is blank, skipping refill for habit $habitId")
+            return Result.failure()
+        }
         val secret = workerSettingsRepository.workerSecret.first()
+        if (secret.isBlank()) {
+            Log.w(TAG, "Worker secret is blank, skipping refill for habit $habitId")
+            return Result.failure()
+        }
 
-        val habit = habitRepository.getByIdOnce(habitId) ?: return Result.failure()
+        val habit = habitRepository.getByIdOnce(habitId)
+        if (habit == null) {
+            Log.w(TAG, "Habit $habitId not found, skipping refill")
+            return Result.failure()
+        }
 
         val promptFingerprint = "${habit.name}|${habit.fullDescription}|${habit.lowFloorDescription}"
 

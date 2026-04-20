@@ -21,8 +21,10 @@ import net.interstellarai.unreminder.data.repository.WorkerSettingsRepository
 import net.interstellarai.unreminder.service.worker.RefillScheduler
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -97,6 +99,49 @@ class CloudSettingsViewModelTest {
         coVerify(exactly = 1) { mockVariationRepository.deleteForHabit(2L) }
         coVerify(exactly = 1) { mockRefillScheduler.enqueueForHabit(1L) }
         coVerify(exactly = 1) { mockRefillScheduler.enqueueForHabit(2L) }
+    }
+
+    @Test
+    fun `regenerateAll shows success message when all habits succeed`() = runTest(testDispatcher) {
+        val habits = listOf(
+            HabitEntity(id = 1L, name = "A", fullDescription = "", lowFloorDescription = ""),
+            HabitEntity(id = 2L, name = "B", fullDescription = "", lowFloorDescription = ""),
+        )
+        coEvery { mockHabitRepository.getAllActive() } returns flowOf(habits)
+
+        val vm = createViewModel()
+        vm.regenerateAll()
+        advanceUntilIdle()
+
+        assertEquals("Queued regeneration for 2 habit(s).", vm.uiState.value.errorMessage)
+        assertFalse(vm.uiState.value.isRegenerating)
+    }
+
+    @Test
+    fun `regenerateAll reports partial failure count`() = runTest(testDispatcher) {
+        val habits = listOf(
+            HabitEntity(id = 1L, name = "A", fullDescription = "", lowFloorDescription = ""),
+            HabitEntity(id = 2L, name = "B", fullDescription = "", lowFloorDescription = ""),
+        )
+        coEvery { mockHabitRepository.getAllActive() } returns flowOf(habits)
+        coEvery { mockVariationRepository.deleteForHabit(1L) } throws RuntimeException("db error")
+
+        val vm = createViewModel()
+        vm.regenerateAll()
+        advanceUntilIdle()
+
+        assertEquals("Failed to regenerate 1 variant(s).", vm.uiState.value.errorMessage)
+        coVerify(exactly = 1) { mockRefillScheduler.enqueueForHabit(2L) }
+        assertFalse(vm.uiState.value.isRegenerating)
+    }
+
+    @Test
+    fun `regenerateAll sets isRegenerating to false after exception`() = runTest(testDispatcher) {
+        coEvery { mockHabitRepository.getAllActive() } throws RuntimeException("db error")
+        val vm = createViewModel()
+        vm.regenerateAll()
+        advanceUntilIdle()
+        assertFalse(vm.uiState.value.isRegenerating)
     }
 
     @Test
