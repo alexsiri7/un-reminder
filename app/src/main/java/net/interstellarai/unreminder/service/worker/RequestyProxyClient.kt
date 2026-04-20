@@ -61,6 +61,7 @@ class RequestyProxyClient @Inject constructor(
             put("title", habit.name)
             // TODO: pass real tags once HabitEntity carries them (currently loaded via junction table)
             put("tags", JSONArray())
+            // maps fullDescription → notes since HabitEntity has no dedicated notes field yet
             put("notes", habit.fullDescription)
         }
         val payload = JSONObject().apply {
