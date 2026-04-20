@@ -5,6 +5,7 @@ import net.interstellarai.unreminder.data.db.LocationEntity
 import net.interstellarai.unreminder.data.db.TriggerEntity
 import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.data.repository.FeatureFlagsRepository
+import net.interstellarai.unreminder.data.repository.HabitLevelDescriptionRepository
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
@@ -40,6 +41,7 @@ class TriggerPipelineTest {
     private lateinit var featureFlagsRepository: FeatureFlagsRepository
     private lateinit var variationRepository: VariationRepository
     private lateinit var refillScheduler: RefillScheduler
+    private lateinit var levelDescriptionRepository: HabitLevelDescriptionRepository
     private lateinit var pipeline: TriggerPipeline
 
     private val testHabit = HabitEntity(
@@ -68,6 +70,7 @@ class TriggerPipelineTest {
         featureFlagsRepository = mockk()
         variationRepository = mockk()
         refillScheduler = mockk(relaxUnitFun = true)
+        levelDescriptionRepository = mockk()
 
         pipeline = TriggerPipeline(
             habitRepository = habitRepository,
@@ -79,7 +82,10 @@ class TriggerPipelineTest {
             featureFlagsRepository = featureFlagsRepository,
             variationRepository = variationRepository,
             refillScheduler = refillScheduler,
+            levelDescriptionRepository = levelDescriptionRepository,
         )
+
+        coEvery { levelDescriptionRepository.getDescriptionForLevel(any(), any()) } returns ""
 
         every { featureFlagsRepository.useCloudPool } returns flowOf(false)
         every { geofenceManager.currentLocationIds } returns setOf(1L)
