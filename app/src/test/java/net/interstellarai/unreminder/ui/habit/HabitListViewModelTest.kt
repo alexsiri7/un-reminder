@@ -61,6 +61,30 @@ class HabitListViewModelTest {
     }
 
     @Test
+    fun `aiStatus is Unavailable when cloud ON and url blank but secret non-blank`() = runTest(testDispatcher) {
+        every { mockFeatureFlags.useCloudPool } returns flowOf(true)
+        every { mockWorkerSettings.effectiveWorkerUrl } returns flowOf("")
+        every { mockWorkerSettings.effectiveWorkerSecret } returns flowOf("secret")
+        val vm = buildViewModel()
+        val job = launch { vm.aiStatus.collect {} }
+        advanceUntilIdle()
+        assertEquals(AiStatus.Unavailable, vm.aiStatus.value)
+        job.cancel()
+    }
+
+    @Test
+    fun `aiStatus is Unavailable when cloud ON and secret blank but url non-blank`() = runTest(testDispatcher) {
+        every { mockFeatureFlags.useCloudPool } returns flowOf(true)
+        every { mockWorkerSettings.effectiveWorkerUrl } returns flowOf("https://worker.example.com")
+        every { mockWorkerSettings.effectiveWorkerSecret } returns flowOf("")
+        val vm = buildViewModel()
+        val job = launch { vm.aiStatus.collect {} }
+        advanceUntilIdle()
+        assertEquals(AiStatus.Unavailable, vm.aiStatus.value)
+        job.cancel()
+    }
+
+    @Test
     fun `aiStatus is Ready when cloud ON and url non-blank`() = runTest(testDispatcher) {
         every { mockFeatureFlags.useCloudPool } returns flowOf(true)
         every { mockWorkerSettings.effectiveWorkerUrl } returns flowOf("https://worker.example.com")

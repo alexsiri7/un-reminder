@@ -444,6 +444,38 @@ class HabitEditViewModelTest {
     }
 
     @Test
+    fun `aiStatus is Unavailable when cloud ON and url blank but secret non-blank`() = runTest(testDispatcher) {
+        every { mockFeatureFlagsRepository.useCloudPool } returns flowOf(true)
+        every { mockWorkerSettingsRepository.effectiveWorkerUrl } returns flowOf("")
+        every { mockWorkerSettingsRepository.effectiveWorkerSecret } returns flowOf("secret")
+        val vm = HabitEditViewModel(
+            mockHabitRepository, mockLocationRepository, mockPromptGenerator,
+            mockRequestyProxyClient, mockWorkerSettingsRepository, mockRefillScheduler,
+            mockVariationRepository, mockFeatureFlagsRepository,
+        )
+        val job = launch { vm.aiStatus.collect {} }
+        advanceUntilIdle()
+        assertEquals(AiStatus.Unavailable, vm.aiStatus.value)
+        job.cancel()
+    }
+
+    @Test
+    fun `aiStatus is Unavailable when cloud ON and secret blank but url non-blank`() = runTest(testDispatcher) {
+        every { mockFeatureFlagsRepository.useCloudPool } returns flowOf(true)
+        every { mockWorkerSettingsRepository.effectiveWorkerUrl } returns flowOf("https://worker.example.com")
+        every { mockWorkerSettingsRepository.effectiveWorkerSecret } returns flowOf("")
+        val vm = HabitEditViewModel(
+            mockHabitRepository, mockLocationRepository, mockPromptGenerator,
+            mockRequestyProxyClient, mockWorkerSettingsRepository, mockRefillScheduler,
+            mockVariationRepository, mockFeatureFlagsRepository,
+        )
+        val job = launch { vm.aiStatus.collect {} }
+        advanceUntilIdle()
+        assertEquals(AiStatus.Unavailable, vm.aiStatus.value)
+        job.cancel()
+    }
+
+    @Test
     fun `aiStatus is Ready when cloud ON and worker configured`() = runTest(testDispatcher) {
         every { mockFeatureFlagsRepository.useCloudPool } returns flowOf(true)
         every { mockWorkerSettingsRepository.effectiveWorkerUrl } returns flowOf("https://worker.example.com")
