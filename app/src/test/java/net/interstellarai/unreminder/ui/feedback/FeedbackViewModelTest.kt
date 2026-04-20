@@ -5,10 +5,12 @@ import android.graphics.Bitmap
 import net.interstellarai.unreminder.data.repository.FeedbackRepository
 import net.interstellarai.unreminder.service.github.GitHubApiService
 import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -23,7 +25,7 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class FeedbackViewModelTest {
-    private val testDispatcher = StandardTestDispatcher()
+    private val testDispatcher = StandardTestDispatcher(TestCoroutineScheduler())
     private val mockFeedbackRepository: FeedbackRepository = mockk(relaxUnitFun = true)
     private val mockGitHubApiService: GitHubApiService = mockk()
     private val mockContext: Context = mockk(relaxed = true)
@@ -31,7 +33,11 @@ class FeedbackViewModelTest {
 
     @Before fun setup() {
         Dispatchers.setMain(testDispatcher)
-        viewModel = FeedbackViewModel(mockFeedbackRepository, mockGitHubApiService, mockContext)
+        viewModel = FeedbackViewModel(
+            mockFeedbackRepository, mockGitHubApiService, mockContext,
+            ioDispatcher = testDispatcher,
+            defaultDispatcher = testDispatcher
+        )
     }
     @After fun tearDown() { Dispatchers.resetMain() }
 
@@ -65,5 +71,32 @@ class FeedbackViewModelTest {
         val bitmap = mockk<Bitmap>(relaxed = true)
         viewModel.setScreenshot(bitmap)
         assertEquals(bitmap, viewModel.uiState.value.screenshotBitmap)
+    }
+
+    @Test fun `submit sets errorMessage on OutOfMemoryError during merge`() = runTest {
+        val screenshotBitmap = mockk<Bitmap> {
+            every { copy(any(), any()) } throws OutOfMemoryError("fake OOM")
+        }
+        viewModel.setScreenshot(screenshotBitmap)
+        val annotationBitmap = mockk<Bitmap>(relaxed = true)
+
+        viewModel.submit(annotationBitmap)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isSubmitting)
+        assertNotNull(state.errorMessage)
+        assert(state.errorMessage!!.contains("memory", ignoreCase = true))
+    }
+
+    @Test fun `submit does not block while isSubmitting = true`() = runTest {
+        coEvery { mockGitHubApiService.submit(any(), any(), any()) } coAnswers {
+            kotlinx.coroutines.delay(100)
+        }
+        viewModel.submit(mockk(relaxed = true))
+        testDispatcher.scheduler.runCurrent()
+        assert(viewModel.uiState.value.isSubmitting)
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.isSubmitting)
     }
 }

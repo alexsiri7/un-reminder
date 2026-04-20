@@ -44,6 +44,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,6 +65,8 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 private val AnnotationRed = Color(0xFFE53935)
 private val AnnotationYellow = Color(0xFFFDD835)
@@ -100,6 +103,7 @@ fun FeedbackScreen(
     var currentColor by remember { mutableStateOf(AnnotationRed) }
     var currentPath by remember { mutableStateOf<Path?>(null) }
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
+    val coroutineScope = rememberCoroutineScope()
 
     Scaffold(
         topBar = {
@@ -210,27 +214,31 @@ fun FeedbackScreen(
 
             Button(
                 onClick = {
-                    val bmp = screenshotBitmap
-                    val annotationBitmap = if (bmp != null && canvasSize.width > 0) {
-                        val annBitmap = Bitmap.createBitmap(bmp.width, bmp.height, Bitmap.Config.ARGB_8888)
-                        val canvas = android.graphics.Canvas(annBitmap)
-                        val scaleX = bmp.width.toFloat() / canvasSize.width
-                        val scaleY = bmp.height.toFloat() / canvasSize.height
-                        canvas.scale(scaleX, scaleY)
-                        val paint = android.graphics.Paint().apply {
-                            style = android.graphics.Paint.Style.STROKE
-                            strokeWidth = 6f
-                            isAntiAlias = true
+                    val bmpSnapshot = screenshotBitmap
+                    val strokesSnapshot = strokes.toList()
+                    val canvasSizeSnapshot = canvasSize
+                    coroutineScope.launch(Dispatchers.Default) {
+                        val annotationBitmap = if (bmpSnapshot != null && canvasSizeSnapshot.width > 0) {
+                            val annBitmap = Bitmap.createBitmap(bmpSnapshot.width, bmpSnapshot.height, Bitmap.Config.ARGB_8888)
+                            val canvas = android.graphics.Canvas(annBitmap)
+                            val scaleX = bmpSnapshot.width.toFloat() / canvasSizeSnapshot.width
+                            val scaleY = bmpSnapshot.height.toFloat() / canvasSizeSnapshot.height
+                            canvas.scale(scaleX, scaleY)
+                            val paint = android.graphics.Paint().apply {
+                                style = android.graphics.Paint.Style.STROKE
+                                strokeWidth = 6f
+                                isAntiAlias = true
+                            }
+                            for (stroke in strokesSnapshot) {
+                                paint.color = stroke.color.toArgb()
+                                canvas.drawPath(stroke.path.asAndroidPath(), paint)
+                            }
+                            annBitmap
+                        } else {
+                            Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
                         }
-                        for (stroke in strokes) {
-                            paint.color = stroke.color.toArgb()
-                            canvas.drawPath(stroke.path.asAndroidPath(), paint)
-                        }
-                        annBitmap
-                    } else {
-                        Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+                        viewModel.submit(annotationBitmap)
                     }
-                    viewModel.submit(annotationBitmap)
                 },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !uiState.isSubmitting
