@@ -28,6 +28,7 @@ import net.interstellarai.unreminder.worker.DailySchedulerWorker
 import net.interstellarai.unreminder.worker.ModelDownloadWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -87,6 +88,7 @@ class SettingsViewModel @Inject constructor(
             try {
                 workerSettingsRepository.setWorkerUrl(url)
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 Log.e(TAG, "Failed to persist worker URL", e)
             }
         }
@@ -97,6 +99,7 @@ class SettingsViewModel @Inject constructor(
             try {
                 workerSettingsRepository.setWorkerSecret(secret)
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 Log.e(TAG, "Failed to persist worker secret", e)
             }
         }

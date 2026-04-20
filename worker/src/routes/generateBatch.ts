@@ -46,13 +46,15 @@ export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promi
   const prompt = buildPrompt(...args)
   const strictPrompt = buildPrompt(...args, true)
 
+  const maxTokens = Math.min(n * 60, 4096)
+
   const result = await callRequestyWithSchemaRetry(
     c.env.UR_REQUESTY_KEY,
     c.env.UR_MODEL,
     prompt,
     strictPrompt,
     validateVariants,
-    400,
+    maxTokens,
   )
 
   if (!result) {
