@@ -19,7 +19,7 @@ import net.interstellarai.unreminder.service.worker.RefillScheduler
 import javax.inject.Inject
 
 data class CloudSettingsUiState(
-    val errorMessage: String? = null,
+    val snackbarMessage: String? = null,
     val isRegenerating: Boolean = false,
 )
 
@@ -51,7 +51,7 @@ class CloudSettingsViewModel @Inject constructor(
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "Failed to persist worker URL", e)
-                _uiState.value = _uiState.value.copy(errorMessage = "Failed to save worker URL.")
+                _uiState.value = _uiState.value.copy(snackbarMessage = "Failed to save worker URL.")
             }
         }
     }
@@ -63,7 +63,7 @@ class CloudSettingsViewModel @Inject constructor(
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "Failed to persist worker secret", e)
-                _uiState.value = _uiState.value.copy(errorMessage = "Failed to save worker secret.")
+                _uiState.value = _uiState.value.copy(snackbarMessage = "Failed to save worker secret.")
             }
         }
     }
@@ -86,24 +86,24 @@ class CloudSettingsViewModel @Inject constructor(
                 }
                 if (failCount > 0) {
                     _uiState.value = _uiState.value.copy(
-                        errorMessage = "Failed to regenerate $failCount variant(s)."
+                        snackbarMessage = "Failed to regenerate $failCount variant(s)."
                     )
                 } else {
                     _uiState.value = _uiState.value.copy(
-                        errorMessage = "Queued regeneration for ${habits.size} habit(s)."
+                        snackbarMessage = "Queued regeneration for ${habits.size} habit(s)."
                     )
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "regenerateAll: failed to load habits", e)
-                _uiState.value = _uiState.value.copy(errorMessage = "Failed to regenerate variants.")
+                _uiState.value = _uiState.value.copy(snackbarMessage = "Failed to regenerate variants.")
             } finally {
                 _uiState.value = _uiState.value.copy(isRegenerating = false)
             }
         }
     }
 
-    fun clearError() {
-        _uiState.value = _uiState.value.copy(errorMessage = null)
+    fun clearSnackbar() {
+        _uiState.value = _uiState.value.copy(snackbarMessage = null)
     }
 }

@@ -48,10 +48,10 @@ fun CloudSettingsScreen(
 
     val snackbarHostState = remember { SnackbarHostState() }
 
-    LaunchedEffect(uiState.errorMessage) {
-        val msg = uiState.errorMessage ?: return@LaunchedEffect
+    LaunchedEffect(uiState.snackbarMessage) {
+        val msg = uiState.snackbarMessage ?: return@LaunchedEffect
         snackbarHostState.showSnackbar(msg)
-        viewModel.clearError()
+        viewModel.clearSnackbar()
     }
 
     Scaffold(

@@ -29,6 +29,7 @@ class RefillWorker @AssistedInject constructor(
     companion object {
         const val WORK_NAME = "refill"
         const val KEY_HABIT_ID = "habit_id"
+        private const val BATCH_SIZE = 20
         private const val TAG = "RefillWorker"
     }
 
@@ -64,7 +65,7 @@ class RefillWorker @AssistedInject constructor(
                 habitTags = emptyList(),
                 locationName = "",
                 timeOfDay = "",
-                n = 20,
+                n = BATCH_SIZE,
                 workerUrl = url,
                 workerSecret = secret,
             )

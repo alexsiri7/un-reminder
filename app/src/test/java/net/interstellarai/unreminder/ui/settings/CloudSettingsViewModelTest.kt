@@ -113,7 +113,7 @@ class CloudSettingsViewModelTest {
         vm.regenerateAll()
         advanceUntilIdle()
 
-        assertEquals("Queued regeneration for 2 habit(s).", vm.uiState.value.errorMessage)
+        assertEquals("Queued regeneration for 2 habit(s).", vm.uiState.value.snackbarMessage)
         assertFalse(vm.uiState.value.isRegenerating)
     }
 
@@ -130,7 +130,7 @@ class CloudSettingsViewModelTest {
         vm.regenerateAll()
         advanceUntilIdle()
 
-        assertEquals("Failed to regenerate 1 variant(s).", vm.uiState.value.errorMessage)
+        assertEquals("Failed to regenerate 1 variant(s).", vm.uiState.value.snackbarMessage)
         coVerify(exactly = 1) { mockRefillScheduler.enqueueForHabit(2L) }
         assertFalse(vm.uiState.value.isRegenerating)
     }
@@ -159,40 +159,40 @@ class CloudSettingsViewModelTest {
     // --- Error paths ---
 
     @Test
-    fun `setWorkerUrl sets errorMessage on exception`() = runTest(testDispatcher) {
+    fun `setWorkerUrl sets snackbarMessage on exception`() = runTest(testDispatcher) {
         coEvery { mockWorkerSettings.setWorkerUrl(any()) } throws RuntimeException("disk full")
         val vm = createViewModel()
         vm.setWorkerUrl("https://fail.test")
         advanceUntilIdle()
-        assertEquals("Failed to save worker URL.", vm.uiState.value.errorMessage)
+        assertEquals("Failed to save worker URL.", vm.uiState.value.snackbarMessage)
     }
 
     @Test
-    fun `setWorkerSecret sets errorMessage on exception`() = runTest(testDispatcher) {
+    fun `setWorkerSecret sets snackbarMessage on exception`() = runTest(testDispatcher) {
         coEvery { mockWorkerSettings.setWorkerSecret(any()) } throws RuntimeException("disk full")
         val vm = createViewModel()
         vm.setWorkerSecret("bad-secret")
         advanceUntilIdle()
-        assertEquals("Failed to save worker secret.", vm.uiState.value.errorMessage)
+        assertEquals("Failed to save worker secret.", vm.uiState.value.snackbarMessage)
     }
 
     @Test
-    fun `regenerateAll sets errorMessage on exception`() = runTest(testDispatcher) {
+    fun `regenerateAll sets snackbarMessage on exception`() = runTest(testDispatcher) {
         coEvery { mockHabitRepository.getAllActive() } throws RuntimeException("db error")
         val vm = createViewModel()
         vm.regenerateAll()
         advanceUntilIdle()
-        assertEquals("Failed to regenerate variants.", vm.uiState.value.errorMessage)
+        assertEquals("Failed to regenerate variants.", vm.uiState.value.snackbarMessage)
     }
 
     @Test
-    fun `clearError nullifies errorMessage`() = runTest(testDispatcher) {
+    fun `clearSnackbar nullifies snackbarMessage`() = runTest(testDispatcher) {
         coEvery { mockWorkerSettings.setWorkerUrl(any()) } throws RuntimeException("boom")
         val vm = createViewModel()
         vm.setWorkerUrl("x")
         advanceUntilIdle()
-        assertNotNull(vm.uiState.value.errorMessage)
-        vm.clearError()
-        assertNull(vm.uiState.value.errorMessage)
+        assertNotNull(vm.uiState.value.snackbarMessage)
+        vm.clearSnackbar()
+        assertNull(vm.uiState.value.snackbarMessage)
     }
 }
