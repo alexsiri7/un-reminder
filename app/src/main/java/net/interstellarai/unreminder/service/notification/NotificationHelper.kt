@@ -21,8 +21,7 @@ class NotificationHelper @Inject constructor(
         const val CHANNEL_NAME = "Habit Triggers"
         const val EXTRA_TRIGGER_ID = "trigger_id"
         const val EXTRA_ACTION = "action"
-        const val ACTION_COMPLETED_FULL = "COMPLETED_FULL"
-        const val ACTION_COMPLETED_LOW_FLOOR = "COMPLETED_LOW_FLOOR"
+        const val ACTION_COMPLETED = "COMPLETED"
         const val ACTION_DISMISSED = "DISMISSED"
         const val CHANNEL_ID_SYSTEM = "un_reminder_system"
         const val CHANNEL_NAME_SYSTEM = "Habit Status"
@@ -72,9 +71,8 @@ class NotificationHelper @Inject constructor(
 
     fun postTriggerNotification(triggerId: Long, promptText: String, habitName: String) {
         val emoji = emojiRotator.pick(triggerId)
-        val fullIntent = createActionIntent(triggerId, ACTION_COMPLETED_FULL, 0)
-        val lowFloorIntent = createActionIntent(triggerId, ACTION_COMPLETED_LOW_FLOOR, 1)
-        val dismissIntent = createActionIntent(triggerId, ACTION_DISMISSED, 2)
+        val doneIntent = createActionIntent(triggerId, ACTION_COMPLETED, 0)
+        val dismissIntent = createActionIntent(triggerId, ACTION_DISMISSED, 1)
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
@@ -83,8 +81,7 @@ class NotificationHelper @Inject constructor(
             .setStyle(NotificationCompat.BigTextStyle().bigText(promptText))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
-            .addAction(0, "Full version", fullIntent)
-            .addAction(0, "Low-floor", lowFloorIntent)
+            .addAction(0, "Did it", doneIntent)
             .addAction(0, "Dismiss", dismissIntent)
             .build()
 
@@ -95,7 +92,7 @@ class NotificationHelper @Inject constructor(
         val notification = NotificationCompat.Builder(context, CHANNEL_ID_SYSTEM)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle("Paused $habitName")
-            .setContentText("Rewrite its low-floor description to re-activate.")
+            .setContentText("Rewrite its level descriptions to re-activate.")
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
             .build()

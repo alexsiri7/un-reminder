@@ -42,9 +42,17 @@ class RequestyProxyClient @Inject constructor(
             val rawBody = response.body?.string()
                 ?: throw RuntimeException("Worker returned empty body")
             val body = JSONObject(rawBody)
+            val full = body.getString("fullDescription")
+            val low = body.getString("lowFloorDescription")
             AiHabitFields(
-                fullDescription = body.getString("fullDescription"),
-                lowFloorDescription = body.getString("lowFloorDescription"),
+                levelDescriptions = listOf(
+                    low,  // level 0
+                    "",   // level 1
+                    "",   // level 2
+                    full, // level 3
+                    "",   // level 4
+                    full, // level 5
+                )
             )
         }
     }

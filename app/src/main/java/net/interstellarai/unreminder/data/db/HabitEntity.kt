@@ -18,5 +18,9 @@ data class HabitEntity(
     @ColumnInfo(name = "created_at")
     val createdAt: Instant = Instant.now(),
     @ColumnInfo(name = "updated_at")
-    val updatedAt: Instant = Instant.now()
+    val updatedAt: Instant = Instant.now(),
+    @ColumnInfo(name = "dedication_level")
+    val dedicationLevel: Int = 0,
+    @ColumnInfo(name = "auto_adjust_level")
+    val autoAdjustLevel: Boolean = true,
 )

@@ -43,8 +43,8 @@ class RequestyProxyClientTest {
         )
 
         val result = proxyClient.habitFields("Meditate", baseUrl(), "secret")
-        assertEquals("Meditate daily", result.fullDescription)
-        assertEquals("Just sit", result.lowFloorDescription)
+        assertEquals("Meditate daily", result.levelDescriptions[5])
+        assertEquals("Just sit", result.levelDescriptions[0])
     }
 
     @Test

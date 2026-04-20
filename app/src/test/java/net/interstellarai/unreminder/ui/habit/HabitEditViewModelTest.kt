@@ -2,6 +2,8 @@ package net.interstellarai.unreminder.ui.habit
 
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.repository.FeatureFlagsRepository
+import net.interstellarai.unreminder.data.db.HabitLevelDescriptionEntity
+import net.interstellarai.unreminder.data.repository.HabitLevelDescriptionRepository
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
@@ -55,6 +57,7 @@ class HabitEditViewModelTest {
     private val mockRefillScheduler: RefillScheduler = mockk(relaxed = true)
     private val mockVariationRepository: VariationRepository = mockk(relaxUnitFun = true)
     private val mockFeatureFlagsRepository: FeatureFlagsRepository = mockk()
+    private val mockLevelDescRepo: HabitLevelDescriptionRepository = mockk(relaxed = true)
     private lateinit var viewModel: HabitEditViewModel
 
     private val testHabit = HabitEntity(
@@ -76,9 +79,14 @@ class HabitEditViewModelTest {
         every { mockWorkerSettingsRepository.effectiveWorkerUrl } returns flowOf("")
         every { mockWorkerSettingsRepository.effectiveWorkerSecret } returns flowOf("")
         every { mockFeatureFlagsRepository.useCloudPool } returns flowOf(false)
+        coEvery { mockLevelDescRepo.getDescriptionsForHabit(testHabit.id) } returns listOf(
+            HabitLevelDescriptionEntity(habitId = testHabit.id, level = 0, description = testHabit.lowFloorDescription),
+            HabitLevelDescriptionEntity(habitId = testHabit.id, level = 5, description = testHabit.fullDescription),
+        )
         viewModel = HabitEditViewModel(
             mockHabitRepository,
             mockLocationRepository,
+            mockLevelDescRepo,
             mockPromptGenerator,
             mockRequestyProxyClient,
             mockWorkerSettingsRepository,
@@ -87,8 +95,8 @@ class HabitEditViewModelTest {
             mockFeatureFlagsRepository,
         )
         viewModel.updateName("meditation")
-        viewModel.updateFullDescription("20-minute guided meditation")
-        viewModel.updateLowFloorDescription("3 deep breaths")
+        viewModel.updateLevelDescription(5, "20-minute guided meditation")
+        viewModel.updateLevelDescription(0, "3 deep breaths")
     }
 
     @After
@@ -101,15 +109,15 @@ class HabitEditViewModelTest {
     @Test
     fun `autofillWithAi updates fields and clears isGeneratingFields on success`() = runTest(testDispatcher) {
         coEvery { mockPromptGenerator.generateHabitFields("meditation") } returns
-            AiHabitFields("20-min guided session", "3 deep breaths")
+            AiHabitFields(listOf("3 deep breaths", "", "", "20-min guided session", "", "20-min guided session"))
 
         viewModel.autofillWithAi()
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
         assertFalse(state.isGeneratingFields)
-        assertEquals("20-min guided session", state.fullDescription)
-        assertEquals("3 deep breaths", state.lowFloorDescription)
+        assertEquals("20-min guided session", state.levelDescriptions[5])
+        assertEquals("3 deep breaths", state.levelDescriptions[0])
         assertNull(state.errorMessage)
     }
 
@@ -210,7 +218,7 @@ class HabitEditViewModelTest {
     @Test
     fun `autofillWithAi success sets fieldsFlashing to true`() = runTest(testDispatcher) {
         coEvery { mockPromptGenerator.generateHabitFields("meditation") } returns
-            AiHabitFields("desc", "low")
+            AiHabitFields(listOf("low", "", "", "desc", "", "desc"))
 
         viewModel.autofillWithAi()
         advanceUntilIdle()
@@ -221,7 +229,7 @@ class HabitEditViewModelTest {
     @Test
     fun `clearFieldsFlash resets fieldsFlashing to false`() = runTest(testDispatcher) {
         coEvery { mockPromptGenerator.generateHabitFields("meditation") } returns
-            AiHabitFields("desc", "low")
+            AiHabitFields(listOf("low", "", "", "desc", "", "desc"))
 
         viewModel.autofillWithAi()
         advanceUntilIdle()
@@ -259,15 +267,15 @@ class HabitEditViewModelTest {
         every { mockWorkerSettingsRepository.effectiveWorkerSecret } returns flowOf("secret")
         coEvery {
             mockRequestyProxyClient.habitFields(any(), any(), any())
-        } returns AiHabitFields("Cloud full desc", "Cloud low floor")
+        } returns AiHabitFields(listOf("Cloud low floor", "", "", "Cloud full desc", "", "Cloud full desc"))
 
         viewModel.autofillWithAi()
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
         assertFalse(state.isGeneratingFields)
-        assertEquals("Cloud full desc", state.fullDescription)
-        assertEquals("Cloud low floor", state.lowFloorDescription)
+        assertEquals("Cloud full desc", state.levelDescriptions[5])
+        assertEquals("Cloud low floor", state.levelDescriptions[0])
         assertTrue(state.fieldsFlashing)
         assertNull(state.errorMessage)
     }
@@ -415,13 +423,13 @@ class HabitEditViewModelTest {
     fun `autofillWithAi falls back to on-device when workerUrl is blank`() = runTest(testDispatcher) {
         // Default setup has empty URL/secret — should use promptGenerator
         coEvery { mockPromptGenerator.generateHabitFields("meditation") } returns
-            AiHabitFields("On-device full", "On-device low")
+            AiHabitFields(listOf("On-device low", "", "", "On-device full", "", "On-device full"))
 
         viewModel.autofillWithAi()
         advanceUntilIdle()
 
-        assertEquals("On-device full", viewModel.uiState.value.fullDescription)
-        assertEquals("On-device low", viewModel.uiState.value.lowFloorDescription)
+        assertEquals("On-device full", viewModel.uiState.value.levelDescriptions[5])
+        assertEquals("On-device low", viewModel.uiState.value.levelDescriptions[0])
         coVerify(exactly = 0) { mockRequestyProxyClient.habitFields(any(), any(), any()) }
     }
 
@@ -433,7 +441,7 @@ class HabitEditViewModelTest {
         every { mockWorkerSettingsRepository.effectiveWorkerUrl } returns flowOf("")
         every { mockWorkerSettingsRepository.effectiveWorkerSecret } returns flowOf("")
         val vm = HabitEditViewModel(
-            mockHabitRepository, mockLocationRepository, mockPromptGenerator,
+            mockHabitRepository, mockLocationRepository, mockLevelDescRepo, mockPromptGenerator,
             mockRequestyProxyClient, mockWorkerSettingsRepository, mockRefillScheduler,
             mockVariationRepository, mockFeatureFlagsRepository,
         )
@@ -449,7 +457,7 @@ class HabitEditViewModelTest {
         every { mockWorkerSettingsRepository.effectiveWorkerUrl } returns flowOf("")
         every { mockWorkerSettingsRepository.effectiveWorkerSecret } returns flowOf("secret")
         val vm = HabitEditViewModel(
-            mockHabitRepository, mockLocationRepository, mockPromptGenerator,
+            mockHabitRepository, mockLocationRepository, mockLevelDescRepo, mockPromptGenerator,
             mockRequestyProxyClient, mockWorkerSettingsRepository, mockRefillScheduler,
             mockVariationRepository, mockFeatureFlagsRepository,
         )
@@ -465,7 +473,7 @@ class HabitEditViewModelTest {
         every { mockWorkerSettingsRepository.effectiveWorkerUrl } returns flowOf("https://worker.example.com")
         every { mockWorkerSettingsRepository.effectiveWorkerSecret } returns flowOf("")
         val vm = HabitEditViewModel(
-            mockHabitRepository, mockLocationRepository, mockPromptGenerator,
+            mockHabitRepository, mockLocationRepository, mockLevelDescRepo, mockPromptGenerator,
             mockRequestyProxyClient, mockWorkerSettingsRepository, mockRefillScheduler,
             mockVariationRepository, mockFeatureFlagsRepository,
         )
@@ -481,7 +489,7 @@ class HabitEditViewModelTest {
         every { mockWorkerSettingsRepository.effectiveWorkerUrl } returns flowOf("https://worker.example.com")
         every { mockWorkerSettingsRepository.effectiveWorkerSecret } returns flowOf("secret")
         val vm = HabitEditViewModel(
-            mockHabitRepository, mockLocationRepository, mockPromptGenerator,
+            mockHabitRepository, mockLocationRepository, mockLevelDescRepo, mockPromptGenerator,
             mockRequestyProxyClient, mockWorkerSettingsRepository, mockRefillScheduler,
             mockVariationRepository, mockFeatureFlagsRepository,
         )

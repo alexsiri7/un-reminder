@@ -186,21 +186,24 @@ fun HabitEditScreen(
             Spacer(Modifier.height(Dimens.xl))
 
             Column(modifier = Modifier.padding(horizontal = Dimens.xxl)) {
-                DescriptionBlock(
-                    label = "full version",
-                    value = uiState.fullDescription,
-                    onValueChange = viewModel::updateFullDescription,
-                    flashAlpha = flashAlpha.value,
-                    placeholder = "what it actually is — e.g. 20-minute guided meditation",
+                MonoSectionLabel("dedication ladder")
+                Spacer(Modifier.height(Dimens.sm))
+                DedicationProgressBar(
+                    currentLevel = uiState.dedicationLevel,
+                    onLevelTap = { viewModel.updateDedicationLevel(it) },
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(Dimens.lg))
-                DescriptionBlock(
-                    label = "low-floor · counts as a win",
-                    value = uiState.lowFloorDescription,
-                    onValueChange = viewModel::updateLowFloorDescription,
-                    flashAlpha = flashAlpha.value,
-                    placeholder = "the minimum — e.g. 3 deep breaths",
-                )
+                uiState.levelDescriptions.forEachIndexed { level, desc ->
+                    DescriptionBlock(
+                        label = levelLabel(level),
+                        value = desc,
+                        onValueChange = { viewModel.updateLevelDescription(level, it) },
+                        flashAlpha = flashAlpha.value,
+                        placeholder = levelPlaceholder(level),
+                    )
+                    if (level < 5) Spacer(Modifier.height(Dimens.lg))
+                }
             }
 
             Column(modifier = Modifier.padding(horizontal = Dimens.xxl, vertical = Dimens.xxl)) {
@@ -228,8 +231,7 @@ fun HabitEditScreen(
 
             PreviewCard(
                 enabled = uiState.name.isNotBlank() &&
-                    uiState.fullDescription.isNotBlank() &&
-                    uiState.lowFloorDescription.isNotBlank() &&
+                    uiState.levelDescriptions.any { it.isNotBlank() } &&
                     !uiState.isGeneratingFields,
                 loading = uiState.isGeneratingFields,
                 onResample = { viewModel.previewNotification() },
@@ -246,19 +248,36 @@ fun HabitEditScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Switch(
-                        checked = uiState.active,
-                        onCheckedChange = viewModel::updateActive,
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = MaterialTheme.colorScheme.background,
-                            checkedTrackColor = MaterialTheme.colorScheme.primary,
-                            uncheckedThumbColor = MaterialTheme.colorScheme.background,
-                            uncheckedTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
-                        ),
-                    )
-                    Spacer(Modifier.size(Dimens.md - 2.dp))
-                    Text("Active", style = SansBodyStrong, color = MaterialTheme.colorScheme.onBackground)
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Switch(
+                            checked = uiState.active,
+                            onCheckedChange = viewModel::updateActive,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = MaterialTheme.colorScheme.background,
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                uncheckedThumbColor = MaterialTheme.colorScheme.background,
+                                uncheckedTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                            ),
+                        )
+                        Spacer(Modifier.size(Dimens.md - 2.dp))
+                        Text("Active", style = SansBodyStrong, color = MaterialTheme.colorScheme.onBackground)
+                    }
+                    Spacer(Modifier.height(Dimens.sm))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Switch(
+                            checked = uiState.autoAdjustLevel,
+                            onCheckedChange = viewModel::updateAutoAdjustLevel,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = MaterialTheme.colorScheme.background,
+                                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                                uncheckedThumbColor = MaterialTheme.colorScheme.background,
+                                uncheckedTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                            ),
+                        )
+                        Spacer(Modifier.size(Dimens.md - 2.dp))
+                        Text("Auto-adjust level", style = SansBodyStrong, color = MaterialTheme.colorScheme.onBackground)
+                    }
                 }
                 // "delete habit" link is in the handoff — intentionally NOT wired to
                 // the VM delete because the redesign is visual-only and deleting from
@@ -546,4 +565,24 @@ private fun PreviewCard(
             }
         }
     }
+}
+
+private fun levelLabel(level: Int) = when (level) {
+    0 -> "level 0 \u00b7 just starting"
+    1 -> "level 1 \u00b7 unblocked"
+    2 -> "level 2 \u00b7 regular"
+    3 -> "level 3 \u00b7 committed"
+    4 -> "level 4 \u00b7 routine"
+    5 -> "level 5 \u00b7 practice"
+    else -> "level $level"
+}
+
+private fun levelPlaceholder(level: Int) = when (level) {
+    0 -> "the easiest version \u2014 e.g. 3 deep breaths"
+    1 -> "e.g. sit still for 1 minute"
+    2 -> "e.g. meditate for 3 minutes"
+    3 -> "e.g. meditate for 5 minutes"
+    4 -> "e.g. meditate for 10 minutes"
+    5 -> "your full practice \u2014 e.g. 20-minute guided session"
+    else -> "description"
 }

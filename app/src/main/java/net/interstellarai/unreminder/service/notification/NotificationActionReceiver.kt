@@ -5,8 +5,10 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
+import net.interstellarai.unreminder.service.trigger.DedicationLevelManager
 import net.interstellarai.unreminder.service.trigger.DismissalTracker
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CancellationException
@@ -26,7 +28,13 @@ class NotificationActionReceiver : BroadcastReceiver() {
     lateinit var triggerRepository: TriggerRepository
 
     @Inject
+    lateinit var habitRepository: HabitRepository
+
+    @Inject
     lateinit var dismissalTracker: DismissalTracker
+
+    @Inject
+    lateinit var dedicationLevelManager: DedicationLevelManager
 
     override fun onReceive(context: Context, intent: Intent) {
         val triggerId = intent.getLongExtra(NotificationHelper.EXTRA_TRIGGER_ID, -1)
@@ -35,8 +43,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
         if (triggerId == -1L) return
 
         val status = when (action) {
-            NotificationHelper.ACTION_COMPLETED_FULL -> TriggerStatus.COMPLETED_FULL
-            NotificationHelper.ACTION_COMPLETED_LOW_FLOOR -> TriggerStatus.COMPLETED_LOW_FLOOR
+            NotificationHelper.ACTION_COMPLETED -> TriggerStatus.COMPLETED
             NotificationHelper.ACTION_DISMISSED -> TriggerStatus.DISMISSED
             else -> return
         }
@@ -47,6 +54,16 @@ class NotificationActionReceiver : BroadcastReceiver() {
                 triggerRepository.updateOutcome(triggerId, status)
                 if (status == TriggerStatus.DISMISSED) {
                     dismissalTracker.onDismissed(triggerId)
+                }
+                if (status == TriggerStatus.COMPLETED) {
+                    val trigger = triggerRepository.getById(triggerId)
+                    val habitId = trigger?.habitId
+                    if (habitId != null) {
+                        val habit = habitRepository.getByIdOnce(habitId)
+                        if (habit != null) {
+                            dedicationLevelManager.maybePromote(habit)
+                        }
+                    }
                 }
                 val manager = context.getSystemService(NotificationManager::class.java)
                 manager.cancel(triggerId.toInt())

@@ -3,6 +3,7 @@ package net.interstellarai.unreminder.service.trigger
 import android.util.Log
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.repository.FeatureFlagsRepository
+import net.interstellarai.unreminder.data.repository.HabitLevelDescriptionRepository
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
@@ -31,6 +32,7 @@ class TriggerPipeline @Inject constructor(
     private val featureFlagsRepository: FeatureFlagsRepository,
     private val variationRepository: VariationRepository,
     private val refillScheduler: RefillScheduler,
+    private val levelDescriptionRepository: HabitLevelDescriptionRepository,
 ) {
     companion object {
         private const val TAG = "TriggerPipeline"
@@ -140,7 +142,8 @@ class TriggerPipeline @Inject constructor(
             if (e is CancellationException) throw e
             Log.w(TAG, "refill enqueue failed for habit=${habit.id} — non-fatal", e)
         }
-        return habit.name
+        val levelDesc = levelDescriptionRepository.getDescriptionForLevel(habit.id, habit.dedicationLevel)
+        return levelDesc.ifBlank { habit.name }
     }
 
     private suspend fun resolveLocationName(locationIds: Set<Long>): String {

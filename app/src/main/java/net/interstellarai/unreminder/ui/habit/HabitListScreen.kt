@@ -146,6 +146,7 @@ fun HabitListScreen(
                         HabitRow(
                             name = habit.name,
                             active = habit.active,
+                            dedicationLevel = habit.dedicationLevel,
                             onClick = { onEditHabit(habit.id) },
                         )
                         HorizontalDivider(
@@ -284,6 +285,7 @@ private fun AiDownloadBanner(
 private fun HabitRow(
     name: String,
     active: Boolean,
+    dedicationLevel: Int,
     onClick: () -> Unit,
 ) {
     val alpha = if (active) 1f else 0.35f
@@ -303,6 +305,12 @@ private fun HabitRow(
                     textDecoration = if (active) TextDecoration.None else TextDecoration.LineThrough,
                 ),
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = alpha),
+            )
+            Spacer(Modifier.height(4.dp))
+            DedicationProgressBar(
+                currentLevel = dedicationLevel,
+                stopSize = 6.dp,
+                modifier = Modifier.fillMaxWidth(0.5f),
             )
         }
         Box(

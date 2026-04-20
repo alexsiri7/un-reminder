@@ -410,7 +410,16 @@ class PromptGeneratorImpl(
                 val low = lines.firstOrNull { it.startsWith("Low-floor:") }
                     ?.removePrefix("Low-floor:")?.trim()
                     ?: throw IllegalStateException("Could not parse Low-floor: line")
-                AiHabitFields(full, low)
+                AiHabitFields(
+                    levelDescriptions = listOf(
+                        low,  // level 0
+                        "",   // level 1
+                        "",   // level 2
+                        full, // level 3
+                        "",   // level 4
+                        full, // level 5
+                    )
+                )
             }
         } catch (ex: CancellationException) {
             throw ex

@@ -5,5 +5,6 @@ enum class TriggerStatus {
     FIRED,
     COMPLETED_FULL,
     COMPLETED_LOW_FLOOR,
+    COMPLETED,
     DISMISSED
 }

@@ -12,9 +12,10 @@ import androidx.room.TypeConverters
         LocationEntity::class,
         HabitLocationCrossRef::class,
         PendingFeedbackEntity::class,
-        VariationEntity::class
+        VariationEntity::class,
+        HabitLevelDescriptionEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -26,4 +27,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun habitLocationCrossRefDao(): HabitLocationCrossRefDao
     abstract fun pendingFeedbackDao(): PendingFeedbackDao
     abstract fun variationDao(): VariationDao
+    abstract fun habitLevelDescriptionDao(): HabitLevelDescriptionDao
 }
