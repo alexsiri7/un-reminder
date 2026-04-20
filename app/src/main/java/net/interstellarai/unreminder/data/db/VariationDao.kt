@@ -10,7 +10,7 @@ import java.time.Instant
 interface VariationDao {
 
     /** Returns up to [limit] unconsumed variations for [habitId]. */
-    @Query("SELECT * FROM variations WHERE habit_id = :habitId AND consumed_at IS NULL LIMIT :limit")
+    @Query("SELECT * FROM variations WHERE habit_id = :habitId AND consumed_at IS NULL ORDER BY RANDOM() LIMIT :limit")
     suspend fun getUnusedForHabit(habitId: Long, limit: Int): List<VariationEntity>
 
     /** Returns the number of rows updated (1 on success, 0 if already consumed or deleted). */

@@ -24,7 +24,7 @@ class VariationRepository @Inject constructor(
      * The returned entity is already marked consumed; do not call [VariationDao.markConsumed] again.
      */
     suspend fun pickRandomUnused(habitId: Long): VariationEntity? {
-        val unused = dao.getUnusedForHabit(habitId, POOL_SIZE).shuffled()
+        val unused = dao.getUnusedForHabit(habitId, POOL_SIZE)
         // Truncate to millis so the returned copy matches Room's epoch-millis storage
         val now = Instant.ofEpochMilli(Instant.now().toEpochMilli())
         for (candidate in unused) {
