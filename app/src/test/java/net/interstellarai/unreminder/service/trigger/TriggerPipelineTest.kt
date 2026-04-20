@@ -245,6 +245,19 @@ class TriggerPipelineTest {
     }
 
     @Test
+    fun `flag ON pickRandomUnused throws - falls back to habit name and enqueues refill`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
+        every { featureFlagsRepository.useCloudPool } returns flowOf(true)
+        coEvery { variationRepository.pickRandomUnused(1L) } throws RuntimeException("db error")
+
+        pipeline.execute(42L)
+
+        coVerify { triggerRepository.updateFired(42L, 1L, "meditation") }
+        coVerify { refillScheduler.enqueueForHabit(1L) }
+    }
+
+    @Test
     fun `flag OFF - uses promptGenerator and does not touch variationRepository`() = runTest {
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
         coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
