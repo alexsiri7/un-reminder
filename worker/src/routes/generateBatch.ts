@@ -10,15 +10,12 @@ const COST_PER_OUTPUT_TOKEN = 0.000075 / 1000
 const COST_PER_INPUT_TOKEN = 0.000075 / 1000
 
 function buildPrompt(habitName: string, fullDesc: string, lowFloorDesc: string): string {
-  return (
-    `You are a notification writer for a habit-tracker app.\n` +
-    `Habit: "${habitName}"\n` +
-    `Full description: "${fullDesc}"\n` +
-    `Low-floor option: "${lowFloorDesc}"\n\n` +
-    `Write a single short notification message (max 80 characters) that prompts ` +
-    `the user to do this habit. Be varied, warm, and specific. Output ONLY the ` +
-    `notification text — no quotes, no commentary.`
-  )
+  return `You are a notification writer for a habit-tracker app.
+Habit: "${habitName}"
+Full description: "${fullDesc}"
+Low-floor option: "${lowFloorDesc}"
+
+Write a single short notification message (max 80 characters) that prompts the user to do this habit. Be varied, warm, and specific. Output ONLY the notification text — no quotes, no commentary.`
 }
 
 async function generateOne(
