@@ -21,7 +21,8 @@ export const spendGate: MiddlewareHandler<{ Bindings: Env }> = async (c, next) =
     ;({ daily, monthly } = await getSpend(c.env.SPEND_KV))
   } catch (err) {
     // Fail open on KV error — soft cap is a best-effort guardrail per PRD.
-    // Log so the issue is detectable, but don't block requests during a KV blip.
+    // NOTE: addSpend() in generateBatch also uses this KV namespace, so a KV
+    // outage means both gating AND tracking are lost simultaneously.
     console.error('[spendGate] KV read failed, allowing request through:', err)
     await next()
     return

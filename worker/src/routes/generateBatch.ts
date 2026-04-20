@@ -66,6 +66,11 @@ export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promi
   if (!Array.isArray(habits) || habits.length === 0) {
     return c.json({ error: 'habits must be a non-empty array' }, 400)
   }
+  for (const h of habits) {
+    if (!h.id || !h.name || !h.fullDescription || !h.lowFloorDescription) {
+      return c.json({ error: 'Each habit must have id, name, fullDescription, lowFloorDescription' }, 400)
+    }
+  }
   const clampedCount = Math.min(Math.max(1, count ?? 1), 10)
 
   let totalOutputTokens = 0
@@ -95,7 +100,8 @@ export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promi
       }
     }
 
-    variantResults.push({ habitId: habit.id, texts })
+    const failedCount = results.filter(r => r.status === 'rejected').length
+    variantResults.push({ habitId: habit.id, texts, failedCount })
   }
 
   const spendDollars =
@@ -106,6 +112,11 @@ export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promi
       console.error('[generateBatch] addSpend failed, spend not tracked:', err, { spendDollars }),
     ),
   )
+
+  const allEmpty = variantResults.every(v => v.texts.length === 0)
+  if (allEmpty && variantResults.length > 0) {
+    return c.json({ error: 'All upstream calls failed', variants: variantResults, spendDollars: parseFloat(spendDollars.toFixed(6)) }, 502)
+  }
 
   const response: GenerateBatchResponse = {
     variants: variantResults,

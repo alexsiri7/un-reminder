@@ -26,6 +26,7 @@ export interface GenerateBatchRequest {
 export interface HabitVariants {
   habitId: string
   texts: string[]
+  failedCount: number
 }
 
 export interface GenerateBatchResponse {
