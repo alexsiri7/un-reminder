@@ -368,6 +368,18 @@ class HabitEditViewModelTest {
     }
 
     @Test
+    fun `save persists level descriptions via replaceForHabit`() = runTest(testDispatcher) {
+        coEvery { mockHabitRepository.insert(any()) } returns 42L
+
+        viewModel.save()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) {
+            mockLevelDescRepo.replaceForHabit(42L, match { it.size == 6 })
+        }
+    }
+
+    @Test
     fun `save deletes pool and enqueues refill when prompt fields changed`() = runTest(testDispatcher) {
         val existingWithDifferentName = testHabit.copy(name = "OLD NAME")
         coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(existingWithDifferentName)

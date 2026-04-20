@@ -306,7 +306,7 @@ private fun HabitRow(
                 ),
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = alpha),
             )
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(Dimens.xs))
             DedicationProgressBar(
                 currentLevel = dedicationLevel,
                 stopSize = 6.dp,

@@ -44,14 +44,17 @@ class RequestyProxyClient @Inject constructor(
             val body = JSONObject(rawBody)
             val full = body.getString("fullDescription")
             val low = body.getString("lowFloorDescription")
+            // Interim: cloud worker currently returns only full/low-floor values.
+            // full is seeded at level 5 (target) and level 3 (mid-point placeholder)
+            // until the worker returns all 6 levels (see issue #66).
             AiHabitFields(
                 levelDescriptions = listOf(
-                    low,  // level 0
-                    "",   // level 1
-                    "",   // level 2
-                    full, // level 3
-                    "",   // level 4
-                    full, // level 5
+                    low,  // level 0 — low-floor
+                    "",   // level 1 — not yet generated
+                    "",   // level 2 — not yet generated
+                    full, // level 3 — interim placeholder
+                    "",   // level 4 — not yet generated
+                    full, // level 5 — full version
                 )
             )
         }

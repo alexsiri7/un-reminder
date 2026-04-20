@@ -45,6 +45,8 @@ interface TriggerDao {
     @Query("""
         SELECT COUNT(*) FROM triggers
         WHERE habit_id = :habitId
+        -- COMPLETED is the current status; COMPLETED_FULL / COMPLETED_LOW_FLOOR
+        -- are legacy pre-migration values and must stay here for historical rows.
         AND status IN ('COMPLETED', 'COMPLETED_FULL', 'COMPLETED_LOW_FLOOR')
         AND fired_at >= :sinceMillis
     """)

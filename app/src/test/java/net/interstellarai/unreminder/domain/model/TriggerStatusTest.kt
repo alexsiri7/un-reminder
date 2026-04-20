@@ -6,13 +6,14 @@ import org.junit.Test
 class TriggerStatusTest {
 
     @Test
-    fun `TriggerStatus has exactly 5 values`() {
-        assertEquals(5, TriggerStatus.entries.size)
+    fun `TriggerStatus has exactly 6 values`() {
+        assertEquals(6, TriggerStatus.entries.size)
     }
 
     @Test
     fun `TriggerStatus values are correct`() {
-        val expected = setOf("SCHEDULED", "FIRED", "COMPLETED_FULL", "COMPLETED_LOW_FLOOR", "DISMISSED")
+        // COMPLETED is the new primary status (DB v6); COMPLETED_FULL / COMPLETED_LOW_FLOOR are legacy.
+        val expected = setOf("SCHEDULED", "FIRED", "COMPLETED_FULL", "COMPLETED_LOW_FLOOR", "COMPLETED", "DISMISSED")
         val actual = TriggerStatus.entries.map { it.name }.toSet()
         assertEquals(expected, actual)
     }

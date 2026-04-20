@@ -20,6 +20,18 @@ class DedicationLevelManager @Inject constructor(
         const val MAX_LEVEL = 5
     }
 
+    /**
+     * Promotes [habit] to the next dedication level if [habit.autoAdjustLevel] is on and
+     * the completion count meets the threshold for the current level:
+     *
+     *  Level 0 → 1: immediate on first completion (no count required)
+     *  Level 1 → 2: ≥ 3 completions in 7 days
+     *  Level 2 → 3: ≥ 5 completions in 7 days
+     *  Level 3 → 4: ≥ 10 completions in 14 days
+     *  Level 4 → 5: ≥ 20 completions in 28 days
+     *
+     * Promotion is a no-op when already at MAX_LEVEL or autoAdjustLevel is disabled.
+     */
     suspend fun maybePromote(habit: HabitEntity) {
         if (!habit.autoAdjustLevel) return
         if (habit.dedicationLevel >= MAX_LEVEL) return

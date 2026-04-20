@@ -50,6 +50,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
 
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
+            val notifManager = context.getSystemService(NotificationManager::class.java)
             try {
                 triggerRepository.updateOutcome(triggerId, status)
                 if (status == TriggerStatus.DISMISSED) {
@@ -58,19 +59,31 @@ class NotificationActionReceiver : BroadcastReceiver() {
                 if (status == TriggerStatus.COMPLETED) {
                     val trigger = triggerRepository.getById(triggerId)
                     val habitId = trigger?.habitId
-                    if (habitId != null) {
-                        val habit = habitRepository.getByIdOnce(habitId)
-                        if (habit != null) {
-                            dedicationLevelManager.maybePromote(habit)
+                    when {
+                        trigger == null ->
+                            Log.w(TAG, "COMPLETED: trigger $triggerId not found — promotion skipped")
+                        habitId == null ->
+                            Log.w(TAG, "COMPLETED: trigger $triggerId has no habitId — promotion skipped")
+                        else -> {
+                            val habit = habitRepository.getByIdOnce(habitId)
+                            if (habit == null) {
+                                Log.w(TAG, "COMPLETED: habit $habitId not found — promotion skipped")
+                            } else {
+                                try {
+                                    dedicationLevelManager.maybePromote(habit)
+                                } catch (e: Exception) {
+                                    if (e is CancellationException) throw e
+                                    Log.w(TAG, "maybePromote failed — promotion skipped", e)
+                                }
+                            }
                         }
                     }
                 }
-                val manager = context.getSystemService(NotificationManager::class.java)
-                manager.cancel(triggerId.toInt())
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "onReceive: failed for trigger=$triggerId action=$action", e)
             } finally {
+                notifManager.cancel(triggerId.toInt())
                 pendingResult.finish()
             }
         }
