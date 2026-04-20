@@ -85,6 +85,7 @@ The following repository secrets are required for CI release builds:
 | `GITHUB_FEEDBACK_TOKEN` | In-app feedback submission | GitHub PAT with `issues:write` scope |
 | `SENTRY_DSN` | Automated crash reporting (optional — blank value disables Sentry) | Sentry DSN URL, e.g. `https://key@org.ingest.sentry.io/projectid` |
 | `WORKER_URL` | Default URL for cloud AI variant generation worker (optional — configurable at runtime via Cloud AI settings) | Full URL, e.g. `https://un-reminder-worker.yourname.workers.dev` |
+| `WORKER_SECRET` | Default shared secret baked into BuildConfig (optional — blank disables default) | Must match worker's `UR_SHARED_SECRET` |
 
 All secrets are optional in the sense that the app compiles and runs without them; missing secrets disable the corresponding feature at runtime.
 

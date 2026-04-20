@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
+import net.interstellarai.unreminder.BuildConfig
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -41,6 +42,14 @@ class WorkerSettingsRepository @Inject constructor(
             }
         }
         .map { prefs -> prefs[secretKey] ?: "" }
+
+    val effectiveWorkerUrl: Flow<String> = workerUrl.map { ds ->
+        ds.ifBlank { BuildConfig.WORKER_URL }
+    }
+
+    val effectiveWorkerSecret: Flow<String> = workerSecret.map { ds ->
+        ds.ifBlank { BuildConfig.WORKER_SECRET }
+    }
 
     suspend fun setWorkerUrl(url: String) {
         dataStore.edit { it[urlKey] = url }

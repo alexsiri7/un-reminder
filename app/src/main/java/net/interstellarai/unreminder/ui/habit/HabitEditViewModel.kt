@@ -200,8 +200,8 @@ class HabitEditViewModel @Inject constructor(
     }
 
     fun autofillWithAi() = launchWithAi("AI unavailable — fill in manually.") {
-        val url = workerSettingsRepository.workerUrl.first()
-        val secret = workerSettingsRepository.workerSecret.first()
+        val url = workerSettingsRepository.effectiveWorkerUrl.first()
+        val secret = workerSettingsRepository.effectiveWorkerSecret.first()
         val fields = if (url.isNotBlank() && secret.isNotBlank()) {
             requestyProxyClient.habitFields(_uiState.value.name, url, secret)
         } else {
@@ -229,8 +229,8 @@ class HabitEditViewModel @Inject constructor(
                 .joinToString(", ") { it.name }
                 .ifBlank { "Anywhere" }
         }
-        val url = workerSettingsRepository.workerUrl.first()
-        val secret = workerSettingsRepository.workerSecret.first()
+        val url = workerSettingsRepository.effectiveWorkerUrl.first()
+        val secret = workerSettingsRepository.effectiveWorkerSecret.first()
         val text = if (url.isNotBlank() && secret.isNotBlank()) {
             requestyProxyClient.preview(tempHabit, locationName, url, secret)
         } else {
