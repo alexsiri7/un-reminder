@@ -566,7 +566,7 @@ describe('un-reminder-worker', () => {
   })
 
   it('returns 502 on /v1/habit-fields when upstream throws on both attempts', async () => {
-    // Enqueue two 500s — callRequesty throws, no retry on HTTP errors
+    // callRequesty throws on non-200 — no schema retry on HTTP errors, one 500 suffices
     enqueueResponse(500, 'Internal Server Error')
 
     const req = makeRequest('/v1/habit-fields', {
