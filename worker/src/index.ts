@@ -75,7 +75,7 @@ Generate ${req.n} notification text variants.`
 }
 
 // Pricing: Gemini 3 Flash Preview — $0.50/M input, $3.00/M output
-// 1M tokens = 100 cents input, 300 cents output
+// 1M tokens = 50 cents input, 300 cents output
 function estimateCostCents(inputTokens: number, outputTokens: number): number {
   const inputCost = (inputTokens / 1_000_000) * 50   // $0.50 = 50 cents
   const outputCost = (outputTokens / 1_000_000) * 300 // $3.00 = 300 cents
@@ -106,6 +106,8 @@ async function callRequesty(
   })
 
   if (!res.ok) {
+    const errorBody = await res.text().catch(() => '<unreadable>')
+    console.error(`Requesty API error: ${res.status} ${res.statusText} — ${errorBody}`)
     return { variants: null, inputTokens: 0, outputTokens: 0 }
   }
 
@@ -123,8 +125,9 @@ async function callRequesty(
     if (Array.isArray(parsed) && parsed.every((v) => typeof v === 'string')) {
       return { variants: parsed, inputTokens, outputTokens }
     }
+    console.warn('Requesty response parsed but not a string array:', content)
   } catch {
-    // malformed
+    console.warn('Requesty response not valid JSON:', content)
   }
 
   return { variants: null, inputTokens, outputTokens }
@@ -153,7 +156,12 @@ app.get('/v1/health', async (c) => {
 
 // --- Batch generate ---
 app.post('/v1/generate/batch', async (c) => {
-  const body = await c.req.json<GenerateRequest>()
+  let body: GenerateRequest
+  try {
+    body = await c.req.json<GenerateRequest>()
+  } catch {
+    return c.json({ error: 'invalid JSON in request body' }, 400)
+  }
 
   // Validate
   if (
@@ -187,24 +195,31 @@ app.post('/v1/generate/batch', async (c) => {
   const model = c.env.UR_MODEL ?? 'gemini-3-flash-preview'
   const userPrompt = buildUserPrompt(body)
 
+  let totalInputTokens = 0
+  let totalOutputTokens = 0
+
   let result = await callRequesty(c.env.UR_REQUESTY_KEY, model, buildSystemPrompt(body.n), userPrompt)
+  totalInputTokens += result.inputTokens
+  totalOutputTokens += result.outputTokens
 
   // Retry once with stricter prompt if malformed
   if (!result.variants) {
     result = await callRequesty(c.env.UR_REQUESTY_KEY, model, buildRetrySystemPrompt(body.n), userPrompt)
+    totalInputTokens += result.inputTokens
+    totalOutputTokens += result.outputTokens
   }
 
-  if (!result.variants) {
-    return c.json({ error: 'upstream model returned malformed response' }, 502)
-  }
-
-  // Increment spend counters (race accepted per PRD)
-  const costCents = estimateCostCents(result.inputTokens, result.outputTokens)
+  // Always track spend, even on failure (race accepted per PRD)
+  const costCents = estimateCostCents(totalInputTokens, totalOutputTokens)
   if (costCents > 0) {
     await Promise.all([
       kv.put(dKey, String(dailySpend + costCents)),
       kv.put(mKey, String(monthlySpend + costCents)),
     ])
+  }
+
+  if (!result.variants) {
+    return c.json({ error: 'upstream model returned malformed response' }, 502)
   }
 
   return c.json({ variants: result.variants })
