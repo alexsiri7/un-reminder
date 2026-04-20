@@ -10,17 +10,17 @@ import java.time.Instant
 interface VariationDao {
 
     /** Returns up to [limit] unconsumed variations for [habitId]. */
-    @Query("SELECT * FROM variation WHERE habit_id = :habitId AND consumed_at IS NULL LIMIT :limit")
+    @Query("SELECT * FROM variations WHERE habit_id = :habitId AND consumed_at IS NULL LIMIT :limit")
     suspend fun getUnusedForHabit(habitId: Long, limit: Int): List<VariationEntity>
 
     /** Returns the number of rows updated (1 on success, 0 if already consumed or deleted). */
-    @Query("UPDATE variation SET consumed_at = :at WHERE id = :id AND consumed_at IS NULL")
+    @Query("UPDATE variations SET consumed_at = :at WHERE id = :id AND consumed_at IS NULL")
     suspend fun markConsumed(id: Long, at: Instant): Int
 
-    @Query("SELECT COUNT(*) FROM variation WHERE habit_id = :habitId AND consumed_at IS NULL")
+    @Query("SELECT COUNT(*) FROM variations WHERE habit_id = :habitId AND consumed_at IS NULL")
     suspend fun countUnused(habitId: Long): Int
 
-    @Query("DELETE FROM variation WHERE habit_id = :habitId")
+    @Query("DELETE FROM variations WHERE habit_id = :habitId")
     suspend fun deleteByHabit(habitId: Long)
 
     /** Inserts variations, silently ignoring duplicates that match the unique (habit_id, prompt_fingerprint, text) index. */

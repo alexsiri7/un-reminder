@@ -105,7 +105,7 @@ class VariationDaoTest {
         val now = Instant.now()
         variationDao.markConsumed(row.id, now)
 
-        val cursor = db.query("SELECT consumed_at FROM variation WHERE id = ${row.id}", emptyArray())
+        val cursor = db.query("SELECT consumed_at FROM variations WHERE id = ${row.id}", emptyArray())
         cursor.moveToFirst()
         val storedValue = cursor.getLong(0)
         cursor.close()
@@ -119,5 +119,17 @@ class VariationDaoTest {
         })
         val result = variationDao.getUnusedForHabit(hId, limit = 3)
         assertEquals(3, result.size)
+    }
+
+    @Test fun `deleteByHabit removes only target habit variations`() = runTest {
+        val h1 = insertHabit()
+        val h2 = habitDao.insert(HabitEntity(name = "h2", fullDescription = "f2", lowFloorDescription = "l2"))
+        variationDao.insert(listOf(
+            VariationEntity(habitId = h1, text = "v1", promptFingerprint = "fp1", generatedAt = Instant.EPOCH),
+            VariationEntity(habitId = h2, text = "v2", promptFingerprint = "fp2", generatedAt = Instant.EPOCH)
+        ))
+        variationDao.deleteByHabit(h1)
+        assertEquals(0, variationDao.countUnused(h1))
+        assertEquals(1, variationDao.countUnused(h2))
     }
 }

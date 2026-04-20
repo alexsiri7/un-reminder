@@ -8,7 +8,7 @@ import androidx.room.PrimaryKey
 import java.time.Instant
 
 @Entity(
-    tableName = "variation",
+    tableName = "variations",
     indices = [
         Index("habit_id"),
         Index(value = ["habit_id", "prompt_fingerprint", "text"], unique = true)

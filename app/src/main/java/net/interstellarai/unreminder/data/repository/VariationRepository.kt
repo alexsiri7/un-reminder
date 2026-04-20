@@ -22,8 +22,6 @@ class VariationRepository @Inject constructor(
      * or all candidates were concurrently consumed (race-safe via optimistic UPDATE).
      * Callers should treat null as "nothing available; consider triggering a refill".
      * The returned entity is already marked consumed; do not call [VariationDao.markConsumed] again.
-     *
-     * @throws android.database.SQLException if the database is unavailable or corrupted.
      */
     suspend fun pickRandomUnused(habitId: Long): VariationEntity? {
         val unused = dao.getUnusedForHabit(habitId, POOL_SIZE).shuffled()

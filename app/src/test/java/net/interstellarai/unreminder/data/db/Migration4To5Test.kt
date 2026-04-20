@@ -22,7 +22,7 @@ class Migration4To5Test {
     )
 
     @Test
-    fun `MIGRATION_4_5 creates variation table with all required columns`() {
+    fun `MIGRATION_4_5 creates variations table with all required columns`() {
         val db = helper.createDatabase(TEST_DB, 4)
         // Create the v4 habits table so the foreign key reference is valid
         db.execSQL(
@@ -42,13 +42,13 @@ class Migration4To5Test {
 
         // Verify the variation table was created
         val tableCursor = db.query(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='variation'"
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='variations'"
         )
         assertEquals(1, tableCursor.count)
         tableCursor.close()
 
         // Verify all required columns exist
-        val colCursor = db.query("PRAGMA table_info(variation)")
+        val colCursor = db.query("PRAGMA table_info(variations)")
         val columns = mutableSetOf<String>()
         while (colCursor.moveToNext()) {
             columns.add(colCursor.getString(colCursor.getColumnIndex("name")))
@@ -62,22 +62,22 @@ class Migration4To5Test {
 
         // Verify both indices were created
         val idxCursor = db.query(
-            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='variation'"
+            "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='variations'"
         )
         val indices = mutableSetOf<String>()
         while (idxCursor.moveToNext()) {
             indices.add(idxCursor.getString(0))
         }
         idxCursor.close()
-        assertTrue(indices.contains("index_variation_habit_id"))
-        assertTrue(indices.contains("index_variation_habit_id_prompt_fingerprint_text"))
+        assertTrue(indices.contains("index_variations_habit_id"))
+        assertTrue(indices.contains("index_variations_habit_id_prompt_fingerprint_text"))
 
         // Verify data can be inserted
         db.execSQL(
-            "INSERT INTO variation (habit_id, text, prompt_fingerprint, generated_at) VALUES (1, 'v', 'fp', 0)"
+            "INSERT INTO variations (habit_id, text, prompt_fingerprint, generated_at) VALUES (1, 'v', 'fp', 0)"
         )
         // Verify data can be inserted (duplicate handling is tested in VariationDaoTest)
-        val countCursor = db.query("SELECT COUNT(*) FROM variation WHERE habit_id = 1")
+        val countCursor = db.query("SELECT COUNT(*) FROM variations WHERE habit_id = 1")
         countCursor.moveToFirst()
         assertEquals(1, countCursor.getInt(0))
         countCursor.close()
