@@ -71,8 +71,8 @@ export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promi
 
   // Validate all habits upfront before any API calls
   for (const habit of habits) {
-    if (!habit.name || !habit.fullDescription || !habit.lowFloorDescription) {
-      return c.json({ error: `habit ${habit.id ?? '?'} missing required fields (name, fullDescription, lowFloorDescription)` }, 400)
+    if (!habit.id || !habit.name || !habit.fullDescription || !habit.lowFloorDescription) {
+      return c.json({ error: `habit ${habit.id ?? '?'} missing required fields (id, name, fullDescription, lowFloorDescription)` }, 400)
     }
   }
 
