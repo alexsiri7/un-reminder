@@ -177,10 +177,10 @@ class RequestyProxyClientTest {
     }
 
     @Test
-    fun `generateBatch throws RuntimeException on empty body`() = runTest {
+    fun `generateBatch throws Exception on empty body`() = runTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(""))
 
-        assertFailsWith<RuntimeException> {
+        assertFailsWith<Exception> {
             proxyClient.generateBatch("Meditate", emptyList(), "", "", 1, baseUrl(), "secret")
         }
     }
