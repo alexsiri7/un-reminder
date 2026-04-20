@@ -10,15 +10,12 @@ const COST_PER_OUTPUT_TOKEN = 0.000075 / 1000
 const COST_PER_INPUT_TOKEN = 0.000075 / 1000
 
 function buildPrompt(habitName: string, fullDesc: string, lowFloorDesc: string): string {
-  return (
-    `You are a notification writer for a habit-tracker app.\n` +
-    `Habit: "${habitName}"\n` +
-    `Full description: "${fullDesc}"\n` +
-    `Low-floor option: "${lowFloorDesc}"\n\n` +
-    `Write a single short notification message (max 80 characters) that prompts ` +
-    `the user to do this habit. Be varied, warm, and specific. Output ONLY the ` +
-    `notification text — no quotes, no commentary.`
-  )
+  return `You are a notification writer for a habit-tracker app.
+Habit: "${habitName}"
+Full description: "${fullDesc}"
+Low-floor option: "${lowFloorDesc}"
+
+Write a single short notification message (max 80 characters) that prompts the user to do this habit. Be varied, warm, and specific. Output ONLY the notification text — no quotes, no commentary.`
 }
 
 async function generateOne(
@@ -49,6 +46,9 @@ async function generateOne(
     usage?: { completion_tokens?: number; prompt_tokens?: number }
   }
   const text = json.choices?.[0]?.message?.content?.trim() ?? ''
+  if (!text) {
+    console.warn('[generateOne] Empty/missing content in Requesty response:', JSON.stringify({ choices_length: json.choices?.length, first_choice: json.choices?.[0] }))
+  }
   const outputTokens = json.usage?.completion_tokens ?? 0
   const inputTokens = json.usage?.prompt_tokens ?? 0
   return { text, outputTokens, inputTokens }
@@ -58,7 +58,8 @@ export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promi
   let body: GenerateBatchRequest
   try {
     body = await c.req.json<GenerateBatchRequest>()
-  } catch {
+  } catch (err) {
+    console.warn('[generateBatch] Invalid JSON body:', err)
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
 
@@ -67,6 +68,13 @@ export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promi
     return c.json({ error: 'habits must be a non-empty array' }, 400)
   }
   const clampedCount = Math.min(Math.max(1, count ?? 1), 10)
+
+  // Validate all habits upfront before any API calls
+  for (const habit of habits) {
+    if (!habit.id || !habit.name || !habit.fullDescription || !habit.lowFloorDescription) {
+      return c.json({ error: `habit ${habit.id ?? '?'} missing required fields (id, name, fullDescription, lowFloorDescription)` }, 400)
+    }
+  }
 
   let totalOutputTokens = 0
   let totalInputTokens = 0
@@ -80,6 +88,7 @@ export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promi
     )
     const results = await Promise.allSettled(calls)
     const texts: string[] = []
+    let failCount = 0
 
     for (const r of results) {
       if (r.status === 'fulfilled') {
@@ -91,11 +100,16 @@ export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promi
           console.warn(`[generateBatch] Empty text returned for habit ${habit.id}`)
         }
       } else {
+        failCount++
         console.error(`[generateBatch] Requesty call failed for habit ${habit.id}:`, r.reason)
       }
     }
 
-    variantResults.push({ habitId: habit.id, texts })
+    const entry: HabitVariants = { habitId: habit.id, texts }
+    if (failCount === clampedCount) {
+      entry.error = 'all upstream calls failed'
+    }
+    variantResults.push(entry)
   }
 
   const spendDollars =

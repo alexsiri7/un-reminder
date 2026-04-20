@@ -2,15 +2,21 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import { timingSafeEqual } from './timing'
 
 // crypto.subtle.timingSafeEqual is a Cloudflare Workers extension (not in Node Web Crypto).
-// Polyfill it for unit tests using Node's native crypto.timingSafeEqual.
+// Polyfill it for unit tests only when running outside the Workers runtime (e.g. plain Node.js).
+// When running inside workerd via vitest-pool-workers, the function is already natively available
+// and must NOT be replaced — doing so causes infinite recursion because node:crypto internally
+// delegates to crypto.subtle.timingSafeEqual in the Workers runtime.
 beforeAll(() => {
-  const nodeCrypto = require('node:crypto') as typeof import('node:crypto')
-  Object.defineProperty(globalThis.crypto.subtle, 'timingSafeEqual', {
-    value: (a: ArrayBuffer, b: ArrayBuffer) =>
-      nodeCrypto.timingSafeEqual(Buffer.from(a), Buffer.from(b)),
-    configurable: true,
-    writable: true,
-  })
+  if (typeof (crypto.subtle as unknown as Record<string, unknown>).timingSafeEqual !== 'function') {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const nodeCrypto = require('node:crypto') as typeof import('node:crypto')
+    Object.defineProperty(globalThis.crypto.subtle, 'timingSafeEqual', {
+      value: (a: ArrayBuffer, b: ArrayBuffer) =>
+        nodeCrypto.timingSafeEqual(Buffer.from(a), Buffer.from(b)),
+      configurable: true,
+      writable: true,
+    })
+  }
 })
 
 describe('timingSafeEqual', () => {

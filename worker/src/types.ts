@@ -26,8 +26,11 @@ export interface GenerateBatchRequest {
 export interface HabitVariants {
   habitId: string
   texts: string[]
+  /** Set when all upstream generation calls failed for this habit. */
+  error?: string
 }
 
+/** Once validation passes, returns 200 with per-habit results; check individual `HabitVariants.error` on partial failure. */
 export interface GenerateBatchResponse {
   variants: HabitVariants[]
   spendDollars: number   // approximate cost of this request

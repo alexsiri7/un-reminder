@@ -146,6 +146,15 @@ A named geofence the user has registered. Each location has:
 - `lat`, `lng` — coordinates captured at registration time (current GPS).
 - `radius_m` — geofence radius (default 100 m).
 
+### Variation
+A pre-generated prompt text for a habit, stored in a local pool to avoid LLM latency at fire time.
+- `id`
+- `habit_id` — FK → `habits.id` (CASCADE DELETE). Each habit has its own pool.
+- `text` — the generated prompt text.
+- `prompt_fingerprint` — hash of the LLM prompt that produced this variation; part of the `(habit_id, prompt_fingerprint, text)` composite unique constraint that prevents duplicates.
+- `generated_at` — when the variation was generated.
+- `consumed_at` — nullable; set when the variation is picked for a notification. Unconsumed variations form the available pool.
+
 ### Location state
 In-memory set of `location_id` values for the geofences the user is currently inside,
 updated by geofence `ENTER`/`EXIT` callbacks. Empty set means no known location.
@@ -263,13 +272,14 @@ Parsed via `lines().firstOrNull { it.startsWith("Full:") }` / `"Low-floor:"`. Th
 ## 8. Database Schema (Room)
 
 ```kotlin
-// DB version 4
+// DB version 5
 @Entity Habit(id, name, full_description, low_floor_description, active, created_at, updated_at)
 @Entity Window(id, start_time, end_time, days_of_week_bitmask, frequency_per_day, active)
 @Entity Location(id, name /* user-defined, e.g. "Home", "Gym", "Office" */, lat, lng, radius_m)
 @Entity HabitLocationCrossRef(habit_id → Habit.id CASCADE, location_id → Location.id CASCADE)  // junction
 @Entity Trigger(id, window_id?, habit_id?, scheduled_at, fired_at?, status, generated_prompt?)
 @Entity PendingFeedback(id, screenshot_path? /* nullable */, description, queued_at)  // offline upload queue
+@Entity Variation(id, habit_id → Habit.id CASCADE, text, prompt_fingerprint, generated_at, consumed_at?)  // variation pool
 ```
 
 ---

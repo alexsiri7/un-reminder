@@ -12,8 +12,10 @@ import net.interstellarai.unreminder.data.db.LocationDao
 import net.interstellarai.unreminder.data.db.MIGRATION_1_2
 import net.interstellarai.unreminder.data.db.MIGRATION_2_3
 import net.interstellarai.unreminder.data.db.MIGRATION_3_4
+import net.interstellarai.unreminder.data.db.MIGRATION_4_5
 import net.interstellarai.unreminder.data.db.PendingFeedbackDao
 import net.interstellarai.unreminder.data.db.TriggerDao
+import net.interstellarai.unreminder.data.db.VariationDao
 import net.interstellarai.unreminder.data.db.WindowDao
 import dagger.Module
 import dagger.Provides
@@ -40,7 +42,7 @@ object AppModule {
             context,
             AppDatabase::class.java,
             "unreminder.db"
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build()
     }
 
     @Provides
@@ -61,4 +63,7 @@ object AppModule {
 
     @Provides
     fun providePendingFeedbackDao(db: AppDatabase): PendingFeedbackDao = db.pendingFeedbackDao()
+
+    @Provides
+    fun provideVariationDao(db: AppDatabase): VariationDao = db.variationDao()
 }
