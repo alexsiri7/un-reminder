@@ -142,7 +142,13 @@ class TriggerPipeline @Inject constructor(
             if (e is CancellationException) throw e
             Log.w(TAG, "refill enqueue failed for habit=${habit.id} — non-fatal", e)
         }
-        val levelDesc = levelDescriptionRepository.getDescriptionForLevel(habit.id, habit.dedicationLevel)
+        val levelDesc = try {
+            levelDescriptionRepository.getDescriptionForLevel(habit.id, habit.dedicationLevel)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Log.w(TAG, "level description lookup failed for habit=${habit.id} — falling back to habit.name", e)
+            ""
+        }
         return levelDesc.ifBlank { habit.name }
     }
 

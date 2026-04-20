@@ -266,6 +266,62 @@ class TriggerPipelineTest {
     }
 
     @Test
+    fun `flag ON pool empty - uses level description as habitName when available`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
+        every { featureFlagsRepository.useCloudPool } returns flowOf(true)
+        coEvery { variationRepository.pickRandomUnused(1L) } returns null
+        coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 0) } returns "3 deep breaths"
+
+        pipeline.execute(42L)
+
+        coVerify {
+            notificationHelper.postTriggerNotification(
+                triggerId = 42L,
+                promptText = "3 deep breaths",
+                habitName = "3 deep breaths"
+            )
+        }
+    }
+
+    @Test
+    fun `flag ON pool empty - level description lookup failure falls back to habit name`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
+        every { featureFlagsRepository.useCloudPool } returns flowOf(true)
+        coEvery { variationRepository.pickRandomUnused(1L) } returns null
+        coEvery { levelDescriptionRepository.getDescriptionForLevel(any(), any()) } throws RuntimeException("db locked")
+
+        pipeline.execute(42L)
+
+        coVerify {
+            notificationHelper.postTriggerNotification(
+                triggerId = 42L,
+                promptText = "meditation",
+                habitName = "meditation"
+            )
+        }
+    }
+
+    @Test
+    fun `flag ON pool empty - level description CancellationException propagates`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
+        every { featureFlagsRepository.useCloudPool } returns flowOf(true)
+        coEvery { variationRepository.pickRandomUnused(1L) } returns null
+        coEvery { levelDescriptionRepository.getDescriptionForLevel(any(), any()) } throws CancellationException("cancelled")
+
+        try {
+            pipeline.execute(42L)
+            fail("Expected CancellationException to propagate")
+        } catch (e: CancellationException) {
+            // expected
+        }
+
+        coVerify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any()) }
+    }
+
+    @Test
     fun `flag ON pickRandomUnused throws CancellationException - propagates`() = runTest {
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
         coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
