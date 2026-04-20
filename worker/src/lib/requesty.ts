@@ -17,7 +17,7 @@ export async function callRequesty(
   apiKey: string,
   model: string,
   prompt: string,
-  maxTokens = 200,
+  maxTokens = 2048,
   temperature = 0.7,
 ): Promise<RequestyResult> {
   const resp = await fetch(REQUESTY_URL, {
@@ -60,7 +60,7 @@ export async function callRequestyWithSchemaRetry<T>(
   prompt: string,
   stricterPrompt: string,
   validate: (parsed: unknown) => T | null,
-  maxTokens = 200,
+  maxTokens = 2048,
   temperature = 0.7,
 ): Promise<{ data: T; outputTokens: number; inputTokens: number } | null> {
   let totalOutputTokens = 0

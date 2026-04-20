@@ -9,11 +9,11 @@ compatibility_date = "2026-04-18"
 [vars]
 UR_DAILY_CAP_CENTS  = "50"
 UR_MONTHLY_CAP_CENTS = "500"
-UR_MODEL = "gemini-3-flash-preview"
+UR_MODEL = "google/gemini-3-flash-preview"
 
 [[kv_namespaces]]
 binding = "UR_SPEND"
-id      = "REPLACE_WITH_REAL_ID"          # run: wrangler kv namespace create UR_SPEND
+id      = "ba35d7eb3c4b4e46b18707a20ce89d1e"
 
 [[ratelimits]]
 name         = "REQUEST_LIMITER"
