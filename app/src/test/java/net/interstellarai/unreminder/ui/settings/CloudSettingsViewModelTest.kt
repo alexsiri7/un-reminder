@@ -8,6 +8,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -55,8 +56,11 @@ class CloudSettingsViewModelTest {
     @Test
     fun `init emits persisted workerUrl from repository`() = runTest(testDispatcher) {
         val vm = createViewModel()
+        val collected = mutableListOf<String>()
+        val job = launch { vm.workerUrl.collect { collected.add(it) } }
         advanceUntilIdle()
-        assertEquals("https://worker.test", vm.workerUrl.value)
+        assertEquals("https://worker.test", collected.last())
+        job.cancel()
     }
 
     @Test
