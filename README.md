@@ -219,7 +219,7 @@ Generates a sample notification via the worker's `/v1/preview` endpoint. Shown i
 
 1. **Home screen** — list of habits. FAB → add habit. Tap habit → edit.
 2. **Habit editor** — name, full description, low-floor description, location chips (multi-select from saved locations; no selection = "Anywhere"), active toggle.
-   AI-assist row: **Autofill with AI** (fills description fields from the habit name via on-device LLM; enabled when name ≥ 2 chars) · **Preview notification** (generates a sample notification text in a dialog; enabled when all description fields are filled).
+   AI-assist row: **Autofill with AI** (fills description fields from the habit name via cloud worker; enabled when name ≥ 2 chars) · **Preview notification** (generates a sample notification text in a dialog; enabled when all description fields are filled).
 3. **Windows screen** — list of windows. FAB → add window. Tap → edit.
 4. **Window editor** — start/end time pickers, days-of-week chips, frequency slider (1–3), active toggle.
 5. **Locations screen** — dynamic list of named locations (any label, not restricted to HOME/WORK).
@@ -242,7 +242,7 @@ Generates a sample notification via the worker's `/v1/preview` endpoint. Shown i
 - `ACCESS_BACKGROUND_LOCATION` (requested separately after fine location grant, with clear in-app explanation of why)
 - `SCHEDULE_EXACT_ALARM` (Android 12+)
 - `FOREGROUND_SERVICE` for the geofence service if needed.
-- `INTERNET` — three purposes: (1) map tile downloads for the location picker (OpenStreetMap; no personal data transmitted); (2) optional in-app feedback upload to GitHub (user-initiated; sends annotated screenshot and description); and (3) crash report uploads to Sentry (no personal information, habit content, or location data included).
+- `INTERNET` — four purposes: (1) cloud AI generation via the Cloudflare Worker (habit prompts, autofill, preview — data sent only to the user's own worker instance); (2) map tile downloads for the location picker (OpenStreetMap; no personal data transmitted); (3) optional in-app feedback upload to GitHub (user-initiated; sends annotated screenshot and description); and (4) crash report uploads to Sentry (no personal information, habit content, or location data included).
 
 ---
 
@@ -267,11 +267,11 @@ The app is considered MVP-complete when:
 
 1. User can CRUD habits, windows, and locations in the UI.
 2. Daily schedule job correctly populates `Trigger` rows for the next 24h based on active windows.
-3. At least one window trigger fires during its window with a Gemma 3 1B-generated prompt.
+3. At least one window trigger fires during its window with a cloud-generated prompt (or habit name fallback if pool is empty).
 4. Entering the registered `HOME` geofence triggers exactly one notification 5 minutes later (debounced).
 5. Notification actions correctly record `COMPLETED_FULL`, `COMPLETED_LOW_FLOOR`, or `DISMISSED`.
 6. Recent triggers screen displays the last 20 triggers with their generated prompts.
-7. App works with airplane mode on (no network dependency).
+7. App degrades gracefully when the cloud worker is unreachable (notifications fall back to habit name; UI shows clear error for autofill/preview).
 8. Cold-start to habit list is under 1 second.
 
 ---

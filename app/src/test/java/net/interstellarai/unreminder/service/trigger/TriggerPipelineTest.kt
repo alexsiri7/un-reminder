@@ -233,13 +233,12 @@ class TriggerPipelineTest {
     @Test
     fun `pipeline exception is caught and does not propagate`() = runTest {
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
-        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
-        coEvery { variationRepository.pickRandomUnused(1L) } throws CancellationException("test")
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } throws RuntimeException("db boom")
 
-        try {
-            pipeline.execute(42L)
-            fail("Expected CancellationException")
-        } catch (_: CancellationException) { }
+        // Should not throw — pipeline catches non-cancellation exceptions
+        pipeline.execute(42L)
+
+        coVerify { triggerRepository.updateOutcome(42L, TriggerStatus.DISMISSED) }
     }
 
     @Test
