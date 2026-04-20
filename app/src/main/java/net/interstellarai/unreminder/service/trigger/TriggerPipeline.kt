@@ -112,6 +112,7 @@ class TriggerPipeline @Inject constructor(
         val variation = try {
             variationRepository.pickRandomUnused(habit.id)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Log.w(TAG, "variationRepository.pickRandomUnused failed — falling back to habit.name", e)
             null
         }
@@ -122,6 +123,7 @@ class TriggerPipeline @Inject constructor(
                     refillScheduler.enqueueForHabit(habit.id)
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 Log.w(TAG, "needsRefill/enqueue failed — non-fatal, continuing", e)
             }
             return variation.text
@@ -135,6 +137,7 @@ class TriggerPipeline @Inject constructor(
         try {
             refillScheduler.enqueueForHabit(habit.id)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Log.w(TAG, "refill enqueue failed for habit=${habit.id} — non-fatal", e)
         }
         return habit.name
