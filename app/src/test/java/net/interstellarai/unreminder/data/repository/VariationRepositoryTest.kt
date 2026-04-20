@@ -7,6 +7,7 @@ import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertFalse
@@ -24,12 +25,23 @@ class VariationRepositoryTest {
         assertNull(repository.pickRandomUnused(1L))
     }
 
-    @Test fun `pickRandomUnused marks returned row consumed`() = runTest {
+    @Test fun `pickRandomUnused marks returned row consumed and returns updated entity`() = runTest {
         val entity = VariationEntity(id = 42L, habitId = 1L, text = "t", promptFingerprint = "fp")
         coEvery { mockDao.getUnusedForHabit(1L, 50) } returns listOf(entity)
+        coEvery { mockDao.markConsumed(eq(42L), any()) } returns 1
         val result = repository.pickRandomUnused(1L)
-        assertEquals(entity, result)
+        assertNotNull(result)
+        assertEquals(42L, result!!.id)
+        assertEquals("t", result.text)
+        assertNotNull(result.consumedAt)
         coVerify { mockDao.markConsumed(eq(42L), any()) }
+    }
+
+    @Test fun `pickRandomUnused returns null if markConsumed affects 0 rows`() = runTest {
+        val entity = VariationEntity(id = 99L, habitId = 1L, text = "t", promptFingerprint = "fp")
+        coEvery { mockDao.getUnusedForHabit(1L, 50) } returns listOf(entity)
+        coEvery { mockDao.markConsumed(eq(99L), any()) } returns 0
+        assertNull(repository.pickRandomUnused(1L))
     }
 
     @Test fun `needsRefill returns true when below threshold and false when at threshold`() = runTest {
@@ -38,5 +50,27 @@ class VariationRepositoryTest {
 
         coEvery { mockDao.countUnused(1L) } returns 5
         assertFalse(repository.needsRefill(1L, threshold = 5))
+    }
+
+    @Test fun `needsRefill uses default threshold of 5`() = runTest {
+        coEvery { mockDao.countUnused(1L) } returns 4
+        assertTrue(repository.needsRefill(1L))
+
+        coEvery { mockDao.countUnused(1L) } returns 5
+        assertFalse(repository.needsRefill(1L))
+    }
+
+    @Test fun `insertAll delegates to dao insert`() = runTest {
+        val variants = listOf(
+            VariationEntity(habitId = 1L, text = "a", promptFingerprint = "fp1"),
+            VariationEntity(habitId = 1L, text = "b", promptFingerprint = "fp2")
+        )
+        repository.insertAll(variants)
+        coVerify { mockDao.insert(variants) }
+    }
+
+    @Test fun `deleteForHabit delegates to dao deleteByHabit`() = runTest {
+        repository.deleteForHabit(42L)
+        coVerify { mockDao.deleteByHabit(42L) }
     }
 }

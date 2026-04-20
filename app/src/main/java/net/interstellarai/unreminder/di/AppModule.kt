@@ -14,8 +14,8 @@ import net.interstellarai.unreminder.data.db.MIGRATION_2_3
 import net.interstellarai.unreminder.data.db.MIGRATION_3_4
 import net.interstellarai.unreminder.data.db.MIGRATION_4_5
 import net.interstellarai.unreminder.data.db.PendingFeedbackDao
-import net.interstellarai.unreminder.data.db.VariationDao
 import net.interstellarai.unreminder.data.db.TriggerDao
+import net.interstellarai.unreminder.data.db.VariationDao
 import net.interstellarai.unreminder.data.db.WindowDao
 import dagger.Module
 import dagger.Provides

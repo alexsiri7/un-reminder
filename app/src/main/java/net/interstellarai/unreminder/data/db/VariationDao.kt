@@ -8,11 +8,18 @@ import androidx.room.Query
 @Dao
 interface VariationDao {
 
+    /**
+     * Returns up to [limit] unconsumed variations for [habitId].
+     * The limit of 50 is the variation pool size — keep this coordinated
+     * with [net.interstellarai.unreminder.data.repository.VariationRepository.pickRandomUnused],
+     * which passes 50 to bound its random selection.
+     */
     @Query("SELECT * FROM variation WHERE habit_id = :habitId AND consumed_at IS NULL LIMIT :limit")
-    suspend fun getUnusedForHabit(habitId: Long, limit: Int = 50): List<VariationEntity>
+    suspend fun getUnusedForHabit(habitId: Long, limit: Int): List<VariationEntity>
 
+    /** Returns the number of rows updated (1 on success, 0 if the row was deleted before mark). */
     @Query("UPDATE variation SET consumed_at = :at WHERE id = :id")
-    suspend fun markConsumed(id: Long, at: Long)
+    suspend fun markConsumed(id: Long, at: Long): Int
 
     @Query("SELECT COUNT(*) FROM variation WHERE habit_id = :habitId AND consumed_at IS NULL")
     suspend fun countUnused(habitId: Long): Int
