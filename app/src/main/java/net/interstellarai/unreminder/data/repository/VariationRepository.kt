@@ -1,6 +1,7 @@
 package net.interstellarai.unreminder.data.repository
 
 import android.util.Log
+import kotlinx.coroutines.flow.Flow
 import net.interstellarai.unreminder.data.db.VariationDao
 import net.interstellarai.unreminder.data.db.VariationEntity
 import java.time.Instant
@@ -48,4 +49,14 @@ class VariationRepository @Inject constructor(
     suspend fun insertAll(variants: List<VariationEntity>) = dao.insert(variants)
 
     suspend fun deleteForHabit(habitId: Long) = dao.deleteByHabit(habitId)
+
+    fun unusedVariationsFlow(habitId: Long): Flow<List<VariationEntity>> =
+        dao.getUnusedFlow(habitId)
+
+    fun recentlyUsedFlow(habitId: Long, limit: Int = 10): Flow<List<VariationEntity>> =
+        dao.getRecentlyUsedFlow(habitId, limit)
+
+    suspend fun deleteById(id: Long) = dao.deleteById(id)
+
+    fun countTotalFlow(habitId: Long): Flow<Int> = dao.countTotalFlow(habitId)
 }
