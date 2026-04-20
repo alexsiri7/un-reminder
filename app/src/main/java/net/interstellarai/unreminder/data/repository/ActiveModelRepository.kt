@@ -49,14 +49,7 @@ class ActiveModelRepository @Inject constructor(
                 throw e
             }
         }
-        .map { prefs ->
-            val id = prefs[activeIdKey]
-            if (id == null) {
-                ModelCatalog.default
-            } else {
-                ModelCatalog.byId(id) ?: ModelCatalog.default
-            }
-        }
+        .map { prefs -> prefs[activeIdKey]?.let { ModelCatalog.byId(it) } ?: ModelCatalog.default }
 
     /**
      * Blocking one-shot read for synchronous call sites — [PromptGeneratorImpl]

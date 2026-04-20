@@ -20,12 +20,10 @@ object ModelConfig {
     private const val PLACEHOLDER_HOST_PREFIX = "https://placeholder.invalid/"
 
     /**
-     * @return true when [url] is blank, equals the legacy build-time
-     * placeholder, or points at the generic `placeholder.invalid` host
-     * we reserve for unresolved catalog entries.
+     * @return true when [url] is blank or points at the `placeholder.invalid`
+     * host we reserve for unresolved catalog entries (including the legacy
+     * build-time placeholder).
      */
     fun isPlaceholderUrl(url: String?): Boolean =
-        url.isNullOrBlank() ||
-            url == PLACEHOLDER_URL ||
-            url.startsWith(PLACEHOLDER_HOST_PREFIX)
+        url.isNullOrBlank() || url.startsWith(PLACEHOLDER_HOST_PREFIX)
 }

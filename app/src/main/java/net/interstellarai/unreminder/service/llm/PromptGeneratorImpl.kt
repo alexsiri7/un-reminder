@@ -266,7 +266,10 @@ class PromptGeneratorImpl(
         }
     }
 
-    private fun enqueueModelDownload(desc: ModelDescriptor) {
+    private fun enqueueModelDownload(
+        desc: ModelDescriptor,
+        policy: ExistingWorkPolicy = ExistingWorkPolicy.KEEP,
+    ) {
         val request = OneTimeWorkRequestBuilder<ModelDownloadWorker>()
             .setConstraints(
                 Constraints.Builder()
@@ -276,7 +279,7 @@ class PromptGeneratorImpl(
             .setInputData(workDataOf(ModelDownloadWorker.KEY_MODEL_ID to desc.id))
             .build()
         WorkManager.getInstance(context)
-            .enqueueUniqueWork(ModelDownloadWorker.WORK_NAME, ExistingWorkPolicy.KEEP, request)
+            .enqueueUniqueWork(ModelDownloadWorker.WORK_NAME, policy, request)
     }
 
     override fun retryModelDownload() {
@@ -293,19 +296,7 @@ class PromptGeneratorImpl(
         }
         try {
             // REPLACE so a failed/cancelled prior run doesn't block the retry.
-            val request = OneTimeWorkRequestBuilder<ModelDownloadWorker>()
-                .setConstraints(
-                    Constraints.Builder()
-                        .setRequiredNetworkType(NetworkType.CONNECTED)
-                        .build()
-                )
-                .setInputData(workDataOf(ModelDownloadWorker.KEY_MODEL_ID to desc.id))
-                .build()
-            WorkManager.getInstance(context).enqueueUniqueWork(
-                ModelDownloadWorker.WORK_NAME,
-                ExistingWorkPolicy.REPLACE,
-                request,
-            )
+            enqueueModelDownload(desc, ExistingWorkPolicy.REPLACE)
             observeDownloadProgress()
         } catch (e: Throwable) {
             Log.w(TAG, "retryModelDownload: WorkManager unavailable", e)
