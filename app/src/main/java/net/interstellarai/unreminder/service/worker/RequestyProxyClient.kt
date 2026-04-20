@@ -8,10 +8,17 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
 import org.json.JSONArray
 import org.json.JSONObject
 import javax.inject.Inject
 import javax.inject.Singleton
+
+private fun Response.throwOnError(): Nothing = when (code) {
+    401 -> throw WorkerAuthException()
+    402 -> throw SpendCapExceededException()
+    else -> throw WorkerError(code, body?.string() ?: "")
+}
 
 @Singleton
 class RequestyProxyClient @Inject constructor(
@@ -31,23 +38,14 @@ class RequestyProxyClient @Inject constructor(
             .build()
 
         okHttpClient.newCall(request).execute().use { response ->
-            when (response.code) {
-                401 -> throw WorkerAuthException()
-                402 -> throw SpendCapExceededException()
-                in 200..299 -> {
-                    val rawBody = response.body?.string()
-                        ?: throw RuntimeException("Worker returned empty body")
-                    val body = JSONObject(rawBody)
-                    AiHabitFields(
-                        fullDescription = body.getString("fullDescription"),
-                        lowFloorDescription = body.getString("lowFloorDescription"),
-                    )
-                }
-                else -> {
-                    val body = response.body?.string() ?: ""
-                    throw RuntimeException("Worker error ${response.code}: $body")
-                }
-            }
+            if (response.code !in 200..299) response.throwOnError()
+            val rawBody = response.body?.string()
+                ?: throw RuntimeException("Worker returned empty body")
+            val body = JSONObject(rawBody)
+            AiHabitFields(
+                fullDescription = body.getString("fullDescription"),
+                lowFloorDescription = body.getString("lowFloorDescription"),
+            )
         }
     }
 
@@ -76,20 +74,42 @@ class RequestyProxyClient @Inject constructor(
             .build()
 
         okHttpClient.newCall(request).execute().use { response ->
-            when (response.code) {
-                401 -> throw WorkerAuthException()
-                402 -> throw SpendCapExceededException()
-                in 200..299 -> {
-                    val rawBody = response.body?.string()
-                        ?: throw RuntimeException("Worker returned empty body")
-                    val body = JSONObject(rawBody)
-                    body.getString("text")
-                }
-                else -> {
-                    val body = response.body?.string() ?: ""
-                    throw RuntimeException("Worker error ${response.code}: $body")
-                }
-            }
+            if (response.code !in 200..299) response.throwOnError()
+            val rawBody = response.body?.string()
+                ?: throw RuntimeException("Worker returned empty body")
+            JSONObject(rawBody).getString("text")
+        }
+    }
+
+    suspend fun generateBatch(
+        habitTitle: String,
+        habitTags: List<String>,
+        locationName: String,
+        timeOfDay: String,
+        n: Int,
+        workerUrl: String,
+        workerSecret: String,
+    ): List<String> = withContext(Dispatchers.IO) {
+        val payload = JSONObject().apply {
+            put("habitTitle", habitTitle)
+            put("habitTags", JSONArray(habitTags))
+            put("locationName", locationName)
+            put("timeOfDay", timeOfDay)
+            put("n", n)
+        }
+        val request = Request.Builder()
+            .url("${workerUrl.trimEnd('/')}/v1/generate/batch")
+            .addHeader("X-UR-Secret", workerSecret)
+            .addHeader("Accept", "application/json")
+            .post(payload.toString().toRequestBody("application/json".toMediaType()))
+            .build()
+
+        okHttpClient.newCall(request).execute().use { response ->
+            if (response.code !in 200..299) response.throwOnError()
+            val rawBody = response.body?.string()
+                ?: throw RuntimeException("Worker returned empty body")
+            val arr = JSONObject(rawBody).getJSONArray("variants")
+            (0 until arr.length()).map { arr.getString(it) }
         }
     }
 }

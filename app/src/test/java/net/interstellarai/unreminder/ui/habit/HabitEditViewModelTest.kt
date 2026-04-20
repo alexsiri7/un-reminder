@@ -3,10 +3,12 @@ package net.interstellarai.unreminder.ui.habit
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
+import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.data.repository.WorkerSettingsRepository
 import net.interstellarai.unreminder.domain.model.AiHabitFields
 import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.service.llm.PromptGenerator
+import net.interstellarai.unreminder.service.worker.RefillScheduler
 import net.interstellarai.unreminder.service.worker.RequestyProxyClient
 import net.interstellarai.unreminder.service.worker.SpendCapExceededException
 import net.interstellarai.unreminder.service.worker.WorkerAuthException
@@ -48,6 +50,8 @@ class HabitEditViewModelTest {
     private val mockLocationRepository: LocationRepository = mockk(relaxed = true)
     private val mockRequestyProxyClient: RequestyProxyClient = mockk()
     private val mockWorkerSettingsRepository: WorkerSettingsRepository = mockk()
+    private val mockRefillScheduler: RefillScheduler = mockk(relaxed = true)
+    private val mockVariationRepository: VariationRepository = mockk(relaxUnitFun = true)
     private lateinit var viewModel: HabitEditViewModel
 
     private val testHabit = HabitEntity(
@@ -74,6 +78,8 @@ class HabitEditViewModelTest {
             mockPromptGenerator,
             mockRequestyProxyClient,
             mockWorkerSettingsRepository,
+            mockRefillScheduler,
+            mockVariationRepository,
         )
         viewModel.updateName("meditation")
         viewModel.updateFullDescription("20-minute guided meditation")
@@ -333,6 +339,57 @@ class HabitEditViewModelTest {
             assertEquals("Wrong worker secret \u2014 check Settings.", state.errorMessage)
             assertFalse(state.isGeneratingFields)
         }
+
+    // --- save: refill scheduling ---
+
+    @Test
+    fun `save enqueues refill for new habit without deleting pool`() = runTest(testDispatcher) {
+        coEvery { mockHabitRepository.insert(any()) } returns 42L
+
+        viewModel.save()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { mockRefillScheduler.enqueueForHabit(42L) }
+        coVerify(exactly = 0) { mockVariationRepository.deleteForHabit(any()) }
+        assertTrue(viewModel.uiState.value.isSaved)
+    }
+
+    @Test
+    fun `save deletes pool and enqueues refill when prompt fields changed`() = runTest(testDispatcher) {
+        val existingWithDifferentName = testHabit.copy(name = "OLD NAME")
+        coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(existingWithDifferentName)
+        coEvery { mockHabitRepository.update(any()) } returns Unit
+
+        viewModel.loadHabit(testHabit.id)
+        advanceUntilIdle()
+        // The viewModel now has existingHabit = testHabit with name "OLD NAME",
+        // but uiState has name "OLD NAME". Update name to trigger prompt change.
+        viewModel.updateName("meditation") // differs from "OLD NAME"
+
+        viewModel.save()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { mockVariationRepository.deleteForHabit(testHabit.id) }
+        coVerify(exactly = 1) { mockRefillScheduler.enqueueForHabit(testHabit.id) }
+        assertTrue(viewModel.uiState.value.isSaved)
+    }
+
+    @Test
+    fun `save does not delete pool or enqueue when no prompt fields changed`() = runTest(testDispatcher) {
+        coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit)
+        coEvery { mockHabitRepository.update(any()) } returns Unit
+
+        viewModel.loadHabit(testHabit.id)
+        advanceUntilIdle()
+        // viewModel state now matches testHabit exactly (name, fullDescription, lowFloorDescription)
+
+        viewModel.save()
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { mockVariationRepository.deleteForHabit(any()) }
+        coVerify(exactly = 0) { mockRefillScheduler.enqueueForHabit(any()) }
+        assertTrue(viewModel.uiState.value.isSaved)
+    }
 
     // --- On-device fallback ---
 

@@ -84,6 +84,7 @@ The following repository secrets are required for CI release builds:
 | `KEYSTORE_*` / `KEY_*` | APK signing | See Android release signing docs |
 | `GITHUB_FEEDBACK_TOKEN` | In-app feedback submission | GitHub PAT with `issues:write` scope |
 | `SENTRY_DSN` | Automated crash reporting (optional — blank value disables Sentry) | Sentry DSN URL, e.g. `https://key@org.ingest.sentry.io/projectid` |
+| `WORKER_URL` | Default URL for cloud AI variant generation worker (optional — configurable at runtime via Cloud AI settings) | Full URL, e.g. `https://un-reminder-worker.yourname.workers.dev` |
 
 All secrets are optional in the sense that the app compiles and runs without them; missing secrets disable the corresponding feature at runtime.
 
@@ -254,7 +255,8 @@ Parsed via `lines().firstOrNull { it.startsWith("Full:") }` / `"Low-floor:"`. Th
    Location is stored as lat/lng + radius; osmdroid caches tiles automatically (no offline pre-caching UI).
    Habits link to zero or more locations via the `habit_location` junction table; no selection means "Anywhere".
 6. **Recent triggers screen** — last 20 fired triggers with their generated prompts and outcomes. Read-only. Includes a "Send Feedback" button in the top bar.
-7. **Settings screen** — notification permission status, background location permission status, worker URL and shared secret for cloud generation, a manual "Test trigger now" button, a button to regenerate tomorrow's scheduled triggers, and a "Send Feedback" button.
+7. **Settings screen** — notification permission status, background location permission status, a manual "Test trigger now" button, a button to regenerate tomorrow's scheduled triggers, a link to Cloud AI settings, and a "Send Feedback" button.
+7a. **Cloud AI settings screen** — worker URL and shared secret for cloud generation, and a "regenerate all variants" button that clears the variation pool and re-queues a refill job for every active habit.
 8. **Onboarding screen** — shown once on first launch. Walks the user through three collapsible steps: (1) granting Notifications and Location permissions, (2) creating a first habit with name/descriptions and weekday schedule, (3) creating a first time window. Includes a "Skip" action in the top bar. Completion (or skip) is persisted via DataStore (`onboarding_done` key) and never shown again. Bottom navigation bar is hidden while onboarding is active.
 9. **Feedback screen** — annotated screenshot tool. Captures the current screen, lets the user draw annotations (red/yellow/green strokes), type a description, and submit as a GitHub issue. Falls back to an offline queue (WorkManager) when connectivity is unavailable.
 

@@ -40,6 +40,7 @@ import net.interstellarai.unreminder.ui.location.MapPickerScreen
 import net.interstellarai.unreminder.ui.onboarding.OnboardingScreen
 import net.interstellarai.unreminder.ui.feedback.FeedbackScreen
 import net.interstellarai.unreminder.ui.recent.RecentTriggersScreen
+import net.interstellarai.unreminder.ui.settings.CloudSettingsScreen
 import net.interstellarai.unreminder.ui.settings.SettingsScreen
 import net.interstellarai.unreminder.ui.window.WindowEditScreen
 import net.interstellarai.unreminder.ui.window.WindowListScreen
@@ -215,7 +216,13 @@ fun NavGraph(navViewModel: NavViewModel = hiltViewModel()) {
             composable(Screen.Settings.route) {
                 SettingsScreen(
                     onNavigateToLocations = { navController.navigate("locations") },
-                    onNavigateToFeedback = { captureAndNavigate("feedback") }
+                    onNavigateToFeedback = { captureAndNavigate("feedback") },
+                    onNavigateToCloudSettings = { navController.navigate("cloud_settings") },
+                )
+            }
+            composable("cloud_settings") {
+                CloudSettingsScreen(
+                    onNavigateBack = { navController.popBackStack() },
                 )
             }
             composable("feedback") {

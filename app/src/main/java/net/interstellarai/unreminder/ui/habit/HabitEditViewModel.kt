@@ -7,9 +7,11 @@ import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.db.LocationEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
+import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.data.repository.WorkerSettingsRepository
 import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.service.llm.PromptGenerator
+import net.interstellarai.unreminder.service.worker.RefillScheduler
 import net.interstellarai.unreminder.service.worker.RequestyProxyClient
 import net.interstellarai.unreminder.service.worker.SpendCapExceededException
 import net.interstellarai.unreminder.service.worker.WorkerAuthException
@@ -48,6 +50,8 @@ class HabitEditViewModel @Inject constructor(
     private val promptGenerator: PromptGenerator,
     private val requestyProxyClient: RequestyProxyClient,
     private val workerSettingsRepository: WorkerSettingsRepository,
+    private val refillScheduler: RefillScheduler,
+    private val variationRepository: VariationRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HabitEditUiState())
@@ -116,9 +120,10 @@ class HabitEditViewModel @Inject constructor(
         viewModelScope.launch {
             val state = _uiState.value
             if (state.name.isBlank()) return@launch
+            val existing = existingHabit
+            val habitId: Long
             try {
-                val existing = existingHabit
-                val habitId = if (existing != null) {
+                habitId = if (existing != null) {
                     habitRepository.update(
                         existing.copy(
                             name = state.name,
@@ -144,6 +149,25 @@ class HabitEditViewModel @Inject constructor(
                 if (e is CancellationException) throw e
                 Log.e(TAG, "save failed", e)
                 _uiState.value = _uiState.value.copy(errorMessage = "Save failed — try again.")
+                return@launch
+            }
+
+            // Post-save refill scheduling — best-effort, does not affect isSaved
+            try {
+                if (existing != null) {
+                    val promptChanged = existing.name != state.name ||
+                        existing.fullDescription != state.fullDescription ||
+                        existing.lowFloorDescription != state.lowFloorDescription
+                    if (promptChanged) {
+                        variationRepository.deleteForHabit(habitId)
+                        refillScheduler.enqueueForHabit(habitId)
+                    }
+                } else {
+                    refillScheduler.enqueueForHabit(habitId)
+                }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                Log.w(TAG, "refill scheduling after save failed — variants may be stale", e)
             }
         }
     }
