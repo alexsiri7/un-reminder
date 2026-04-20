@@ -17,6 +17,7 @@ export interface GenerateBatchRequest {
   habitTags: string[]
   locationName: string
   timeOfDay: string
+  /** Number of notification variants to generate (1–50). */
   n: number
 }
 

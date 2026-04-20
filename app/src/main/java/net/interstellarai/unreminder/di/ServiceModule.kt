@@ -1,19 +1,15 @@
 package net.interstellarai.unreminder.di
 
 import android.content.Context
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
 import net.interstellarai.unreminder.data.repository.ActiveModelRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.data.repository.ModelDownloadProgressRepository
-import net.interstellarai.unreminder.data.repository.WorkerSettingsRepository
 import net.interstellarai.unreminder.service.alarm.AlarmScheduler
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.llm.PromptGenerator
 import net.interstellarai.unreminder.service.llm.PromptGeneratorImpl
 import net.interstellarai.unreminder.service.notification.EmojiRotator
 import net.interstellarai.unreminder.service.notification.NotificationHelper
-import net.interstellarai.unreminder.service.worker.RequestyProxyClient
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -62,13 +58,4 @@ object ServiceModule {
             activeModelRepository = activeModelRepository,
         )
 
-    @Provides
-    @Singleton
-    fun provideWorkerSettingsRepository(dataStore: DataStore<Preferences>): WorkerSettingsRepository =
-        WorkerSettingsRepository(dataStore)
-
-    @Provides
-    @Singleton
-    fun provideRequestyProxyClient(okHttpClient: OkHttpClient): RequestyProxyClient =
-        RequestyProxyClient(okHttpClient)
 }
