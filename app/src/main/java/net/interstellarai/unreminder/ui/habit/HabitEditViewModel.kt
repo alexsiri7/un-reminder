@@ -71,9 +71,13 @@ class HabitEditViewModel @Inject constructor(
         featureFlagsRepository.useCloudPool,
         workerSettingsRepository.effectiveWorkerUrl,
         workerSettingsRepository.effectiveWorkerSecret,
-    ) { useCloud, url, secret ->
-        if (!useCloud) promptGenerator.aiStatus.value
+        promptGenerator.aiStatus,
+    ) { useCloud, url, secret, onDeviceStatus ->
+        if (!useCloud) onDeviceStatus
         else if (url.isBlank() && secret.isBlank()) AiStatus.Unavailable
+        // TODO Phase 5: add pool-empty signal here once VariationRepository exposes
+        // a reactive count flow. AiStatus.Empty UI branches are forward-compatible
+        // scaffolding — they will never be reached until this is wired.
         else AiStatus.Ready
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), promptGenerator.aiStatus.value)
 

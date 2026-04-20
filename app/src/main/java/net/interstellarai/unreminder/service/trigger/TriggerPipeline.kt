@@ -13,6 +13,7 @@ import net.interstellarai.unreminder.service.llm.PromptGenerator
 import net.interstellarai.unreminder.service.notification.NotificationHelper
 import net.interstellarai.unreminder.service.worker.RefillScheduler
 import io.sentry.Sentry
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import java.time.LocalTime
 import javax.inject.Inject
@@ -86,19 +87,33 @@ class TriggerPipeline @Inject constructor(
 
             val prompt: String
             if (featureFlagsRepository.useCloudPool.first()) {
-                val variation = variationRepository.pickRandomUnused(habit.id)
+                val variation = try {
+                    variationRepository.pickRandomUnused(habit.id)
+                } catch (e: Exception) {
+                    Log.w(TAG, "variationRepository.pickRandomUnused failed — falling back to habit.name", e)
+                    null
+                }
                 if (variation != null) {
                     prompt = variation.text
-                    if (variationRepository.needsRefill(habit.id)) {
-                        refillScheduler.enqueueForHabit(habit.id)
+                    try {
+                        if (variationRepository.needsRefill(habit.id)) {
+                            refillScheduler.enqueueForHabit(habit.id)
+                        }
+                    } catch (e: Exception) {
+                        Log.w(TAG, "needsRefill/enqueue failed — non-fatal, continuing", e)
                     }
                 } else {
-                    // Pool exhausted — fall back to habit title
+                    // Pool exhausted — fall back to habit name
                     prompt = habit.name
+                    Log.w(TAG, "pool empty for habit ${habit.id} — falling back to habit.name")
                     Sentry.captureMessage("pool empty for habit ${habit.id}") { scope ->
                         scope.setTag("component", "pool-empty")
                     }
-                    refillScheduler.enqueueForHabit(habit.id)
+                    try {
+                        refillScheduler.enqueueForHabit(habit.id)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "refill enqueue failed for habit=${habit.id} — non-fatal", e)
+                    }
                 }
             } else {
                 prompt = promptGenerator.generate(habit, locationName, timeOfDay)
@@ -116,6 +131,7 @@ class TriggerPipeline @Inject constructor(
                 habitName = habit.name
             )
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Log.e(TAG, "Trigger pipeline failed for trigger=$triggerId habit=${habit.name}", e)
             triggerRepository.updateOutcome(triggerId, TriggerStatus.DISMISSED)
         }

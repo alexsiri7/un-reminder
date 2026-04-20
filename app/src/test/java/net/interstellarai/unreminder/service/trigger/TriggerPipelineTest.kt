@@ -180,6 +180,7 @@ class TriggerPipelineTest {
 
         coVerify { promptGenerator.generate(testHabit, "any location", any()) }
     }
+
     @Test
     fun `flag ON pool has variants - uses variation text`() = runTest {
         val variation = VariationEntity(
@@ -223,6 +224,24 @@ class TriggerPipelineTest {
             )
         }
         coVerify { refillScheduler.enqueueForHabit(1L) }
+    }
+
+    @Test
+    fun `flag ON pool has variants and needsRefill true - enqueues refill`() = runTest {
+        val variation = VariationEntity(
+            id = 7L, habitId = 1L, text = "Cloud notification body",
+            promptFingerprint = "fp", generatedAt = Instant.now(), consumedAt = null
+        )
+        coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
+        every { featureFlagsRepository.useCloudPool } returns flowOf(true)
+        coEvery { variationRepository.pickRandomUnused(1L) } returns variation
+        coEvery { variationRepository.needsRefill(1L) } returns true
+
+        pipeline.execute(42L)
+
+        coVerify { triggerRepository.updateFired(42L, 1L, "Cloud notification body") }
+        coVerify(exactly = 1) { refillScheduler.enqueueForHabit(1L) }
     }
 
     @Test
