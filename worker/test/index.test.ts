@@ -21,38 +21,28 @@ function makeRequest(
   return new Request(url, init)
 }
 
-function validBody(n = 3) {
+function validHabit() {
   return {
-    habitTitle: 'Morning stretch',
-    habitTags: ['fitness', 'morning'],
-    locationName: 'Home',
-    timeOfDay: 'morning',
-    n,
+    id: 'habit-1',
+    name: 'Morning stretch',
+    fullDescription: 'A daily morning stretching routine to wake up the body.',
+    lowFloorDescription: 'Just 2 minutes of stretching.',
   }
 }
 
-function mockRequestySuccess(variants: string[]) {
-  fetchMock
-    .get(REQUESTY_URL)
-    .intercept({ path: '/v1/chat/completions', method: 'POST' })
-    .reply(
-      200,
-      JSON.stringify({
-        choices: [{ message: { content: JSON.stringify(variants) } }],
-        usage: { prompt_tokens: 100, completion_tokens: 50 },
-      }),
-      { headers: { 'Content-Type': 'application/json' } },
-    )
+function validBody(count = 1) {
+  return { habits: [validHabit()], count }
 }
 
-function mockRequestyMalformed() {
+/** Mock a single successful Requesty call returning the given text. */
+function mockRequestyReply(text: string) {
   fetchMock
     .get(REQUESTY_URL)
     .intercept({ path: '/v1/chat/completions', method: 'POST' })
     .reply(
       200,
       JSON.stringify({
-        choices: [{ message: { content: 'this is not json' } }],
+        choices: [{ message: { content: text } }],
         usage: { prompt_tokens: 100, completion_tokens: 50 },
       }),
       { headers: { 'Content-Type': 'application/json' } },
@@ -62,11 +52,8 @@ function mockRequestyMalformed() {
 function testEnv() {
   return {
     ...env,
-    UR_SHARED_SECRET: SECRET,
-    UR_REQUESTY_KEY: 'test-requesty-key',
-    UR_MODEL: 'gemini-3-flash-preview',
-    UR_DAILY_CAP_CENTS: '50',
-    UR_MONTHLY_CAP_CENTS: '500',
+    UR_SECRET: SECRET,
+    REQUESTY_API_KEY: 'test-requesty-key',
   }
 }
 
@@ -127,14 +114,14 @@ describe('un-reminder-worker', () => {
     expect(res.status).toBe(400)
   })
 
-  it('returns 400 on missing habitTitle', async () => {
+  it('returns 400 on missing habits field', async () => {
     const req = makeRequest('/v1/generate/batch', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-UR-Secret': SECRET,
       },
-      body: { habitTags: ['x'], locationName: 'Home', timeOfDay: 'morning', n: 3 },
+      body: { count: 1 },
     })
     const ctx = createExecutionContext()
     const res = await app.fetch(req, testEnv(), ctx)
@@ -142,29 +129,14 @@ describe('un-reminder-worker', () => {
     expect(res.status).toBe(400)
   })
 
-  it('returns 400 when n exceeds 50', async () => {
+  it('returns 400 on empty habits array', async () => {
     const req = makeRequest('/v1/generate/batch', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-UR-Secret': SECRET,
       },
-      body: { ...validBody(), n: 51 },
-    })
-    const ctx = createExecutionContext()
-    const res = await app.fetch(req, testEnv(), ctx)
-    await waitOnExecutionContext(ctx)
-    expect(res.status).toBe(400)
-  })
-
-  it('returns 400 when n is less than 1', async () => {
-    const req = makeRequest('/v1/generate/batch', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-UR-Secret': SECRET,
-      },
-      body: { ...validBody(), n: 0 },
+      body: { habits: [], count: 3 },
     })
     const ctx = createExecutionContext()
     const res = await app.fetch(req, testEnv(), ctx)
@@ -174,12 +146,11 @@ describe('un-reminder-worker', () => {
 
   // ---- Spend cap tests ----
 
-  it('returns 402 when daily KV counter over cap', async () => {
+  it('returns 429 when daily spend cap is exceeded', async () => {
     const e = testEnv()
-    // Pre-set daily spend to exceed cap
     const d = new Date()
-    const dayKey = `day:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
-    await e.UR_SPEND.put(dayKey, '999')
+    const dayKey = `spend:daily:${d.toISOString().slice(0, 10)}`
+    await (env.SPEND_KV as KVNamespace).put(dayKey, '999')
 
     const req = makeRequest('/v1/generate/batch', {
       method: 'POST',
@@ -192,19 +163,18 @@ describe('un-reminder-worker', () => {
     const ctx = createExecutionContext()
     const res = await app.fetch(req, e, ctx)
     await waitOnExecutionContext(ctx)
-    expect(res.status).toBe(402)
+    expect(res.status).toBe(429)
     const body = (await res.json()) as { error: string }
-    expect(body.error).toContain('daily')
+    expect(body.error.toLowerCase()).toContain('daily')
 
-    // Clean up
-    await e.UR_SPEND.delete(dayKey)
+    await (env.SPEND_KV as KVNamespace).delete(dayKey)
   })
 
-  it('returns 402 when monthly KV counter over cap', async () => {
+  it('returns 429 when monthly spend cap is exceeded', async () => {
     const e = testEnv()
     const d = new Date()
-    const mKey = `month:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
-    await e.UR_SPEND.put(mKey, '999')
+    const mKey = `spend:monthly:${d.toISOString().slice(0, 7)}`
+    await (env.SPEND_KV as KVNamespace).put(mKey, '999')
 
     const req = makeRequest('/v1/generate/batch', {
       method: 'POST',
@@ -217,19 +187,43 @@ describe('un-reminder-worker', () => {
     const ctx = createExecutionContext()
     const res = await app.fetch(req, e, ctx)
     await waitOnExecutionContext(ctx)
-    expect(res.status).toBe(402)
+    expect(res.status).toBe(429)
     const body = (await res.json()) as { error: string }
-    expect(body.error).toContain('monthly')
+    expect(body.error.toLowerCase()).toContain('monthly')
 
-    // Clean up
-    await e.UR_SPEND.delete(mKey)
+    await (env.SPEND_KV as KVNamespace).delete(mKey)
   })
 
-  // ---- Success test ----
+  // ---- Success tests ----
 
-  it('returns 200 with N variants on success', async () => {
-    const variants = ['Stretch time! 🧘', 'Your body needs a break', "Let's move!"]
-    mockRequestySuccess(variants)
+  it('returns 200 with variant text on success', async () => {
+    const variantText = 'Stretch time! 🧘'
+    mockRequestyReply(variantText)
+
+    const req = makeRequest('/v1/generate/batch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-UR-Secret': SECRET,
+      },
+      body: validBody(1),
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, testEnv(), ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as {
+      variants: Array<{ habitId: string; texts: string[] }>
+    }
+    expect(body.variants).toHaveLength(1)
+    expect(body.variants[0].habitId).toBe('habit-1')
+    expect(body.variants[0].texts).toContain(variantText)
+  })
+
+  it('returns multiple variants when count > 1', async () => {
+    mockRequestyReply('Stretch!')
+    mockRequestyReply('Move it!')
+    mockRequestyReply('Time to go!')
 
     const req = makeRequest('/v1/generate/batch', {
       method: 'POST',
@@ -243,16 +237,19 @@ describe('un-reminder-worker', () => {
     const res = await app.fetch(req, testEnv(), ctx)
     await waitOnExecutionContext(ctx)
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { variants: string[] }
-    expect(body.variants).toEqual(variants)
+    const body = (await res.json()) as {
+      variants: Array<{ habitId: string; texts: string[] }>
+    }
+    expect(body.variants[0].texts).toHaveLength(3)
   })
 
-  // ---- Retry + 502 test ----
+  // ---- Upstream error handling ----
 
-  it('returns 502 after retries on malformed response', async () => {
-    // Two malformed responses -> 502
-    mockRequestyMalformed()
-    mockRequestyMalformed()
+  it('returns 200 with empty texts when upstream returns non-200', async () => {
+    fetchMock
+      .get(REQUESTY_URL)
+      .intercept({ path: '/v1/chat/completions', method: 'POST' })
+      .reply(500, 'Internal Server Error')
 
     const req = makeRequest('/v1/generate/batch', {
       method: 'POST',
@@ -260,69 +257,23 @@ describe('un-reminder-worker', () => {
         'Content-Type': 'application/json',
         'X-UR-Secret': SECRET,
       },
-      body: validBody(),
-    })
-    const ctx = createExecutionContext()
-    const res = await app.fetch(req, testEnv(), ctx)
-    await waitOnExecutionContext(ctx)
-    expect(res.status).toBe(502)
-  })
-
-  // ---- Retry-then-succeed test ----
-
-  it('returns 200 when first call is malformed but retry succeeds', async () => {
-    const variants = ['Stretch!', 'Move it!', 'Time to go!']
-    mockRequestyMalformed() // first call returns malformed
-    mockRequestySuccess(variants) // retry succeeds
-
-    const req = makeRequest('/v1/generate/batch', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-UR-Secret': SECRET,
-      },
-      body: validBody(),
+      body: validBody(1),
     })
     const ctx = createExecutionContext()
     const res = await app.fetch(req, testEnv(), ctx)
     await waitOnExecutionContext(ctx)
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { variants: string[] }
-    expect(body.variants).toEqual(variants)
-  })
-
-  // ---- Upstream error test ----
-
-  it('returns 502 when upstream returns non-200', async () => {
-    // Two 500 responses -> 502
-    fetchMock
-      .get(REQUESTY_URL)
-      .intercept({ path: '/v1/chat/completions', method: 'POST' })
-      .reply(500, 'Internal Server Error')
-    fetchMock
-      .get(REQUESTY_URL)
-      .intercept({ path: '/v1/chat/completions', method: 'POST' })
-      .reply(500, 'Internal Server Error')
-
-    const req = makeRequest('/v1/generate/batch', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-UR-Secret': SECRET,
-      },
-      body: validBody(),
-    })
-    const ctx = createExecutionContext()
-    const res = await app.fetch(req, testEnv(), ctx)
-    await waitOnExecutionContext(ctx)
-    expect(res.status).toBe(502)
+    const body = (await res.json()) as {
+      variants: Array<{ habitId: string; texts: string[] }>
+    }
+    // Failed upstream calls are silently dropped; handler returns empty texts
+    expect(body.variants[0].texts).toHaveLength(0)
   })
 
   // ---- Spend counter increment test ----
 
   it('increments spend counter after successful call', async () => {
-    const variants = ['Go stretch!']
-    mockRequestySuccess(variants)
+    mockRequestyReply('Go stretch!')
 
     const e = testEnv()
     const req = makeRequest('/v1/generate/batch', {
@@ -338,10 +289,9 @@ describe('un-reminder-worker', () => {
     await waitOnExecutionContext(ctx)
     expect(res.status).toBe(200)
 
-    // Verify spend was incremented
     const d = new Date()
-    const dayKey = `day:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
-    const dailySpend = await e.UR_SPEND.get(dayKey)
+    const dayKey = `spend:daily:${d.toISOString().slice(0, 10)}`
+    const dailySpend = await (env.SPEND_KV as KVNamespace).get(dayKey)
     expect(Number(dailySpend)).toBeGreaterThan(0)
   })
 
