@@ -1,3 +1,17 @@
 name = "un-reminder-worker"
 main = "src/index.ts"
 compatibility_date = "2026-04-18"
+
+[[kv_namespaces]]
+binding = "UR_SPEND"
+id = "PLACEHOLDER_KV_NAMESPACE_ID"
+
+# Environment variables (defaults — override per-environment or via wrangler secret)
+[vars]
+UR_MODEL = "gemini-3-flash-preview"
+UR_DAILY_CAP_CENTS = "50"
+UR_MONTHLY_CAP_CENTS = "500"
+
+# Secrets (set via `wrangler secret put`):
+#   UR_SHARED_SECRET  — shared secret for X-UR-Secret auth header
+#   UR_REQUESTY_KEY   — Requesty.ai API key
