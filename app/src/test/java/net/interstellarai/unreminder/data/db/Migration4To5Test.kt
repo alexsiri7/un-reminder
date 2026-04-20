@@ -1,46 +1,59 @@
 package net.interstellarai.unreminder.data.db
 
-import androidx.room.testing.MigrationTestHelper
+import androidx.sqlite.db.SupportSQLiteDatabase
+import androidx.sqlite.db.SupportSQLiteOpenHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
-import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
-import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 
 @RunWith(RobolectricTestRunner::class)
 class Migration4To5Test {
 
-    @get:Rule
-    val helper = MigrationTestHelper(
-        InstrumentationRegistry.getInstrumentation(),
-        AppDatabase::class.java,
-        emptyList(),
-        FrameworkSQLiteOpenHelperFactory()
-    )
+    /**
+     * Create an in-memory SQLite database at "version 4" with the habits table,
+     * then apply MIGRATION_4_5 and verify the result.
+     * This avoids MigrationTestHelper which requires exported Room schemas
+     * (exportSchema = false in this project).
+     */
+    private fun createV4Database(): SupportSQLiteDatabase {
+        val config = SupportSQLiteOpenHelper.Configuration.builder(RuntimeEnvironment.getApplication())
+            .name(null) // in-memory
+            .callback(object : SupportSQLiteOpenHelper.Callback(4) {
+                override fun onCreate(db: SupportSQLiteDatabase) {
+                    db.execSQL(
+                        "CREATE TABLE IF NOT EXISTS `habits` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`name` TEXT NOT NULL, `full_description` TEXT NOT NULL, " +
+                        "`low_floor_description` TEXT NOT NULL, `active` INTEGER NOT NULL DEFAULT 1, " +
+                        "`created_at` INTEGER NOT NULL DEFAULT 0, `updated_at` INTEGER NOT NULL DEFAULT 0)"
+                    )
+                }
+
+                override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+            })
+            .build()
+
+        return FrameworkSQLiteOpenHelperFactory().create(config).writableDatabase
+    }
 
     @Test
     fun `MIGRATION_4_5 creates variations table with all required columns`() {
-        val db = helper.createDatabase(TEST_DB, 4)
-        // Create the v4 habits table so the foreign key reference is valid
-        db.execSQL(
-            "CREATE TABLE IF NOT EXISTS `habits` (" +
-            "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
-            "`name` TEXT NOT NULL, `full_description` TEXT NOT NULL, " +
-            "`low_floor_description` TEXT NOT NULL, `active` INTEGER NOT NULL DEFAULT 1, " +
-            "`created_at` INTEGER NOT NULL DEFAULT 0, `updated_at` INTEGER NOT NULL DEFAULT 0)"
-        )
+        val db = createV4Database()
+
+        // Seed a habit for foreign key references
         db.execSQL(
             "INSERT INTO habits (name, full_description, low_floor_description, active, created_at, updated_at) " +
             "VALUES ('h', 'f', 'l', 1, 0, 0)"
         )
 
-        // Apply the migration directly
+        // Apply the migration
         MIGRATION_4_5.migrate(db)
 
-        // Verify the variation table was created
+        // Verify the variations table was created
         val tableCursor = db.query(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='variations'"
         )
@@ -76,7 +89,6 @@ class Migration4To5Test {
         db.execSQL(
             "INSERT INTO variations (habit_id, text, prompt_fingerprint, generated_at) VALUES (1, 'v', 'fp', 0)"
         )
-        // Verify data can be inserted (duplicate handling is tested in VariationDaoTest)
         val countCursor = db.query("SELECT COUNT(*) FROM variations WHERE habit_id = 1")
         countCursor.moveToFirst()
         assertEquals(1, countCursor.getInt(0))
@@ -85,7 +97,20 @@ class Migration4To5Test {
         db.close()
     }
 
-    companion object {
-        private const val TEST_DB = "migration-4-5-test"
+    @Test
+    fun `MIGRATION_4_5 is idempotent with IF NOT EXISTS clauses`() {
+        val db = createV4Database()
+
+        // Run migration twice — should not throw
+        MIGRATION_4_5.migrate(db)
+        MIGRATION_4_5.migrate(db)
+
+        val tableCursor = db.query(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='variations'"
+        )
+        assertEquals(1, tableCursor.count)
+        tableCursor.close()
+
+        db.close()
     }
 }
