@@ -1,6 +1,7 @@
 package net.interstellarai.unreminder.ui.habit
 
 import net.interstellarai.unreminder.data.db.HabitEntity
+import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.data.repository.FeatureFlagsRepository
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
@@ -76,6 +77,10 @@ class HabitEditViewModelTest {
         every { mockWorkerSettingsRepository.effectiveWorkerUrl } returns flowOf("")
         every { mockWorkerSettingsRepository.effectiveWorkerSecret } returns flowOf("")
         every { mockFeatureFlagsRepository.useCloudPool } returns flowOf(false)
+        every { mockVariationRepository.unusedVariationsFlow(any()) } returns flowOf(emptyList())
+        every { mockVariationRepository.recentlyUsedFlow(any(), any()) } returns flowOf(emptyList())
+        every { mockVariationRepository.countTotalFlow(any()) } returns flowOf(0)
+        every { mockVariationRepository.countConsumedSince(any(), any()) } returns flowOf(0)
         viewModel = HabitEditViewModel(
             mockHabitRepository,
             mockLocationRepository,
@@ -489,5 +494,80 @@ class HabitEditViewModelTest {
         advanceUntilIdle()
         assertEquals(AiStatus.Ready, vm.aiStatus.value)
         job.cancel()
+    }
+
+    // --- variation StateFlows ---
+
+    @Test
+    fun `unusedVariations emits empty list before loadHabit is called`() = runTest(testDispatcher) {
+        val job = launch { viewModel.unusedVariations.collect {} }
+        advanceUntilIdle()
+        assertEquals(emptyList<net.interstellarai.unreminder.data.db.VariationEntity>(), viewModel.unusedVariations.value)
+        job.cancel()
+    }
+
+    @Test
+    fun `unusedVariations emits repository data after loadHabit`() = runTest(testDispatcher) {
+        val habitId = 1L
+        val fakeVariations = listOf(
+            net.interstellarai.unreminder.data.db.VariationEntity(
+                id = 10L, habitId = habitId, text = "v1", promptFingerprint = "fp1", generatedAt = java.time.Instant.EPOCH
+            )
+        )
+        every { mockVariationRepository.unusedVariationsFlow(habitId) } returns flowOf(fakeVariations)
+        every { mockVariationRepository.recentlyUsedFlow(habitId, any()) } returns flowOf(emptyList())
+        every { mockVariationRepository.countTotalFlow(habitId) } returns flowOf(1)
+        every { mockVariationRepository.countConsumedSince(eq(habitId), any()) } returns flowOf(0)
+        coEvery { mockHabitRepository.getById(habitId) } returns flowOf(testHabit)
+
+        val job = launch { viewModel.unusedVariations.collect {} }
+        viewModel.loadHabit(habitId)
+        advanceUntilIdle()
+
+        assertEquals(fakeVariations, viewModel.unusedVariations.value)
+        job.cancel()
+    }
+
+    @Test
+    fun `totalVariationCount emits 0 before loadHabit and repository count after`() = runTest(testDispatcher) {
+        val habitId = 1L
+        every { mockVariationRepository.unusedVariationsFlow(habitId) } returns flowOf(emptyList())
+        every { mockVariationRepository.recentlyUsedFlow(habitId, any()) } returns flowOf(emptyList())
+        every { mockVariationRepository.countTotalFlow(habitId) } returns flowOf(42)
+        every { mockVariationRepository.countConsumedSince(eq(habitId), any()) } returns flowOf(0)
+        coEvery { mockHabitRepository.getById(habitId) } returns flowOf(testHabit)
+
+        assertEquals(0, viewModel.totalVariationCount.value)
+
+        val job = launch { viewModel.totalVariationCount.collect {} }
+        viewModel.loadHabit(habitId)
+        advanceUntilIdle()
+
+        assertEquals(42, viewModel.totalVariationCount.value)
+        job.cancel()
+    }
+
+    // --- deleteVariation ---
+
+    @Test
+    fun `deleteVariation calls repository deleteById with correct id`() = runTest(testDispatcher) {
+        val variationId = 99L
+        coEvery { mockVariationRepository.deleteById(variationId) } returns Unit
+
+        viewModel.deleteVariation(variationId)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { mockVariationRepository.deleteById(variationId) }
+    }
+
+    @Test
+    fun `deleteVariation propagates repository exception to error state`() = runTest(testDispatcher) {
+        val variationId = 99L
+        coEvery { mockVariationRepository.deleteById(variationId) } throws RuntimeException("DB error")
+
+        viewModel.deleteVariation(variationId)
+        advanceUntilIdle()
+
+        assertEquals("Failed to remove variation.", viewModel.uiState.value.errorMessage)
     }
 }

@@ -248,6 +248,7 @@ Parsed via `lines().firstOrNull { it.startsWith("Full:") }` / `"Low-floor:"`. Th
 1. **Home screen** — list of habits. FAB → add habit. Tap habit → edit.
 2. **Habit editor** — name, full description, low-floor description, location chips (multi-select from saved locations; no selection = "Anywhere"), active toggle.
    AI-assist row: **Autofill with AI** (fills description fields from the habit name via on-device LLM; enabled when name ≥ 2 chars) · **Preview notification** (generates a sample notification text in a dialog; enabled when all description fields are filled).
+   Queued notifications panel (existing habits only): collapsible section showing unused / total variation counts, a summary of used-today and last-refilled date, a list of unused queued variations each with a Remove action, and the 10 most-recently-consumed variations.
 3. **Windows screen** — list of windows. FAB → add window. Tap → edit.
 4. **Window editor** — start/end time pickers, days-of-week chips, frequency slider (1–3), active toggle.
 5. **Locations screen** — dynamic list of named locations (any label, not restricted to HOME/WORK).

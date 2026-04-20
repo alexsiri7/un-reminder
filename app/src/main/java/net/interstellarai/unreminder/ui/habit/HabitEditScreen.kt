@@ -19,10 +19,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -49,10 +49,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import net.interstellarai.unreminder.data.db.VariationEntity
-import net.interstellarai.unreminder.service.llm.AiStatus
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import net.interstellarai.unreminder.data.db.VariationEntity
+import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.ui.theme.Dimens
 import net.interstellarai.unreminder.ui.theme.DisplayLarge
 import net.interstellarai.unreminder.ui.theme.DisplayMedium
@@ -92,6 +92,7 @@ fun HabitEditScreen(
     val unusedVariations by viewModel.unusedVariations.collectAsStateWithLifecycle()
     val recentlyUsedVariations by viewModel.recentlyUsedVariations.collectAsStateWithLifecycle()
     val totalVariationCount by viewModel.totalVariationCount.collectAsStateWithLifecycle()
+    val usedTodayCount by viewModel.usedTodayCount.collectAsStateWithLifecycle()
     val flashAlpha = remember { Animatable(0f) }
 
     LaunchedEffect(habitId) {
@@ -253,6 +254,7 @@ fun HabitEditScreen(
                     unused = unusedVariations,
                     recentlyUsed = recentlyUsedVariations,
                     totalCount = totalVariationCount,
+                    usedTodayCount = usedTodayCount,
                     onRemove = viewModel::deleteVariation,
                     modifier = Modifier.padding(horizontal = Dimens.xl),
                 )
@@ -575,6 +577,7 @@ private fun QueuedNotificationsSection(
     unused: List<VariationEntity>,
     recentlyUsed: List<VariationEntity>,
     totalCount: Int,
+    usedTodayCount: Int,
     onRemove: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -612,10 +615,6 @@ private fun QueuedNotificationsSection(
 
             // Count summary + last refilled
             val lastRefilled = unused.maxByOrNull { it.generatedAt }?.generatedAt
-            val usedTodayCount = recentlyUsed.count { v ->
-                v.consumedAt?.atZone(ZoneId.systemDefault())?.toLocalDate() ==
-                    java.time.LocalDate.now()
-            }
             Text(
                 buildString {
                     append("${unused.size} unused")

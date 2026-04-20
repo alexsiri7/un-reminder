@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -31,6 +32,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.ZoneId
 import javax.inject.Inject
 
 data class HabitEditUiState(
@@ -91,16 +94,28 @@ class HabitEditViewModel @Inject constructor(
     val unusedVariations: StateFlow<List<VariationEntity>> = _habitId
         .filterNotNull()
         .flatMapLatest { variationRepository.unusedVariationsFlow(it) }
+        .catch { e -> Log.e(TAG, "unusedVariations flow error", e) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val recentlyUsedVariations: StateFlow<List<VariationEntity>> = _habitId
         .filterNotNull()
         .flatMapLatest { variationRepository.recentlyUsedFlow(it, RECENTLY_USED_LIMIT) }
+        .catch { e -> Log.e(TAG, "recentlyUsedVariations flow error", e) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val totalVariationCount: StateFlow<Int> = _habitId
         .filterNotNull()
         .flatMapLatest { variationRepository.countTotalFlow(it) }
+        .catch { e -> Log.e(TAG, "totalVariationCount flow error", e) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
+    val usedTodayCount: StateFlow<Int> = _habitId
+        .filterNotNull()
+        .flatMapLatest { id ->
+            val startOfDay = LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant()
+            variationRepository.countConsumedSince(id, startOfDay)
+        }
+        .catch { e -> Log.e(TAG, "usedTodayCount flow error", e) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     companion object {
@@ -295,7 +310,8 @@ class HabitEditViewModel @Inject constructor(
                 variationRepository.deleteById(id)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                Log.w(TAG, "deleteVariation: failed to delete variation $id", e)
+                Log.e(TAG, "deleteVariation: failed to delete variation $id", e)
+                _uiState.value = _uiState.value.copy(errorMessage = "Failed to remove variation.")
             }
         }
     }

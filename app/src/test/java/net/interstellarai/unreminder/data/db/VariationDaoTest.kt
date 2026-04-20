@@ -2,6 +2,7 @@ package net.interstellarai.unreminder.data.db
 
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -131,5 +132,87 @@ class VariationDaoTest {
         variationDao.deleteByHabit(h1)
         assertEquals(0, variationDao.countUnused(h1))
         assertEquals(1, variationDao.countUnused(h2))
+    }
+
+    @Test fun `getUnusedFlow emits unused variations ordered newest first`() = runTest {
+        val hId = insertHabit()
+        val older = Instant.EPOCH
+        val newer = Instant.EPOCH.plusSeconds(3600)
+        variationDao.insert(listOf(
+            VariationEntity(habitId = hId, text = "old", promptFingerprint = "fp1", generatedAt = older),
+            VariationEntity(habitId = hId, text = "new", promptFingerprint = "fp2", generatedAt = newer),
+        ))
+        val result = variationDao.getUnusedFlow(hId).first()
+        assertEquals(2, result.size)
+        assertEquals("new", result[0].text)
+        assertEquals("old", result[1].text)
+    }
+
+    @Test fun `getUnusedFlow excludes consumed variations`() = runTest {
+        val hId = insertHabit()
+        variationDao.insert(listOf(
+            VariationEntity(habitId = hId, text = "unused", promptFingerprint = "fp1", generatedAt = Instant.EPOCH),
+            VariationEntity(habitId = hId, text = "used", promptFingerprint = "fp2", generatedAt = Instant.EPOCH),
+        ))
+        val usedRow = variationDao.getUnusedForHabit(hId, 50).first { it.text == "used" }
+        variationDao.markConsumed(usedRow.id, Instant.now())
+        val result = variationDao.getUnusedFlow(hId).first()
+        assertEquals(1, result.size)
+        assertEquals("unused", result[0].text)
+    }
+
+    @Test fun `getRecentlyUsedFlow returns consumed rows ordered by consumed_at DESC with limit`() = runTest {
+        val hId = insertHabit()
+        variationDao.insert((1..5).map { i ->
+            VariationEntity(habitId = hId, text = "v$i", promptFingerprint = "fp$i", generatedAt = Instant.EPOCH)
+        })
+        val rows = variationDao.getUnusedForHabit(hId, 50)
+        rows.forEachIndexed { idx, row ->
+            variationDao.markConsumed(row.id, Instant.EPOCH.plusSeconds(idx.toLong()))
+        }
+        val result = variationDao.getRecentlyUsedFlow(hId, limit = 3).first()
+        assertEquals(3, result.size)
+        assertTrue(result[0].consumedAt!! >= result[1].consumedAt!!)
+    }
+
+    @Test fun `deleteById removes only the targeted variation`() = runTest {
+        val hId = insertHabit()
+        variationDao.insert(listOf(
+            VariationEntity(habitId = hId, text = "target", promptFingerprint = "fp1", generatedAt = Instant.EPOCH),
+            VariationEntity(habitId = hId, text = "keeper", promptFingerprint = "fp2", generatedAt = Instant.EPOCH),
+        ))
+        val target = variationDao.getUnusedForHabit(hId, 50).first { it.text == "target" }
+        variationDao.deleteById(target.id)
+        val remaining = variationDao.getUnusedFlow(hId).first()
+        assertEquals(1, remaining.size)
+        assertEquals("keeper", remaining[0].text)
+    }
+
+    @Test fun `countTotalFlow includes both used and unused`() = runTest {
+        val hId = insertHabit()
+        variationDao.insert(listOf(
+            VariationEntity(habitId = hId, text = "v1", promptFingerprint = "fp1", generatedAt = Instant.EPOCH),
+            VariationEntity(habitId = hId, text = "v2", promptFingerprint = "fp2", generatedAt = Instant.EPOCH),
+        ))
+        val row = variationDao.getUnusedForHabit(hId, 50).first()
+        variationDao.markConsumed(row.id, Instant.now())
+        val count = variationDao.countTotalFlow(hId).first()
+        assertEquals(2, count)
+    }
+
+    @Test fun `countConsumedSinceFlow counts variations consumed at or after dayStart`() = runTest {
+        val hId = insertHabit()
+        variationDao.insert(listOf(
+            VariationEntity(habitId = hId, text = "v1", promptFingerprint = "fp1", generatedAt = Instant.EPOCH),
+            VariationEntity(habitId = hId, text = "v2", promptFingerprint = "fp2", generatedAt = Instant.EPOCH),
+            VariationEntity(habitId = hId, text = "v3", promptFingerprint = "fp3", generatedAt = Instant.EPOCH),
+        ))
+        val rows = variationDao.getUnusedForHabit(hId, 50)
+        val dayStart = Instant.EPOCH.plusSeconds(1000)
+        variationDao.markConsumed(rows[0].id, Instant.EPOCH.plusSeconds(500))   // before dayStart
+        variationDao.markConsumed(rows[1].id, Instant.EPOCH.plusSeconds(1000))  // at dayStart
+        variationDao.markConsumed(rows[2].id, Instant.EPOCH.plusSeconds(2000))  // after dayStart
+        val count = variationDao.countConsumedSinceFlow(hId, dayStart).first()
+        assertEquals(2, count) // rows[1] and rows[2]
     }
 }

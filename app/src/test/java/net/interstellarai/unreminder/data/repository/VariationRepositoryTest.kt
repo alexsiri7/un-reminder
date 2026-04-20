@@ -4,7 +4,10 @@ import net.interstellarai.unreminder.data.db.VariationDao
 import net.interstellarai.unreminder.data.db.VariationEntity
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -86,5 +89,50 @@ class VariationRepositoryTest {
     @Test fun `deleteForHabit delegates to dao deleteByHabit`() = runTest {
         repository.deleteForHabit(42L)
         coVerify { mockDao.deleteByHabit(42L) }
+    }
+
+    @Test fun `unusedVariationsFlow delegates to dao getUnusedFlow`() {
+        val habitId = 5L
+        val fakeFlow = flowOf(emptyList<VariationEntity>())
+        every { mockDao.getUnusedFlow(habitId) } returns fakeFlow
+        val result = repository.unusedVariationsFlow(habitId)
+        assertEquals(fakeFlow, result)
+    }
+
+    @Test fun `recentlyUsedFlow uses default limit of 10`() {
+        val habitId = 5L
+        every { mockDao.getRecentlyUsedFlow(habitId, 10) } returns flowOf(emptyList())
+        repository.recentlyUsedFlow(habitId)
+        verify { mockDao.getRecentlyUsedFlow(habitId, 10) }
+    }
+
+    @Test fun `recentlyUsedFlow passes custom limit to dao`() {
+        val habitId = 5L
+        every { mockDao.getRecentlyUsedFlow(habitId, 3) } returns flowOf(emptyList())
+        repository.recentlyUsedFlow(habitId, limit = 3)
+        verify { mockDao.getRecentlyUsedFlow(habitId, 3) }
+    }
+
+    @Test fun `deleteById delegates to dao deleteById`() = runTest {
+        coEvery { mockDao.deleteById(77L) } returns Unit
+        repository.deleteById(77L)
+        coVerify { mockDao.deleteById(77L) }
+    }
+
+    @Test fun `countTotalFlow delegates to dao countTotalFlow`() {
+        val habitId = 5L
+        val fakeFlow = flowOf(7)
+        every { mockDao.countTotalFlow(habitId) } returns fakeFlow
+        val result = repository.countTotalFlow(habitId)
+        assertEquals(fakeFlow, result)
+    }
+
+    @Test fun `countConsumedSince delegates to dao countConsumedSinceFlow`() {
+        val habitId = 5L
+        val dayStart = java.time.Instant.EPOCH
+        val fakeFlow = flowOf(3)
+        every { mockDao.countConsumedSinceFlow(habitId, dayStart) } returns fakeFlow
+        val result = repository.countConsumedSince(habitId, dayStart)
+        assertEquals(fakeFlow, result)
     }
 }

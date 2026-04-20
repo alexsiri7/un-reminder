@@ -43,4 +43,8 @@ interface VariationDao {
     /** Reactive total count of all variations (used + unused) for [habitId]. */
     @Query("SELECT COUNT(*) FROM variations WHERE habit_id = :habitId")
     fun countTotalFlow(habitId: Long): Flow<Int>
+
+    /** Reactive count of variations consumed at or after [dayStart] for [habitId]. */
+    @Query("SELECT COUNT(*) FROM variations WHERE habit_id = :habitId AND consumed_at >= :dayStart")
+    fun countConsumedSinceFlow(habitId: Long, dayStart: Instant): Flow<Int>
 }

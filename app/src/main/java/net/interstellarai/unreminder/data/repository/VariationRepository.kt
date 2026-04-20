@@ -59,4 +59,7 @@ class VariationRepository @Inject constructor(
     suspend fun deleteById(id: Long) = dao.deleteById(id)
 
     fun countTotalFlow(habitId: Long): Flow<Int> = dao.countTotalFlow(habitId)
+
+    fun countConsumedSince(habitId: Long, dayStart: Instant): Flow<Int> =
+        dao.countConsumedSinceFlow(habitId, dayStart)
 }
