@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import net.interstellarai.unreminder.data.db.VariationEntity
+import net.interstellarai.unreminder.data.db.WindowEntity
 import net.interstellarai.unreminder.service.llm.AiStatus
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -87,6 +88,7 @@ fun HabitEditScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val allLocations by viewModel.allLocations.collectAsStateWithLifecycle()
+    val allWindows by viewModel.allWindows.collectAsStateWithLifecycle()
     val aiStatus by viewModel.aiStatus.collectAsStateWithLifecycle()
     val unusedVariations by viewModel.unusedVariations.collectAsStateWithLifecycle()
     val recentlyUsedVariations by viewModel.recentlyUsedVariations.collectAsStateWithLifecycle()
@@ -224,6 +226,29 @@ fun HabitEditScreen(
                             label = loc.name,
                             selected = loc.id in uiState.selectedLocationIds,
                             onClick = { viewModel.toggleLocation(loc.id) },
+                        )
+                    }
+                }
+            }
+
+            Column(modifier = Modifier.padding(horizontal = Dimens.xxl, vertical = Dimens.xxl)) {
+                MonoSectionLabel("when")
+                Spacer(Modifier.height(Dimens.md - 2.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(Dimens.sm),
+                    verticalArrangement = Arrangement.spacedBy(Dimens.sm),
+                ) {
+                    WindowChip(
+                        label = "Any time",
+                        selected = uiState.selectedWindowIds.isEmpty(),
+                        muted = uiState.selectedWindowIds.isEmpty(),
+                        onClick = { viewModel.setAnyTime() },
+                    )
+                    allWindows.forEach { win ->
+                        WindowChip(
+                            label = win.label(),
+                            selected = win.id in uiState.selectedWindowIds,
+                            onClick = { viewModel.toggleWindow(win.id) },
                         )
                     }
                 }
@@ -472,6 +497,38 @@ private fun DescriptionBlock(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
+    }
+}
+
+@Composable
+private fun WindowChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    muted: Boolean = false,
+) {
+    val (bg, fg) = if (selected) {
+        MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
+    } else {
+        Color.Transparent to MaterialTheme.colorScheme.onBackground
+    }
+    val borderColor = if (selected) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f)
+    }
+    Box(
+        modifier = Modifier
+            .background(bg, UnReminderShapes.small)
+            .border(BorderStroke(1.5.dp, borderColor), UnReminderShapes.small)
+            .clickable(onClick = onClick)
+            .padding(horizontal = Dimens.md + 2.dp, vertical = Dimens.sm),
+    ) {
+        Text(
+            text = label,
+            style = SansBodyStrong,
+            color = fg.copy(alpha = if (muted && !selected) 0.5f else 1f),
+        )
     }
 }
 
@@ -748,3 +805,6 @@ private fun RecentlyUsedVariationRow(
         }
     }
 }
+
+private fun WindowEntity.label(): String =
+    "${startTime.format(DateTimeFormatter.ofPattern("HH:mm"))}\u2013${endTime.format(DateTimeFormatter.ofPattern("HH:mm"))}"

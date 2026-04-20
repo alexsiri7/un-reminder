@@ -13,6 +13,8 @@ import net.interstellarai.unreminder.data.db.MIGRATION_1_2
 import net.interstellarai.unreminder.data.db.MIGRATION_2_3
 import net.interstellarai.unreminder.data.db.MIGRATION_3_4
 import net.interstellarai.unreminder.data.db.MIGRATION_4_5
+import net.interstellarai.unreminder.data.db.MIGRATION_5_6
+import net.interstellarai.unreminder.data.db.HabitWindowCrossRefDao
 import net.interstellarai.unreminder.data.db.PendingFeedbackDao
 import net.interstellarai.unreminder.data.db.TriggerDao
 import net.interstellarai.unreminder.data.db.VariationDao
@@ -44,7 +46,7 @@ object AppModule {
             context,
             AppDatabase::class.java,
             "unreminder.db"
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6).build()
     }
 
     @Provides
@@ -62,6 +64,10 @@ object AppModule {
     @Provides
     fun provideHabitLocationCrossRefDao(db: AppDatabase): HabitLocationCrossRefDao =
         db.habitLocationCrossRefDao()
+
+    @Provides
+    fun provideHabitWindowCrossRefDao(db: AppDatabase): HabitWindowCrossRefDao =
+        db.habitWindowCrossRefDao()
 
     @Provides
     fun providePendingFeedbackDao(db: AppDatabase): PendingFeedbackDao = db.pendingFeedbackDao()

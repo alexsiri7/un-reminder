@@ -45,6 +45,18 @@ interface HabitDao {
                 WHERE hl.habit_id = h.id AND hl.location_id IN (:locationIds)
             )
         )
+        AND (
+            NOT EXISTS (SELECT 1 FROM habit_window hw WHERE hw.habit_id = h.id)
+            OR EXISTS (
+                SELECT 1 FROM habit_window hw
+                JOIN windows w ON w.id = hw.window_id
+                WHERE hw.habit_id = h.id
+                  AND w.active = 1
+                  AND w.start_time <= :currentSecondOfDay
+                  AND w.end_time >= :currentSecondOfDay
+                  AND (w.days_of_week_bitmask & :dayOfWeekBit) != 0
+            )
+        )
         AND h.id NOT IN (
             SELECT habit_id FROM triggers
             WHERE habit_id IS NOT NULL
@@ -52,5 +64,10 @@ interface HabitDao {
             AND fired_at > :excludeAfter
         )
     """)
-    suspend fun getEligibleHabits(locationIds: List<Long>, excludeAfter: Long): List<HabitEntity>
+    suspend fun getEligibleHabits(
+        locationIds: List<Long>,
+        excludeAfter: Long,
+        currentSecondOfDay: Int,
+        dayOfWeekBit: Int
+    ): List<HabitEntity>
 }
