@@ -41,9 +41,15 @@ async function generateOne(
     throw new Error(`Requesty ${resp.status}: ${err}`)
   }
 
-  const json = await resp.json() as {
+  let json: {
     choices: { message: { content: string } }[]
     usage?: { completion_tokens?: number; prompt_tokens?: number }
+  }
+  try {
+    json = await resp.json()
+  } catch {
+    const body = await resp.text().catch(() => '<unreadable>')
+    throw new Error(`Requesty returned non-JSON 200 response: ${body.slice(0, 200)}`)
   }
   const text = json.choices?.[0]?.message?.content?.trim() ?? ''
   if (!text) {
