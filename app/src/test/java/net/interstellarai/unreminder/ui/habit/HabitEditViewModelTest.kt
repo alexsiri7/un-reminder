@@ -9,6 +9,7 @@ import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.service.llm.PromptGenerator
 import net.interstellarai.unreminder.service.worker.RequestyProxyClient
 import net.interstellarai.unreminder.service.worker.SpendCapExceededException
+import net.interstellarai.unreminder.service.worker.WorkerAuthException
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -295,6 +296,45 @@ class HabitEditViewModelTest {
             assertNull(state.errorMessage)
             assertFalse(state.isGeneratingFields)
         }
+
+    // --- WorkerAuthException via proxy ---
+
+    @Test
+    fun `autofillWithAi sets errorMessage on WorkerAuthException`() =
+        runTest(testDispatcher) {
+            every { mockWorkerSettingsRepository.workerUrl } returns flowOf("https://worker.example.com")
+            every { mockWorkerSettingsRepository.workerSecret } returns flowOf("secret")
+            coEvery {
+                mockRequestyProxyClient.habitFields(any(), any(), any())
+            } throws WorkerAuthException()
+
+            viewModel.autofillWithAi()
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertEquals("Wrong worker secret \u2014 check Settings.", state.errorMessage)
+            assertFalse(state.isGeneratingFields)
+            assertFalse(state.showSpendCapLink)
+        }
+
+    @Test
+    fun `previewNotification sets errorMessage on WorkerAuthException`() =
+        runTest(testDispatcher) {
+            every { mockWorkerSettingsRepository.workerUrl } returns flowOf("https://worker.example.com")
+            every { mockWorkerSettingsRepository.workerSecret } returns flowOf("secret")
+            coEvery {
+                mockRequestyProxyClient.preview(any(), any(), any(), any())
+            } throws WorkerAuthException()
+
+            viewModel.previewNotification()
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertEquals("Wrong worker secret \u2014 check Settings.", state.errorMessage)
+            assertFalse(state.isGeneratingFields)
+        }
+
+    // --- On-device fallback ---
 
     @Test
     fun `autofillWithAi falls back to on-device when workerUrl is blank`() = runTest(testDispatcher) {
