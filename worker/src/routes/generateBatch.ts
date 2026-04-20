@@ -3,7 +3,10 @@ import type { Env, GenerateBatchRequest, GenerateBatchResponse } from '../types'
 import { addSpend } from '../lib/spend'
 import { callRequestyWithSchemaRetry, COST_PER_OUTPUT_TOKEN, COST_PER_INPUT_TOKEN } from '../lib/requesty'
 
-function buildPrompt(habitTitle: string, habitTags: string[], locationName: string, timeOfDay: string, n: number): string {
+function buildPrompt(habitTitle: string, habitTags: string[], locationName: string, timeOfDay: string, n: number, strict = false): string {
+  const outputInstruction = strict
+    ? `Output ONLY a raw JSON array of ${n} strings. No markdown, no commentary, no code blocks.`
+    : `Output a JSON array of ${n} strings. No markdown, no commentary.`
   return (
     `You are a notification writer for a habit-tracker app.\n` +
     `Habit: "${habitTitle}"\n` +
@@ -12,20 +15,7 @@ function buildPrompt(habitTitle: string, habitTags: string[], locationName: stri
     `Time of day: "${timeOfDay}"\n\n` +
     `Write ${n} short notification messages (max 80 characters each) that prompt ` +
     `the user to do this habit. Be varied, warm, and specific.\n` +
-    `Output a JSON array of ${n} strings. No markdown, no commentary.`
-  )
-}
-
-function buildStrictPrompt(habitTitle: string, habitTags: string[], locationName: string, timeOfDay: string, n: number): string {
-  return (
-    `You are a notification writer for a habit-tracker app.\n` +
-    `Habit: "${habitTitle}"\n` +
-    `Tags: ${habitTags.join(', ')}\n` +
-    `Location: "${locationName}"\n` +
-    `Time of day: "${timeOfDay}"\n\n` +
-    `Write ${n} short notification messages (max 80 characters each) that prompt ` +
-    `the user to do this habit. Be varied, warm, and specific.\n` +
-    `Output ONLY a raw JSON array of ${n} strings. No markdown, no commentary, no code blocks.`
+    outputInstruction
   )
 }
 
@@ -51,8 +41,9 @@ export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promi
     return c.json({ error: 'n must be between 1 and 50' }, 400)
   }
 
-  const prompt = buildPrompt(habitTitle, habitTags ?? [], locationName ?? '', timeOfDay ?? '', n)
-  const strictPrompt = buildStrictPrompt(habitTitle, habitTags ?? [], locationName ?? '', timeOfDay ?? '', n)
+  const args = [habitTitle, habitTags ?? [], locationName ?? '', timeOfDay ?? '', n] as const
+  const prompt = buildPrompt(...args)
+  const strictPrompt = buildPrompt(...args, true)
 
   const result = await callRequestyWithSchemaRetry(
     c.env.UR_REQUESTY_KEY,

@@ -16,7 +16,10 @@ interface PreviewResult {
   text: string
 }
 
-function buildPrompt(title: string, tags: string[], notes: string, locationName: string): string {
+function buildPrompt(title: string, tags: string[], notes: string, locationName: string, strict = false): string {
+  const outputInstruction = strict
+    ? `Output ONLY valid JSON with exactly the key text. No markdown, no commentary, no code blocks.`
+    : `Output JSON with exactly the key "text". No markdown, no commentary.`
   return (
     `You are a notification writer for a habit-tracker app.\n` +
     `Habit: "${title}"\n` +
@@ -25,20 +28,7 @@ function buildPrompt(title: string, tags: string[], notes: string, locationName:
     `Location: "${locationName}"\n\n` +
     `Write a single short notification message (max 80 characters) that prompts ` +
     `the user to do this habit. Be warm and specific.\n` +
-    `Output JSON with exactly the key "text". No markdown, no commentary.`
-  )
-}
-
-function buildStrictPrompt(title: string, tags: string[], notes: string, locationName: string): string {
-  return (
-    `You are a notification writer for a habit-tracker app.\n` +
-    `Habit: "${title}"\n` +
-    `Tags: ${tags.join(', ')}\n` +
-    `Notes: "${notes}"\n` +
-    `Location: "${locationName}"\n\n` +
-    `Write a single short notification message (max 80 characters) that prompts ` +
-    `the user to do this habit. Be warm and specific.\n` +
-    `Output ONLY valid JSON with exactly the key text. No markdown, no commentary, no code blocks.`
+    outputInstruction
   )
 }
 
@@ -62,14 +52,15 @@ export async function previewHandler(c: Context<{ Bindings: Env }>): Promise<Res
   }
 
   const { title, notes } = body.habit
-  const tags = Array.isArray(body.habit?.tags) ? (body.habit.tags as string[]) : []
+  const tags = Array.isArray(body.habit.tags) ? body.habit.tags : []
   const locationName = body.locationName ?? ''
 
+  const args = [title, tags, notes ?? '', locationName] as const
   const result = await callRequestyWithSchemaRetry(
     c.env.UR_REQUESTY_KEY,
     c.env.UR_MODEL,
-    buildPrompt(title, tags, notes ?? '', locationName),
-    buildStrictPrompt(title, tags, notes ?? '', locationName),
+    buildPrompt(...args),
+    buildPrompt(...args, true),
     validate,
     100,
   )

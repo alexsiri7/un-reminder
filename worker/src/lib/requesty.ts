@@ -70,7 +70,6 @@ export async function callRequestyWithSchemaRetry<T>(
     } catch (err) {
       // HTTP errors (non-200) are not retryable — upstream is down or rate-limiting.
       console.warn('[requesty] callRequesty failed', { isRetry, err })
-      if (isRetry) return null
       return null
     }
 

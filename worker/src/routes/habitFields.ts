@@ -12,25 +12,17 @@ interface HabitFieldsResult {
   lowFloorDescription: string
 }
 
-function buildPrompt(title: string): string {
+function buildPrompt(title: string, strict = false): string {
+  const outputInstruction = strict
+    ? `Output ONLY valid JSON with exactly the keys fullDescription and lowFloorDescription. No markdown, no commentary, no code blocks.`
+    : `Output JSON with exactly the keys "fullDescription" and "lowFloorDescription". No markdown, no commentary.`
   return (
     `You are a habit description generator for a habit-tracker app.\n` +
     `Habit title: "${title}"\n\n` +
     `Write two descriptions for this habit:\n` +
     `1. "fullDescription": A clear, motivating description of the habit (1-2 sentences).\n` +
     `2. "lowFloorDescription": A minimal, easy version of the habit to do on low-motivation days (1 sentence).\n\n` +
-    `Output JSON with exactly the keys "fullDescription" and "lowFloorDescription". No markdown, no commentary.`
-  )
-}
-
-function buildStrictPrompt(title: string): string {
-  return (
-    `You are a habit description generator for a habit-tracker app.\n` +
-    `Habit title: "${title}"\n\n` +
-    `Write two descriptions for this habit:\n` +
-    `1. "fullDescription": A clear, motivating description of the habit (1-2 sentences).\n` +
-    `2. "lowFloorDescription": A minimal, easy version of the habit to do on low-motivation days (1 sentence).\n\n` +
-    `Output ONLY valid JSON with exactly the keys fullDescription and lowFloorDescription. No markdown, no commentary, no code blocks.`
+    outputInstruction
   )
 }
 
@@ -57,7 +49,7 @@ export async function habitFieldsHandler(c: Context<{ Bindings: Env }>): Promise
     c.env.UR_REQUESTY_KEY,
     c.env.UR_MODEL,
     buildPrompt(body.title),
-    buildStrictPrompt(body.title),
+    buildPrompt(body.title, true),
     validate,
   )
 
