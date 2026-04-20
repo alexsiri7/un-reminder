@@ -26,6 +26,7 @@ export interface GenerateBatchRequest {
 export interface HabitVariants {
   habitId: string
   texts: string[]
+  /** Set when all upstream generation calls failed for this habit. */
   error?: string
 }
 

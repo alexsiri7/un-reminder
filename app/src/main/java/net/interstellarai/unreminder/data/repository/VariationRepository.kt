@@ -25,6 +25,7 @@ class VariationRepository @Inject constructor(
      */
     suspend fun pickRandomUnused(habitId: Long): VariationEntity? {
         val unused = dao.getUnusedForHabit(habitId, POOL_SIZE).shuffled()
+        // Truncate to millis so the returned copy matches Room's epoch-millis storage
         val now = Instant.ofEpochMilli(Instant.now().toEpochMilli())
         for (candidate in unused) {
             val updated = dao.markConsumed(candidate.id, now)
