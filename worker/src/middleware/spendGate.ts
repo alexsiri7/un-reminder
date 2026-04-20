@@ -20,9 +20,9 @@ export const spendGate: MiddlewareHandler<{ Bindings: Env }> = async (c, next) =
   const capDaily = capDailyCents / 100
   const capMonthly = capMonthlyCents / 100
 
-  let daily = 0, monthly = 0
+  let spend = { daily: 0, monthly: 0 }
   try {
-    ;({ daily, monthly } = await getSpend(c.env.UR_SPEND))
+    spend = await getSpend(c.env.UR_SPEND)
   } catch (err) {
     // Fail open on KV error — soft cap is a best-effort guardrail per PRD.
     // Log so the issue is detectable, but don't block requests during a KV blip.
@@ -31,10 +31,10 @@ export const spendGate: MiddlewareHandler<{ Bindings: Env }> = async (c, next) =
     return
   }
 
-  if (daily >= capDaily) {
+  if (spend.daily >= capDaily) {
     return c.json({ error: 'Daily spend cap reached', capType: 'daily' }, 402)
   }
-  if (monthly >= capMonthly) {
+  if (spend.monthly >= capMonthly) {
     return c.json({ error: 'Monthly spend cap reached', capType: 'monthly' }, 402)
   }
   await next()
