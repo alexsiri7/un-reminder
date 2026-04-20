@@ -3,6 +3,7 @@ package net.interstellarai.unreminder.ui.settings
 import android.Manifest
 import android.app.AlarmManager
 import android.content.Context
+import android.util.Log
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
@@ -55,6 +56,10 @@ class SettingsViewModel @Inject constructor(
     private val workerSettingsRepository: WorkerSettingsRepository,
 ) : ViewModel() {
 
+    companion object {
+        private const val TAG = "SettingsViewModel"
+    }
+
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
@@ -78,11 +83,23 @@ class SettingsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
 
     fun setWorkerUrl(url: String) {
-        viewModelScope.launch { workerSettingsRepository.setWorkerUrl(url) }
+        viewModelScope.launch {
+            try {
+                workerSettingsRepository.setWorkerUrl(url)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to persist worker URL", e)
+            }
+        }
     }
 
     fun setWorkerSecret(secret: String) {
-        viewModelScope.launch { workerSettingsRepository.setWorkerSecret(secret) }
+        viewModelScope.launch {
+            try {
+                workerSettingsRepository.setWorkerSecret(secret)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to persist worker secret", e)
+            }
+        }
     }
 
     fun refreshPermissions() {

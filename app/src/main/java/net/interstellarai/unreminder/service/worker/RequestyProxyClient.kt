@@ -32,6 +32,7 @@ class RequestyProxyClient @Inject constructor(
 
         okHttpClient.newCall(request).execute().use { response ->
             when (response.code) {
+                401 -> throw WorkerAuthException()
                 402 -> throw SpendCapExceededException()
                 in 200..299 -> {
                     val rawBody = response.body?.string()
@@ -71,6 +72,7 @@ class RequestyProxyClient @Inject constructor(
 
         okHttpClient.newCall(request).execute().use { response ->
             when (response.code) {
+                401 -> throw WorkerAuthException()
                 402 -> throw SpendCapExceededException()
                 in 200..299 -> {
                     val rawBody = response.body?.string()

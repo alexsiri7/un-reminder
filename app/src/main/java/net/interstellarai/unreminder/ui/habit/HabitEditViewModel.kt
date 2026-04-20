@@ -12,6 +12,7 @@ import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.service.llm.PromptGenerator
 import net.interstellarai.unreminder.service.worker.RequestyProxyClient
 import net.interstellarai.unreminder.service.worker.SpendCapExceededException
+import net.interstellarai.unreminder.service.worker.WorkerAuthException
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.sentry.Sentry
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -148,6 +149,11 @@ class HabitEditViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isGeneratingFields = true, errorMessage = null)
             try {
                 block()
+            } catch (e: WorkerAuthException) {
+                _uiState.value = _uiState.value.copy(
+                    isGeneratingFields = false,
+                    errorMessage = "Wrong worker secret \u2014 check Settings.",
+                )
             } catch (e: SpendCapExceededException) {
                 _uiState.value = _uiState.value.copy(
                     isGeneratingFields = false,

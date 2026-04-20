@@ -45,6 +45,15 @@ class RequestyProxyClientTest {
     }
 
     @Test
+    fun `habitFields throws WorkerAuthException on 401`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(401).setBody("Unauthorized"))
+
+        assertFailsWith<WorkerAuthException> {
+            proxyClient.habitFields("Meditate", baseUrl(), "wrong-secret")
+        }
+    }
+
+    @Test
     fun `habitFields throws SpendCapExceededException on 402`() = runTest {
         server.enqueue(MockResponse().setResponseCode(402).setBody("""{"error":"cap"}"""))
 
@@ -74,6 +83,16 @@ class RequestyProxyClientTest {
         val habit = HabitEntity(name = "Meditate", fullDescription = "Daily practice", lowFloorDescription = "Sit")
         val result = proxyClient.preview(habit, "Home", baseUrl(), "secret")
         assertEquals("Time to meditate!", result)
+    }
+
+    @Test
+    fun `preview throws WorkerAuthException on 401`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(401).setBody("Unauthorized"))
+
+        val habit = HabitEntity(name = "Meditate", fullDescription = "Daily practice", lowFloorDescription = "Sit")
+        assertFailsWith<WorkerAuthException> {
+            proxyClient.preview(habit, "Home", baseUrl(), "wrong-secret")
+        }
     }
 
     @Test
