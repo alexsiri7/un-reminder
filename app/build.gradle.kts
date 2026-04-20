@@ -70,9 +70,6 @@ android {
         buildConfigField("String", "WORKER_URL", "\"${resolvedWorkerUrl}\"")
         buildConfigField("String", "WORKER_SECRET", "\"${resolvedWorkerSecret}\"")
 
-        val resolvedWorkerUrl = envOrDefault("WORKER_URL", "")
-        buildConfigField("String", "WORKER_URL", "\"${resolvedWorkerUrl}\"")
-
     }
 
     signingConfigs {
