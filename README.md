@@ -111,6 +111,7 @@ A repeatable thing the user wants to do. Each habit has:
 - `full_description` — the full version (e.g. "20-minute guided meditation").
 - `low_floor_description` — the minimum-viable version (e.g. "3 deep breaths"). **Completing this counts as a win.**
 - `locations` — zero or more named `Location` records associated via the `habit_location` junction table. A habit with **no** associated locations is eligible everywhere ("Anywhere" semantics). A habit with one or more locations is only eligible when the user is at one of those locations.
+- `windows` — zero or more `Window` records associated via the `habit_window` junction table. A habit with **no** associated windows is eligible at any time ("Any time" semantics). A habit with one or more windows is only eligible when the current time falls within an active, matching window.
 - `active` — boolean. Inactive habits are never selected. Can be toggled manually in the habit editor.
   The system also sets this to `false` automatically after 3 consecutive `DISMISSED` triggers
   (see [Trigger Logic §5](#5-trigger-logic)).
@@ -122,6 +123,13 @@ A many-to-many join between `Habit` and `Location`. Each row has:
 - `location_id` — FK → `locations.id` (CASCADE DELETE)
 
 Composite primary key `(habit_id, location_id)`.
+
+### HabitWindowCrossRef
+A many-to-many join between `Habit` and `Window`. Each row has:
+- `habit_id` — FK → `habits.id` (CASCADE DELETE)
+- `window_id` — FK → `windows.id` (CASCADE DELETE)
+
+Composite primary key `(habit_id, window_id)`.
 
 ### Window
 A user-defined time range during which stochastic triggers may fire. Each window has:
@@ -185,6 +193,9 @@ updated by geofence `ENTER`/`EXIT` callbacks. Empty set means no known location.
    - `active = true`
    - Has **no** entries in `habit_location` (eligible everywhere), OR has at least one
      `location_id` matching a geofence the user is currently inside.
+   - Has **no** entries in `habit_window` (eligible any time), OR has at least one
+     associated window that is active, whose `start_time`–`end_time` range contains the
+     current time-of-day, and whose `days_of_week_bitmask` includes today.
    - Not fired within the last N minutes (configurable, default 90m) to avoid tight repeats.
 3. Pick **one** habit by weighted-random selection from the eligible set, biased toward habits
    not recently prompted. Weight formula: `1 + min(minutesSince, 1440) / 120`, where
@@ -218,7 +229,7 @@ Generates a sample notification via the worker's `/v1/preview` endpoint. Shown i
 ## 6. Screens (MVP)
 
 1. **Home screen** — list of habits. FAB → add habit. Tap habit → edit.
-2. **Habit editor** — name, full description, low-floor description, location chips (multi-select from saved locations; no selection = "Anywhere"), active toggle.
+2. **Habit editor** — name, full description, low-floor description, location chips (multi-select from saved locations; no selection = "Anywhere"), window chips (multi-select from saved windows; no selection = "Any time"), active toggle.
    AI-assist row: **Autofill with AI** (fills description fields from the habit name via on-device LLM; enabled when name ≥ 2 chars) · **Preview notification** (generates a sample notification text in a dialog; enabled when all description fields are filled).
 3. **Windows screen** — list of windows. FAB → add window. Tap → edit.
 4. **Window editor** — start/end time pickers, days-of-week chips, frequency slider (1–3), active toggle.
@@ -249,11 +260,12 @@ Generates a sample notification via the worker's `/v1/preview` endpoint. Shown i
 ## 8. Database Schema (Room)
 
 ```kotlin
-// DB version 5
+// DB version 6
 @Entity Habit(id, name, full_description, low_floor_description, active, created_at, updated_at)
 @Entity Window(id, start_time, end_time, days_of_week_bitmask, frequency_per_day, active)
 @Entity Location(id, name /* user-defined, e.g. "Home", "Gym", "Office" */, lat, lng, radius_m)
 @Entity HabitLocationCrossRef(habit_id → Habit.id CASCADE, location_id → Location.id CASCADE)  // junction
+@Entity HabitWindowCrossRef(habit_id → Habit.id CASCADE, window_id → Window.id CASCADE)  // junction
 @Entity Trigger(id, window_id?, habit_id?, scheduled_at, fired_at?, status, generated_prompt?)
 @Entity PendingFeedback(id, screenshot_path? /* nullable */, description, queued_at)  // offline upload queue
 @Entity Variation(id, habit_id → Habit.id CASCADE, text, prompt_fingerprint, generated_at, consumed_at?)  // variation pool
