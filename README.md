@@ -151,7 +151,7 @@ A pre-generated prompt text for a habit, stored in a local pool to avoid LLM lat
 - `id`
 - `habit_id` — FK → `habits.id` (CASCADE DELETE). Each habit has its own pool.
 - `text` — the generated prompt text.
-- `prompt_fingerprint` — hash of the LLM prompt that produced this variation; used with `(habit_id, text)` as a composite unique constraint to prevent duplicates.
+- `prompt_fingerprint` — hash of the LLM prompt that produced this variation; part of the `(habit_id, prompt_fingerprint, text)` composite unique constraint that prevents duplicates.
 - `generated_at` — when the variation was generated.
 - `consumed_at` — nullable; set when the variation is picked for a notification. Unconsumed variations form the available pool.
 

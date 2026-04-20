@@ -144,6 +144,23 @@ describe('un-reminder-worker', () => {
     expect(res.status).toBe(400)
   })
 
+  it('returns 400 when habit is missing required fields', async () => {
+    const req = makeRequest('/v1/generate/batch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-UR-Secret': SECRET,
+      },
+      body: { habits: [{ id: 'h1', name: 'Test' }], count: 1 },
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, testEnv(), ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(400)
+    const json = await res.json() as { error: string }
+    expect(json.error).toContain('missing required fields')
+  })
+
   // ---- Spend cap tests ----
 
   it('returns 429 when daily spend cap is exceeded', async () => {

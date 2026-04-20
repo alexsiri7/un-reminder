@@ -74,6 +74,9 @@ export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promi
   const variantResults: HabitVariants[] = []
 
   for (const habit of habits) {
+    if (!habit.name || !habit.fullDescription || !habit.lowFloorDescription) {
+      return c.json({ error: `habit ${habit.id ?? '?'} missing required fields (name, fullDescription, lowFloorDescription)` }, 400)
+    }
     const prompt = buildPrompt(habit.name, habit.fullDescription, habit.lowFloorDescription)
     // Fan out `clampedCount` parallel calls per habit
     const calls = Array.from({ length: clampedCount }, () =>

@@ -97,6 +97,21 @@ class VariationDaoTest {
         assertEquals(1, variationDao.getUnusedForHabit(hId, 50).size)
     }
 
+    @Test fun `markConsumed writes a value readable as Instant by Room`() = runTest {
+        val hId = insertHabit()
+        val v = VariationEntity(habitId = hId, text = "v1", promptFingerprint = "fp1", generatedAt = Instant.EPOCH)
+        variationDao.insert(listOf(v))
+        val row = variationDao.getUnusedForHabit(hId, 50).first()
+        val now = Instant.now()
+        variationDao.markConsumed(row.id, now.toEpochMilli())
+
+        val cursor = db.query("SELECT consumed_at FROM variation WHERE id = ${row.id}", emptyArray())
+        cursor.moveToFirst()
+        val storedValue = cursor.getLong(0)
+        cursor.close()
+        assertEquals(now.toEpochMilli(), storedValue)
+    }
+
     @Test fun `getUnusedForHabit respects limit parameter`() = runTest {
         val hId = insertHabit()
         variationDao.insert((1..10).map { i ->

@@ -76,8 +76,7 @@ class Migration4To5Test {
         db.execSQL(
             "INSERT INTO variation (habit_id, text, prompt_fingerprint, generated_at) VALUES (1, 'v', 'fp', 0)"
         )
-        // Duplicate should be silently ignored by the unique index (IGNORE on conflict not set here,
-        // so inserting the duplicate via raw SQL will fail — just verify first insert worked)
+        // Verify data can be inserted (duplicate handling is tested in VariationDaoTest)
         val countCursor = db.query("SELECT COUNT(*) FROM variation WHERE habit_id = 1")
         countCursor.moveToFirst()
         assertEquals(1, countCursor.getInt(0))
