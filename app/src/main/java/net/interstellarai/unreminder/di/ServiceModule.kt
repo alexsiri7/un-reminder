@@ -5,6 +5,7 @@ import net.interstellarai.unreminder.data.repository.ActiveModelRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.data.repository.ModelDownloadProgressRepository
 import net.interstellarai.unreminder.service.alarm.AlarmScheduler
+import net.interstellarai.unreminder.service.worker.RefillScheduler
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.llm.PromptGenerator
 import net.interstellarai.unreminder.service.llm.PromptGeneratorImpl
@@ -44,6 +45,11 @@ object ServiceModule {
     @Provides
     @Singleton
     fun provideOkHttpClient(): OkHttpClient = OkHttpClient.Builder().build()
+
+    @Provides
+    @Singleton
+    fun provideRefillScheduler(@ApplicationContext context: Context): RefillScheduler =
+        RefillScheduler(context)
 
     @Provides
     @Singleton

@@ -92,4 +92,46 @@ class RequestyProxyClient @Inject constructor(
             }
         }
     }
+
+    suspend fun generateBatch(
+        habitTitle: String,
+        habitTags: List<String>,
+        locationName: String,
+        timeOfDay: String,
+        n: Int,
+        workerUrl: String,
+        workerSecret: String,
+    ): List<String> = withContext(Dispatchers.IO) {
+        val payload = JSONObject().apply {
+            put("habitTitle", habitTitle)
+            put("habitTags", JSONArray(habitTags))
+            put("locationName", locationName)
+            put("timeOfDay", timeOfDay)
+            put("n", n)
+        }
+        val request = Request.Builder()
+            .url("${workerUrl.trimEnd('/')}/v1/generate/batch")
+            .addHeader("X-UR-Secret", workerSecret)
+            .addHeader("Accept", "application/json")
+            .post(payload.toString().toRequestBody("application/json".toMediaType()))
+            .build()
+
+        okHttpClient.newCall(request).execute().use { response ->
+            when (response.code) {
+                401 -> throw WorkerAuthException()
+                402 -> throw SpendCapExceededException()
+                in 200..299 -> {
+                    val rawBody = response.body?.string()
+                        ?: throw RuntimeException("Worker returned empty body")
+                    val body = JSONObject(rawBody)
+                    val arr = body.getJSONArray("variants")
+                    (0 until arr.length()).map { arr.getString(it) }
+                }
+                else -> {
+                    val body = response.body?.string() ?: ""
+                    throw WorkerError(response.code, body)
+                }
+            }
+        }
+    }
 }

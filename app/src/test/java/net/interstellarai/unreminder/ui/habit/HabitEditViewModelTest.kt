@@ -3,10 +3,12 @@ package net.interstellarai.unreminder.ui.habit
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
+import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.data.repository.WorkerSettingsRepository
 import net.interstellarai.unreminder.domain.model.AiHabitFields
 import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.service.llm.PromptGenerator
+import net.interstellarai.unreminder.service.worker.RefillScheduler
 import net.interstellarai.unreminder.service.worker.RequestyProxyClient
 import net.interstellarai.unreminder.service.worker.SpendCapExceededException
 import net.interstellarai.unreminder.service.worker.WorkerAuthException
@@ -48,6 +50,8 @@ class HabitEditViewModelTest {
     private val mockLocationRepository: LocationRepository = mockk(relaxed = true)
     private val mockRequestyProxyClient: RequestyProxyClient = mockk()
     private val mockWorkerSettingsRepository: WorkerSettingsRepository = mockk()
+    private val mockRefillScheduler: RefillScheduler = mockk(relaxed = true)
+    private val mockVariationRepository: VariationRepository = mockk(relaxUnitFun = true)
     private lateinit var viewModel: HabitEditViewModel
 
     private val testHabit = HabitEntity(
@@ -74,6 +78,8 @@ class HabitEditViewModelTest {
             mockPromptGenerator,
             mockRequestyProxyClient,
             mockWorkerSettingsRepository,
+            mockRefillScheduler,
+            mockVariationRepository,
         )
         viewModel.updateName("meditation")
         viewModel.updateFullDescription("20-minute guided meditation")

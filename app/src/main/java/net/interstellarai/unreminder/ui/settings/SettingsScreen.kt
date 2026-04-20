@@ -21,7 +21,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -37,7 +36,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -70,14 +68,12 @@ import net.interstellarai.unreminder.ui.theme.UnReminderTheme
 fun SettingsScreen(
     onNavigateToLocations: () -> Unit,
     onNavigateToFeedback: () -> Unit = {},
+    onNavigateToCloudSettings: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val activeModel by viewModel.activeModel.collectAsStateWithLifecycle()
     val aiStatus by viewModel.aiStatus.collectAsStateWithLifecycle()
-    val workerUrl by viewModel.workerUrl.collectAsStateWithLifecycle()
-    val workerSecret by viewModel.workerSecret.collectAsStateWithLifecycle()
-
     LaunchedEffect(Unit) {
         viewModel.refreshPermissions()
     }
@@ -144,21 +140,9 @@ fun SettingsScreen(
                 label = "cloud ai (optional)",
                 modifier = Modifier.padding(horizontal = Dimens.xxl),
             ) {
-                OutlinedTextField(
-                    value = workerUrl,
-                    onValueChange = { viewModel.setWorkerUrl(it) },
-                    label = { Text("worker url", style = MonoLabel) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(Dimens.sm))
-                OutlinedTextField(
-                    value = workerSecret,
-                    onValueChange = { viewModel.setWorkerSecret(it) },
-                    label = { Text("worker secret", style = MonoLabel) },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier.fillMaxWidth(),
+                OutlineAction(
+                    label = "cloud ai settings",
+                    onClick = onNavigateToCloudSettings,
                 )
             }
 

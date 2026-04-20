@@ -63,6 +63,9 @@ android {
             "\"${resolvedModelUrl}\""
         )
 
+        val resolvedWorkerUrl = envOrDefault("WORKER_URL", "")
+        buildConfigField("String", "WORKER_URL", "\"${resolvedWorkerUrl}\"")
+
     }
 
     signingConfigs {
