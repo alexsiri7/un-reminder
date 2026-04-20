@@ -39,12 +39,12 @@ class RefillWorker @AssistedInject constructor(
             return Result.failure()
         }
 
-        val url = workerSettingsRepository.workerUrl.first()
+        val url = workerSettingsRepository.effectiveWorkerUrl.first()
         if (url.isBlank()) {
             Log.w(TAG, "Worker URL is blank, skipping refill for habit $habitId")
             return Result.failure()
         }
-        val secret = workerSettingsRepository.workerSecret.first()
+        val secret = workerSettingsRepository.effectiveWorkerSecret.first()
         if (secret.isBlank()) {
             Log.w(TAG, "Worker secret is blank, skipping refill for habit $habitId")
             return Result.failure()

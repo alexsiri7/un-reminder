@@ -46,8 +46,8 @@ class RefillWorkerTest {
 
     @Before
     fun setup() {
-        coEvery { mockWorkerSettings.workerUrl } returns flowOf("https://worker.test")
-        coEvery { mockWorkerSettings.workerSecret } returns flowOf("secret")
+        coEvery { mockWorkerSettings.effectiveWorkerUrl } returns flowOf("https://worker.test")
+        coEvery { mockWorkerSettings.effectiveWorkerSecret } returns flowOf("secret")
     }
 
     @Test
@@ -58,14 +58,14 @@ class RefillWorkerTest {
 
     @Test
     fun `doWork returns failure when workerUrl is blank`() = runTest {
-        coEvery { mockWorkerSettings.workerUrl } returns flowOf("")
+        coEvery { mockWorkerSettings.effectiveWorkerUrl } returns flowOf("")
         val worker = createWorker()
         assertEquals(Result.failure(), worker.doWork())
     }
 
     @Test
     fun `doWork returns failure when workerSecret is blank`() = runTest {
-        coEvery { mockWorkerSettings.workerSecret } returns flowOf("")
+        coEvery { mockWorkerSettings.effectiveWorkerSecret } returns flowOf("")
         val worker = createWorker()
         assertEquals(Result.failure(), worker.doWork())
     }
