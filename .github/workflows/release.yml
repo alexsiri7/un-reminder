@@ -68,6 +68,8 @@ jobs:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           MODEL_CDN_URL: ${{ secrets.MODEL_CDN_URL }}
+          WORKER_URL: ${{ secrets.WORKER_URL }}
+          WORKER_SECRET: ${{ secrets.WORKER_SECRET }}
         run: ./gradlew bundleRelease --stacktrace
 
       - name: Build signed universal APK (for sideload)
@@ -78,6 +80,8 @@ jobs:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           MODEL_CDN_URL: ${{ secrets.MODEL_CDN_URL }}
+          WORKER_URL: ${{ secrets.WORKER_URL }}
+          WORKER_SECRET: ${{ secrets.WORKER_SECRET }}
         run: ./gradlew assembleRelease --stacktrace
 
       - name: Upload AAB artifact
