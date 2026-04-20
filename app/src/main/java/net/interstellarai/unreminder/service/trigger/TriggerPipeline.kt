@@ -84,40 +84,7 @@ class TriggerPipeline @Inject constructor(
         try {
             val timeOfDay = resolveTimeOfDay()
             val locationName = resolveLocationName(locationIds)
-
-            val prompt: String
-            if (featureFlagsRepository.useCloudPool.first()) {
-                val variation = try {
-                    variationRepository.pickRandomUnused(habit.id)
-                } catch (e: Exception) {
-                    Log.w(TAG, "variationRepository.pickRandomUnused failed — falling back to habit.name", e)
-                    null
-                }
-                if (variation != null) {
-                    prompt = variation.text
-                    try {
-                        if (variationRepository.needsRefill(habit.id)) {
-                            refillScheduler.enqueueForHabit(habit.id)
-                        }
-                    } catch (e: Exception) {
-                        Log.w(TAG, "needsRefill/enqueue failed — non-fatal, continuing", e)
-                    }
-                } else {
-                    // Pool exhausted — fall back to habit name
-                    prompt = habit.name
-                    Log.w(TAG, "pool empty for habit ${habit.id} — falling back to habit.name")
-                    Sentry.captureMessage("pool empty for habit ${habit.id}") { scope ->
-                        scope.setTag("component", "pool-empty")
-                    }
-                    try {
-                        refillScheduler.enqueueForHabit(habit.id)
-                    } catch (e: Exception) {
-                        Log.w(TAG, "refill enqueue failed for habit=${habit.id} — non-fatal", e)
-                    }
-                }
-            } else {
-                prompt = promptGenerator.generate(habit, locationName, timeOfDay)
-            }
+            val prompt = resolvePrompt(habit, locationName, timeOfDay)
 
             triggerRepository.updateFired(
                 id = triggerId,
@@ -135,6 +102,42 @@ class TriggerPipeline @Inject constructor(
             Log.e(TAG, "Trigger pipeline failed for trigger=$triggerId habit=${habit.name}", e)
             triggerRepository.updateOutcome(triggerId, TriggerStatus.DISMISSED)
         }
+    }
+
+    private suspend fun resolvePrompt(habit: HabitEntity, locationName: String, timeOfDay: String): String {
+        if (!featureFlagsRepository.useCloudPool.first()) {
+            return promptGenerator.generate(habit, locationName, timeOfDay)
+        }
+
+        val variation = try {
+            variationRepository.pickRandomUnused(habit.id)
+        } catch (e: Exception) {
+            Log.w(TAG, "variationRepository.pickRandomUnused failed — falling back to habit.name", e)
+            null
+        }
+
+        if (variation != null) {
+            try {
+                if (variationRepository.needsRefill(habit.id)) {
+                    refillScheduler.enqueueForHabit(habit.id)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "needsRefill/enqueue failed — non-fatal, continuing", e)
+            }
+            return variation.text
+        }
+
+        // Pool exhausted — fall back to habit name
+        Log.w(TAG, "pool empty for habit ${habit.id} — falling back to habit.name")
+        Sentry.captureMessage("pool empty for habit ${habit.id}") { scope ->
+            scope.setTag("component", "pool-empty")
+        }
+        try {
+            refillScheduler.enqueueForHabit(habit.id)
+        } catch (e: Exception) {
+            Log.w(TAG, "refill enqueue failed for habit=${habit.id} — non-fatal", e)
+        }
+        return habit.name
     }
 
     private suspend fun resolveLocationName(locationIds: Set<Long>): String {
