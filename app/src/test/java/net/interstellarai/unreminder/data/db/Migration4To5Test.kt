@@ -72,7 +72,7 @@ class Migration4To5Test {
         assertTrue(indices.contains("index_variation_habit_id"))
         assertTrue(indices.contains("index_variation_habit_id_prompt_fingerprint_text"))
 
-        // Verify data can be inserted and unique index is enforced
+        // Verify data can be inserted
         db.execSQL(
             "INSERT INTO variation (habit_id, text, prompt_fingerprint, generated_at) VALUES (1, 'v', 'fp', 0)"
         )

@@ -18,9 +18,12 @@ class VariationRepository @Inject constructor(
 
     /**
      * Picks a random unconsumed variation for [habitId], marks it consumed, and returns it.
-     * Returns null only when the pool is truly empty (no unconsumed rows remain) —
-     * callers should treat null as "nothing available; consider triggering a refill".
+     * Returns null when no variation could be claimed — either the pool is empty
+     * or all candidates were concurrently consumed (race-safe via optimistic UPDATE).
+     * Callers should treat null as "nothing available; consider triggering a refill".
      * The returned entity is already marked consumed; do not call [VariationDao.markConsumed] again.
+     *
+     * @throws android.database.SQLException if the database is unavailable or corrupted.
      */
     suspend fun pickRandomUnused(habitId: Long): VariationEntity? {
         val unused = dao.getUnusedForHabit(habitId, POOL_SIZE).shuffled()
@@ -30,7 +33,7 @@ class VariationRepository @Inject constructor(
             if (updated == 1) {
                 return candidate.copy(consumedAt = now)
             }
-            Log.w("VariationRepo", "markConsumed race: variation ${candidate.id} already consumed or deleted")
+            Log.w("VariationRepo", "markConsumed race: habitId=$habitId variation=${candidate.id} already consumed or deleted")
         }
         return null
     }
@@ -38,7 +41,6 @@ class VariationRepository @Inject constructor(
     /**
      * Returns true when the unused variation pool for [habitId] has dropped below
      * [threshold] — the low-watermark that signals RefillWorker to top up the pool.
-     * Default of [REFILL_THRESHOLD] is 10% of the [POOL_SIZE]-item pool cap.
      */
     suspend fun needsRefill(habitId: Long, threshold: Int = REFILL_THRESHOLD): Boolean =
         dao.countUnused(habitId) < threshold

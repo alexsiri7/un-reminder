@@ -13,6 +13,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.junit.Test
+import java.time.Instant
 
 class VariationRepositoryTest {
     private val mockDao: VariationDao = mockk(relaxUnitFun = true)
@@ -26,7 +27,7 @@ class VariationRepositoryTest {
     }
 
     @Test fun `pickRandomUnused marks returned row consumed and returns updated entity`() = runTest {
-        val entity = VariationEntity(id = 42L, habitId = 1L, text = "t", promptFingerprint = "fp")
+        val entity = VariationEntity(id = 42L, habitId = 1L, text = "t", promptFingerprint = "fp", generatedAt = Instant.EPOCH)
         coEvery { mockDao.getUnusedForHabit(1L, 50) } returns listOf(entity)
         coEvery { mockDao.markConsumed(eq(42L), any()) } returns 1
         val result = repository.pickRandomUnused(1L)
@@ -38,8 +39,8 @@ class VariationRepositoryTest {
     }
 
     @Test fun `pickRandomUnused retries next candidate when markConsumed affects 0 rows`() = runTest {
-        val stale = VariationEntity(id = 99L, habitId = 1L, text = "stale", promptFingerprint = "fp1")
-        val good = VariationEntity(id = 100L, habitId = 1L, text = "good", promptFingerprint = "fp2")
+        val stale = VariationEntity(id = 99L, habitId = 1L, text = "stale", promptFingerprint = "fp1", generatedAt = Instant.EPOCH)
+        val good = VariationEntity(id = 100L, habitId = 1L, text = "good", promptFingerprint = "fp2", generatedAt = Instant.EPOCH)
         coEvery { mockDao.getUnusedForHabit(1L, 50) } returns listOf(stale, good)
         coEvery { mockDao.markConsumed(eq(99L), any()) } returns 0
         coEvery { mockDao.markConsumed(eq(100L), any()) } returns 1
@@ -51,7 +52,7 @@ class VariationRepositoryTest {
     }
 
     @Test fun `pickRandomUnused returns null when all candidates are stale`() = runTest {
-        val entity = VariationEntity(id = 99L, habitId = 1L, text = "t", promptFingerprint = "fp")
+        val entity = VariationEntity(id = 99L, habitId = 1L, text = "t", promptFingerprint = "fp", generatedAt = Instant.EPOCH)
         coEvery { mockDao.getUnusedForHabit(1L, 50) } returns listOf(entity)
         coEvery { mockDao.markConsumed(eq(99L), any()) } returns 0
         assertNull(repository.pickRandomUnused(1L))
@@ -75,8 +76,8 @@ class VariationRepositoryTest {
 
     @Test fun `insertAll delegates to dao insert`() = runTest {
         val variants = listOf(
-            VariationEntity(habitId = 1L, text = "a", promptFingerprint = "fp1"),
-            VariationEntity(habitId = 1L, text = "b", promptFingerprint = "fp2")
+            VariationEntity(habitId = 1L, text = "a", promptFingerprint = "fp1", generatedAt = Instant.EPOCH),
+            VariationEntity(habitId = 1L, text = "b", promptFingerprint = "fp2", generatedAt = Instant.EPOCH)
         )
         repository.insertAll(variants)
         coVerify { mockDao.insert(variants) }

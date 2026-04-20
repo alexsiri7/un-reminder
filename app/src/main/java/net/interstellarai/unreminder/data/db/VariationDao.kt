@@ -8,10 +8,7 @@ import androidx.room.Query
 @Dao
 interface VariationDao {
 
-    /**
-     * Returns up to [limit] unconsumed variations for [habitId],
-     * ordered by database insertion order.
-     */
+    /** Returns up to [limit] unconsumed variations for [habitId]. */
     @Query("SELECT * FROM variation WHERE habit_id = :habitId AND consumed_at IS NULL LIMIT :limit")
     suspend fun getUnusedForHabit(habitId: Long, limit: Int): List<VariationEntity>
 

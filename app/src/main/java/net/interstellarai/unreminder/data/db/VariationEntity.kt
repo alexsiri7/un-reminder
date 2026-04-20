@@ -31,7 +31,7 @@ data class VariationEntity(
     @ColumnInfo(name = "prompt_fingerprint")
     val promptFingerprint: String,
     @ColumnInfo(name = "generated_at")
-    val generatedAt: Instant = Instant.now(),
+    val generatedAt: Instant,
     @ColumnInfo(name = "consumed_at")
     val consumedAt: Instant? = null
 )
