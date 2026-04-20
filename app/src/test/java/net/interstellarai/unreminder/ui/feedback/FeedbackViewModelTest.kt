@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import net.interstellarai.unreminder.data.repository.FeedbackRepository
 import net.interstellarai.unreminder.service.github.GitHubApiService
 import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -65,5 +66,31 @@ class FeedbackViewModelTest {
         val bitmap = mockk<Bitmap>(relaxed = true)
         viewModel.setScreenshot(bitmap)
         assertEquals(bitmap, viewModel.uiState.value.screenshotBitmap)
+    }
+
+    @Test fun `submit sets errorMessage on OutOfMemoryError during merge`() = runTest {
+        val screenshotBitmap = mockk<Bitmap> {
+            every { copy(any(), any()) } throws OutOfMemoryError("fake OOM")
+        }
+        viewModel.setScreenshot(screenshotBitmap)
+        val annotationBitmap = mockk<Bitmap>(relaxed = true)
+
+        viewModel.submit(annotationBitmap)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isSubmitting)
+        assertNotNull(state.errorMessage)
+        assert(state.errorMessage!!.contains("memory", ignoreCase = true))
+    }
+
+    @Test fun `submit does not block while isSubmitting = true`() = runTest {
+        coEvery { mockGitHubApiService.submit(any(), any(), any()) } coAnswers {
+            kotlinx.coroutines.delay(100)
+        }
+        viewModel.submit(mockk(relaxed = true))
+        assert(viewModel.uiState.value.isSubmitting)
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.isSubmitting)
     }
 }
