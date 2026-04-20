@@ -192,6 +192,9 @@ private fun AiDownloadBanner(
             .padding(horizontal = Dimens.xxl, vertical = Dimens.md),
     ) {
         when (aiStatus) {
+            // AiStatus.Empty is forward-compatible scaffolding — CloudPromptGenerator never
+            // emits it today. Wiring requires a reactive pool-count flow from VariationRepository
+            // (Phase 6+). Do not remove this branch until that signal is connected.
             is AiStatus.Empty -> {
                 MonoSectionLabel("cloud pool empty — variants being generated")
                 Spacer(Modifier.height(Dimens.xs + 2.dp))

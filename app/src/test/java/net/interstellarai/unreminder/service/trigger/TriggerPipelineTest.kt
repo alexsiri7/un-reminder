@@ -250,6 +250,37 @@ class TriggerPipelineTest {
 
         coVerify { triggerRepository.updateOutcome(42L, TriggerStatus.DISMISSED) }
     }
+
+    @Test
+    fun `needsRefill throws - variation still returned and refill skipped`() = runTest {
+        val variation = VariationEntity(
+            id = 7L, habitId = 1L, text = "Keep going",
+            promptFingerprint = "fp", generatedAt = java.time.Instant.now(), consumedAt = null
+        )
+        coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
+        coEvery { variationRepository.pickRandomUnused(1L) } returns variation
+        coEvery { variationRepository.needsRefill(1L) } throws RuntimeException("db error")
+
+        pipeline.execute(42L)
+
+        coVerify { triggerRepository.updateFired(42L, 1L, "Keep going") }
+        coVerify { notificationHelper.postTriggerNotification(triggerId = 42L, promptText = "Keep going", habitName = "meditation") }
+        coVerify(exactly = 0) { refillScheduler.enqueueForHabit(any()) }
+    }
+
+    @Test
+    fun `refillScheduler throws in pool-empty path - falls back to habit name`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
+        coEvery { variationRepository.pickRandomUnused(1L) } returns null
+        coEvery { refillScheduler.enqueueForHabit(1L) } throws RuntimeException("enqueue failed")
+
+        pipeline.execute(42L)
+
+        coVerify { triggerRepository.updateFired(42L, 1L, "meditation") }
+        coVerify { notificationHelper.postTriggerNotification(triggerId = 42L, promptText = "meditation", habitName = "meditation") }
+    }
 }
 
 class TriggerPipelineWeightTest {

@@ -27,11 +27,12 @@ class NotificationHelper @Inject constructor(
         const val CHANNEL_ID_SYSTEM = "un_reminder_system"
         const val CHANNEL_NAME_SYSTEM = "Habit Status"
         // Dedicated channel for foreground-service notifications posted by
-        // background workers (e.g. RefillWorker). IMPORTANCE_LOW keeps it
-        // silent — the user hasn't asked for alerts, they just need the FGS
-        // to stay alive.
-        const val MODEL_DOWNLOAD_CHANNEL_ID = "model_download"
-        const val MODEL_DOWNLOAD_CHANNEL_NAME = "Model download"
+        // background workers. IMPORTANCE_LOW keeps it silent — the user hasn't
+        // asked for alerts, they just need the FGS to stay alive.
+        // Channel ID value kept as "model_download" for backwards compatibility —
+        // changing it would orphan the existing channel in installed builds.
+        const val WORKER_CHANNEL_ID = "model_download"
+        const val WORKER_CHANNEL_NAME = "Background tasks"
         // Paused-habit notifications use habitId as offset.
         // Base chosen well above realistic trigger ID values to avoid collisions.
         const val NOTIFICATION_ID_PAUSED_BASE = 900_000L
@@ -59,11 +60,11 @@ class NotificationHelper @Inject constructor(
         notificationManager.createNotificationChannel(systemChannel)
 
         val modelDownloadChannel = NotificationChannel(
-            MODEL_DOWNLOAD_CHANNEL_ID,
-            MODEL_DOWNLOAD_CHANNEL_NAME,
+            WORKER_CHANNEL_ID,
+            WORKER_CHANNEL_NAME,
             NotificationManager.IMPORTANCE_LOW,
         ).apply {
-            description = "Progress of the on-device AI model download"
+            description = "Background worker notifications (e.g. variation pool refill)"
             setSound(null, null)
             enableVibration(false)
         }

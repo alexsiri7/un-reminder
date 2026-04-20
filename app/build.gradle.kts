@@ -11,7 +11,9 @@ plugins {
 // tracked by the configuration cache (plain `System.getenv` is not tracked and
 // can cause the cached value to be reused across CI builds). Also treats a
 // blank/empty string as "unset" so `?:` style fallbacks actually fire when the
-// env var exists but was exported as "".
+// env var exists but was exported as "" — otherwise BuildConfig ends up with a
+// literal empty string. (History: WORKER_URL was resolving to "" at runtime
+// even though CI logs showed `WORKER_URL: ***` masked.)
 fun envOrDefault(name: String, default: String): String =
     providers.environmentVariable(name).orNull
         ?.takeUnless { it.isBlank() }
