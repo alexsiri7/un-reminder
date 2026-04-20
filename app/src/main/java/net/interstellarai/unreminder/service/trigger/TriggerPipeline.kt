@@ -64,19 +64,19 @@ class TriggerPipeline @Inject constructor(
 
         val locationIds = geofenceManager.currentLocationIds
 
-        val eligibleHabits = habitRepository.getEligibleHabits(locationIds)
-        if (eligibleHabits.isEmpty()) {
-            Log.d(TAG, "No eligible habits for locationIds=$locationIds, skipping trigger $triggerId")
-            triggerRepository.updateOutcome(triggerId, TriggerStatus.DISMISSED)
-            return
-        }
-
-        val nowMillis = System.currentTimeMillis()
-        val lastFiredMap = eligibleHabits.associate { h ->
-            h.id to triggerRepository.getLastFiredForHabit(h.id)
-        }
-        val habit = pickWeighted(eligibleHabits, lastFiredMap, nowMillis)
         try {
+            val eligibleHabits = habitRepository.getEligibleHabits(locationIds)
+            if (eligibleHabits.isEmpty()) {
+                Log.d(TAG, "No eligible habits for locationIds=$locationIds, skipping trigger $triggerId")
+                triggerRepository.updateOutcome(triggerId, TriggerStatus.DISMISSED)
+                return
+            }
+
+            val nowMillis = System.currentTimeMillis()
+            val lastFiredMap = eligibleHabits.associate { h ->
+                h.id to triggerRepository.getLastFiredForHabit(h.id)
+            }
+            val habit = pickWeighted(eligibleHabits, lastFiredMap, nowMillis)
             val timeOfDay = resolveTimeOfDay()
             val locationName = resolveLocationName(locationIds)
             val prompt = resolvePrompt(habit, locationName, timeOfDay)
@@ -94,7 +94,7 @@ class TriggerPipeline @Inject constructor(
             )
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            Log.e(TAG, "Trigger pipeline failed for trigger=$triggerId habit=${habit.name}", e)
+            Log.e(TAG, "Trigger pipeline failed for trigger=$triggerId", e)
             triggerRepository.updateOutcome(triggerId, TriggerStatus.DISMISSED)
         }
     }
