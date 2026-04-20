@@ -40,12 +40,14 @@ export async function getSpend(kv: KVNamespace): Promise<{ daily: number; monthl
  * for a single-device app. Durable Objects would be needed for exact accounting.
  */
 export async function addSpend(kv: KVNamespace, dollars: number): Promise<void> {
-  const { daily, monthly } = await getSpend(kv)
+  const dKey = dailyKey()
+  const mKey = monthlyKey()
+  const [d, m] = await Promise.all([kv.get(dKey), kv.get(mKey)])
   await Promise.all([
-    kv.put(dailyKey(), (daily + dollars).toFixed(6), {
+    kv.put(dKey, ((d ? parseFloat(d) : 0) + dollars).toFixed(6), {
       expirationTtl: secondsUntilMidnightUTC(),
     }),
-    kv.put(monthlyKey(), (monthly + dollars).toFixed(6), {
+    kv.put(mKey, ((m ? parseFloat(m) : 0) + dollars).toFixed(6), {
       expirationTtl: secondsUntilMonthEnd(),
     }),
   ])
