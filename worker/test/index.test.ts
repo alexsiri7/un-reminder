@@ -109,6 +109,69 @@ describe('un-reminder-worker', () => {
     expect(res.status).toBe(401)
   })
 
+  // ---- Validation tests ----
+
+  it('returns 400 on invalid JSON body', async () => {
+    const url = 'http://localhost/v1/generate/batch'
+    const req = new Request(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-UR-Secret': SECRET,
+      },
+      body: '{ not valid json',
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, testEnv(), ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 400 on missing habitTitle', async () => {
+    const req = makeRequest('/v1/generate/batch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-UR-Secret': SECRET,
+      },
+      body: { habitTags: ['x'], locationName: 'Home', timeOfDay: 'morning', n: 3 },
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, testEnv(), ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 400 when n exceeds 50', async () => {
+    const req = makeRequest('/v1/generate/batch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-UR-Secret': SECRET,
+      },
+      body: { ...validBody(), n: 51 },
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, testEnv(), ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 400 when n is less than 1', async () => {
+    const req = makeRequest('/v1/generate/batch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-UR-Secret': SECRET,
+      },
+      body: { ...validBody(), n: 0 },
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, testEnv(), ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(400)
+  })
+
   // ---- Spend cap tests ----
 
   it('returns 402 when daily KV counter over cap', async () => {
@@ -190,6 +253,56 @@ describe('un-reminder-worker', () => {
     // Two malformed responses -> 502
     mockRequestyMalformed()
     mockRequestyMalformed()
+
+    const req = makeRequest('/v1/generate/batch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-UR-Secret': SECRET,
+      },
+      body: validBody(),
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, testEnv(), ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(502)
+  })
+
+  // ---- Retry-then-succeed test ----
+
+  it('returns 200 when first call is malformed but retry succeeds', async () => {
+    const variants = ['Stretch!', 'Move it!', 'Time to go!']
+    mockRequestyMalformed() // first call returns malformed
+    mockRequestySuccess(variants) // retry succeeds
+
+    const req = makeRequest('/v1/generate/batch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-UR-Secret': SECRET,
+      },
+      body: validBody(),
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, testEnv(), ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { variants: string[] }
+    expect(body.variants).toEqual(variants)
+  })
+
+  // ---- Upstream error test ----
+
+  it('returns 502 when upstream returns non-200', async () => {
+    // Two 500 responses -> 502
+    fetchMock
+      .get(REQUESTY_URL)
+      .intercept({ path: '/v1/chat/completions', method: 'POST' })
+      .reply(500, 'Internal Server Error')
+    fetchMock
+      .get(REQUESTY_URL)
+      .intercept({ path: '/v1/chat/completions', method: 'POST' })
+      .reply(500, 'Internal Server Error')
 
     const req = makeRequest('/v1/generate/batch', {
       method: 'POST',
