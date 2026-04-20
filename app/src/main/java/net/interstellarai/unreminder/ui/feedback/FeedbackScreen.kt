@@ -221,6 +221,7 @@ fun FeedbackScreen(
                 onClick = {
                     if (isLaunching) return@onClick
                     isLaunching = true
+                    // Capture Compose state on the main thread before launching background work.
                     val bmpSnapshot = screenshotBitmap
                     val strokesSnapshot = strokes.toList()
                     val canvasSizeSnapshot = canvasSize

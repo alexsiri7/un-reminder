@@ -116,6 +116,8 @@ class FeedbackViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: OutOfMemoryError) {
+                // Bitmap merge can realistically OOM on large screenshots (see #89) —
+                // degrade gracefully instead of crashing.
                 Log.e(TAG, "OOM during screenshot merge", e)
                 _uiState.value = _uiState.value.copy(
                     isSubmitting = false,
