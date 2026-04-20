@@ -565,6 +565,48 @@ describe('un-reminder-worker', () => {
     expect(res.status).toBe(400)
   })
 
+  it('increments spend counter after successful /v1/habit-fields call', async () => {
+    const fields = { fullDescription: 'Sit quietly', lowFloorDescription: 'Just sit' }
+    mockRequestySuccess(fields)
+
+    const e = testEnv()
+    const req = makeRequest('/v1/habit-fields', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
+      body: { title: 'Meditate' },
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, e, ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(200)
+
+    const d = new Date()
+    const dayKey = `day:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+    const dailySpend = await e.UR_SPEND.get(dayKey)
+    expect(Number(dailySpend)).toBeGreaterThan(0)
+  })
+
+  it('increments spend counter after successful /v1/preview call', async () => {
+    const preview = { text: 'Time to run!' }
+    mockRequestySuccess(preview)
+
+    const e = testEnv()
+    const req = makeRequest('/v1/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
+      body: { habit: { title: 'Run', tags: ['fitness'], notes: 'Daily jog' }, locationName: 'Park' },
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, e, ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(200)
+
+    const d = new Date()
+    const dayKey = `day:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+    const dailySpend = await e.UR_SPEND.get(dayKey)
+    expect(Number(dailySpend)).toBeGreaterThan(0)
+  })
+
   it('returns 502 on /v1/habit-fields when upstream throws on both attempts', async () => {
     // callRequesty throws on non-200 — no schema retry on HTTP errors, one 500 suffices
     enqueueResponse(500, 'Internal Server Error')

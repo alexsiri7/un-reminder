@@ -45,6 +45,7 @@ data class SettingsUiState(
     val hasBackgroundLocationPermission: Boolean = false,
     val hasExactAlarmPermission: Boolean = false,
     val testTriggered: Boolean = false,
+    val errorMessage: String? = null,
 )
 
 @HiltViewModel
@@ -90,6 +91,7 @@ class SettingsViewModel @Inject constructor(
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "Failed to persist worker URL", e)
+                _uiState.value = _uiState.value.copy(errorMessage = "Failed to save worker URL.")
             }
         }
     }
@@ -101,8 +103,13 @@ class SettingsViewModel @Inject constructor(
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "Failed to persist worker secret", e)
+                _uiState.value = _uiState.value.copy(errorMessage = "Failed to save worker secret.")
             }
         }
+    }
+
+    fun clearError() {
+        _uiState.value = _uiState.value.copy(errorMessage = null)
     }
 
     fun refreshPermissions() {

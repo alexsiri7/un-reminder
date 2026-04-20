@@ -337,6 +337,19 @@ class HabitEditViewModelTest {
     // --- On-device fallback ---
 
     @Test
+    fun `previewNotification falls back to on-device when workerUrl is blank`() = runTest(testDispatcher) {
+        // Default setup has empty URL/secret — should use promptGenerator
+        coEvery { mockPromptGenerator.previewHabitNotification(any(), any()) } returns "On-device preview"
+
+        viewModel.previewNotification()
+        advanceUntilIdle()
+
+        assertEquals("On-device preview", viewModel.uiState.value.previewNotification)
+        assertTrue(viewModel.uiState.value.showPreviewDialog)
+        coVerify(exactly = 0) { mockRequestyProxyClient.preview(any(), any(), any(), any()) }
+    }
+
+    @Test
     fun `autofillWithAi falls back to on-device when workerUrl is blank`() = runTest(testDispatcher) {
         // Default setup has empty URL/secret — should use promptGenerator
         coEvery { mockPromptGenerator.generateHabitFields("meditation") } returns
