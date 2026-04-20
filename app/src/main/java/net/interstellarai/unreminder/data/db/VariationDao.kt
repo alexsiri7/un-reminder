@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import java.time.Instant
 
 @Dao
 interface VariationDao {
@@ -14,7 +15,7 @@ interface VariationDao {
 
     /** Returns the number of rows updated (1 on success, 0 if already consumed or deleted). */
     @Query("UPDATE variation SET consumed_at = :at WHERE id = :id AND consumed_at IS NULL")
-    suspend fun markConsumed(id: Long, at: Long): Int
+    suspend fun markConsumed(id: Long, at: Instant): Int
 
     @Query("SELECT COUNT(*) FROM variation WHERE habit_id = :habitId AND consumed_at IS NULL")
     suspend fun countUnused(habitId: Long): Int

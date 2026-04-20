@@ -27,9 +27,9 @@ class VariationRepository @Inject constructor(
      */
     suspend fun pickRandomUnused(habitId: Long): VariationEntity? {
         val unused = dao.getUnusedForHabit(habitId, POOL_SIZE).shuffled()
-        val now = Instant.now()
+        val now = Instant.ofEpochMilli(Instant.now().toEpochMilli())
         for (candidate in unused) {
-            val updated = dao.markConsumed(candidate.id, now.toEpochMilli())
+            val updated = dao.markConsumed(candidate.id, now)
             if (updated == 1) {
                 return candidate.copy(consumedAt = now)
             }
