@@ -1,5 +1,6 @@
 package net.interstellarai.unreminder.data.repository
 
+import android.util.Log
 import net.interstellarai.unreminder.data.db.VariationDao
 import net.interstellarai.unreminder.data.db.VariationEntity
 import java.time.Instant
@@ -21,7 +22,10 @@ class VariationRepository @Inject constructor(
         val picked = unused.randomOrNull() ?: return null
         val now = Instant.now()
         val updated = dao.markConsumed(picked.id, now.toEpochMilli())
-        if (updated == 0) return null
+        if (updated == 0) {
+            Log.w("VariationRepo", "markConsumed race: variation ${picked.id} was deleted before mark")
+            return null
+        }
         return picked.copy(consumedAt = now)
     }
 

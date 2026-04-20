@@ -263,13 +263,14 @@ Parsed via `lines().firstOrNull { it.startsWith("Full:") }` / `"Low-floor:"`. Th
 ## 8. Database Schema (Room)
 
 ```kotlin
-// DB version 4
+// DB version 5
 @Entity Habit(id, name, full_description, low_floor_description, active, created_at, updated_at)
 @Entity Window(id, start_time, end_time, days_of_week_bitmask, frequency_per_day, active)
 @Entity Location(id, name /* user-defined, e.g. "Home", "Gym", "Office" */, lat, lng, radius_m)
 @Entity HabitLocationCrossRef(habit_id → Habit.id CASCADE, location_id → Location.id CASCADE)  // junction
 @Entity Trigger(id, window_id?, habit_id?, scheduled_at, fired_at?, status, generated_prompt?)
 @Entity PendingFeedback(id, screenshot_path? /* nullable */, description, queued_at)  // offline upload queue
+@Entity Variation(id, habit_id → Habit.id CASCADE, text, prompt_fingerprint, generated_at, consumed_at?)  // variation pool
 ```
 
 ---
