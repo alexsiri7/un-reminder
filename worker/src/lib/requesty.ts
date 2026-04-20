@@ -1,7 +1,7 @@
 const REQUESTY_URL = 'https://router.requesty.ai/v1/chat/completions'
 
-// Pricing for gemini-3-flash-preview via Requesty (as of 2026-04-20).
-// These constants MUST match the model configured in UR_MODEL (wrangler.toml).
+// Pricing per token via Requesty for the model configured in UR_MODEL (wrangler.toml).
+// These constants MUST match that model's pricing.
 // If you change the model, update pricing here too.
 export const COST_PER_OUTPUT_TOKEN = 0.000075 / 1000
 export const COST_PER_INPUT_TOKEN = 0.000075 / 1000

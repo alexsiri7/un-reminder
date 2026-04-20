@@ -54,7 +54,7 @@ export async function habitFieldsHandler(c: Context<{ Bindings: Env }>): Promise
   )
 
   if (!result) {
-    return c.json({ error: 'Upstream returned malformed response' }, 502)
+    return c.json({ error: 'Upstream unavailable or returned invalid response' }, 502)
   }
 
   const spendDollars =
