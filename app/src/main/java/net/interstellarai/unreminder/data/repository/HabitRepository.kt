@@ -42,7 +42,7 @@ class HabitRepository @Inject constructor(
         // clause is syntactically valid but never matches any real habit row.
         val ids = if (currentLocationIds.isEmpty()) listOf(-1L) else currentLocationIds.toList()
         val currentSecondOfDay = LocalTime.now().toSecondOfDay()
-        val dayOfWeekBit = 1 shl (LocalDate.now().dayOfWeek.value - 1)
+        val dayOfWeekBit = 1 shl (LocalDate.now().dayOfWeek.value - 1) // bit 0 = Monday, bit 6 = Sunday
         return habitDao.getEligibleHabits(ids, cutoff, currentSecondOfDay, dayOfWeekBit)
     }
 
@@ -58,7 +58,9 @@ class HabitRepository @Inject constructor(
         windowCrossRefDao.getWindowIdsForHabit(habitId)
 
     suspend fun setWindows(habitId: Long, windowIds: Set<Long>) {
-        windowCrossRefDao.deleteByHabitId(habitId)
-        windowCrossRefDao.insertAll(windowIds.map { HabitWindowCrossRef(habitId = habitId, windowId = it) })
+        windowCrossRefDao.replaceAll(
+            habitId,
+            windowIds.map { HabitWindowCrossRef(habitId = habitId, windowId = it) }
+        )
     }
 }

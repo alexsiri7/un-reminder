@@ -400,4 +400,31 @@ class HabitEditViewModelTest {
         coVerify { mockHabitRepository.setWindows(42L, setOf(5L, 7L)) }
         assertTrue(viewModel.uiState.value.isSaved)
     }
+
+    @Test
+    fun `loadHabit populates selectedWindowIds from repository`() = runTest(testDispatcher) {
+        coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit)
+        coEvery { mockHabitRepository.getWindowIds(testHabit.id) } returns listOf(3L, 5L)
+
+        viewModel.loadHabit(testHabit.id)
+        advanceUntilIdle()
+
+        assertEquals(setOf(3L, 5L), viewModel.uiState.value.selectedWindowIds)
+    }
+
+    @Test
+    fun `save calls setWindows on update path`() = runTest(testDispatcher) {
+        coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit)
+        coEvery { mockHabitRepository.update(any()) } returns Unit
+
+        viewModel.loadHabit(testHabit.id)
+        advanceUntilIdle()
+
+        viewModel.toggleWindow(3L)
+        viewModel.save()
+        advanceUntilIdle()
+
+        coVerify { mockHabitRepository.setWindows(testHabit.id, setOf(3L)) }
+        assertTrue(viewModel.uiState.value.isSaved)
+    }
 }

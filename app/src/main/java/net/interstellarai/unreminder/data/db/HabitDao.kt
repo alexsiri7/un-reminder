@@ -52,6 +52,8 @@ interface HabitDao {
                 JOIN windows w ON w.id = hw.window_id
                 WHERE hw.habit_id = h.id
                   AND w.active = 1
+                  -- NOTE: overnight windows (end_time < start_time) are not supported;
+                  -- start_time/end_time are seconds-of-day and must satisfy start_time <= end_time.
                   AND w.start_time <= :currentSecondOfDay
                   AND w.end_time >= :currentSecondOfDay
                   AND (w.days_of_week_bitmask & :dayOfWeekBit) != 0

@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 
 @Dao
 interface HabitWindowCrossRefDao {
@@ -15,4 +16,10 @@ interface HabitWindowCrossRefDao {
 
     @Query("SELECT window_id FROM habit_window WHERE habit_id = :habitId")
     suspend fun getWindowIdsForHabit(habitId: Long): List<Long>
+
+    @Transaction
+    suspend fun replaceAll(habitId: Long, crossRefs: List<HabitWindowCrossRef>) {
+        deleteByHabitId(habitId)
+        insertAll(crossRefs)
+    }
 }
