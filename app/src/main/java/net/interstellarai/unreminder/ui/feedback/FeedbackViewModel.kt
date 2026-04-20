@@ -73,7 +73,6 @@ class FeedbackViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(isSubmitting = true, errorMessage = null)
             try {
                 val merged = withContext(defaultDispatcher) { mergeAnnotations(annotationBitmap) }
-                val screenshotPath = merged?.let { withContext(ioDispatcher) { saveToCacheDir(it) } }
 
                 if (BuildConfig.FEEDBACK_ENDPOINT_URL.isBlank()) {
                     _uiState.value = _uiState.value.copy(
@@ -84,6 +83,10 @@ class FeedbackViewModel @Inject constructor(
                 }
 
                 try {
+                    // saveToCacheDir is inside the inner try so that IOException from disk-full
+                    // or permissions failures is routed to the offline-retry queue, not the
+                    // generic outer catch.
+                    val screenshotPath = merged?.let { withContext(ioDispatcher) { saveToCacheDir(it) } }
                     val desc = _uiState.value.description
                     val title = desc.take(60).ifBlank { "Feedback from app" }
                     val body = buildIssueBody(desc)
@@ -94,9 +97,10 @@ class FeedbackViewModel @Inject constructor(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: IOException) {
-                    // Transient network failure — queue for retry when connectivity returns.
-                    Log.w(TAG, "Direct submit failed (network), queuing for retry", e)
-                    feedbackRepository.queue(screenshotPath, _uiState.value.description)
+                    // Transient IO failure (disk save or network) — queue for retry when
+                    // connectivity returns. Screenshot is omitted when save itself failed.
+                    Log.w(TAG, "IO failure (save or network), queuing for retry", e)
+                    feedbackRepository.queue(null, _uiState.value.description)
                     scheduleUploadWorker()
                     _uiState.value = _uiState.value.copy(
                         isSubmitting = false,
@@ -125,6 +129,19 @@ class FeedbackViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    /**
+     * Called from [FeedbackScreen] when `Bitmap.createBitmap()` throws [OutOfMemoryError] during
+     * annotation bitmap creation — before [submit] is ever invoked.  Surfaces the same
+     * user-visible error as the in-ViewModel OOM guard.
+     */
+    fun onAnnotationBitmapOom() {
+        Log.e(TAG, "OOM during annotation bitmap creation in screen")
+        _uiState.value = _uiState.value.copy(
+            isSubmitting = false,
+            errorMessage = "Not enough memory to attach screenshot."
+        )
     }
 
     private fun mergeAnnotations(annotationBitmap: Bitmap): Bitmap? {

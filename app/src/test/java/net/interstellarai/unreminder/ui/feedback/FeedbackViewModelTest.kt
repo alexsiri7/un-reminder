@@ -5,8 +5,11 @@ import android.graphics.Bitmap
 import net.interstellarai.unreminder.data.repository.FeedbackRepository
 import net.interstellarai.unreminder.service.github.GitHubApiService
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
+import io.mockk.runs
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -89,7 +92,7 @@ class FeedbackViewModelTest {
         assert(state.errorMessage!!.contains("memory", ignoreCase = true))
     }
 
-    @Test fun `submit does not block while isSubmitting = true`() = runTest {
+    @Test fun `submit sets isSubmitting true during flight and false on completion`() = runTest {
         coEvery { mockGitHubApiService.submit(any(), any(), any()) } coAnswers {
             kotlinx.coroutines.delay(100)
         }
@@ -98,5 +101,30 @@ class FeedbackViewModelTest {
         assert(viewModel.uiState.value.isSubmitting)
         advanceUntilIdle()
         assertFalse(viewModel.uiState.value.isSubmitting)
+    }
+
+    @Test fun `submit without screenshot calls gitHubApiService with null file`() = runTest {
+        // Arrange — no setScreenshot call; screenshotBitmap remains null
+        coEvery { mockGitHubApiService.submit(any(), any(), null) } just runs
+        viewModel.updateDescription("test feedback without screenshot")
+
+        // Act
+        viewModel.submit(mockk(relaxed = true))
+        advanceUntilIdle()
+
+        // Assert — submission succeeded with null file (no screenshot attached)
+        val state = viewModel.uiState.value
+        assertFalse(state.isSubmitting)
+        assertNull(state.errorMessage)
+        coVerify { mockGitHubApiService.submit(any(), any(), null) }
+    }
+
+    @Test fun `onAnnotationBitmapOom sets errorMessage containing memory`() {
+        viewModel.onAnnotationBitmapOom()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isSubmitting)
+        assertNotNull(state.errorMessage)
+        assert(state.errorMessage!!.contains("memory", ignoreCase = true))
     }
 }

@@ -212,36 +212,51 @@ fun FeedbackScreen(
                 minLines = 3
             )
 
+            // Local flag to disable the button immediately on click, before the ViewModel's
+            // isSubmitting is set (which only happens once the coroutine starts executing).
+            // This closes the double-tap race window between click and submit().
+            var isLaunching by remember { mutableStateOf(false) }
+
             Button(
                 onClick = {
+                    if (isLaunching) return@onClick
+                    isLaunching = true
                     val bmpSnapshot = screenshotBitmap
                     val strokesSnapshot = strokes.toList()
                     val canvasSizeSnapshot = canvasSize
                     coroutineScope.launch(Dispatchers.Default) {
-                        val annotationBitmap = if (bmpSnapshot != null && canvasSizeSnapshot.width > 0) {
-                            val annBitmap = Bitmap.createBitmap(bmpSnapshot.width, bmpSnapshot.height, Bitmap.Config.ARGB_8888)
-                            val canvas = android.graphics.Canvas(annBitmap)
-                            val scaleX = bmpSnapshot.width.toFloat() / canvasSizeSnapshot.width
-                            val scaleY = bmpSnapshot.height.toFloat() / canvasSizeSnapshot.height
-                            canvas.scale(scaleX, scaleY)
-                            val paint = android.graphics.Paint().apply {
-                                style = android.graphics.Paint.Style.STROKE
-                                strokeWidth = 6f
-                                isAntiAlias = true
+                        try {
+                            val annotationBitmap = if (bmpSnapshot != null && canvasSizeSnapshot.width > 0) {
+                                val annBitmap = Bitmap.createBitmap(bmpSnapshot.width, bmpSnapshot.height, Bitmap.Config.ARGB_8888)
+                                val canvas = android.graphics.Canvas(annBitmap)
+                                val scaleX = bmpSnapshot.width.toFloat() / canvasSizeSnapshot.width
+                                val scaleY = bmpSnapshot.height.toFloat() / canvasSizeSnapshot.height
+                                canvas.scale(scaleX, scaleY)
+                                val paint = android.graphics.Paint().apply {
+                                    style = android.graphics.Paint.Style.STROKE
+                                    strokeWidth = 6f
+                                    isAntiAlias = true
+                                }
+                                for (stroke in strokesSnapshot) {
+                                    paint.color = stroke.color.toArgb()
+                                    canvas.drawPath(stroke.path.asAndroidPath(), paint)
+                                }
+                                annBitmap
+                            } else {
+                                Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
                             }
-                            for (stroke in strokesSnapshot) {
-                                paint.color = stroke.color.toArgb()
-                                canvas.drawPath(stroke.path.asAndroidPath(), paint)
-                            }
-                            annBitmap
-                        } else {
-                            Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+                            viewModel.submit(annotationBitmap)
+                        } catch (e: OutOfMemoryError) {
+                            // Bitmap allocation failed before submit() was called — surface the
+                            // error through the ViewModel so the snackbar flow fires normally.
+                            viewModel.onAnnotationBitmapOom()
+                        } finally {
+                            isLaunching = false
                         }
-                        viewModel.submit(annotationBitmap)
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                enabled = !uiState.isSubmitting
+                enabled = !uiState.isSubmitting && !isLaunching
             ) {
                 if (uiState.isSubmitting) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
