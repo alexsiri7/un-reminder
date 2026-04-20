@@ -19,10 +19,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -580,6 +580,7 @@ private fun QueuedNotificationsSection(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val formatter = remember { DateTimeFormatter.ofPattern("MMM d · HH:mm") }
+    val dateOnlyFormatter = remember { DateTimeFormatter.ofPattern("MMM d") }
 
     Column(modifier = modifier.fillMaxWidth()) {
         // Header row — always visible, toggles expansion
@@ -624,7 +625,7 @@ private fun QueuedNotificationsSection(
                     if (lastRefilled != null) {
                         append(" · last refilled: ")
                         append(lastRefilled.atZone(ZoneId.systemDefault()).format(
-                            DateTimeFormatter.ofPattern("MMM d")
+                            dateOnlyFormatter
                         ))
                     }
                 },

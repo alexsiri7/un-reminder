@@ -475,6 +475,27 @@ class HabitEditViewModelTest {
         job.cancel()
     }
 
+    // --- deleteVariation ---
+
+    @Test
+    fun `deleteVariation delegates to repository`() = runTest(testDispatcher) {
+        viewModel.deleteVariation(42L)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { mockVariationRepository.deleteById(42L) }
+    }
+
+    @Test
+    fun `deleteVariation swallows non-cancellation exceptions`() = runTest(testDispatcher) {
+        coEvery { mockVariationRepository.deleteById(any()) } throws RuntimeException("DB error")
+
+        viewModel.deleteVariation(42L)
+        advanceUntilIdle()
+
+        // No crash, no error state change — silently logged
+        assertNull(viewModel.uiState.value.errorMessage)
+    }
+
     @Test
     fun `aiStatus is Ready when cloud ON and worker configured`() = runTest(testDispatcher) {
         every { mockFeatureFlagsRepository.useCloudPool } returns flowOf(true)
