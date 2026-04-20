@@ -2,7 +2,7 @@
 
 A native Android app that replaces fixed-time reminders with **stochastic, context-aware, AI-generated habit prompts** — designed to defeat notification blindness.
 
-Built fully on-device. No backend, no cloud, no account. Works offline. Optional in-app feedback submits annotated screenshots to GitHub (user-initiated only).
+Notifications generated via a private cloud proxy (personal Cloudflare Worker + Requesty.ai). No third-party account required. Optional in-app feedback submits annotated screenshots to GitHub (user-initiated only).
 
 ---
 
@@ -31,7 +31,7 @@ Solo user (the author). Single-device, single-user. Personal productivity / well
 
 | Layer | Choice | Rationale |
 |---|---|---|
-| Platform | **Android native** (min SDK 31, target 34+) | Background geofencing, reliable notifications, on-device LLM support. |
+| Platform | **Android native** (min SDK 31, target 34+) | Background geofencing, reliable notifications, Cloudflare Worker integration. |
 | Language | **Kotlin** | |
 | UI | **Jetpack Compose** + Material 3 | |
 | Local storage | **Room** (SQLite) + **DataStore Preferences** | Room for structured data (habits, triggers, locations). DataStore for simple key/value app preferences (e.g. onboarding state). |
@@ -40,15 +40,14 @@ Solo user (the author). Single-device, single-user. Personal productivity / well
 | Map UI | **osmdroid** | OpenStreetMap-based map picker for location selection; tiles cached automatically on-device. |
 | Notifications | **NotificationManager** (Android 13+ runtime permission) | Native. |
 | Crash reporting | **Sentry** (`sentry-android`) | On-device-only gating via blank DSN; no PII, habit content, or location data sent. |
-| LLM | **Gemma 3 1B (int4)** on-device via **LiteRT-LM** (`com.google.ai.edge.litertlm:litertlm-android:0.10.2`). Model downloaded on first launch (`ModelDownloadWorker`). | Zero-cost after download, offline, private, low-latency. GPU-accelerated on supported devices (OpenCL / vndksupport). |
-| Network | **OkHttp** | HTTP client for GitHub feedback API (optional in-app feedback feature). |
+| LLM | **Gemini Flash** via **Requesty.ai** proxy, deployed as a Cloudflare Worker (`worker/`). Variations pre-generated and stored in Room DB. | Private cloud via personal proxy — no data sent to third parties beyond the proxy owner's account. Low-latency notification delivery from pre-filled pool. |
+| Network | **OkHttp** | HTTP client for worker API calls and GitHub feedback API. |
 | Error reporting | **Sentry Android SDK** (`sentry-android 7.14.0`) | Automatic exception capture for LLM subsystem errors in release builds; opt-in via `SENTRY_DSN` build-config field. No PII, no performance tracing. |
 | DI | Hilt | |
 | Testing | JUnit + Compose UI tests | |
 | CF Worker | **Hono** on **Cloudflare Workers** | Remote LLM generation via Requesty.ai. Handles auth, spend cap, and parallel Gemini Flash fan-out. Deployed via Wrangler. |
 
-**Target device for MVP:** Any Android device with min SDK 31. Model is downloaded on first launch; GPU backend is optional (app falls back to CPU if OpenCL/vndksupport are absent).
-**Post-MVP:** Surface download progress to the user; retry/cancel UI.
+**Target device for MVP:** Any Android device with min SDK 31. Cloud worker URL and secret are configured at build time or at runtime via Cloud AI settings.
 
 ### Cloudflare Worker (`worker/`)
 
@@ -191,55 +190,28 @@ updated by geofence `ENTER`/`EXIT` callbacks. Empty set means no known location.
    not recently prompted. Weight formula: `1 + min(minutesSince, 1440) / 120`, where
    `minutesSince` is minutes since the habit was last fired (cap: 1440 min = 24 h). A habit
    never fired receives the maximum weight (~13×). If the eligible set is empty, skip silently.
-4. Call **Gemma 3 1B (int4, via LiteRT-LM)** with a structured prompt (see below) to generate a fresh, actionable one-liner for this habit instance.
+4. Pick an unused variation from the cloud-generated pool (see Variation entity). If the pool is empty, fall back to `habit.name` and enqueue a refill.
 5. Post the notification with the generated text. Action buttons: **Did the full version**, **Did the low-floor**, **Dismiss**.
 6. Record the trigger row with the generated prompt and the outcome when the user responds.
    If the last 3 triggers for the same habit are all `DISMISSED`, the habit is automatically set to
    `active = false` (auto-paused). The user can re-activate it by editing the habit.
 
-### LLM prompt shape (on-device Gemma 3 1B)
+### Variation pool (cloud-generated)
 
-```
-System: You are generating a one-line notification that nudges the user
-to do a habit. Make it warm, specific, and varied — never repeat the
-exact wording across calls. Maximum 80 characters. Plain text only.
+Notification texts are pre-generated in batches by the Cloudflare Worker (`/v1/generate/batch`) and stored locally in the `Variation` table. At fire time, `TriggerPipeline` picks an unused variation from the pool — no LLM call on the hot path.
 
-Habit: {name}
-Full version: {full_description}
-Low-floor version: {low_floor_description}
-Current location: {location name(s) or "Anywhere"}
-Time of day: {morning|afternoon|evening|night}
-```
-
-Expected output example for *gratefulness*:
-- "Reflect on 3 small wins from today."
-- "Who deserves a mental thank-you right now?"
-- "Name one thing that went better than expected today."
+When the pool runs low (`VariationRepository.needsRefill`), a `RefillWorker` is enqueued to fetch a fresh batch from the worker.
 
 ### Fallback
-If Gemma 3 1B inference fails or takes >5s, fall back to a static template: *"{name}: {low_floor_description}"*. Note: the AI autofill and notification preview features throw on failure (no silent fallback) so the UI can surface a clear error message.
+If the variation pool is empty at fire time, the notification falls back to `habit.name` and a refill is enqueued. AI autofill and notification preview features call the worker directly and throw on failure so the UI can surface a clear error message.
 
-### Habit-field autofill prompt (on-device Gemma 3 1B)
+### Habit-field autofill (cloud)
 
-Used to generate `full_description` and `low_floor_description` when the user taps "Autofill with AI" in the Habit editor. Takes only the habit title as input.
+Used to generate `full_description` and `low_floor_description` when the user taps "Autofill with AI" in the Habit editor. Calls the worker's `/v1/habit-fields` endpoint with the habit title.
 
-```
-System: You are generating habit description fields for a productivity app.
-Given only a habit title, produce exactly two lines:
-Full: <one sentence, specific full description, max 100 chars>
-Low-floor: <minimum viable version, max 60 chars>
-Plain text only.
+### Notification preview (cloud)
 
-Habit title: {name}
-```
-
-Expected output format (two lines, no extras):
-```
-Full: 20-minute guided body-scan meditation
-Low-floor: 3 deep breaths
-```
-
-Parsed via `lines().firstOrNull { it.startsWith("Full:") }` / `"Low-floor:"`. Throws `IllegalStateException` if either line is missing.
+Generates a sample notification via the worker's `/v1/preview` endpoint. Shown in a dialog in the Habit editor.
 
 ---
 
@@ -325,7 +297,6 @@ Tracked manually by glancing at the Recent triggers screen. Not a feature.
 
 ## 12. Risks & Open Questions
 
-- **LiteRT-LM GPU acceleration on target device** — verify OpenCL path; app falls back to CPU automatically via `libvndksupport.so`/`libOpenCL.so` `required="false"` manifest entries.
 - **Background location reliability** — Android is aggressive about killing background geofence receivers on some OEMs. Pixel stock ROM is the friendliest; still needs a foreground service fallback if misses are frequent.
 - **Exact alarms under Doze** — `setExactAndAllowWhileIdle` should be reliable for our use case; verify during dev.
-- **Gemma 3 1B int4 latency on-device** — must stay under 5s for notification generation; fallback path handles slow cases.
+- **Worker availability** — if the Cloudflare Worker is down or the spend cap is exceeded, AI features degrade gracefully (pool fallback to `habit.name`, UI shows spend-cap snackbar).

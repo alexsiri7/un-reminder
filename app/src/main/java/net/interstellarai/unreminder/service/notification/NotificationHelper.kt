@@ -26,10 +26,10 @@ class NotificationHelper @Inject constructor(
         const val ACTION_DISMISSED = "DISMISSED"
         const val CHANNEL_ID_SYSTEM = "un_reminder_system"
         const val CHANNEL_NAME_SYSTEM = "Habit Status"
-        // Dedicated channel for the foreground-service notification posted by
-        // [ModelDownloadWorker] while the 2.5 GB AI model is streaming down.
-        // IMPORTANCE_LOW keeps it silent — the user hasn't asked for alerts,
-        // they just need the FGS to stay alive.
+        // Dedicated channel for foreground-service notifications posted by
+        // background workers (e.g. RefillWorker). IMPORTANCE_LOW keeps it
+        // silent — the user hasn't asked for alerts, they just need the FGS
+        // to stay alive.
         const val MODEL_DOWNLOAD_CHANNEL_ID = "model_download"
         const val MODEL_DOWNLOAD_CHANNEL_NAME = "Model download"
         // Paused-habit notifications use habitId as offset.

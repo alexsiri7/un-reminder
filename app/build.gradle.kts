@@ -11,9 +11,7 @@ plugins {
 // tracked by the configuration cache (plain `System.getenv` is not tracked and
 // can cause the cached value to be reused across CI builds). Also treats a
 // blank/empty string as "unset" so `?:` style fallbacks actually fire when the
-// env var exists but was exported as "" — otherwise BuildConfig ends up with a
-// literal empty string. Bug history: `BuildConfig.MODEL_CDN_URL` was resolving
-// to "" at runtime even though CI logs showed `MODEL_CDN_URL: ***` masked.
+// env var exists but was exported as "".
 fun envOrDefault(name: String, default: String): String =
     providers.environmentVariable(name).orNull
         ?.takeUnless { it.isBlank() }
@@ -37,17 +35,11 @@ android {
             "https://feedback.alexsiri7.workers.dev/"
         )
         val resolvedSentryDsn = envOrDefault("SENTRY_DSN", "")
-        val resolvedModelUrl = envOrDefault(
-            "MODEL_CDN_URL",
-            "https://placeholder.invalid/model.task"
-        )
-
         println("[gradle] FEEDBACK_ENDPOINT_URL resolved at configuration: ${resolvedFeedbackUrl.take(60)}…")
         println("[gradle] SENTRY_DSN resolved at configuration: ${if (resolvedSentryDsn.isBlank()) "empty" else "set"}")
         val resolvedWorkerUrl = envOrDefault("WORKER_URL", "")
         val resolvedWorkerSecret = envOrDefault("WORKER_SECRET", "")
 
-        println("[gradle] MODEL_CDN_URL resolved at configuration: ${resolvedModelUrl.take(60)}…")
         println("[gradle] WORKER_URL resolved at configuration: ${if (resolvedWorkerUrl.isBlank()) "empty" else "set"}")
         println("[gradle] WORKER_SECRET resolved at configuration: ${if (resolvedWorkerSecret.isBlank()) "empty" else "set"}")
 
@@ -62,11 +54,6 @@ android {
             "\"alexsiri7/un-reminder\""
         )
         buildConfigField("String", "SENTRY_DSN", "\"${resolvedSentryDsn}\"")
-        buildConfigField(
-            "String",
-            "MODEL_CDN_URL",
-            "\"${resolvedModelUrl}\""
-        )
         buildConfigField("String", "WORKER_URL", "\"${resolvedWorkerUrl}\"")
         buildConfigField("String", "WORKER_SECRET", "\"${resolvedWorkerSecret}\"")
 
@@ -103,7 +90,6 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
-        freeCompilerArgs += "-Xskip-metadata-version-check"
     }
 
     buildFeatures {
@@ -165,9 +151,6 @@ dependencies {
     // Play Services Location (geofencing)
     implementation(libs.play.services.location)
     implementation(libs.osmdroid.android)
-
-    // LiteRT-LM (on-device Gemma)
-    implementation(libs.litert.lm)
 
     // DataStore
     implementation(libs.androidx.datastore.preferences)

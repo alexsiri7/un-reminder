@@ -1,16 +1,13 @@
 package net.interstellarai.unreminder.ui.habit
 
 import net.interstellarai.unreminder.data.db.HabitEntity
-import net.interstellarai.unreminder.data.repository.FeatureFlagsRepository
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
-import net.interstellarai.unreminder.data.repository.WorkerSettingsRepository
 import net.interstellarai.unreminder.domain.model.AiHabitFields
 import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.service.llm.PromptGenerator
 import net.interstellarai.unreminder.service.worker.RefillScheduler
-import net.interstellarai.unreminder.service.worker.RequestyProxyClient
 import net.interstellarai.unreminder.service.worker.SpendCapExceededException
 import net.interstellarai.unreminder.service.worker.WorkerAuthException
 import io.mockk.coEvery
@@ -25,7 +22,6 @@ import io.sentry.protocol.SentryId
 import io.sentry.ScopeCallback
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -50,11 +46,8 @@ class HabitEditViewModelTest {
     private val mockPromptGenerator: PromptGenerator = mockk()
     private val mockHabitRepository: HabitRepository = mockk(relaxed = true)
     private val mockLocationRepository: LocationRepository = mockk(relaxed = true)
-    private val mockRequestyProxyClient: RequestyProxyClient = mockk()
-    private val mockWorkerSettingsRepository: WorkerSettingsRepository = mockk()
     private val mockRefillScheduler: RefillScheduler = mockk(relaxed = true)
     private val mockVariationRepository: VariationRepository = mockk(relaxUnitFun = true)
-    private val mockFeatureFlagsRepository: FeatureFlagsRepository = mockk()
     private lateinit var viewModel: HabitEditViewModel
 
     private val testHabit = HabitEntity(
@@ -70,21 +63,13 @@ class HabitEditViewModelTest {
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         every { mockLocationRepository.getAll() } returns flowOf(emptyList())
-        every { mockPromptGenerator.downloadProgress } returns MutableStateFlow<Float?>(null)
         every { mockPromptGenerator.aiStatus } returns MutableStateFlow<AiStatus>(AiStatus.Ready)
-        // Default: no worker configured — routes all AI calls to on-device promptGenerator
-        every { mockWorkerSettingsRepository.effectiveWorkerUrl } returns flowOf("")
-        every { mockWorkerSettingsRepository.effectiveWorkerSecret } returns flowOf("")
-        every { mockFeatureFlagsRepository.useCloudPool } returns flowOf(false)
         viewModel = HabitEditViewModel(
             mockHabitRepository,
             mockLocationRepository,
             mockPromptGenerator,
-            mockRequestyProxyClient,
-            mockWorkerSettingsRepository,
             mockRefillScheduler,
             mockVariationRepository,
-            mockFeatureFlagsRepository,
         )
         viewModel.updateName("meditation")
         viewModel.updateFullDescription("20-minute guided meditation")
@@ -232,16 +217,13 @@ class HabitEditViewModelTest {
         assertFalse(viewModel.uiState.value.fieldsFlashing)
     }
 
-    // --- SpendCap via proxy ---
+    // --- SpendCap ---
 
     @Test
-    fun `autofillWithAi sets showSpendCapLink and no errorMessage on SpendCapExceededException`() =
+    fun `autofillWithAi sets showSpendCapLink on SpendCapExceededException`() =
         runTest(testDispatcher) {
-            // Route through proxy by providing a non-blank URL + secret
-            every { mockWorkerSettingsRepository.effectiveWorkerUrl } returns flowOf("https://worker.example.com")
-            every { mockWorkerSettingsRepository.effectiveWorkerSecret } returns flowOf("secret")
             coEvery {
-                mockRequestyProxyClient.habitFields(any(), any(), any())
+                mockPromptGenerator.generateHabitFields(any())
             } throws SpendCapExceededException()
 
             viewModel.autofillWithAi()
@@ -254,49 +236,10 @@ class HabitEditViewModelTest {
         }
 
     @Test
-    fun `autofillWithAi via proxy updates fields on success`() = runTest(testDispatcher) {
-        every { mockWorkerSettingsRepository.effectiveWorkerUrl } returns flowOf("https://worker.example.com")
-        every { mockWorkerSettingsRepository.effectiveWorkerSecret } returns flowOf("secret")
-        coEvery {
-            mockRequestyProxyClient.habitFields(any(), any(), any())
-        } returns AiHabitFields("Cloud full desc", "Cloud low floor")
-
-        viewModel.autofillWithAi()
-        advanceUntilIdle()
-
-        val state = viewModel.uiState.value
-        assertFalse(state.isGeneratingFields)
-        assertEquals("Cloud full desc", state.fullDescription)
-        assertEquals("Cloud low floor", state.lowFloorDescription)
-        assertTrue(state.fieldsFlashing)
-        assertNull(state.errorMessage)
-    }
-
-    @Test
-    fun `previewNotification via proxy shows dialog on success`() = runTest(testDispatcher) {
-        every { mockWorkerSettingsRepository.effectiveWorkerUrl } returns flowOf("https://worker.example.com")
-        every { mockWorkerSettingsRepository.effectiveWorkerSecret } returns flowOf("secret")
-        coEvery {
-            mockRequestyProxyClient.preview(any(), any(), any(), any())
-        } returns "Cloud preview text"
-
-        viewModel.previewNotification()
-        advanceUntilIdle()
-
-        val state = viewModel.uiState.value
-        assertTrue(state.showPreviewDialog)
-        assertEquals("Cloud preview text", state.previewNotification)
-        assertFalse(state.isGeneratingFields)
-        assertNull(state.errorMessage)
-    }
-
-    @Test
     fun `previewNotification sets showSpendCapLink on SpendCapExceededException`() =
         runTest(testDispatcher) {
-            every { mockWorkerSettingsRepository.effectiveWorkerUrl } returns flowOf("https://worker.example.com")
-            every { mockWorkerSettingsRepository.effectiveWorkerSecret } returns flowOf("secret")
             coEvery {
-                mockRequestyProxyClient.preview(any(), any(), any(), any())
+                mockPromptGenerator.previewHabitNotification(any(), any())
             } throws SpendCapExceededException()
 
             viewModel.previewNotification()
@@ -308,15 +251,13 @@ class HabitEditViewModelTest {
             assertFalse(state.isGeneratingFields)
         }
 
-    // --- WorkerAuthException via proxy ---
+    // --- WorkerAuthException ---
 
     @Test
     fun `autofillWithAi sets errorMessage on WorkerAuthException`() =
         runTest(testDispatcher) {
-            every { mockWorkerSettingsRepository.effectiveWorkerUrl } returns flowOf("https://worker.example.com")
-            every { mockWorkerSettingsRepository.effectiveWorkerSecret } returns flowOf("secret")
             coEvery {
-                mockRequestyProxyClient.habitFields(any(), any(), any())
+                mockPromptGenerator.generateHabitFields(any())
             } throws WorkerAuthException()
 
             viewModel.autofillWithAi()
@@ -331,10 +272,8 @@ class HabitEditViewModelTest {
     @Test
     fun `previewNotification sets errorMessage on WorkerAuthException`() =
         runTest(testDispatcher) {
-            every { mockWorkerSettingsRepository.effectiveWorkerUrl } returns flowOf("https://worker.example.com")
-            every { mockWorkerSettingsRepository.effectiveWorkerSecret } returns flowOf("secret")
             coEvery {
-                mockRequestyProxyClient.preview(any(), any(), any(), any())
+                mockPromptGenerator.previewHabitNotification(any(), any())
             } throws WorkerAuthException()
 
             viewModel.previewNotification()
@@ -396,119 +335,25 @@ class HabitEditViewModelTest {
         assertTrue(viewModel.uiState.value.isSaved)
     }
 
-    // --- On-device fallback ---
+    // --- aiStatus ---
 
     @Test
-    fun `previewNotification falls back to on-device when workerUrl is blank`() = runTest(testDispatcher) {
-        // Default setup has empty URL/secret — should use promptGenerator
-        coEvery { mockPromptGenerator.previewHabitNotification(any(), any()) } returns "On-device preview"
-
-        viewModel.previewNotification()
-        advanceUntilIdle()
-
-        assertEquals("On-device preview", viewModel.uiState.value.previewNotification)
-        assertTrue(viewModel.uiState.value.showPreviewDialog)
-        coVerify(exactly = 0) { mockRequestyProxyClient.preview(any(), any(), any(), any()) }
-    }
-
-    @Test
-    fun `autofillWithAi falls back to on-device when workerUrl is blank`() = runTest(testDispatcher) {
-        // Default setup has empty URL/secret — should use promptGenerator
-        coEvery { mockPromptGenerator.generateHabitFields("meditation") } returns
-            AiHabitFields("On-device full", "On-device low")
-
-        viewModel.autofillWithAi()
-        advanceUntilIdle()
-
-        assertEquals("On-device full", viewModel.uiState.value.fullDescription)
-        assertEquals("On-device low", viewModel.uiState.value.lowFloorDescription)
-        coVerify(exactly = 0) { mockRequestyProxyClient.habitFields(any(), any(), any()) }
-    }
-
-    // --- aiStatus cloud-aware derivation ---
-
-    @Test
-    fun `aiStatus is Unavailable when cloud flag ON and worker url blank`() = runTest(testDispatcher) {
-        every { mockFeatureFlagsRepository.useCloudPool } returns flowOf(true)
-        every { mockWorkerSettingsRepository.effectiveWorkerUrl } returns flowOf("")
-        every { mockWorkerSettingsRepository.effectiveWorkerSecret } returns flowOf("")
+    fun `aiStatus delegates directly to promptGenerator aiStatus`() = runTest(testDispatcher) {
+        every { mockPromptGenerator.aiStatus } returns MutableStateFlow(AiStatus.Unavailable)
         val vm = HabitEditViewModel(
             mockHabitRepository, mockLocationRepository, mockPromptGenerator,
-            mockRequestyProxyClient, mockWorkerSettingsRepository, mockRefillScheduler,
-            mockVariationRepository, mockFeatureFlagsRepository,
+            mockRefillScheduler, mockVariationRepository,
         )
-        val job = launch { vm.aiStatus.collect {} }
-        advanceUntilIdle()
         assertEquals(AiStatus.Unavailable, vm.aiStatus.value)
-        job.cancel()
     }
 
     @Test
-    fun `aiStatus is Unavailable when cloud ON and url blank but secret non-blank`() = runTest(testDispatcher) {
-        every { mockFeatureFlagsRepository.useCloudPool } returns flowOf(true)
-        every { mockWorkerSettingsRepository.effectiveWorkerUrl } returns flowOf("")
-        every { mockWorkerSettingsRepository.effectiveWorkerSecret } returns flowOf("secret")
+    fun `aiStatus is Ready when promptGenerator reports Ready`() = runTest(testDispatcher) {
+        every { mockPromptGenerator.aiStatus } returns MutableStateFlow(AiStatus.Ready)
         val vm = HabitEditViewModel(
             mockHabitRepository, mockLocationRepository, mockPromptGenerator,
-            mockRequestyProxyClient, mockWorkerSettingsRepository, mockRefillScheduler,
-            mockVariationRepository, mockFeatureFlagsRepository,
+            mockRefillScheduler, mockVariationRepository,
         )
-        val job = launch { vm.aiStatus.collect {} }
-        advanceUntilIdle()
-        assertEquals(AiStatus.Unavailable, vm.aiStatus.value)
-        job.cancel()
-    }
-
-    @Test
-    fun `aiStatus is Unavailable when cloud ON and secret blank but url non-blank`() = runTest(testDispatcher) {
-        every { mockFeatureFlagsRepository.useCloudPool } returns flowOf(true)
-        every { mockWorkerSettingsRepository.effectiveWorkerUrl } returns flowOf("https://worker.example.com")
-        every { mockWorkerSettingsRepository.effectiveWorkerSecret } returns flowOf("")
-        val vm = HabitEditViewModel(
-            mockHabitRepository, mockLocationRepository, mockPromptGenerator,
-            mockRequestyProxyClient, mockWorkerSettingsRepository, mockRefillScheduler,
-            mockVariationRepository, mockFeatureFlagsRepository,
-        )
-        val job = launch { vm.aiStatus.collect {} }
-        advanceUntilIdle()
-        assertEquals(AiStatus.Unavailable, vm.aiStatus.value)
-        job.cancel()
-    }
-
-    // --- deleteVariation ---
-
-    @Test
-    fun `deleteVariation delegates to repository`() = runTest(testDispatcher) {
-        viewModel.deleteVariation(42L)
-        advanceUntilIdle()
-
-        coVerify(exactly = 1) { mockVariationRepository.deleteById(42L) }
-    }
-
-    @Test
-    fun `deleteVariation swallows non-cancellation exceptions`() = runTest(testDispatcher) {
-        coEvery { mockVariationRepository.deleteById(any()) } throws RuntimeException("DB error")
-
-        viewModel.deleteVariation(42L)
-        advanceUntilIdle()
-
-        // No crash, no error state change — silently logged
-        assertNull(viewModel.uiState.value.errorMessage)
-    }
-
-    @Test
-    fun `aiStatus is Ready when cloud ON and worker configured`() = runTest(testDispatcher) {
-        every { mockFeatureFlagsRepository.useCloudPool } returns flowOf(true)
-        every { mockWorkerSettingsRepository.effectiveWorkerUrl } returns flowOf("https://worker.example.com")
-        every { mockWorkerSettingsRepository.effectiveWorkerSecret } returns flowOf("secret")
-        val vm = HabitEditViewModel(
-            mockHabitRepository, mockLocationRepository, mockPromptGenerator,
-            mockRequestyProxyClient, mockWorkerSettingsRepository, mockRefillScheduler,
-            mockVariationRepository, mockFeatureFlagsRepository,
-        )
-        val job = launch { vm.aiStatus.collect {} }
-        advanceUntilIdle()
         assertEquals(AiStatus.Ready, vm.aiStatus.value)
-        job.cancel()
     }
 }
