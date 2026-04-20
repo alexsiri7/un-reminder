@@ -109,13 +109,24 @@ The following must be set via `wrangler secret put` before deploying the CF Work
 A repeatable thing the user wants to do. Each habit has:
 - `id`
 - `name` — user-facing, short (e.g. "meditation", "gratefulness", "singing practice").
-- `full_description` — the full version (e.g. "20-minute guided meditation").
-- `low_floor_description` — the minimum-viable version (e.g. "3 deep breaths"). **Completing this counts as a win.**
+- `full_description` — legacy field, kept for compatibility. Maps to level 5 description.
+- `low_floor_description` — legacy field, kept for compatibility. Maps to level 0 description.
+- `dedication_level` — integer 0–5 representing the user's current commitment level. Starts at 0; auto-promoted based on completion frequency (see [Trigger Logic §5](#5-trigger-logic)).
+- `auto_adjust_level` — boolean. When true, the system automatically promotes the dedication level based on completion thresholds.
 - `locations` — zero or more named `Location` records associated via the `habit_location` junction table. A habit with **no** associated locations is eligible everywhere ("Anywhere" semantics). A habit with one or more locations is only eligible when the user is at one of those locations.
 - `active` — boolean. Inactive habits are never selected. Can be toggled manually in the habit editor.
   The system also sets this to `false` automatically after 3 consecutive `DISMISSED` triggers
   (see [Trigger Logic §5](#5-trigger-logic)).
 - `created_at`, `updated_at`.
+
+### HabitLevelDescription
+Per-level description for a habit. Each level (0–5) on the dedication ladder has its own description text.
+- `id`
+- `habit_id` — FK → `habits.id` (CASCADE DELETE)
+- `level` — integer 0–5
+- `description` — the action text for this level (e.g. level 0: "3 deep breaths", level 5: "20-minute guided meditation")
+
+Unique constraint on `(habit_id, level)`.
 
 ### HabitLocationCrossRef
 A many-to-many join between `Habit` and `Location`. Each row has:
@@ -140,7 +151,8 @@ A scheduled notification event.
 - `habit_id` (populated at fire time, not schedule time — see below)
 - `scheduled_at` — timestamp.
 - `fired_at` — nullable.
-- `status` — `{SCHEDULED, FIRED, COMPLETED_FULL, COMPLETED_LOW_FLOOR, DISMISSED}`.
+- `status` — `{SCHEDULED, FIRED, COMPLETED, COMPLETED_FULL, COMPLETED_LOW_FLOOR, DISMISSED}`.
+  `COMPLETED` is used by the current notification flow. `COMPLETED_FULL` and `COMPLETED_LOW_FLOOR` are retained for historical trigger records.
 - `generated_prompt` — the AI-generated text actually shown in the notification.
 
 ### Location
@@ -192,8 +204,17 @@ updated by geofence `ENTER`/`EXIT` callbacks. Empty set means no known location.
    `minutesSince` is minutes since the habit was last fired (cap: 1440 min = 24 h). A habit
    never fired receives the maximum weight (~13×). If the eligible set is empty, skip silently.
 4. Call **Gemma 3 1B (int4, via LiteRT-LM)** with a structured prompt (see below) to generate a fresh, actionable one-liner for this habit instance.
-5. Post the notification with the generated text. Action buttons: **Did the full version**, **Did the low-floor**, **Dismiss**.
+5. Post the notification with the generated text. Action buttons: **Did it**, **Dismiss**.
 6. Record the trigger row with the generated prompt and the outcome when the user responds.
+   If the user completes the habit, the `DedicationLevelManager` checks whether the habit should
+   be auto-promoted to the next dedication level based on recent completion frequency:
+   - Level 0 → 1: any single completion
+   - Level 1 → 2: ≥3 completions in 7 days
+   - Level 2 → 3: ≥5 completions in 7 days
+   - Level 3 → 4: ≥10 completions in 14 days
+   - Level 4 → 5: ≥20 completions in 28 days
+
+   Auto-promotion only applies when `auto_adjust_level = true`. Level 5 is the maximum.
    If the last 3 triggers for the same habit are all `DISMISSED`, the habit is automatically set to
    `active = false` (auto-paused). The user can re-activate it by editing the habit.
 
@@ -240,14 +261,15 @@ Low-floor: 3 deep breaths
 ```
 
 Parsed via `lines().firstOrNull { it.startsWith("Full:") }` / `"Low-floor:"`. Throws `IllegalStateException` if either line is missing.
+The parsed values are mapped to a 6-level dedication ladder: level 0 = Low-floor, levels 3 and 5 = Full, levels 1/2/4 = empty (user fills in later).
 
 ---
 
 ## 6. Screens (MVP)
 
 1. **Home screen** — list of habits. FAB → add habit. Tap habit → edit.
-2. **Habit editor** — name, full description, low-floor description, location chips (multi-select from saved locations; no selection = "Anywhere"), active toggle.
-   AI-assist row: **Autofill with AI** (fills description fields from the habit name via on-device LLM; enabled when name ≥ 2 chars) · **Preview notification** (generates a sample notification text in a dialog; enabled when all description fields are filled).
+2. **Habit editor** — name, dedication ladder (progress bar + 6 level descriptions), location chips (multi-select from saved locations; no selection = "Anywhere"), active toggle, auto-adjust level toggle.
+   AI-assist row: **Autofill with AI** (fills level descriptions from the habit name via on-device LLM; enabled when name ≥ 2 chars) · **Preview notification** (generates a sample notification text in a dialog; enabled when at least one level description is filled).
 3. **Windows screen** — list of windows. FAB → add window. Tap → edit.
 4. **Window editor** — start/end time pickers, days-of-week chips, frequency slider (1–3), active toggle.
 5. **Locations screen** — dynamic list of named locations (any label, not restricted to HOME/WORK).
@@ -277,14 +299,15 @@ Parsed via `lines().firstOrNull { it.startsWith("Full:") }` / `"Low-floor:"`. Th
 ## 8. Database Schema (Room)
 
 ```kotlin
-// DB version 5
-@Entity Habit(id, name, full_description, low_floor_description, active, created_at, updated_at)
+// DB version 6
+@Entity Habit(id, name, full_description, low_floor_description, dedication_level, auto_adjust_level, active, created_at, updated_at)
 @Entity Window(id, start_time, end_time, days_of_week_bitmask, frequency_per_day, active)
 @Entity Location(id, name /* user-defined, e.g. "Home", "Gym", "Office" */, lat, lng, radius_m)
 @Entity HabitLocationCrossRef(habit_id → Habit.id CASCADE, location_id → Location.id CASCADE)  // junction
 @Entity Trigger(id, window_id?, habit_id?, scheduled_at, fired_at?, status, generated_prompt?)
 @Entity PendingFeedback(id, screenshot_path? /* nullable */, description, queued_at)  // offline upload queue
 @Entity Variation(id, habit_id → Habit.id CASCADE, text, prompt_fingerprint, generated_at, consumed_at?)  // variation pool
+@Entity HabitLevelDescription(id, habit_id → Habit.id CASCADE, level, description)  // dedication ladder
 ```
 
 ---

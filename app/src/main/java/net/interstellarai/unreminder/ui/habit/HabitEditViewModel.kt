@@ -123,7 +123,8 @@ class HabitEditViewModel @Inject constructor(
 
     fun updateName(name: String) { _uiState.value = _uiState.value.copy(name = name) }
     fun updateLevelDescription(level: Int, text: String) {
-        val updated = _uiState.value.levelDescriptions.toMutableList().also { it[level] = text }
+        val clamped = level.coerceIn(0, 5)
+        val updated = _uiState.value.levelDescriptions.toMutableList().also { it[clamped] = text }
         _uiState.value = _uiState.value.copy(levelDescriptions = updated)
     }
     fun updateDedicationLevel(level: Int) {

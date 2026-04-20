@@ -17,7 +17,7 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
             )
         """.trimIndent())
         db.execSQL(
-            "CREATE UNIQUE INDEX IF NOT EXISTS `index_hld_habit_id_level` " +
+            "CREATE UNIQUE INDEX IF NOT EXISTS `index_habit_level_descriptions_habit_id_level` " +
             "ON `habit_level_descriptions` (`habit_id`, `level`)"
         )
         // Backfill level 0 from existing low_floor_description

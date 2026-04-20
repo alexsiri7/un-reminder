@@ -19,10 +19,9 @@ class HabitLevelDescriptionRepository @Inject constructor(
         dao.upsertAll(entries)
 
     suspend fun replaceForHabit(habitId: Long, descriptions: List<String>) {
-        dao.deleteByHabit(habitId)
         val entries = descriptions.mapIndexed { level, text ->
             HabitLevelDescriptionEntity(habitId = habitId, level = level, description = text)
         }
-        dao.upsertAll(entries)
+        dao.deleteAndInsertForHabit(habitId, entries)
     }
 }

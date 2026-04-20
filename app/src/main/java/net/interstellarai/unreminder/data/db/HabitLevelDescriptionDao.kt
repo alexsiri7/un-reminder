@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 
 @Dao
 interface HabitLevelDescriptionDao {
@@ -19,4 +20,10 @@ interface HabitLevelDescriptionDao {
 
     @Query("DELETE FROM habit_level_descriptions WHERE habit_id = :habitId")
     suspend fun deleteByHabit(habitId: Long)
+
+    @Transaction
+    suspend fun deleteAndInsertForHabit(habitId: Long, entries: List<HabitLevelDescriptionEntity>) {
+        deleteByHabit(habitId)
+        upsertAll(entries)
+    }
 }

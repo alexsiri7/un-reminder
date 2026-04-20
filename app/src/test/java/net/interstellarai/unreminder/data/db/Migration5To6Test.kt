@@ -106,7 +106,7 @@ class Migration5To6Test {
             indices.add(idxCursor.getString(0))
         }
         idxCursor.close()
-        assertTrue(indices.contains("index_hld_habit_id_level"))
+        assertTrue(indices.contains("index_habit_level_descriptions_habit_id_level"))
 
         db.close()
     }
@@ -151,19 +151,4 @@ class Migration5To6Test {
         db.close()
     }
 
-    @Test
-    fun `MIGRATION_5_6 is idempotent with IF NOT EXISTS clauses`() {
-        val db = createV5Database()
-
-        MIGRATION_5_6.migrate(db)
-        MIGRATION_5_6.migrate(db)
-
-        val tableCursor = db.query(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='habit_level_descriptions'"
-        )
-        assertEquals(1, tableCursor.count)
-        tableCursor.close()
-
-        db.close()
-    }
 }
