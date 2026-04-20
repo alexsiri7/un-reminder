@@ -13,20 +13,21 @@ class VariationRepository @Inject constructor(
 ) {
     /**
      * Picks a random unconsumed variation for [habitId], marks it consumed, and returns it.
-     * Returns null if the pool is empty or the row was deleted between fetch and mark —
-     * callers should treat both as "nothing available; consider triggering a refill".
+     * Returns null only when the pool is truly empty (no unconsumed rows remain) —
+     * callers should treat null as "nothing available; consider triggering a refill".
      * The returned entity is already marked consumed; do not call [VariationDao.markConsumed] again.
      */
     suspend fun pickRandomUnused(habitId: Long): VariationEntity? {
-        val unused = dao.getUnusedForHabit(habitId, 50)
-        val picked = unused.randomOrNull() ?: return null
+        val unused = dao.getUnusedForHabit(habitId, 50).shuffled()
         val now = Instant.now()
-        val updated = dao.markConsumed(picked.id, now.toEpochMilli())
-        if (updated == 0) {
-            Log.w("VariationRepo", "markConsumed race: variation ${picked.id} was deleted before mark")
-            return null
+        for (candidate in unused) {
+            val updated = dao.markConsumed(candidate.id, now.toEpochMilli())
+            if (updated == 1) {
+                return candidate.copy(consumedAt = now)
+            }
+            Log.w("VariationRepo", "markConsumed race: variation ${candidate.id} was deleted before mark")
         }
-        return picked.copy(consumedAt = now)
+        return null
     }
 
     /**

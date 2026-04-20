@@ -37,7 +37,20 @@ class VariationRepositoryTest {
         coVerify { mockDao.markConsumed(eq(42L), any()) }
     }
 
-    @Test fun `pickRandomUnused returns null if markConsumed affects 0 rows`() = runTest {
+    @Test fun `pickRandomUnused retries next candidate when markConsumed affects 0 rows`() = runTest {
+        val stale = VariationEntity(id = 99L, habitId = 1L, text = "stale", promptFingerprint = "fp1")
+        val good = VariationEntity(id = 100L, habitId = 1L, text = "good", promptFingerprint = "fp2")
+        coEvery { mockDao.getUnusedForHabit(1L, 50) } returns listOf(stale, good)
+        coEvery { mockDao.markConsumed(eq(99L), any()) } returns 0
+        coEvery { mockDao.markConsumed(eq(100L), any()) } returns 1
+        val result = repository.pickRandomUnused(1L)
+        assertNotNull(result)
+        assertEquals(100L, result!!.id)
+        coVerify { mockDao.markConsumed(eq(99L), any()) }
+        coVerify { mockDao.markConsumed(eq(100L), any()) }
+    }
+
+    @Test fun `pickRandomUnused returns null when all candidates are stale`() = runTest {
         val entity = VariationEntity(id = 99L, habitId = 1L, text = "t", promptFingerprint = "fp")
         coEvery { mockDao.getUnusedForHabit(1L, 50) } returns listOf(entity)
         coEvery { mockDao.markConsumed(eq(99L), any()) } returns 0

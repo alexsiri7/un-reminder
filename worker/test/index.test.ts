@@ -270,6 +270,37 @@ describe('un-reminder-worker', () => {
     expect(body.variants[0].texts).toHaveLength(0)
   })
 
+  it('returns 200 with empty texts when upstream returns malformed content', async () => {
+    fetchMock
+      .get(REQUESTY_URL)
+      .intercept({ path: '/v1/chat/completions', method: 'POST' })
+      .reply(
+        200,
+        JSON.stringify({
+          choices: [{ message: { content: null } }],
+          usage: { prompt_tokens: 100, completion_tokens: 0 },
+        }),
+        { headers: { 'Content-Type': 'application/json' } },
+      )
+
+    const req = makeRequest('/v1/generate/batch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-UR-Secret': SECRET,
+      },
+      body: validBody(1),
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, testEnv(), ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as {
+      variants: Array<{ habitId: string; texts: string[] }>
+    }
+    expect(body.variants[0].texts).toHaveLength(0)
+  })
+
   // ---- Spend counter increment test ----
 
   it('increments spend counter after successful call', async () => {
