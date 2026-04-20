@@ -292,7 +292,7 @@ describe('un-reminder-worker', () => {
 
   // ---- Upstream error handling ----
 
-  it('returns 200 with empty texts when upstream returns non-200', async () => {
+  it('returns 200 with empty texts and error field when upstream returns non-200', async () => {
     fetchMock
       .get(REQUESTY_URL)
       .intercept({ path: '/v1/chat/completions', method: 'POST' })
@@ -311,10 +311,10 @@ describe('un-reminder-worker', () => {
     await waitOnExecutionContext(ctx)
     expect(res.status).toBe(200)
     const body = (await res.json()) as {
-      variants: Array<{ habitId: string; texts: string[] }>
+      variants: Array<{ habitId: string; texts: string[]; error?: string }>
     }
-    // Failed upstream calls are silently dropped; handler returns empty texts
     expect(body.variants[0].texts).toHaveLength(0)
+    expect(body.variants[0].error).toBe('all upstream calls failed')
   })
 
   it('returns 200 with empty texts when upstream returns malformed content', async () => {
