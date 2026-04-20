@@ -4,6 +4,7 @@ import android.util.Log
 import net.interstellarai.unreminder.data.db.VariationDao
 import net.interstellarai.unreminder.data.db.VariationEntity
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -26,7 +27,7 @@ class VariationRepository @Inject constructor(
     suspend fun pickRandomUnused(habitId: Long): VariationEntity? {
         val unused = dao.getUnusedForHabit(habitId, POOL_SIZE)
         // Truncate to millis so the returned copy matches Room's epoch-millis storage
-        val now = Instant.ofEpochMilli(Instant.now().toEpochMilli())
+        val now = Instant.now().truncatedTo(ChronoUnit.MILLIS)
         for (candidate in unused) {
             val updated = dao.markConsumed(candidate.id, now)
             if (updated == 1) {
