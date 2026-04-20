@@ -42,7 +42,7 @@ class RefillWorker @AssistedInject constructor(
 
         val habit = habitRepository.getByIdOnce(habitId) ?: return Result.failure()
 
-        val promptFingerprint = "${habit.name}|${habit.fullDescription}"
+        val promptFingerprint = "${habit.name}|${habit.fullDescription}|${habit.lowFloorDescription}"
 
         return try {
             val texts = requestyProxyClient.generateBatch(

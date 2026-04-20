@@ -45,7 +45,7 @@ class RequestyProxyClient @Inject constructor(
                 }
                 else -> {
                     val body = response.body?.string() ?: ""
-                    throw RuntimeException("Worker error ${response.code}: $body")
+                    throw WorkerError(response.code, body)
                 }
             }
         }
@@ -87,7 +87,7 @@ class RequestyProxyClient @Inject constructor(
                 }
                 else -> {
                     val body = response.body?.string() ?: ""
-                    throw RuntimeException("Worker error ${response.code}: $body")
+                    throw WorkerError(response.code, body)
                 }
             }
         }

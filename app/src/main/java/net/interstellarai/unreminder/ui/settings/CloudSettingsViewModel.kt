@@ -71,13 +71,25 @@ class CloudSettingsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val habits = habitRepository.getAllActive().first()
+                var failCount = 0
                 for (habit in habits) {
-                    variationRepository.deleteForHabit(habit.id)
-                    refillScheduler.enqueueForHabit(habit.id)
+                    try {
+                        variationRepository.deleteForHabit(habit.id)
+                        refillScheduler.enqueueForHabit(habit.id)
+                    } catch (e: Exception) {
+                        if (e is CancellationException) throw e
+                        Log.e(TAG, "regenerateAll: failed for habit ${habit.id}", e)
+                        failCount++
+                    }
+                }
+                if (failCount > 0) {
+                    _uiState.value = _uiState.value.copy(
+                        errorMessage = "Failed to regenerate $failCount variant(s)."
+                    )
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                Log.e(TAG, "regenerateAll failed", e)
+                Log.e(TAG, "regenerateAll: failed to load habits", e)
                 _uiState.value = _uiState.value.copy(errorMessage = "Failed to regenerate variants.")
             }
         }

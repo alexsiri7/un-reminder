@@ -21,6 +21,8 @@ import net.interstellarai.unreminder.data.repository.WorkerSettingsRepository
 import net.interstellarai.unreminder.service.worker.RefillScheduler
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 
@@ -107,5 +109,45 @@ class CloudSettingsViewModelTest {
 
         coVerify(exactly = 0) { mockVariationRepository.deleteForHabit(any()) }
         coVerify(exactly = 0) { mockRefillScheduler.enqueueForHabit(any()) }
+    }
+
+    // --- Error paths ---
+
+    @Test
+    fun `setWorkerUrl sets errorMessage on exception`() = runTest(testDispatcher) {
+        coEvery { mockWorkerSettings.setWorkerUrl(any()) } throws RuntimeException("disk full")
+        val vm = createViewModel()
+        vm.setWorkerUrl("https://fail.test")
+        advanceUntilIdle()
+        assertEquals("Failed to save worker URL.", vm.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun `setWorkerSecret sets errorMessage on exception`() = runTest(testDispatcher) {
+        coEvery { mockWorkerSettings.setWorkerSecret(any()) } throws RuntimeException("disk full")
+        val vm = createViewModel()
+        vm.setWorkerSecret("bad-secret")
+        advanceUntilIdle()
+        assertEquals("Failed to save worker secret.", vm.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun `regenerateAll sets errorMessage on exception`() = runTest(testDispatcher) {
+        coEvery { mockHabitRepository.getAllActive() } throws RuntimeException("db error")
+        val vm = createViewModel()
+        vm.regenerateAll()
+        advanceUntilIdle()
+        assertEquals("Failed to regenerate variants.", vm.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun `clearError nullifies errorMessage`() = runTest(testDispatcher) {
+        coEvery { mockWorkerSettings.setWorkerUrl(any()) } throws RuntimeException("boom")
+        val vm = createViewModel()
+        vm.setWorkerUrl("x")
+        advanceUntilIdle()
+        assertNotNull(vm.uiState.value.errorMessage)
+        vm.clearError()
+        assertNull(vm.uiState.value.errorMessage)
     }
 }

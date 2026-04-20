@@ -66,12 +66,13 @@ class RequestyProxyClientTest {
     }
 
     @Test
-    fun `habitFields throws RuntimeException on 500`() = runTest {
+    fun `habitFields throws WorkerError on 500`() = runTest {
         server.enqueue(MockResponse().setResponseCode(500).setBody("Internal Server Error"))
 
-        assertFailsWith<RuntimeException> {
+        val ex = assertFailsWith<WorkerError> {
             proxyClient.habitFields("Meditate", baseUrl(), "secret")
         }
+        assertEquals(500, ex.code)
     }
 
     @Test
@@ -109,12 +110,78 @@ class RequestyProxyClientTest {
     }
 
     @Test
-    fun `preview throws RuntimeException on 500`() = runTest {
+    fun `preview throws WorkerError on 500`() = runTest {
         server.enqueue(MockResponse().setResponseCode(500).setBody("Internal Server Error"))
 
         val habit = HabitEntity(name = "Meditate", fullDescription = "Daily practice", lowFloorDescription = "Sit")
-        assertFailsWith<RuntimeException> {
+        val ex = assertFailsWith<WorkerError> {
             proxyClient.preview(habit, "Home", baseUrl(), "secret")
+        }
+        assertEquals(500, ex.code)
+    }
+
+    // --- generateBatch ---
+
+    @Test
+    fun `generateBatch returns list of strings on 200`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"variants":["v1","v2","v3"]}""")
+                .addHeader("Content-Type", "application/json")
+        )
+
+        val result = proxyClient.generateBatch(
+            habitTitle = "Meditate",
+            habitTags = emptyList(),
+            locationName = "",
+            timeOfDay = "",
+            n = 3,
+            workerUrl = baseUrl(),
+            workerSecret = "secret",
+        )
+        assertEquals(listOf("v1", "v2", "v3"), result)
+
+        val recorded = server.takeRequest()
+        assertEquals("POST", recorded.method)
+        assertEquals("/v1/generate/batch", recorded.path)
+        assertEquals("secret", recorded.getHeader("X-UR-Secret"))
+    }
+
+    @Test
+    fun `generateBatch throws WorkerAuthException on 401`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(401).setBody("Unauthorized"))
+
+        assertFailsWith<WorkerAuthException> {
+            proxyClient.generateBatch("Meditate", emptyList(), "", "", 1, baseUrl(), "bad")
+        }
+    }
+
+    @Test
+    fun `generateBatch throws SpendCapExceededException on 402`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(402).setBody("""{"error":"cap"}"""))
+
+        assertFailsWith<SpendCapExceededException> {
+            proxyClient.generateBatch("Meditate", emptyList(), "", "", 1, baseUrl(), "secret")
+        }
+    }
+
+    @Test
+    fun `generateBatch throws WorkerError on 500`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(500).setBody("Internal Server Error"))
+
+        val ex = assertFailsWith<WorkerError> {
+            proxyClient.generateBatch("Meditate", emptyList(), "", "", 1, baseUrl(), "secret")
+        }
+        assertEquals(500, ex.code)
+    }
+
+    @Test
+    fun `generateBatch throws RuntimeException on empty body`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody(""))
+
+        assertFailsWith<RuntimeException> {
+            proxyClient.generateBatch("Meditate", emptyList(), "", "", 1, baseUrl(), "secret")
         }
     }
 }

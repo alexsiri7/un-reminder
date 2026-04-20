@@ -120,9 +120,10 @@ class HabitEditViewModel @Inject constructor(
         viewModelScope.launch {
             val state = _uiState.value
             if (state.name.isBlank()) return@launch
+            val existing = existingHabit
+            val habitId: Long
             try {
-                val existing = existingHabit
-                val habitId = if (existing != null) {
+                habitId = if (existing != null) {
                     habitRepository.update(
                         existing.copy(
                             name = state.name,
@@ -143,7 +144,16 @@ class HabitEditViewModel @Inject constructor(
                     )
                 }
                 habitRepository.setLocations(habitId, state.selectedLocationIds)
+                _uiState.value = _uiState.value.copy(isSaved = true)
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                Log.e(TAG, "save failed", e)
+                _uiState.value = _uiState.value.copy(errorMessage = "Save failed — try again.")
+                return@launch
+            }
 
+            // Post-save refill scheduling — best-effort, does not affect isSaved
+            try {
                 if (existing != null) {
                     val promptChanged = existing.name != state.name ||
                         existing.fullDescription != state.fullDescription ||
@@ -155,12 +165,9 @@ class HabitEditViewModel @Inject constructor(
                 } else {
                     refillScheduler.enqueueForHabit(habitId)
                 }
-
-                _uiState.value = _uiState.value.copy(isSaved = true)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                Log.e(TAG, "save failed", e)
-                _uiState.value = _uiState.value.copy(errorMessage = "Save failed — try again.")
+                Log.w(TAG, "refill scheduling after save failed — variants may be stale", e)
             }
         }
     }
