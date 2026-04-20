@@ -45,9 +45,33 @@ Solo user (the author). Single-device, single-user. Personal productivity / well
 | Error reporting | **Sentry Android SDK** (`sentry-android 7.14.0`) | Automatic exception capture for LLM subsystem errors in release builds; opt-in via `SENTRY_DSN` build-config field. No PII, no performance tracing. |
 | DI | Hilt | |
 | Testing | JUnit + Compose UI tests | |
+| CF Worker | **Hono** on **Cloudflare Workers** | Remote LLM generation via Requesty.ai. Handles auth, spend cap, and parallel Gemini Flash fan-out. Deployed via Wrangler. |
 
 **Target device for MVP:** Any Android device with min SDK 31. Model is downloaded on first launch; GPU backend is optional (app falls back to CPU if OpenCL/vndksupport are absent).
 **Post-MVP:** Surface download progress to the user; retry/cancel UI.
+
+### Cloudflare Worker (`worker/`)
+
+Runs as a Cloudflare Worker (Hono framework). Exposes two routes:
+
+| Route | Auth | Description |
+|---|---|---|
+| `GET /v1/health` | Public | Returns `{ status, spendUsedToday, spendUsedMonth, capDaily, capMonthly }` |
+| `POST /v1/generate/batch` | `X-UR-Secret` header | Accepts `{ habits[], count? }`, fans out to Requesty (Gemini Flash), returns `{ variants[], spendDollars }` |
+
+**Local dev:**
+```sh
+cd worker
+wrangler dev
+```
+
+**Deploy:**
+```sh
+wrangler secret put UR_SECRET
+wrangler secret put REQUESTY_API_KEY
+wrangler kv namespace create SPEND_KV  # copy the returned ID into worker/wrangler.toml
+wrangler deploy
+```
 
 ### Build Configuration / GitHub Secrets
 
@@ -60,6 +84,18 @@ The following repository secrets are required for CI release builds:
 | `SENTRY_DSN` | Automated crash reporting (optional — blank value disables Sentry) | Sentry DSN URL, e.g. `https://key@org.ingest.sentry.io/projectid` |
 
 All secrets are optional in the sense that the app compiles and runs without them; missing secrets disable the corresponding feature at runtime.
+
+### Worker Secrets (Wrangler)
+
+The following must be set via `wrangler secret put` before deploying the CF Worker:
+
+| Secret / Config | Purpose | How to set |
+|---|---|---|
+| `UR_SECRET` | Shared auth secret validated in `X-UR-Secret` header | `wrangler secret put UR_SECRET` |
+| `REQUESTY_API_KEY` | Requesty.ai API key for Gemini Flash calls | `wrangler secret put REQUESTY_API_KEY` |
+| `SPEND_KV` namespace ID | KV namespace for spend tracking | `wrangler kv namespace create SPEND_KV` → paste ID into `worker/wrangler.toml` |
+
+`SPEND_CAP_DAILY_USD` (default `0.50`) and `SPEND_CAP_MONTHLY_USD` (default `5.00`) are plain vars in `worker/wrangler.toml` and can be edited directly.
 
 ---
 
