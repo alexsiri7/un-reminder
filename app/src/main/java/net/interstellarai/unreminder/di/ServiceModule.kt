@@ -1,14 +1,12 @@
 package net.interstellarai.unreminder.di
 
 import android.content.Context
-import net.interstellarai.unreminder.data.repository.ActiveModelRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
-import net.interstellarai.unreminder.data.repository.ModelDownloadProgressRepository
 import net.interstellarai.unreminder.service.alarm.AlarmScheduler
 import net.interstellarai.unreminder.service.worker.RefillScheduler
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
+import net.interstellarai.unreminder.service.llm.CloudPromptGenerator
 import net.interstellarai.unreminder.service.llm.PromptGenerator
-import net.interstellarai.unreminder.service.llm.PromptGeneratorImpl
 import net.interstellarai.unreminder.service.notification.EmojiRotator
 import net.interstellarai.unreminder.service.notification.NotificationHelper
 import dagger.Module
@@ -54,14 +52,7 @@ object ServiceModule {
     @Provides
     @Singleton
     fun providePromptGenerator(
-        @ApplicationContext context: Context,
-        modelDownloadProgressRepository: ModelDownloadProgressRepository,
-        activeModelRepository: ActiveModelRepository,
-    ): PromptGenerator =
-        PromptGeneratorImpl(
-            context = context,
-            progressRepository = modelDownloadProgressRepository,
-            activeModelRepository = activeModelRepository,
-        )
+        promptGenerator: CloudPromptGenerator,
+    ): PromptGenerator = promptGenerator
 
 }

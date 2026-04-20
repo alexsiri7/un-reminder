@@ -25,20 +25,16 @@
         android:theme="@style/Theme.UnReminder">
 
         <!-- WorkManager's SystemForegroundService hosts foreground workers like
-             ModelDownloadWorker. On API 34+, each FGS service element must
-             declare the *same* foregroundServiceType bits the worker requests
-             via ForegroundInfo — otherwise startForeground() throws
+             RefillWorker. On API 34+, each FGS service element must declare the
+             *same* foregroundServiceType bits the worker requests via
+             ForegroundInfo — otherwise startForeground() throws
              IllegalArgumentException. DATA_SYNC is the right subtype for a
-             one-shot model download. See:
+             network-bound background task. See:
              https://developer.android.com/about/versions/14/changes/fgs-types-required -->
         <service
             android:name="androidx.work.impl.foreground.SystemForegroundService"
             android:foregroundServiceType="dataSync"
             tools:node="merge" />
-
-        <!-- LiteRT-LM GPU backend — optional native libs; app works on CPU if absent -->
-        <uses-native-library android:name="libvndksupport.so" android:required="false"/>
-        <uses-native-library android:name="libOpenCL.so" android:required="false"/>
 
         <provider
             android:name="androidx.startup.InitializationProvider"

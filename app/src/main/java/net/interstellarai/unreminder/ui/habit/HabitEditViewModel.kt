@@ -6,15 +6,12 @@ import androidx.lifecycle.viewModelScope
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.db.LocationEntity
 import net.interstellarai.unreminder.data.db.VariationEntity
-import net.interstellarai.unreminder.data.repository.FeatureFlagsRepository
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
-import net.interstellarai.unreminder.data.repository.WorkerSettingsRepository
 import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.service.llm.PromptGenerator
 import net.interstellarai.unreminder.service.worker.RefillScheduler
-import net.interstellarai.unreminder.service.worker.RequestyProxyClient
 import net.interstellarai.unreminder.service.worker.SpendCapExceededException
 import net.interstellarai.unreminder.service.worker.WorkerAuthException
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -24,7 +21,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -55,11 +51,8 @@ class HabitEditViewModel @Inject constructor(
     private val habitRepository: HabitRepository,
     private val locationRepository: LocationRepository,
     private val promptGenerator: PromptGenerator,
-    private val requestyProxyClient: RequestyProxyClient,
-    private val workerSettingsRepository: WorkerSettingsRepository,
     private val refillScheduler: RefillScheduler,
     private val variationRepository: VariationRepository,
-    private val featureFlagsRepository: FeatureFlagsRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HabitEditUiState())
@@ -68,23 +61,7 @@ class HabitEditViewModel @Inject constructor(
     val allLocations: StateFlow<List<LocationEntity>> = locationRepository.getAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    /** Pass-through of the model download fraction (0..1), or null when idle. */
-    val downloadProgress: StateFlow<Float?> = promptGenerator.downloadProgress
-
-    /** Cloud-aware AI status: when use_cloud_pool is ON, reflects worker configuration. */
-    val aiStatus: StateFlow<AiStatus> = combine(
-        featureFlagsRepository.useCloudPool,
-        workerSettingsRepository.effectiveWorkerUrl,
-        workerSettingsRepository.effectiveWorkerSecret,
-        promptGenerator.aiStatus,
-    ) { useCloud, url, secret, onDeviceStatus ->
-        if (!useCloud) onDeviceStatus
-        else if (url.isBlank() || secret.isBlank()) AiStatus.Unavailable
-        // TODO: add pool-empty signal here once VariationRepository exposes
-        // a reactive count flow. AiStatus.Empty UI branches are forward-compatible
-        // scaffolding — they will never be reached until this is wired.
-        else AiStatus.Ready
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), promptGenerator.aiStatus.value)
+    val aiStatus: StateFlow<AiStatus> = promptGenerator.aiStatus
 
     private val _habitId = MutableStateFlow<Long?>(null)
 
@@ -239,13 +216,7 @@ class HabitEditViewModel @Inject constructor(
     }
 
     fun autofillWithAi() = launchWithAi("AI unavailable — fill in manually.") {
-        val url = workerSettingsRepository.effectiveWorkerUrl.first()
-        val secret = workerSettingsRepository.effectiveWorkerSecret.first()
-        val fields = if (url.isNotBlank() && secret.isNotBlank()) {
-            requestyProxyClient.habitFields(_uiState.value.name, url, secret)
-        } else {
-            promptGenerator.generateHabitFields(_uiState.value.name)
-        }
+        val fields = promptGenerator.generateHabitFields(_uiState.value.name)
         _uiState.value = _uiState.value.copy(
             fullDescription = fields.fullDescription,
             lowFloorDescription = fields.lowFloorDescription,
@@ -268,13 +239,7 @@ class HabitEditViewModel @Inject constructor(
                 .joinToString(", ") { it.name }
                 .ifBlank { "Anywhere" }
         }
-        val url = workerSettingsRepository.effectiveWorkerUrl.first()
-        val secret = workerSettingsRepository.effectiveWorkerSecret.first()
-        val text = if (url.isNotBlank() && secret.isNotBlank()) {
-            requestyProxyClient.preview(tempHabit, locationName, url, secret)
-        } else {
-            promptGenerator.previewHabitNotification(tempHabit, locationName)
-        }
+        val text = promptGenerator.previewHabitNotification(tempHabit, locationName)
         _uiState.value = _uiState.value.copy(
             isGeneratingFields = false,
             previewNotification = text,

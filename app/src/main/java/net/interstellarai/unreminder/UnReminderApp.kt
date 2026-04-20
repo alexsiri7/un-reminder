@@ -7,7 +7,6 @@ import androidx.work.Configuration
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
-import net.interstellarai.unreminder.service.llm.PromptGenerator
 import net.interstellarai.unreminder.service.notification.NotificationHelper
 import net.interstellarai.unreminder.service.sentry.LaunchSmokeTest
 import net.interstellarai.unreminder.service.sentry.applyOptions
@@ -15,10 +14,6 @@ import net.interstellarai.unreminder.service.sentry.shouldInitSentry
 import net.interstellarai.unreminder.worker.DailySchedulerWorker
 import dagger.hilt.android.HiltAndroidApp
 import io.sentry.android.core.SentryAndroid
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
@@ -31,11 +26,6 @@ class UnReminderApp : Application(), Configuration.Provider {
     @Inject
     lateinit var notificationHelper: NotificationHelper
 
-    @Inject
-    lateinit var promptGenerator: PromptGenerator
-
-    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
             .setWorkerFactory(workerFactory)
@@ -46,7 +36,6 @@ class UnReminderApp : Application(), Configuration.Provider {
         super.onCreate()
         notificationHelper.createNotificationChannel()
         scheduleDailyWorker()
-        appScope.launch { promptGenerator.initialize() }
     }
 
     private fun initSentry() {

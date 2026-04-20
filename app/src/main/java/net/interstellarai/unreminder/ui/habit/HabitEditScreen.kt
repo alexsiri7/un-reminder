@@ -87,7 +87,6 @@ fun HabitEditScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val allLocations by viewModel.allLocations.collectAsStateWithLifecycle()
-    val downloadProgress by viewModel.downloadProgress.collectAsStateWithLifecycle()
     val aiStatus by viewModel.aiStatus.collectAsStateWithLifecycle()
     val unusedVariations by viewModel.unusedVariations.collectAsStateWithLifecycle()
     val recentlyUsedVariations by viewModel.recentlyUsedVariations.collectAsStateWithLifecycle()
@@ -173,19 +172,13 @@ fun HabitEditScreen(
             }
 
             val aiHelper: String? = when {
-                downloadProgress != null -> {
-                    val pct = ((downloadProgress ?: 0f).coerceIn(0f, 1f) * 100).toInt()
-                    "Model downloading… ${pct}%"
-                }
                 aiStatus is AiStatus.Unavailable -> "AI unavailable on this build"
-                aiStatus is AiStatus.Failed -> "AI unavailable on this build"
                 aiStatus is AiStatus.Empty -> "pool empty — AI variants being regenerated"
                 else -> null
             }
             AiAssistStrip(
                 enabled = uiState.name.length >= 2 &&
                     !uiState.isGeneratingFields &&
-                    downloadProgress == null &&
                     aiStatus is AiStatus.Ready,
                 loading = uiState.isGeneratingFields,
                 helperText = aiHelper,
