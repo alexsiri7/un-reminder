@@ -17,8 +17,8 @@ interface VariationDao {
     @Query("SELECT * FROM variation WHERE habit_id = :habitId AND consumed_at IS NULL LIMIT :limit")
     suspend fun getUnusedForHabit(habitId: Long, limit: Int): List<VariationEntity>
 
-    /** Returns the number of rows updated (1 on success, 0 if the row was deleted before mark). */
-    @Query("UPDATE variation SET consumed_at = :at WHERE id = :id")
+    /** Returns the number of rows updated (1 on success, 0 if already consumed or deleted). */
+    @Query("UPDATE variation SET consumed_at = :at WHERE id = :id AND consumed_at IS NULL")
     suspend fun markConsumed(id: Long, at: Long): Int
 
     @Query("SELECT COUNT(*) FROM variation WHERE habit_id = :habitId AND consumed_at IS NULL")
