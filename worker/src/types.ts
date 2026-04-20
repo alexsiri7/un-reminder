@@ -30,7 +30,7 @@ export interface HabitVariants {
   error?: string
 }
 
-/** Response always returns 200 with per-habit results; check individual `HabitVariants.error` on partial failure. */
+/** Once validation passes, returns 200 with per-habit results; check individual `HabitVariants.error` on partial failure. */
 export interface GenerateBatchResponse {
   variants: HabitVariants[]
   spendDollars: number   // approximate cost of this request
