@@ -75,6 +75,7 @@ Generate ${req.n} notification text variants.`
 }
 
 // Pricing: Gemini 3 Flash Preview — $0.50/M input, $3.00/M output
+// NOTE: These rates are model-specific. Update when changing UR_MODEL.
 // 1M tokens = 50 cents input, 300 cents output
 function estimateCostCents(inputTokens: number, outputTokens: number): number {
   const inputCost = (inputTokens / 1_000_000) * 50   // $0.50 = 50 cents
