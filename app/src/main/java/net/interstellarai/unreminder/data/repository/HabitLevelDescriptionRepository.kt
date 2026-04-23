@@ -1,5 +1,6 @@
 package net.interstellarai.unreminder.data.repository
 
+import androidx.room.Transaction
 import net.interstellarai.unreminder.data.db.HabitLevelDescriptionDao
 import net.interstellarai.unreminder.data.db.HabitLevelDescriptionEntity
 import javax.inject.Inject
@@ -15,6 +16,7 @@ class HabitLevelDescriptionRepository @Inject constructor(
     suspend fun getDescriptionForLevel(habitId: Long, level: Int): String? =
         dao.getForLevel(habitId, level)?.description
 
+    @Transaction
     suspend fun setDescriptions(habitId: Long, descriptions: List<String>) {
         dao.deleteByHabit(habitId)
         dao.insertAll(
