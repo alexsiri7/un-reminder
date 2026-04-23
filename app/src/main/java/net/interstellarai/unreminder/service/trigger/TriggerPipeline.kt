@@ -2,6 +2,7 @@ package net.interstellarai.unreminder.service.trigger
 
 import android.util.Log
 import net.interstellarai.unreminder.data.db.HabitEntity
+import net.interstellarai.unreminder.data.repository.HabitLevelDescriptionRepository
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
@@ -26,6 +27,7 @@ class TriggerPipeline @Inject constructor(
     private val notificationHelper: NotificationHelper,
     private val variationRepository: VariationRepository,
     private val refillScheduler: RefillScheduler,
+    private val levelDescriptionRepository: HabitLevelDescriptionRepository,
 ) {
     companion object {
         private const val TAG = "TriggerPipeline"
@@ -120,7 +122,7 @@ class TriggerPipeline @Inject constructor(
             return variation.text
         }
 
-        Log.w(TAG, "pool empty for habit ${habit.id} — falling back to habit.name")
+        Log.w(TAG, "pool empty for habit ${habit.id} — falling back to level description")
         Sentry.captureMessage("pool empty for habit ${habit.id}") { scope ->
             scope.setTag("component", "pool-empty")
         }
@@ -130,7 +132,13 @@ class TriggerPipeline @Inject constructor(
             if (e is CancellationException) throw e
             Log.w(TAG, "refill enqueue failed for habit=${habit.id} — non-fatal", e)
         }
-        return habit.name
+        val levelDesc = try {
+            levelDescriptionRepository.getDescriptionForLevel(habit.id, habit.dedicationLevel)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            null
+        }
+        return levelDesc?.takeIf { it.isNotBlank() } ?: habit.name
     }
 
     private suspend fun resolveLocationName(locationIds: Set<Long>): String {

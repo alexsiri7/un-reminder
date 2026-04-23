@@ -8,13 +8,8 @@ import org.junit.Test
 class NotificationActionMappingTest {
 
     @Test
-    fun `ACTION_COMPLETED_FULL maps to COMPLETED_FULL`() {
-        assertEquals(TriggerStatus.COMPLETED_FULL, mapAction(NotificationHelper.ACTION_COMPLETED_FULL))
-    }
-
-    @Test
-    fun `ACTION_COMPLETED_LOW_FLOOR maps to COMPLETED_LOW_FLOOR`() {
-        assertEquals(TriggerStatus.COMPLETED_LOW_FLOOR, mapAction(NotificationHelper.ACTION_COMPLETED_LOW_FLOOR))
+    fun `ACTION_COMPLETED maps to COMPLETED`() {
+        assertEquals(TriggerStatus.COMPLETED, mapAction(NotificationHelper.ACTION_COMPLETED))
     }
 
     @Test
@@ -33,8 +28,7 @@ class NotificationActionMappingTest {
          * If the receiver's when-block changes, these tests should catch the drift.
          */
         fun mapAction(action: String): TriggerStatus? = when (action) {
-            NotificationHelper.ACTION_COMPLETED_FULL -> TriggerStatus.COMPLETED_FULL
-            NotificationHelper.ACTION_COMPLETED_LOW_FLOOR -> TriggerStatus.COMPLETED_LOW_FLOOR
+            NotificationHelper.ACTION_COMPLETED -> TriggerStatus.COMPLETED
             NotificationHelper.ACTION_DISMISSED -> TriggerStatus.DISMISSED
             else -> null
         }

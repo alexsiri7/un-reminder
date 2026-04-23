@@ -96,9 +96,7 @@ class OnboardingViewModelTest {
         coVerify {
             mockHabitRepository.insert(match {
                 it.name == "Meditate" &&
-                it.active == true &&
-                it.fullDescription == "" &&
-                it.lowFloorDescription == ""
+                it.active == true
             })
         }
         coVerify { mockWindowRepository.insert(any()) }

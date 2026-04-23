@@ -42,15 +42,17 @@ class RequestyProxyClient @Inject constructor(
             val rawBody = response.body?.string()
                 ?: throw RuntimeException("Worker returned empty body")
             val body = JSONObject(rawBody)
+            val full = body.getString("fullDescription")
+            val lowFloor = body.getString("lowFloorDescription")
             AiHabitFields(
-                fullDescription = body.getString("fullDescription"),
-                lowFloorDescription = body.getString("lowFloorDescription"),
+                levelDescriptions = listOf(lowFloor, "", "", "", "", full)
             )
         }
     }
 
     suspend fun preview(
         habit: HabitEntity,
+        notes: String,
         locationName: String,
         workerUrl: String,
         secret: String,
@@ -59,8 +61,7 @@ class RequestyProxyClient @Inject constructor(
             put("title", habit.name)
             // TODO: pass real tags once HabitEntity carries them (currently loaded via junction table)
             put("tags", JSONArray())
-            // maps fullDescription → notes since HabitEntity has no dedicated notes field yet
-            put("notes", habit.fullDescription)
+            put("notes", notes)
         }
         val payload = JSONObject().apply {
             put("habit", habitObj)
