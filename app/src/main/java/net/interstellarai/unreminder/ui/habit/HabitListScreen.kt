@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -135,6 +136,7 @@ fun HabitListScreen(
                         HabitRow(
                             name = habit.name,
                             active = habit.active,
+                            dedicationLevel = habit.dedicationLevel,
                             onClick = { onEditHabit(habit.id) },
                         )
                         HorizontalDivider(
@@ -221,6 +223,7 @@ private fun AiDownloadBanner(
 private fun HabitRow(
     name: String,
     active: Boolean,
+    dedicationLevel: Int,
     onClick: () -> Unit,
 ) {
     val alpha = if (active) 1f else 0.35f
@@ -242,6 +245,27 @@ private fun HabitRow(
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = alpha),
             )
         }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "L$dedicationLevel",
+                style = MonoLabelTiny,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f * alpha),
+            )
+            Spacer(Modifier.width(4.dp))
+            repeat(6) { i ->
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .background(
+                            if (i <= dedicationLevel) MaterialTheme.colorScheme.primary.copy(alpha = alpha)
+                            else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f * alpha),
+                            CircleShape
+                        )
+                )
+                if (i < 5) Spacer(Modifier.width(2.dp))
+            }
+        }
+        Spacer(Modifier.width(Dimens.sm))
         Box(
             modifier = Modifier
                 .border(

@@ -55,11 +55,12 @@ class HabitEditViewModelTest {
     private val mockLevelDescriptionRepository: HabitLevelDescriptionRepository = mockk(relaxed = true)
     private lateinit var viewModel: HabitEditViewModel
 
+    private val testLadder = listOf("3 deep breaths", "", "", "20-minute guided meditation", "", "")
+
     private val testHabit = HabitEntity(
         id = 1L,
         name = "meditation",
-        dedicationLevel = 0,
-        autoAdjustLevel = true,
+        descriptionLadder = testLadder,
         createdAt = Instant.now(),
         updatedAt = Instant.now()
     )
@@ -81,8 +82,7 @@ class HabitEditViewModelTest {
             mockLevelDescriptionRepository,
         )
         viewModel.updateName("meditation")
-        viewModel.updateLevelDescription(0, "3 deep breaths")
-        viewModel.updateLevelDescription(5, "20-minute guided meditation")
+        testLadder.forEachIndexed { i, text -> viewModel.updateDescriptionAtLevel(i, text) }
     }
 
     @After
@@ -94,16 +94,16 @@ class HabitEditViewModelTest {
 
     @Test
     fun `autofillWithAi updates fields and clears isGeneratingFields on success`() = runTest(testDispatcher) {
+        val ladder = listOf("3 deep breaths", "", "", "20-min guided session", "", "")
         coEvery { mockPromptGenerator.generateHabitFields("meditation") } returns
-            AiHabitFields(listOf("3 deep breaths", "", "", "", "", "20-min guided session"))
+            AiHabitFields(ladder)
 
         viewModel.autofillWithAi()
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
         assertFalse(state.isGeneratingFields)
-        assertEquals("3 deep breaths", state.levelDescriptions[0])
-        assertEquals("20-min guided session", state.levelDescriptions[5])
+        assertEquals(ladder, state.descriptionLadder)
         assertNull(state.errorMessage)
     }
 
@@ -204,7 +204,7 @@ class HabitEditViewModelTest {
     @Test
     fun `autofillWithAi success sets fieldsFlashing to true`() = runTest(testDispatcher) {
         coEvery { mockPromptGenerator.generateHabitFields("meditation") } returns
-            AiHabitFields(listOf("low", "", "", "", "", "full"))
+            AiHabitFields(listOf("desc", "", "", "", "", ""))
 
         viewModel.autofillWithAi()
         advanceUntilIdle()
@@ -215,7 +215,7 @@ class HabitEditViewModelTest {
     @Test
     fun `clearFieldsFlash resets fieldsFlashing to false`() = runTest(testDispatcher) {
         coEvery { mockPromptGenerator.generateHabitFields("meditation") } returns
-            AiHabitFields(listOf("low", "", "", "", "", "full"))
+            AiHabitFields(listOf("desc", "", "", "", "", ""))
 
         viewModel.autofillWithAi()
         advanceUntilIdle()
@@ -344,7 +344,7 @@ class HabitEditViewModelTest {
 
         viewModel.loadHabit(testHabit.id)
         advanceUntilIdle()
-        // viewModel state now matches testHabit exactly (name, levelDescriptions)
+        // viewModel state now matches testHabit exactly (name, descriptionLadder)
 
         viewModel.save()
         advanceUntilIdle()

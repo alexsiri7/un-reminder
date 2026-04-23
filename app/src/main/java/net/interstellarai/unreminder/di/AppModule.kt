@@ -15,7 +15,6 @@ import net.interstellarai.unreminder.data.db.MIGRATION_3_4
 import net.interstellarai.unreminder.data.db.MIGRATION_4_5
 import net.interstellarai.unreminder.data.db.MIGRATION_5_6
 import net.interstellarai.unreminder.data.db.MIGRATION_6_7
-import net.interstellarai.unreminder.data.db.HabitLevelDescriptionDao
 import net.interstellarai.unreminder.data.db.HabitWindowCrossRefDao
 import net.interstellarai.unreminder.data.db.PendingFeedbackDao
 import net.interstellarai.unreminder.data.db.TriggerDao
@@ -76,10 +75,6 @@ object AppModule {
 
     @Provides
     fun provideVariationDao(db: AppDatabase): VariationDao = db.variationDao()
-
-    @Provides
-    fun provideHabitLevelDescriptionDao(db: AppDatabase): HabitLevelDescriptionDao =
-        db.habitLevelDescriptionDao()
 
     @Provides
     @IoDispatcher

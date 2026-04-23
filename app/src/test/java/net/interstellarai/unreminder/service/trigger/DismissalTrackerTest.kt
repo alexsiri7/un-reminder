@@ -44,7 +44,6 @@ class DismissalTrackerTest {
         id = habitId,
         name = "meditation",
         dedicationLevel = 0,
-        autoAdjustLevel = true,
         active = true,
         createdAt = Instant.now(),
         updatedAt = Instant.now()
