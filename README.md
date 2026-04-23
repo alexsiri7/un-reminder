@@ -197,7 +197,7 @@ updated by geofence `ENTER`/`EXIT` callbacks. Empty set means no known location.
    `minutesSince` is minutes since the habit was last fired (cap: 1440 min = 24 h). A habit
    never fired receives the maximum weight (~13×). If the eligible set is empty, skip silently.
 4. Pick an unused variation from the cloud-generated pool (see Variation entity). If the pool is empty, use the level description fallback (see Fallback below).
-5. Post the notification with the generated text. Action buttons: **Complete**, **Skip**.
+5. Post the notification with the generated text. Action buttons: **Did it**, **Dismiss**.
 6. Record the trigger row with the generated prompt and the outcome when the user responds.
    If the last 3 triggers for the same habit are all `DISMISSED`, the habit is automatically set to
    `active = false` (auto-paused). The user can re-activate it by editing the habit.
@@ -294,7 +294,7 @@ The app is considered MVP-complete when:
 
 ## 10. Success Metric (personal, not in-app)
 
-> The user completes at least one habit (full or low-floor) on **≥5 days per rolling 7-day window**, measured 2 weeks after starting daily use.
+> The user completes at least one habit on **≥5 days per rolling 7-day window**, measured 2 weeks after starting daily use.
 
 Tracked manually by glancing at the Recent triggers screen. Not a feature.
 

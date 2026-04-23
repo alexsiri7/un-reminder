@@ -70,12 +70,11 @@ import net.interstellarai.unreminder.ui.theme.UnReminderShapes
 // Habit editor — mirrors `components/editor.jsx`:
 //   - Thin top bar ("← back · EDITING · save")
 //   - "habit name" label + big display-serif field underlined in accent
-//   - "gemma · on-device" AI-assist strip with an "✦ autofill" accent pill
-//   - Full + low-floor description fields rendered as italic serif blocks
+//   - "ai · cloud" AI-assist strip with an "✦ autofill" accent pill
+//   - Dedication level bar + 6-slot level-description fields
 //   - Location chips with sharp corners, filled-accent when selected
 //   - Dark "preview" card at the bottom (ink bg, bg ink)
 //   - Bottom row: active toggle + delete habit link
-// ViewModel untouched.
 // ─────────────────────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -384,7 +383,7 @@ private fun AiAssistStrip(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                MonoSectionLabel("gemma · on-device")
+                MonoSectionLabel("ai · cloud")
                 Spacer(Modifier.height(2.dp))
                 Text(
                     "Autofill descriptions",
@@ -467,64 +466,6 @@ private fun LevelDescriptionsBlock(
 }
 
 @Composable
-private fun DescriptionBlock(
-    label: String,
-    value: String,
-    onValueChange: (String) -> Unit,
-    flashAlpha: Float,
-    placeholder: String,
-) {
-    Column {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            MonoSectionLabel(label)
-            if (value.isNotBlank()) {
-                Text(
-                    "\u2726 filled",
-                    style = MonoLabelTiny,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-        }
-        Spacer(Modifier.height(Dimens.sm - 2.dp))
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = flashAlpha),
-                    shape = UnReminderShapes.small,
-                ),
-        ) {
-            TextField(
-                value = value,
-                onValueChange = onValueChange,
-                textStyle = DisplaySmall.copy(
-                    color = MaterialTheme.colorScheme.onBackground,
-                ),
-                placeholder = {
-                    Text(
-                        placeholder,
-                        style = DisplaySmall.copy(
-                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.35f),
-                        ),
-                    )
-                },
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    cursorColor = MaterialTheme.colorScheme.primary,
-                ),
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-    }
-}
-
-@Composable
 private fun WindowChip(
     label: String,
     selected: Boolean,
@@ -596,7 +537,7 @@ private fun PreviewCard(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.padding(horizontal = Dimens.xs)) {
-        MonoSectionLabel("preview · sampled from gemma")
+        MonoSectionLabel("preview · sampled from cloud")
         Spacer(Modifier.height(Dimens.md - 2.dp))
         Box(
             modifier = Modifier
