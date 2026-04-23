@@ -61,6 +61,10 @@ class NotificationActionReceiver : BroadcastReceiver() {
 
                 triggerRepository.updateOutcome(triggerId, status, completionLevel)
 
+                // Dismiss notification immediately — remaining work is best-effort
+                val manager = context.getSystemService(NotificationManager::class.java)
+                manager.cancel(triggerId.toInt())
+
                 if (status == TriggerStatus.COMPLETED) {
                     val habitId = trigger?.habitId
                     if (habitId != null) dedicationLevelService.evaluatePromotion(habitId)
@@ -68,8 +72,6 @@ class NotificationActionReceiver : BroadcastReceiver() {
                 if (status == TriggerStatus.DISMISSED) {
                     dismissalTracker.onDismissed(triggerId)
                 }
-                val manager = context.getSystemService(NotificationManager::class.java)
-                manager.cancel(triggerId.toInt())
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "onReceive: failed for trigger=$triggerId action=$action", e)
