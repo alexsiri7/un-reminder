@@ -6,6 +6,11 @@ const REQUESTY_URL = 'https://router.requesty.ai/v1/chat/completions'
 export const COST_PER_OUTPUT_TOKEN = 0.000075 / 1000
 export const COST_PER_INPUT_TOKEN = 0.000075 / 1000
 
+/** Compute total spend in USD for a single Requesty call. */
+export function computeSpend(outputTokens: number, inputTokens: number): number {
+  return outputTokens * COST_PER_OUTPUT_TOKEN + inputTokens * COST_PER_INPUT_TOKEN
+}
+
 export interface RequestyResult {
   text: string
   outputTokens: number

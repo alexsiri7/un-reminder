@@ -20,6 +20,9 @@ private fun Response.throwOnError(): Nothing = when (code) {
     else -> throw WorkerError(code, body?.string() ?: "")
 }
 
+private fun Response.requireBodyString(): String =
+    body?.string() ?: throw RuntimeException("Worker returned empty body")
+
 @Singleton
 class RequestyProxyClient @Inject constructor(
     private val okHttpClient: OkHttpClient,
@@ -39,8 +42,7 @@ class RequestyProxyClient @Inject constructor(
 
         okHttpClient.newCall(request).execute().use { response ->
             if (response.code !in 200..299) response.throwOnError()
-            val rawBody = response.body?.string()
-                ?: throw RuntimeException("Worker returned empty body")
+            val rawBody = response.requireBodyString()
             val body = JSONObject(rawBody)
             val full = body.getString("fullDescription")
             val lowFloor = body.getString("lowFloorDescription")
@@ -78,8 +80,7 @@ class RequestyProxyClient @Inject constructor(
 
         okHttpClient.newCall(request).execute().use { response ->
             if (response.code !in 200..299) response.throwOnError()
-            val rawBody = response.body?.string()
-                ?: throw RuntimeException("Worker returned empty body")
+            val rawBody = response.requireBodyString()
             JSONObject(rawBody).getString("text")
         }
     }
@@ -109,8 +110,7 @@ class RequestyProxyClient @Inject constructor(
 
         okHttpClient.newCall(request).execute().use { response ->
             if (response.code !in 200..299) response.throwOnError()
-            val rawBody = response.body?.string()
-                ?: throw RuntimeException("Worker returned empty body")
+            val rawBody = response.requireBodyString()
             val arr = JSONObject(rawBody).getJSONArray("variants")
             (0 until arr.length()).map { arr.getString(it) }
         }

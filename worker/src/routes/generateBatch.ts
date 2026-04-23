@@ -1,7 +1,7 @@
 import type { Context } from 'hono'
 import type { Env, GenerateBatchRequest, GenerateBatchResponse } from '../types'
 import { addSpend } from '../lib/spend'
-import { callRequestyWithSchemaRetry, COST_PER_OUTPUT_TOKEN, COST_PER_INPUT_TOKEN } from '../lib/requesty'
+import { callRequestyWithSchemaRetry, computeSpend } from '../lib/requesty'
 
 function buildPrompt(habitTitle: string, habitTags: string[], locationName: string, timeOfDay: string, n: number, strict = false): string {
   const outputInstruction = strict
@@ -62,8 +62,7 @@ export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promi
     return c.json({ error: 'Upstream unavailable or returned invalid response' }, 502)
   }
 
-  const spendDollars =
-    result.outputTokens * COST_PER_OUTPUT_TOKEN + result.inputTokens * COST_PER_INPUT_TOKEN
+  const spendDollars = computeSpend(result.outputTokens, result.inputTokens)
   c.executionCtx.waitUntil(
     addSpend(c.env.UR_SPEND, spendDollars).catch((err) =>
       console.error('[generateBatch] addSpend failed:', err, { spendDollars }),
