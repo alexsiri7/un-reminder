@@ -107,13 +107,6 @@ android {
     }
 }
 
-java {
-    toolchain {
-        languageVersion.set(JavaLanguageVersion.of(17))
-    }
-}
-
-
 sentry {
     autoInstallation { enabled.set(false) }
     org.set("alex-siri")
