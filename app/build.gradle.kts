@@ -92,6 +92,10 @@ android {
         jvmTarget = "17"
     }
 
+    kotlin {
+        jvmToolchain(17)
+    }
+
     buildFeatures {
         compose = true
         buildConfig = true
@@ -102,6 +106,13 @@ android {
         unitTests.isIncludeAndroidResources = true
     }
 }
+
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(17))
+    }
+}
+
 
 sentry {
     autoInstallation { enabled.set(false) }
