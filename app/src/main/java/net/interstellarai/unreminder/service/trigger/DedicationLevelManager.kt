@@ -17,11 +17,11 @@ class DedicationLevelManager @Inject constructor(
         const val MAX_LEVEL = 5
         // (completionsRequired, windowDays) per current level
         private val THRESHOLDS = mapOf(
-            0 to Pair(3, 7),
-            1 to Pair(5, 14),
-            2 to Pair(7, 21),
-            3 to Pair(10, 30),
-            4 to Pair(14, 45),
+            0 to (3 to 7),
+            1 to (5 to 14),
+            2 to (7 to 21),
+            3 to (10 to 30),
+            4 to (14 to 45),
         )
     }
 
@@ -42,8 +42,7 @@ class DedicationLevelManager @Inject constructor(
             return
         }
 
-        val threshold = THRESHOLDS[habit.dedicationLevel] ?: return
-        val (required, windowDays) = threshold
+        val (required, windowDays) = THRESHOLDS[habit.dedicationLevel] ?: return
         val sinceMillis = Instant.now().minusSeconds(windowDays.toLong() * 86_400L).toEpochMilli()
         val count = triggerRepository.countCompletionsSince(habitId, sinceMillis)
 
