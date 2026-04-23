@@ -145,7 +145,7 @@ A scheduled notification event.
 - `habit_id` (populated at fire time, not schedule time — see below)
 - `scheduled_at` — timestamp.
 - `fired_at` — nullable.
-- `status` — `{SCHEDULED, FIRED, COMPLETED, SKIPPED}`.
+- `status` — `{SCHEDULED, FIRED, COMPLETED, DISMISSED}`.
 - `generated_prompt` — the AI-generated text actually shown in the notification.
 
 ### Location
@@ -285,7 +285,7 @@ The app is considered MVP-complete when:
 2. Daily schedule job correctly populates `Trigger` rows for the next 24h based on active windows.
 3. At least one window trigger fires during its window with a Gemma 3 1B-generated prompt.
 4. Entering the registered `HOME` geofence triggers exactly one notification 5 minutes later (debounced).
-5. Notification actions correctly record `COMPLETED` or `SKIPPED`.
+5. Notification actions correctly record `COMPLETED` or `DISMISSED`.
 6. Recent triggers screen displays the last 20 triggers with their generated prompts.
 7. App works with airplane mode on (no network dependency).
 8. Cold-start to habit list is under 1 second.
