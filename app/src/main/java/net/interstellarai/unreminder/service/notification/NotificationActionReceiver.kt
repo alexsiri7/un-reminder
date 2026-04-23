@@ -52,6 +52,9 @@ class NotificationActionReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val trigger = triggerRepository.getById(triggerId)
+                if (trigger == null) {
+                    Log.w(TAG, "trigger $triggerId not found in DB; recording status=$status with null level")
+                }
                 val completionLevel: Int? = if (status == TriggerStatus.COMPLETED) {
                     trigger?.habitId?.let { habitRepository.getByIdOnce(it) }?.dedicationLevel
                 } else null

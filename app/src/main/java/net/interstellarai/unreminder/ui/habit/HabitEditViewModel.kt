@@ -220,6 +220,7 @@ class HabitEditViewModel @Inject constructor(
             } catch (e: SpendCapExceededException) {
                 _uiState.value = _uiState.value.copy(
                     isGeneratingFields = false,
+                    // errorMessage intentionally omitted — showSpendCapLink snackbar carries the full message + action
                     showSpendCapLink = true,
                 )
             } catch (e: Exception) {

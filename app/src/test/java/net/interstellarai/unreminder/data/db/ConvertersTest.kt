@@ -70,4 +70,26 @@ class ConvertersTest {
         val result = converters.toLocalTime(seconds)
         assertEquals(endOfDay, result)
     }
+
+    @Test
+    fun `StringList round-trip with 6-element list`() {
+        val list = listOf("3 deep breaths", "", "", "20-min meditation", "", "")
+        val json = converters.fromStringList(list)
+        val result = converters.toStringList(json)
+        assertEquals(list, result)
+    }
+
+    @Test
+    fun `StringList null round-trip`() {
+        assertNull(converters.fromStringList(null))
+        assertNull(converters.toStringList(null))
+    }
+
+    @Test
+    fun `StringList round-trip preserves special characters`() {
+        val list = listOf("it's a \"habit\"", "café", "", "", "", "")
+        val json = converters.fromStringList(list)
+        val result = converters.toStringList(json)
+        assertEquals(list, result)
+    }
 }

@@ -23,7 +23,7 @@ class DedicationLevelService @Inject constructor(
         if (currentLevel >= MAX_LEVEL) return
 
         val shouldPromote = when (currentLevel) {
-            0 -> true
+            0 -> true // promote on first completion — no streak barrier at entry level
             1 -> completionsInLastNDays(habitId, 7) >= 3
             2 -> completionsInLastNDays(habitId, 7) >= 5
             3 -> completionsInLastNDays(habitId, 14) >= 10
@@ -42,6 +42,7 @@ class DedicationLevelService @Inject constructor(
 
     private suspend fun completionsInLastNDays(habitId: Long, days: Long): Int {
         val since = Instant.now().minus(days, ChronoUnit.DAYS)
+        // Fetch 60 most-recent triggers — enough for ~2/day over 30 days, covering all current thresholds
         return triggerRepository.getLastNForHabit(habitId, 60)
             .count { it.status == TriggerStatus.COMPLETED && it.firedAt != null && it.firedAt > since }
     }

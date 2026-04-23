@@ -31,7 +31,12 @@ class Converters {
     @TypeConverter
     fun toStringList(value: String?): List<String>? =
         value?.let { json ->
-            val arr = org.json.JSONArray(json)
-            (0 until arr.length()).map { arr.getString(it) }
+            try {
+                val arr = org.json.JSONArray(json)
+                (0 until arr.length()).map { arr.getString(it) }
+            } catch (e: org.json.JSONException) {
+                android.util.Log.w("Converters", "toStringList: malformed JSON, falling back to empty list: $json", e)
+                List(6) { "" }
+            }
         }
 }

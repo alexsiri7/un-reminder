@@ -44,6 +44,8 @@ class RequestyProxyClient @Inject constructor(
             val body = JSONObject(rawBody)
             val full = body.getString("fullDescription")
             val lowFloor = body.getString("lowFloorDescription")
+            // Worker still returns v1 two-field shape; map to slots 0 (entry) and 3 (committed)
+            // TODO: accept full levelDescriptions array when worker is updated (out of scope for this PR)
             AiHabitFields(
                 levelDescriptions = listOf(lowFloor, "", "", full, "", "")
             )
