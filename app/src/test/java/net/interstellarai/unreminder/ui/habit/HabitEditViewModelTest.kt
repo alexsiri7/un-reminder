@@ -354,6 +354,44 @@ class HabitEditViewModelTest {
         assertTrue(viewModel.uiState.value.isSaved)
     }
 
+    @Test
+    fun `save deletes pool and enqueues refill when only level descriptions changed`() = runTest(testDispatcher) {
+        coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit)
+        coEvery { mockHabitRepository.update(any()) } returns Unit
+        coEvery { mockLevelDescriptionRepository.getDescriptionsForHabit(testHabit.id) } returns
+            listOf(
+                HabitLevelDescriptionEntity(testHabit.id, 0, "OLD level 0"),
+                HabitLevelDescriptionEntity(testHabit.id, 5, "OLD level 5")
+            )
+
+        viewModel.loadHabit(testHabit.id)
+        advanceUntilIdle()
+
+        // Change only level descriptions, not the name
+        viewModel.updateLevelDescription(0, "NEW level 0")
+
+        viewModel.save()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { mockVariationRepository.deleteForHabit(testHabit.id) }
+        coVerify(exactly = 1) { mockRefillScheduler.enqueueForHabit(testHabit.id) }
+        assertTrue(viewModel.uiState.value.isSaved)
+    }
+
+    @Test
+    fun `loadHabit sets errorMessage when repository throws`() = runTest(testDispatcher) {
+        coEvery { mockHabitRepository.getById(99L) } returns kotlinx.coroutines.flow.flow {
+            throw RuntimeException("db error")
+        }
+
+        viewModel.loadHabit(99L)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals("Failed to load habit.", state.errorMessage)
+        assertFalse(state.isLoading)
+    }
+
     // --- aiStatus ---
 
     @Test

@@ -14,6 +14,7 @@ import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.data.repository.WindowRepository
 import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.service.llm.PromptGenerator
+import net.interstellarai.unreminder.service.trigger.DedicationLevelManager
 import net.interstellarai.unreminder.service.worker.RefillScheduler
 import net.interstellarai.unreminder.service.worker.SpendCapExceededException
 import net.interstellarai.unreminder.service.worker.WorkerAuthException
@@ -34,7 +35,7 @@ import javax.inject.Inject
 
 data class HabitEditUiState(
     val name: String = "",
-    val levelDescriptions: List<String> = List(6) { "" },
+    val levelDescriptions: List<String> = List(DedicationLevelManager.MAX_LEVEL + 1) { "" },
     val dedicationLevel: Int = 0,
     val autoAdjustLevel: Boolean = true,
     val selectedLocationIds: Set<Long> = emptySet(),
@@ -96,6 +97,7 @@ class HabitEditViewModel @Inject constructor(
     }
 
     private var existingHabit: HabitEntity? = null
+    private var existingLevelDescriptions: List<String> = emptyList()
 
     fun loadHabit(id: Long) {
         viewModelScope.launch {
@@ -111,8 +113,9 @@ class HabitEditViewModel @Inject constructor(
                 val windowIds = habitRepository.getWindowIds(id).toSet()
                 existingHabit = habit
                 val descEntities = levelDescriptionRepository.getDescriptionsForHabit(id)
-                val descs = MutableList(6) { "" }
-                descEntities.forEach { e -> if (e.level in 0..5) descs[e.level] = e.description }
+                val descs = MutableList(DedicationLevelManager.MAX_LEVEL + 1) { "" }
+                descEntities.forEach { e -> if (e.level in 0..DedicationLevelManager.MAX_LEVEL) descs[e.level] = e.description }
+                existingLevelDescriptions = descs.toList()
                 _uiState.value = HabitEditUiState(
                     name = habit.name,
                     levelDescriptions = descs,
@@ -203,11 +206,8 @@ class HabitEditViewModel @Inject constructor(
             // Post-save refill scheduling — best-effort, does not affect isSaved
             try {
                 if (existing != null) {
-                    val oldDescs = levelDescriptionRepository.getDescriptionsForHabit(existing.id)
-                    val oldDescList = MutableList(6) { "" }
-                    oldDescs.forEach { e -> if (e.level in 0..5) oldDescList[e.level] = e.description }
                     val promptChanged = existing.name != state.name ||
-                        oldDescList != state.levelDescriptions
+                        existingLevelDescriptions != state.levelDescriptions
                     if (promptChanged) {
                         variationRepository.deleteForHabit(habitId)
                         refillScheduler.enqueueForHabit(habitId)
@@ -265,6 +265,8 @@ class HabitEditViewModel @Inject constructor(
             dedicationLevel = state.dedicationLevel,
             autoAdjustLevel = state.autoAdjustLevel
         )
+        // Use the current-level description as preview notes;
+        // fall back to the first non-blank level if the current level is empty.
         val notes = state.levelDescriptions.getOrElse(state.dedicationLevel) { "" }
             .ifBlank { state.levelDescriptions.firstOrNull { it.isNotBlank() } ?: "" }
         val locationName = if (state.selectedLocationIds.isEmpty()) {

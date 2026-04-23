@@ -39,13 +39,16 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
         )
 
         // 4. Backfill: level 0 from low_floor_description, level 5 from full_description
+        //    Skip blank entries to match the invariant in HabitLevelDescriptionRepository.setDescriptions
         db.execSQL("""
             INSERT INTO `habit_level_descriptions` (`habit_id`, `level`, `description`)
             SELECT `id`, 0, `low_floor_description` FROM `habits`
+            WHERE `low_floor_description` <> ''
         """.trimIndent())
         db.execSQL("""
             INSERT INTO `habit_level_descriptions` (`habit_id`, `level`, `description`)
             SELECT `id`, 5, `full_description` FROM `habits`
+            WHERE `full_description` <> ''
         """.trimIndent())
 
         // 5. Drop old habits table and rename new one

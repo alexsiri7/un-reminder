@@ -51,7 +51,12 @@ class NotificationActionReceiver : BroadcastReceiver() {
                 if (status == TriggerStatus.COMPLETED) {
                     val trigger = triggerRepository.getById(triggerId)
                     trigger?.habitId?.let { habitId ->
-                        dedicationLevelManager.maybePromote(habitId)
+                        try {
+                            dedicationLevelManager.maybePromote(habitId)
+                        } catch (e: Exception) {
+                            if (e is CancellationException) throw e
+                            Log.w(TAG, "maybePromote failed for habit=$habitId — non-fatal", e)
+                        }
                     }
                 }
                 if (status == TriggerStatus.DISMISSED) {

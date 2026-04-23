@@ -136,6 +136,7 @@ class TriggerPipeline @Inject constructor(
             levelDescriptionRepository.getDescriptionForLevel(habit.id, habit.dedicationLevel)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
+            Log.w(TAG, "level description fetch failed for habit=${habit.id} — non-fatal", e)
             null
         }
         return levelDesc?.takeIf { it.isNotBlank() } ?: habit.name

@@ -134,10 +134,11 @@ class TriggerPipelineTest {
     }
 
     @Test
-    fun `pool empty - falls back to habit name and enqueues refill`() = runTest {
+    fun `pool empty - falls back to habit name when level description is blank`() = runTest {
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
         coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
         coEvery { variationRepository.pickRandomUnused(1L) } returns null
+        coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 0) } returns ""
 
         pipeline.execute(42L)
 
@@ -150,6 +151,26 @@ class TriggerPipelineTest {
             )
         }
         coVerify { refillScheduler.enqueueForHabit(1L) }
+    }
+
+    @Test
+    fun `pool empty - uses level description when available`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
+        coEvery { variationRepository.pickRandomUnused(1L) } returns null
+        coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 0) } returns
+            "Take three deep breaths"
+
+        pipeline.execute(42L)
+
+        coVerify { triggerRepository.updateFired(42L, 1L, "Take three deep breaths") }
+        coVerify {
+            notificationHelper.postTriggerNotification(
+                triggerId = 42L,
+                promptText = "Take three deep breaths",
+                habitName = "meditation"
+            )
+        }
     }
 
     @Test
@@ -174,6 +195,7 @@ class TriggerPipelineTest {
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
         coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
         coEvery { variationRepository.pickRandomUnused(1L) } throws RuntimeException("db error")
+        coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 0) } returns null
 
         pipeline.execute(42L)
 
