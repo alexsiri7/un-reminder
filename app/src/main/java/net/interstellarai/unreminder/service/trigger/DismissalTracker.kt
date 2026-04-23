@@ -54,10 +54,12 @@ class DismissalTracker @Inject constructor(
         if (habit.dedicationLevel > 0 && habit.autoAdjustLevel) {
             Log.i(TAG, "Habit ${habit.name} demoted to level ${habit.dedicationLevel - 1}")
             habitRepository.update(habit.copy(dedicationLevel = habit.dedicationLevel - 1))
-        } else if (habit.dedicationLevel == 0) {
+        } else if (habit.dedicationLevel == 0 && habit.autoAdjustLevel) {
             Log.i(TAG, "Habit ${habit.name} at level 0 with $STREAK_THRESHOLD consecutive DISMISSEDs — pausing")
             habitRepository.update(habit.copy(active = false))
             notificationHelper.postHabitPausedNotification(habitId, habit.name)
+        } else {
+            Log.d(TAG, "Habit ${habit.name} autoAdjustLevel disabled — skipping demotion/pause (level=${habit.dedicationLevel})")
         }
     }
 
@@ -88,6 +90,12 @@ class DismissalTracker @Inject constructor(
         val fourteenDaysAgo = now - 14L * 24 * 3600 * 1000
         val twentyEightDaysAgo = now - 28L * 24 * 3600 * 1000
 
+        // Promotion thresholds: ~1 completion/2 days at each tier, window doubles per level.
+        //   L0 → 1: immediate (first completion unblocks)
+        //   L1 → 2: 3 in 7 days  (~3/week)
+        //   L2 → 3: 5 in 7 days  (~5/week)
+        //   L3 → 4: 10 in 14 days (~5/week, sustained)
+        //   L4 → 5: 20 in 28 days (~5/week, sustained over a month)
         val shouldPromote = when (habit.dedicationLevel) {
             0 -> true
             1 -> triggerRepository.getCompletionsSince(habitId, sevenDaysAgo).size >= 3

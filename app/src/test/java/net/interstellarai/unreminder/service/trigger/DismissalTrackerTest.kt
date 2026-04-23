@@ -138,4 +138,139 @@ class DismissalTrackerTest {
         coVerify(exactly = 0) { habitRepository.update(any()) }
         coVerify(exactly = 0) { notificationHelper.postHabitPausedNotification(any(), any()) }
     }
+
+    @Test
+    fun `3 consecutive dismissals at level 2 - demotes to level 1, no pause notification`() = runTest {
+        val habitAtLevel2 = testHabit.copy(dedicationLevel = 2, autoAdjustLevel = true)
+        coEvery { triggerRepository.getById(triggerId) } returns makeTrigger(TriggerStatus.DISMISSED)
+        coEvery { triggerRepository.getLastNForHabit(habitId, 3) } returns
+            listOf(makeDismissedTrigger(42), makeDismissedTrigger(41), makeDismissedTrigger(40))
+        coEvery { habitRepository.getByIdOnce(habitId) } returns habitAtLevel2
+
+        tracker.onDismissed(triggerId)
+
+        coVerify { habitRepository.update(match { it.dedicationLevel == 1 && it.active }) }
+        coVerify(exactly = 0) { notificationHelper.postHabitPausedNotification(any(), any()) }
+    }
+
+    @Test
+    fun `3 consecutive dismissals at level 1 with autoAdjustLevel false - no action`() = runTest {
+        val habitNoAuto = testHabit.copy(dedicationLevel = 1, autoAdjustLevel = false)
+        coEvery { triggerRepository.getById(triggerId) } returns makeTrigger(TriggerStatus.DISMISSED)
+        coEvery { triggerRepository.getLastNForHabit(habitId, 3) } returns
+            listOf(makeDismissedTrigger(42), makeDismissedTrigger(41), makeDismissedTrigger(40))
+        coEvery { habitRepository.getByIdOnce(habitId) } returns habitNoAuto
+
+        tracker.onDismissed(triggerId)
+
+        coVerify(exactly = 0) { habitRepository.update(any()) }
+        coVerify(exactly = 0) { notificationHelper.postHabitPausedNotification(any(), any()) }
+    }
+
+    @Test
+    fun `3 consecutive dismissals at level 0 with autoAdjustLevel false - no action`() = runTest {
+        val habitNoAuto = testHabit.copy(dedicationLevel = 0, autoAdjustLevel = false)
+        coEvery { triggerRepository.getById(triggerId) } returns makeTrigger(TriggerStatus.DISMISSED)
+        coEvery { triggerRepository.getLastNForHabit(habitId, 3) } returns
+            listOf(makeDismissedTrigger(42), makeDismissedTrigger(41), makeDismissedTrigger(40))
+        coEvery { habitRepository.getByIdOnce(habitId) } returns habitNoAuto
+
+        tracker.onDismissed(triggerId)
+
+        coVerify(exactly = 0) { habitRepository.update(any()) }
+        coVerify(exactly = 0) { notificationHelper.postHabitPausedNotification(any(), any()) }
+    }
+
+    // --- onCompleted tests ---
+
+    @Test
+    fun `onCompleted promotes level 0 habit immediately`() = runTest {
+        val habitAtLevel0 = testHabit.copy(dedicationLevel = 0, autoAdjustLevel = true)
+        coEvery { triggerRepository.getById(triggerId) } returns makeTrigger(TriggerStatus.COMPLETED)
+        coEvery { habitRepository.getByIdOnce(habitId) } returns habitAtLevel0
+
+        tracker.onCompleted(triggerId)
+
+        coVerify { habitRepository.update(match { it.dedicationLevel == 1 }) }
+    }
+
+    @Test
+    fun `onCompleted promotes level 1 habit when 3+ completions in 7 days`() = runTest {
+        val habitAtLevel1 = testHabit.copy(dedicationLevel = 1, autoAdjustLevel = true)
+        coEvery { triggerRepository.getById(triggerId) } returns makeTrigger(TriggerStatus.COMPLETED)
+        coEvery { habitRepository.getByIdOnce(habitId) } returns habitAtLevel1
+        coEvery { triggerRepository.getCompletionsSince(habitId, any()) } returns listOf(
+            makeTrigger(TriggerStatus.COMPLETED, triggerId + 1),
+            makeTrigger(TriggerStatus.COMPLETED, triggerId + 2),
+            makeTrigger(TriggerStatus.COMPLETED, triggerId + 3),
+        )
+
+        tracker.onCompleted(triggerId)
+
+        coVerify { habitRepository.update(match { it.dedicationLevel == 2 }) }
+    }
+
+    @Test
+    fun `onCompleted does NOT promote level 1 habit when fewer than 3 completions in 7 days`() = runTest {
+        val habitAtLevel1 = testHabit.copy(dedicationLevel = 1, autoAdjustLevel = true)
+        coEvery { triggerRepository.getById(triggerId) } returns makeTrigger(TriggerStatus.COMPLETED)
+        coEvery { habitRepository.getByIdOnce(habitId) } returns habitAtLevel1
+        coEvery { triggerRepository.getCompletionsSince(habitId, any()) } returns listOf(
+            makeTrigger(TriggerStatus.COMPLETED, triggerId + 1)
+        )
+
+        tracker.onCompleted(triggerId)
+
+        coVerify(exactly = 0) { habitRepository.update(any()) }
+    }
+
+    @Test
+    fun `onCompleted skips promotion when autoAdjustLevel is false`() = runTest {
+        val habitNoAuto = testHabit.copy(dedicationLevel = 0, autoAdjustLevel = false)
+        coEvery { triggerRepository.getById(triggerId) } returns makeTrigger(TriggerStatus.COMPLETED)
+        coEvery { habitRepository.getByIdOnce(habitId) } returns habitNoAuto
+
+        tracker.onCompleted(triggerId)
+
+        coVerify(exactly = 0) { habitRepository.update(any()) }
+    }
+
+    @Test
+    fun `onCompleted skips when habit already at level 5`() = runTest {
+        val maxLevel = testHabit.copy(dedicationLevel = 5, autoAdjustLevel = true)
+        coEvery { triggerRepository.getById(triggerId) } returns makeTrigger(TriggerStatus.COMPLETED)
+        coEvery { habitRepository.getByIdOnce(habitId) } returns maxLevel
+
+        tracker.onCompleted(triggerId)
+
+        coVerify(exactly = 0) { habitRepository.update(any()) }
+    }
+
+    @Test
+    fun `onCompleted trigger not found - skips promotion`() = runTest {
+        coEvery { triggerRepository.getById(triggerId) } returns null
+
+        tracker.onCompleted(triggerId)
+
+        coVerify(exactly = 0) { habitRepository.update(any()) }
+    }
+
+    @Test
+    fun `onCompleted trigger has no habitId - skips promotion`() = runTest {
+        coEvery { triggerRepository.getById(triggerId) } returns makeTrigger(TriggerStatus.COMPLETED, hId = null)
+
+        tracker.onCompleted(triggerId)
+
+        coVerify(exactly = 0) { habitRepository.update(any()) }
+    }
+
+    @Test
+    fun `onCompleted habit not found - skips promotion`() = runTest {
+        coEvery { triggerRepository.getById(triggerId) } returns makeTrigger(TriggerStatus.COMPLETED)
+        coEvery { habitRepository.getByIdOnce(habitId) } returns null
+
+        tracker.onCompleted(triggerId)
+
+        coVerify(exactly = 0) { habitRepository.update(any()) }
+    }
 }

@@ -1,8 +1,10 @@
 package net.interstellarai.unreminder.data.db
 
+import android.util.Log
 import androidx.room.TypeConverter
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import org.json.JSONArray
+import org.json.JSONException
 import java.time.Instant
 import java.time.LocalTime
 
@@ -37,7 +39,12 @@ class Converters {
     @TypeConverter
     fun toDescriptionLadder(value: String?): List<String>? =
         value?.let {
-            val arr = JSONArray(it)
-            List(arr.length()) { i -> arr.getString(i) }
+            try {
+                val arr = JSONArray(it)
+                List(arr.length()) { i -> arr.getString(i) }
+            } catch (e: JSONException) {
+                Log.e("Converters", "toDescriptionLadder: malformed JSON, returning blank ladder. value=$it", e)
+                List(6) { "" }
+            }
         }
 }

@@ -433,4 +433,36 @@ class HabitEditViewModelTest {
         coVerify { mockHabitRepository.setWindows(42L, setOf(5L, 7L)) }
         assertTrue(viewModel.uiState.value.isSaved)
     }
+
+    @Test
+    fun `updateDescriptionAtLevel updates correct slot`() = runTest(testDispatcher) {
+        viewModel.updateDescriptionAtLevel(2, "half session")
+        assertEquals("half session", viewModel.uiState.value.descriptionLadder[2])
+    }
+
+    @Test
+    fun `updateDescriptionAtLevel out-of-range index is ignored`() = runTest(testDispatcher) {
+        val before = viewModel.uiState.value.descriptionLadder.toList()
+        viewModel.updateDescriptionAtLevel(6, "too high")
+        assertEquals(before, viewModel.uiState.value.descriptionLadder)
+    }
+
+    @Test
+    fun `updateDescriptionAtLevel negative index is ignored`() = runTest(testDispatcher) {
+        val before = viewModel.uiState.value.descriptionLadder.toList()
+        viewModel.updateDescriptionAtLevel(-1, "negative")
+        assertEquals(before, viewModel.uiState.value.descriptionLadder)
+    }
+
+    @Test
+    fun `updateDedicationLevel updates dedicationLevel in uiState`() = runTest(testDispatcher) {
+        viewModel.updateDedicationLevel(4)
+        assertEquals(4, viewModel.uiState.value.dedicationLevel)
+    }
+
+    @Test
+    fun `updateAutoAdjustLevel updates autoAdjustLevel in uiState`() = runTest(testDispatcher) {
+        viewModel.updateAutoAdjustLevel(false)
+        assertFalse(viewModel.uiState.value.autoAdjustLevel)
+    }
 }
