@@ -35,8 +35,8 @@ class TriggerRepository @Inject constructor(
         )
     }
 
-    suspend fun updateOutcome(id: Long, status: TriggerStatus) {
-        triggerDao.updateStatus(id, status.name)
+    suspend fun updateOutcome(id: Long, status: TriggerStatus, completionLevel: Int? = null) {
+        triggerDao.updateOutcome(id, status.name, completionLevel)
     }
 
     suspend fun deleteAllScheduled() = triggerDao.deleteAllScheduled()

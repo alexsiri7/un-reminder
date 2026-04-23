@@ -30,8 +30,8 @@ interface TriggerDao {
     @Query("UPDATE triggers SET status = :status, fired_at = :firedAt, habit_id = :habitId, generated_prompt = :prompt WHERE id = :id")
     suspend fun updateFired(id: Long, status: String, firedAt: Long, habitId: Long, prompt: String)
 
-    @Query("UPDATE triggers SET status = :status WHERE id = :id")
-    suspend fun updateStatus(id: Long, status: String)
+    @Query("UPDATE triggers SET status = :status, completion_level = :completionLevel WHERE id = :id")
+    suspend fun updateOutcome(id: Long, status: String, completionLevel: Int?)
 
     @Query("DELETE FROM triggers WHERE status = 'SCHEDULED'")
     suspend fun deleteAllScheduled()

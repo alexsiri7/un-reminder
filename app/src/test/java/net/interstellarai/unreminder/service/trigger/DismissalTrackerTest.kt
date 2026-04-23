@@ -43,8 +43,7 @@ class DismissalTrackerTest {
     private val testHabit = HabitEntity(
         id = habitId,
         name = "meditation",
-        dedicationLevel = 0,
-        autoAdjustLevel = true,
+        levelDescriptions = listOf("3 deep breaths", "", "", "20-minute session", "", ""),
         active = true,
         createdAt = Instant.now(),
         updatedAt = Instant.now()

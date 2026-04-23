@@ -5,9 +5,10 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
-import net.interstellarai.unreminder.service.trigger.DedicationLevelManager
+import net.interstellarai.unreminder.service.trigger.DedicationLevelService
 import net.interstellarai.unreminder.service.trigger.DismissalTracker
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CancellationException
@@ -27,10 +28,13 @@ class NotificationActionReceiver : BroadcastReceiver() {
     lateinit var triggerRepository: TriggerRepository
 
     @Inject
+    lateinit var habitRepository: HabitRepository
+
+    @Inject
     lateinit var dismissalTracker: DismissalTracker
 
     @Inject
-    lateinit var dedicationLevelManager: DedicationLevelManager
+    lateinit var dedicationLevelService: DedicationLevelService
 
     override fun onReceive(context: Context, intent: Intent) {
         val triggerId = intent.getLongExtra(NotificationHelper.EXTRA_TRIGGER_ID, -1)
@@ -47,17 +51,16 @@ class NotificationActionReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                triggerRepository.updateOutcome(triggerId, status)
+                val trigger = triggerRepository.getById(triggerId)
+                val completionLevel: Int? = if (status == TriggerStatus.COMPLETED) {
+                    trigger?.habitId?.let { habitRepository.getByIdOnce(it) }?.dedicationLevel
+                } else null
+
+                triggerRepository.updateOutcome(triggerId, status, completionLevel)
+
                 if (status == TriggerStatus.COMPLETED) {
-                    val trigger = triggerRepository.getById(triggerId)
-                    trigger?.habitId?.let { habitId ->
-                        try {
-                            dedicationLevelManager.maybePromote(habitId)
-                        } catch (e: Exception) {
-                            if (e is CancellationException) throw e
-                            Log.w(TAG, "maybePromote failed for habit=$habitId — non-fatal", e)
-                        }
-                    }
+                    val habitId = trigger?.habitId
+                    if (habitId != null) dedicationLevelService.evaluatePromotion(habitId)
                 }
                 if (status == TriggerStatus.DISMISSED) {
                     dismissalTracker.onDismissed(triggerId)

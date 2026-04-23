@@ -191,45 +191,11 @@ fun HabitEditScreen(
             Spacer(Modifier.height(Dimens.xl))
 
             Column(modifier = Modifier.padding(horizontal = Dimens.xxl)) {
-                DedicationProgressBar(
-                    level = uiState.dedicationLevel,
-                    modifier = Modifier.padding(vertical = 8.dp)
+                LevelDescriptionsBlock(
+                    descriptions = uiState.levelDescriptions,
+                    onUpdate = { idx, v -> viewModel.updateLevelDescription(idx, v) },
+                    flashAlpha = flashAlpha.value,
                 )
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    MonoSectionLabel(text = "auto-adjust level")
-                    Switch(
-                        checked = uiState.autoAdjustLevel,
-                        onCheckedChange = { viewModel.updateAutoAdjustLevel(it) },
-                        colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.colorScheme.primary)
-                    )
-                }
-                Spacer(Modifier.height(Dimens.md))
-                uiState.levelDescriptions.forEachIndexed { level, desc ->
-                    val isCurrent = level == uiState.dedicationLevel
-                    TextField(
-                        value = desc,
-                        onValueChange = { viewModel.updateLevelDescription(level, it) },
-                        label = { Text(text = if (isCurrent) "level $level (current)" else "level $level", style = MonoLabel) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 2.dp)
-                            .then(
-                                if (isCurrent) Modifier.border(
-                                    1.dp,
-                                    MaterialTheme.colorScheme.primary,
-                                    UnReminderShapes.small
-                                ) else Modifier
-                            ),
-                        colors = TextFieldDefaults.colors(
-                            unfocusedContainerColor = Color.Transparent,
-                            focusedContainerColor = Color.Transparent
-                        )
-                    )
-                }
             }
 
             Column(modifier = Modifier.padding(horizontal = Dimens.xxl, vertical = Dimens.xxl)) {
@@ -461,6 +427,41 @@ private fun AiAssistStrip(
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f),
                 modifier = Modifier.padding(start = Dimens.md + 2.dp),
             )
+        }
+    }
+}
+
+@Composable
+private fun LevelDescriptionsBlock(
+    descriptions: List<String>,
+    onUpdate: (Int, String) -> Unit,
+    flashAlpha: Float,
+) {
+    Column {
+        MonoSectionLabel("habit levels")
+        Spacer(Modifier.height(Dimens.sm))
+        descriptions.forEachIndexed { index, desc ->
+            val levelLabel = when (index) {
+                0 -> "level 0 \u00b7 just starting"
+                1 -> "level 1 \u00b7 unblocked"
+                2 -> "level 2 \u00b7 regular"
+                3 -> "level 3 \u00b7 committed"
+                4 -> "level 4 \u00b7 routine"
+                5 -> "level 5 \u00b7 practice"
+                else -> "level $index"
+            }
+            DescriptionBlock(
+                label = levelLabel,
+                value = desc,
+                onValueChange = { onUpdate(index, it) },
+                flashAlpha = flashAlpha,
+                placeholder = when (index) {
+                    0 -> "the minimum \u2014 e.g. 3 deep breaths"
+                    5 -> "your peak version \u2014 e.g. 20-min guided meditation"
+                    else -> ""
+                }
+            )
+            Spacer(Modifier.height(Dimens.lg))
         }
     }
 }

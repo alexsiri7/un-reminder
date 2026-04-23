@@ -12,8 +12,8 @@ data class HabitEntity(
     val name: String,
     @ColumnInfo(name = "dedication_level")
     val dedicationLevel: Int = 0,
-    @ColumnInfo(name = "auto_adjust_level")
-    val autoAdjustLevel: Boolean = true,
+    @ColumnInfo(name = "level_descriptions")
+    val levelDescriptions: List<String> = List(6) { "" },
     val active: Boolean = true,
     @ColumnInfo(name = "created_at")
     val createdAt: Instant = Instant.now(),

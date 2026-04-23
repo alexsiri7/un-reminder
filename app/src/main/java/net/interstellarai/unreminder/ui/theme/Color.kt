@@ -22,8 +22,15 @@ val SageInkDark = Color(0xFFE0E8CC)
 val SageAccentDark = Color(0xFFA8C485)
 val SageSoftDark = Color(0xFF252D1F)
 
-// Status colours for triggers — kept for recent-triggers chip styling,
-// re-tuned to harmonise with the sage palette.
-val CompletedFull = Color(0xFF4D6B3A)      // accent green
-val CompletedLowFloor = Color(0xFF9A7A15)  // muted butter (win-but-smaller)
-val Dismissed = Color(0xFF6E6E6E)          // soft grey ink
+// Dedication level colors — index = level (0 = muted, 5 = full accent)
+val LevelColors = listOf(
+    Color(0xFFA8A8A8),  // 0 — grey (just starting)
+    Color(0xFF9A9A50),  // 1 — warm khaki
+    Color(0xFF7A8F40),  // 2 — olive
+    Color(0xFF5B7A35),  // 3 — mid-green
+    Color(0xFF4D6B3A),  // 4 — accent green
+    Color(0xFF3A5228),  // 5 — deep green (peak)
+)
+
+val CompletedFull = LevelColors[4]
+val Dismissed = Color(0xFF6E6E6E)

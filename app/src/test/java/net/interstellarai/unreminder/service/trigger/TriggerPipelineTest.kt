@@ -7,7 +7,6 @@ import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
-import net.interstellarai.unreminder.data.repository.HabitLevelDescriptionRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
@@ -35,12 +34,12 @@ class TriggerPipelineTest {
     private lateinit var notificationHelper: NotificationHelper
     private lateinit var variationRepository: VariationRepository
     private lateinit var refillScheduler: RefillScheduler
-    private lateinit var levelDescriptionRepository: HabitLevelDescriptionRepository
     private lateinit var pipeline: TriggerPipeline
 
     private val testHabit = HabitEntity(
         id = 1L,
         name = "meditation",
+        levelDescriptions = listOf("3 deep breaths", "", "", "20-minute guided meditation", "", ""),
         createdAt = Instant.now(),
         updatedAt = Instant.now()
     )
@@ -60,7 +59,6 @@ class TriggerPipelineTest {
         notificationHelper = mockk(relaxUnitFun = true)
         variationRepository = mockk()
         refillScheduler = mockk(relaxUnitFun = true)
-        levelDescriptionRepository = mockk()
 
         pipeline = TriggerPipeline(
             habitRepository = habitRepository,
@@ -70,7 +68,6 @@ class TriggerPipelineTest {
             notificationHelper = notificationHelper,
             variationRepository = variationRepository,
             refillScheduler = refillScheduler,
-            levelDescriptionRepository = levelDescriptionRepository,
         )
 
         every { geofenceManager.currentLocationIds } returns setOf(1L)
@@ -134,11 +131,10 @@ class TriggerPipelineTest {
     }
 
     @Test
-    fun `pool empty - falls back to habit name when level description is blank`() = runTest {
+    fun `pool empty - falls back to habit name and enqueues refill`() = runTest {
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
         coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
         coEvery { variationRepository.pickRandomUnused(1L) } returns null
-        coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 0) } returns ""
 
         pipeline.execute(42L)
 
@@ -151,26 +147,6 @@ class TriggerPipelineTest {
             )
         }
         coVerify { refillScheduler.enqueueForHabit(1L) }
-    }
-
-    @Test
-    fun `pool empty - uses level description when available`() = runTest {
-        coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
-        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
-        coEvery { variationRepository.pickRandomUnused(1L) } returns null
-        coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 0) } returns
-            "Take three deep breaths"
-
-        pipeline.execute(42L)
-
-        coVerify { triggerRepository.updateFired(42L, 1L, "Take three deep breaths") }
-        coVerify {
-            notificationHelper.postTriggerNotification(
-                triggerId = 42L,
-                promptText = "Take three deep breaths",
-                habitName = "meditation"
-            )
-        }
     }
 
     @Test
@@ -195,7 +171,6 @@ class TriggerPipelineTest {
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
         coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
         coEvery { variationRepository.pickRandomUnused(1L) } throws RuntimeException("db error")
-        coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 0) } returns null
 
         pipeline.execute(42L)
 
@@ -318,6 +293,7 @@ class TriggerPipelineWeightTest {
     fun `pickWeighted with single habit always returns that habit`() {
         val habit = HabitEntity(
             id = 1L, name = "test",
+            levelDescriptions = listOf("low", "", "", "full", "", ""),
             createdAt = Instant.EPOCH, updatedAt = Instant.EPOCH
         )
         val result = TriggerPipeline.pickWeighted(listOf(habit), emptyMap(), nowMillis = 0L)
@@ -328,10 +304,12 @@ class TriggerPipelineWeightTest {
     fun `pickWeighted with null lastFired biases toward never-done habit`() {
         val neverDone = HabitEntity(
             id = 1L, name = "never",
+            levelDescriptions = listOf("l", "", "", "f", "", ""),
             createdAt = Instant.EPOCH, updatedAt = Instant.EPOCH
         )
         val recentlyDone = HabitEntity(
             id = 2L, name = "recent",
+            levelDescriptions = listOf("l", "", "", "f", "", ""),
             createdAt = Instant.EPOCH, updatedAt = Instant.EPOCH
         )
         val lastFiredMap = mapOf(1L to null, 2L to 0L)

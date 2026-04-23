@@ -33,7 +33,7 @@ class VariationDaoTest {
     fun tearDown() { db.close() }
 
     private suspend fun insertHabit(): Long = habitDao.insert(
-        HabitEntity(name = "h")
+        HabitEntity(name = "h", levelDescriptions = listOf("l", "", "", "f", "", ""))
     )
 
     @Test fun `insert then getUnusedForHabit returns inserted rows`() = runTest {
@@ -123,7 +123,7 @@ class VariationDaoTest {
 
     @Test fun `deleteByHabit removes only target habit variations`() = runTest {
         val h1 = insertHabit()
-        val h2 = habitDao.insert(HabitEntity(name = "h2"))
+        val h2 = habitDao.insert(HabitEntity(name = "h2", levelDescriptions = listOf("l2", "", "", "f2", "", "")))
         variationDao.insert(listOf(
             VariationEntity(habitId = h1, text = "v1", promptFingerprint = "fp1", generatedAt = Instant.EPOCH),
             VariationEntity(habitId = h2, text = "v2", promptFingerprint = "fp2", generatedAt = Instant.EPOCH)

@@ -22,5 +22,7 @@ data class TriggerEntity(
     @ColumnInfo(name = "generated_prompt")
     val generatedPrompt: String? = null,
     @ColumnInfo(name = "source")
-    val source: String? = null
+    val source: String? = null,
+    @ColumnInfo(name = "completion_level")
+    val completionLevel: Int? = null
 )

@@ -37,7 +37,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import net.interstellarai.unreminder.service.llm.AiStatus
+import net.interstellarai.unreminder.ui.theme.CompletedFull
 import net.interstellarai.unreminder.ui.theme.Dimens
+import net.interstellarai.unreminder.ui.theme.LevelColors
 import net.interstellarai.unreminder.ui.theme.DisplayHuge
 import net.interstellarai.unreminder.ui.theme.DisplaySmall
 import net.interstellarai.unreminder.ui.theme.MonoContextStrip
@@ -134,6 +136,7 @@ fun HabitListScreen(
                     items(habits, key = { it.id }) { habit ->
                         HabitRow(
                             name = habit.name,
+                            dedicationLevel = habit.dedicationLevel,
                             active = habit.active,
                             onClick = { onEditHabit(habit.id) },
                         )
@@ -220,6 +223,7 @@ private fun AiDownloadBanner(
 @Composable
 private fun HabitRow(
     name: String,
+    dedicationLevel: Int,
     active: Boolean,
     onClick: () -> Unit,
 ) {
@@ -234,13 +238,21 @@ private fun HabitRow(
         GlyphBubble()
         Spacer(Modifier.size(Dimens.md + 2.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = name,
-                style = DisplaySmall.copy(
-                    textDecoration = if (active) TextDecoration.None else TextDecoration.LineThrough,
-                ),
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = alpha),
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = name,
+                    style = DisplaySmall.copy(
+                        textDecoration = if (active) TextDecoration.None else TextDecoration.LineThrough,
+                    ),
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = alpha),
+                )
+                Text(
+                    "L$dedicationLevel",
+                    style = MonoLabelTiny,
+                    color = LevelColors.getOrElse(dedicationLevel) { CompletedFull },
+                    modifier = Modifier.padding(start = Dimens.sm)
+                )
+            }
         }
         Box(
             modifier = Modifier

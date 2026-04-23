@@ -92,7 +92,7 @@ class NotificationHelper @Inject constructor(
         val notification = NotificationCompat.Builder(context, CHANNEL_ID_SYSTEM)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle("Paused $habitName")
-            .setContentText("Rewrite its low-floor description to re-activate.")
+            .setContentText("Tap to review and re-activate.")
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
             .build()

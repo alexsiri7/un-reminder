@@ -43,8 +43,8 @@ class RequestyProxyClientTest {
         )
 
         val result = proxyClient.habitFields("Meditate", baseUrl(), "secret")
-        assertEquals("Meditate daily", result.levelDescriptions[5])
         assertEquals("Just sit", result.levelDescriptions[0])
+        assertEquals("Meditate daily", result.levelDescriptions[3])
     }
 
     @Test
@@ -84,8 +84,8 @@ class RequestyProxyClientTest {
                 .addHeader("Content-Type", "application/json")
         )
 
-        val habit = HabitEntity(name = "Meditate")
-        val result = proxyClient.preview(habit, "Daily practice", "Home", baseUrl(), "secret")
+        val habit = HabitEntity(name = "Meditate", levelDescriptions = listOf("Sit", "", "", "Daily practice", "", ""))
+        val result = proxyClient.preview(habit, "Home", baseUrl(), "secret")
         assertEquals("Time to meditate!", result)
     }
 
@@ -93,9 +93,9 @@ class RequestyProxyClientTest {
     fun `preview throws WorkerAuthException on 401`() = runTest {
         server.enqueue(MockResponse().setResponseCode(401).setBody("Unauthorized"))
 
-        val habit = HabitEntity(name = "Meditate")
+        val habit = HabitEntity(name = "Meditate", levelDescriptions = listOf("Sit", "", "", "Daily practice", "", ""))
         assertFailsWith<WorkerAuthException> {
-            proxyClient.preview(habit, "Daily practice", "Home", baseUrl(), "wrong-secret")
+            proxyClient.preview(habit, "Home", baseUrl(), "wrong-secret")
         }
     }
 
@@ -103,9 +103,9 @@ class RequestyProxyClientTest {
     fun `preview throws SpendCapExceededException on 402`() = runTest {
         server.enqueue(MockResponse().setResponseCode(402).setBody("""{"error":"cap"}"""))
 
-        val habit = HabitEntity(name = "Meditate")
+        val habit = HabitEntity(name = "Meditate", levelDescriptions = listOf("Sit", "", "", "Daily practice", "", ""))
         assertFailsWith<SpendCapExceededException> {
-            proxyClient.preview(habit, "Daily practice", "Home", baseUrl(), "secret")
+            proxyClient.preview(habit, "Home", baseUrl(), "secret")
         }
     }
 
@@ -113,9 +113,9 @@ class RequestyProxyClientTest {
     fun `preview throws WorkerError on 500`() = runTest {
         server.enqueue(MockResponse().setResponseCode(500).setBody("Internal Server Error"))
 
-        val habit = HabitEntity(name = "Meditate")
+        val habit = HabitEntity(name = "Meditate", levelDescriptions = listOf("Sit", "", "", "Daily practice", "", ""))
         val ex = assertFailsWith<WorkerError> {
-            proxyClient.preview(habit, "Daily practice", "Home", baseUrl(), "secret")
+            proxyClient.preview(habit, "Home", baseUrl(), "secret")
         }
         assertEquals(500, ex.code)
     }

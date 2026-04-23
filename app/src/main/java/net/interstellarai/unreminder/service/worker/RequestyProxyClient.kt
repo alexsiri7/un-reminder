@@ -44,18 +44,14 @@ class RequestyProxyClient @Inject constructor(
             val body = JSONObject(rawBody)
             val full = body.getString("fullDescription")
             val lowFloor = body.getString("lowFloorDescription")
-            // Worker still returns the legacy binary format (fullDescription / lowFloorDescription).
-            // Map to the 6-level ladder: low-floor anchors level 0, full anchors level 5;
-            // intermediate levels 1–4 are blank and can be filled in the editor.
             AiHabitFields(
-                levelDescriptions = listOf(lowFloor, "", "", "", "", full)
+                levelDescriptions = listOf(lowFloor, "", "", full, "", "")
             )
         }
     }
 
     suspend fun preview(
         habit: HabitEntity,
-        notes: String,
         locationName: String,
         workerUrl: String,
         secret: String,
@@ -64,7 +60,8 @@ class RequestyProxyClient @Inject constructor(
             put("title", habit.name)
             // TODO: pass real tags once HabitEntity carries them (currently loaded via junction table)
             put("tags", JSONArray())
-            put("notes", notes)
+            // Send the current-level description as notes for the preview
+            put("notes", habit.levelDescriptions.getOrElse(habit.dedicationLevel) { "" })
         }
         val payload = JSONObject().apply {
             put("habit", habitObj)

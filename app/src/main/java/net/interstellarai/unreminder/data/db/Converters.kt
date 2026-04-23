@@ -23,4 +23,15 @@ class Converters {
 
     @TypeConverter
     fun toTriggerStatus(value: String?): TriggerStatus? = value?.let { TriggerStatus.valueOf(it) }
+
+    @TypeConverter
+    fun fromStringList(value: List<String>?): String? =
+        value?.let { org.json.JSONArray(it).toString() }
+
+    @TypeConverter
+    fun toStringList(value: String?): List<String>? =
+        value?.let { json ->
+            val arr = org.json.JSONArray(json)
+            (0 until arr.length()).map { arr.getString(it) }
+        }
 }

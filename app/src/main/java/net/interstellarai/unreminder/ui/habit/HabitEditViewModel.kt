@@ -7,14 +7,12 @@ import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.db.LocationEntity
 import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.data.db.WindowEntity
-import net.interstellarai.unreminder.data.repository.HabitLevelDescriptionRepository
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.data.repository.WindowRepository
 import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.service.llm.PromptGenerator
-import net.interstellarai.unreminder.service.trigger.DedicationLevelManager
 import net.interstellarai.unreminder.service.worker.RefillScheduler
 import net.interstellarai.unreminder.service.worker.SpendCapExceededException
 import net.interstellarai.unreminder.service.worker.WorkerAuthException
@@ -35,9 +33,7 @@ import javax.inject.Inject
 
 data class HabitEditUiState(
     val name: String = "",
-    val levelDescriptions: List<String> = List(DedicationLevelManager.MAX_LEVEL + 1) { "" },
-    val dedicationLevel: Int = 0,
-    val autoAdjustLevel: Boolean = true,
+    val levelDescriptions: List<String> = List(6) { "" },
     val selectedLocationIds: Set<Long> = emptySet(),
     val selectedWindowIds: Set<Long> = emptySet(),
     val active: Boolean = true,
@@ -60,7 +56,6 @@ class HabitEditViewModel @Inject constructor(
     private val promptGenerator: PromptGenerator,
     private val refillScheduler: RefillScheduler,
     private val variationRepository: VariationRepository,
-    private val levelDescriptionRepository: HabitLevelDescriptionRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HabitEditUiState())
@@ -97,7 +92,6 @@ class HabitEditViewModel @Inject constructor(
     }
 
     private var existingHabit: HabitEntity? = null
-    private var existingLevelDescriptions: List<String> = emptyList()
 
     fun loadHabit(id: Long) {
         viewModelScope.launch {
@@ -112,15 +106,9 @@ class HabitEditViewModel @Inject constructor(
                 val locationIds = habitRepository.getLocationIds(id).toSet()
                 val windowIds = habitRepository.getWindowIds(id).toSet()
                 existingHabit = habit
-                val descEntities = levelDescriptionRepository.getDescriptionsForHabit(id)
-                val descs = MutableList(DedicationLevelManager.MAX_LEVEL + 1) { "" }
-                descEntities.forEach { e -> if (e.level in 0..DedicationLevelManager.MAX_LEVEL) descs[e.level] = e.description }
-                existingLevelDescriptions = descs.toList()
                 _uiState.value = HabitEditUiState(
                     name = habit.name,
-                    levelDescriptions = descs,
-                    dedicationLevel = habit.dedicationLevel,
-                    autoAdjustLevel = habit.autoAdjustLevel,
+                    levelDescriptions = habit.levelDescriptions,
                     selectedLocationIds = locationIds,
                     selectedWindowIds = windowIds,
                     active = habit.active
@@ -136,12 +124,12 @@ class HabitEditViewModel @Inject constructor(
     }
 
     fun updateName(name: String) { _uiState.value = _uiState.value.copy(name = name) }
-    fun updateLevelDescription(level: Int, desc: String) {
+
+    fun updateLevelDescription(index: Int, desc: String) {
         val updated = _uiState.value.levelDescriptions.toMutableList()
-        if (level in updated.indices) updated[level] = desc
+        updated[index] = desc
         _uiState.value = _uiState.value.copy(levelDescriptions = updated)
     }
-    fun updateAutoAdjustLevel(value: Boolean) { _uiState.value = _uiState.value.copy(autoAdjustLevel = value) }
 
     fun toggleLocation(locationId: Long) {
         val current = _uiState.value.selectedLocationIds
@@ -176,8 +164,7 @@ class HabitEditViewModel @Inject constructor(
                     habitRepository.update(
                         existing.copy(
                             name = state.name,
-                            dedicationLevel = state.dedicationLevel,
-                            autoAdjustLevel = state.autoAdjustLevel,
+                            levelDescriptions = state.levelDescriptions,
                             active = state.active
                         )
                     )
@@ -186,13 +173,11 @@ class HabitEditViewModel @Inject constructor(
                     habitRepository.insert(
                         HabitEntity(
                             name = state.name,
-                            dedicationLevel = state.dedicationLevel,
-                            autoAdjustLevel = state.autoAdjustLevel,
+                            levelDescriptions = state.levelDescriptions,
                             active = state.active
                         )
                     )
                 }
-                levelDescriptionRepository.setDescriptions(habitId, state.levelDescriptions)
                 habitRepository.setLocations(habitId, state.selectedLocationIds)
                 habitRepository.setWindows(habitId, state.selectedWindowIds)
                 _uiState.value = _uiState.value.copy(isSaved = true)
@@ -207,7 +192,7 @@ class HabitEditViewModel @Inject constructor(
             try {
                 if (existing != null) {
                     val promptChanged = existing.name != state.name ||
-                        existingLevelDescriptions != state.levelDescriptions
+                        existing.levelDescriptions != state.levelDescriptions
                     if (promptChanged) {
                         variationRepository.deleteForHabit(habitId)
                         refillScheduler.enqueueForHabit(habitId)
@@ -235,7 +220,6 @@ class HabitEditViewModel @Inject constructor(
             } catch (e: SpendCapExceededException) {
                 _uiState.value = _uiState.value.copy(
                     isGeneratingFields = false,
-                    // errorMessage intentionally omitted — showSpendCapLink snackbar carries the full message + action
                     showSpendCapLink = true,
                 )
             } catch (e: Exception) {
@@ -262,13 +246,8 @@ class HabitEditViewModel @Inject constructor(
         val state = _uiState.value
         val tempHabit = HabitEntity(
             name = state.name,
-            dedicationLevel = state.dedicationLevel,
-            autoAdjustLevel = state.autoAdjustLevel
+            levelDescriptions = state.levelDescriptions
         )
-        // Use the current-level description as preview notes;
-        // fall back to the first non-blank level if the current level is empty.
-        val notes = state.levelDescriptions.getOrElse(state.dedicationLevel) { "" }
-            .ifBlank { state.levelDescriptions.firstOrNull { it.isNotBlank() } ?: "" }
         val locationName = if (state.selectedLocationIds.isEmpty()) {
             "Anywhere"
         } else {
@@ -276,7 +255,7 @@ class HabitEditViewModel @Inject constructor(
                 .joinToString(", ") { it.name }
                 .ifBlank { "Anywhere" }
         }
-        val text = promptGenerator.previewHabitNotification(tempHabit, notes, locationName)
+        val text = promptGenerator.previewHabitNotification(tempHabit, locationName)
         _uiState.value = _uiState.value.copy(
             isGeneratingFields = false,
             previewNotification = text,

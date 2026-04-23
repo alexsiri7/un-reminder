@@ -38,6 +38,7 @@ import net.interstellarai.unreminder.ui.theme.Dimens
 import net.interstellarai.unreminder.ui.theme.Dismissed
 import net.interstellarai.unreminder.ui.theme.DisplayHuge
 import net.interstellarai.unreminder.ui.theme.DisplaySmall
+import net.interstellarai.unreminder.ui.theme.LevelColors
 import net.interstellarai.unreminder.ui.theme.MonoContextStrip
 import net.interstellarai.unreminder.ui.theme.MonoLabelTiny
 import net.interstellarai.unreminder.ui.theme.MonoSectionLabel
@@ -46,11 +47,11 @@ import net.interstellarai.unreminder.ui.theme.SansBody
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-// ─────────────────────────────────────────────────────────────────────────
+// ──────��──────────────────────────────────────────────────────────────────
 // Recent triggers — visual pass using the handoff's language: mono meta
 // labels, italic serif prompt text, a small accent dot for status rather
 // than a suggestion-chip. ViewModel untouched.
-// ─────────────────────────────────────────────────────────────────────────
+// ─────────────────���───────────────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -116,6 +117,7 @@ fun RecentTriggersScreen(
                             habitName = item.habitName ?: "unknown",
                             prompt = item.trigger.generatedPrompt,
                             status = item.trigger.status,
+                            completionLevel = item.trigger.completionLevel,
                             scheduledText = item.trigger.scheduledAt
                                 .atZone(ZoneId.systemDefault())
                                 .format(formatter),
@@ -138,6 +140,7 @@ private fun TriggerRow(
     habitName: String,
     prompt: String?,
     status: TriggerStatus,
+    completionLevel: Int?,
     scheduledText: String,
 ) {
     Row(
@@ -146,7 +149,7 @@ private fun TriggerRow(
             .padding(horizontal = Dimens.lg, vertical = Dimens.md + 2.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        StatusDot(status)
+        StatusDot(status, completionLevel)
         Spacer(Modifier.width(Dimens.md - 2.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -164,7 +167,7 @@ private fun TriggerRow(
             }
             Spacer(Modifier.height(Dimens.xs))
             Row {
-                MonoSectionLabel(statusLabel(status))
+                MonoSectionLabel(statusLabel(status, completionLevel))
                 Spacer(Modifier.width(Dimens.sm))
                 Text(
                     scheduledText,
@@ -177,9 +180,9 @@ private fun TriggerRow(
 }
 
 @Composable
-private fun StatusDot(status: TriggerStatus) {
+private fun StatusDot(status: TriggerStatus, completionLevel: Int?) {
     val color = when (status) {
-        TriggerStatus.COMPLETED -> CompletedFull
+        TriggerStatus.COMPLETED -> LevelColors.getOrElse(completionLevel ?: 0) { CompletedFull }
         TriggerStatus.DISMISSED -> Dismissed
         else -> MaterialTheme.colorScheme.outline
     }
@@ -191,8 +194,8 @@ private fun StatusDot(status: TriggerStatus) {
     )
 }
 
-private fun statusLabel(status: TriggerStatus): String = when (status) {
-    TriggerStatus.COMPLETED -> "done"
+private fun statusLabel(status: TriggerStatus, completionLevel: Int?): String = when (status) {
+    TriggerStatus.COMPLETED -> "done \u00b7 level ${completionLevel ?: 0}"
     TriggerStatus.DISMISSED -> "dismissed"
     else -> status.name.lowercase().replace('_', ' ')
 }
