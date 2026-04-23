@@ -35,12 +35,21 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
                 `updated_at` INTEGER NOT NULL
             )
         """.trimIndent())
-        db.execSQL("""
-            INSERT INTO `habits_new` (`id`, `name`, `dedication_level`, `level_descriptions`, `active`, `created_at`, `updated_at`)
-            SELECT `id`, `name`, 0, json_array(`low_floor_description`, '', '', `full_description`, '', ''),
-                   `active`, `created_at`, `updated_at`
-            FROM `habits`
-        """.trimIndent())
+
+        // Build JSON array via string concatenation (avoids json_array() which
+        // requires the JSON1 extension that may not be available in all SQLite builds).
+        // Escape double-quote inside values so the result is valid JSON.
+        val escQuote = """REPLACE(%s, '"', '\"')"""
+        val lowExpr = escQuote.format("`low_floor_description`")
+        val fullExpr = escQuote.format("`full_description`")
+        db.execSQL(
+            "INSERT INTO `habits_new` (`id`, `name`, `dedication_level`, `level_descriptions`, `active`, `created_at`, `updated_at`) " +
+            "SELECT `id`, `name`, 0, " +
+            "'[\"' || $lowExpr || '\",\"\",\"\",\"' || $fullExpr || '\",\"\",\"\"]', " +
+            "`active`, `created_at`, `updated_at` " +
+            "FROM `habits`"
+        )
+
         db.execSQL("DROP TABLE `habits`")
         db.execSQL("ALTER TABLE `habits_new` RENAME TO `habits`")
     }
