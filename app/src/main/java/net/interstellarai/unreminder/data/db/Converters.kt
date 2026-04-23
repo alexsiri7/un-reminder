@@ -23,7 +23,12 @@ class Converters {
     fun fromTriggerStatus(value: TriggerStatus?): String? = value?.name
 
     @TypeConverter
-    fun toTriggerStatus(value: String?): TriggerStatus? = value?.let { TriggerStatus.valueOf(it) }
+    fun toTriggerStatus(value: String?): TriggerStatus? = value?.let {
+        when (it) {
+            "COMPLETED_FULL", "COMPLETED_LOW_FLOOR" -> TriggerStatus.COMPLETED
+            else -> TriggerStatus.valueOf(it)
+        }
+    }
 
     @TypeConverter
     fun fromDescriptionLadder(list: List<String>?): String? =

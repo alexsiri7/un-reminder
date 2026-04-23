@@ -13,14 +13,7 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
         // Backfill: slot 0 = low_floor_description, slot 3 = full_description, rest empty
         db.execSQL("""
             UPDATE `habits`
-            SET `description_ladder` = json_array(
-                `low_floor_description`,
-                '',
-                '',
-                `full_description`,
-                '',
-                ''
-            )
+            SET `description_ladder` = '["' || replace(`low_floor_description`, '"', '\"') || '","","","' || replace(`full_description`, '"', '\"') || '","",""]'
         """.trimIndent())
     }
 }

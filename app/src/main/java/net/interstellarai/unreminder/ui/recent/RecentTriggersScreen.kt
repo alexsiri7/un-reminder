@@ -181,8 +181,6 @@ private fun TriggerRow(
 private fun StatusDot(status: TriggerStatus) {
     val color = when (status) {
         TriggerStatus.COMPLETED -> CompletedFull
-        TriggerStatus.COMPLETED_FULL -> CompletedFull
-        TriggerStatus.COMPLETED_LOW_FLOOR -> CompletedLowFloor
         TriggerStatus.DISMISSED -> Dismissed
         else -> MaterialTheme.colorScheme.outline
     }
@@ -196,8 +194,6 @@ private fun StatusDot(status: TriggerStatus) {
 
 private fun statusLabel(status: TriggerStatus): String = when (status) {
     TriggerStatus.COMPLETED -> "done"
-    TriggerStatus.COMPLETED_FULL -> "done \u00b7 full"
-    TriggerStatus.COMPLETED_LOW_FLOOR -> "done \u00b7 floor"
     TriggerStatus.DISMISSED -> "dismissed"
     else -> status.name.lowercase().replace('_', ' ')
 }
