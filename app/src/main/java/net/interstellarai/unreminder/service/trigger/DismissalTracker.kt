@@ -80,8 +80,8 @@ class DismissalTracker @Inject constructor(
             Log.d(TAG, "Habit ${habit.name} has autoAdjustLevel disabled, skipping promotion")
             return
         }
-        if (habit.dedicationLevel >= 5) {
-            Log.d(TAG, "Habit ${habit.name} already at max level 5, skipping promotion")
+        if (habit.dedicationLevel >= DedicationLevelManager.MAX_LEVEL) {
+            Log.d(TAG, "Habit ${habit.name} already at max level ${DedicationLevelManager.MAX_LEVEL}, skipping promotion")
             return
         }
 
