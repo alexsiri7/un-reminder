@@ -32,6 +32,14 @@ class Migration6To7Test {
                         "PRIMARY KEY(`habit_id`, `window_id`)" +
                         ")"
                     )
+                    db.execSQL(
+                        "CREATE TABLE IF NOT EXISTS `triggers` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`window_id` INTEGER, `habit_id` INTEGER, " +
+                        "`scheduled_at` INTEGER NOT NULL, `fired_at` INTEGER, " +
+                        "`status` TEXT NOT NULL DEFAULT 'SCHEDULED', " +
+                        "`generated_prompt` TEXT, `source` TEXT)"
+                    )
                 }
                 override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) {}
             }).build()
@@ -141,6 +149,40 @@ class Migration6To7Test {
 
         assertTrue(indices.contains("index_habit_level_descriptions_habit_id"))
 
+        db.close()
+    }
+
+    @Test
+    fun `migration updates legacy trigger statuses to COMPLETED`() {
+        val db = createV6Database()
+        db.execSQL(
+            "INSERT INTO habits (name, full_description, low_floor_description) VALUES ('h', 'full', 'low')"
+        )
+        db.execSQL(
+            "INSERT INTO triggers (habit_id, scheduled_at, status) VALUES (1, 1000, 'COMPLETED_FULL')"
+        )
+        db.execSQL(
+            "INSERT INTO triggers (habit_id, scheduled_at, status) VALUES (1, 2000, 'COMPLETED_LOW_FLOOR')"
+        )
+        db.execSQL(
+            "INSERT INTO triggers (habit_id, scheduled_at, status) VALUES (1, 3000, 'DISMISSED')"
+        )
+
+        MIGRATION_6_7.migrate(db)
+
+        val cursor = db.query("SELECT status FROM triggers ORDER BY scheduled_at ASC")
+        assertEquals(3, cursor.count)
+
+        cursor.moveToFirst()
+        assertEquals("COMPLETED", cursor.getString(cursor.getColumnIndex("status")))
+
+        cursor.moveToNext()
+        assertEquals("COMPLETED", cursor.getString(cursor.getColumnIndex("status")))
+
+        cursor.moveToNext()
+        assertEquals("DISMISSED", cursor.getString(cursor.getColumnIndex("status")))
+
+        cursor.close()
         db.close()
     }
 }

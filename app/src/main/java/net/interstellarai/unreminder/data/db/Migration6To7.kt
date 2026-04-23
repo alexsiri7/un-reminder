@@ -51,7 +51,13 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
             WHERE `full_description` <> ''
         """.trimIndent())
 
-        // 5. Drop old habits table and rename new one
+        // 5. Map legacy completion statuses to unified COMPLETED
+        db.execSQL("""
+            UPDATE `triggers` SET `status` = 'COMPLETED'
+            WHERE `status` IN ('COMPLETED_FULL', 'COMPLETED_LOW_FLOOR')
+        """.trimIndent())
+
+        // 6. Drop old habits table and rename new one
         db.execSQL("DROP TABLE `habits`")
         db.execSQL("ALTER TABLE `habits_new` RENAME TO `habits`")
     }
