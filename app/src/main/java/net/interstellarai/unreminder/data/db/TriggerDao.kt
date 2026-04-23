@@ -41,4 +41,7 @@ interface TriggerDao {
 
     @Query("SELECT * FROM triggers WHERE habit_id = :habitId AND fired_at IS NOT NULL ORDER BY fired_at DESC LIMIT :limit")
     suspend fun getLastNForHabit(habitId: Long, limit: Int): List<TriggerEntity>
+
+    @Query("SELECT COUNT(*) FROM triggers WHERE habit_id = :habitId AND status = 'COMPLETED' AND fired_at >= :sinceMillis")
+    suspend fun countCompletionsSince(habitId: Long, sinceMillis: Long): Int
 }

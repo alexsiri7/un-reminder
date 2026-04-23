@@ -43,8 +43,8 @@ class DismissalTrackerTest {
     private val testHabit = HabitEntity(
         id = habitId,
         name = "meditation",
-        fullDescription = "20-minute session",
-        lowFloorDescription = "3 deep breaths",
+        dedicationLevel = 0,
+        autoAdjustLevel = true,
         active = true,
         createdAt = Instant.now(),
         updatedAt = Instant.now()
@@ -92,7 +92,7 @@ class DismissalTrackerTest {
         coEvery { triggerRepository.getById(triggerId) } returns makeTrigger(TriggerStatus.DISMISSED)
         coEvery { triggerRepository.getLastNForHabit(habitId, 3) } returns listOf(
             makeDismissedTrigger(42),
-            TriggerEntity(id = 41, scheduledAt = Instant.now(), firedAt = Instant.now(), status = TriggerStatus.COMPLETED_FULL, habitId = habitId),
+            TriggerEntity(id = 41, scheduledAt = Instant.now(), firedAt = Instant.now(), status = TriggerStatus.COMPLETED, habitId = habitId),
             makeDismissedTrigger(40)
         )
 

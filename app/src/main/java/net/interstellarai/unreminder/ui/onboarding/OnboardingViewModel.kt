@@ -82,8 +82,6 @@ class OnboardingViewModel @Inject constructor(
                     habitRepository.insert(
                         HabitEntity(
                             name = state.habitName,
-                            fullDescription = "",
-                            lowFloorDescription = "",
                             active = true
                         )
                     )

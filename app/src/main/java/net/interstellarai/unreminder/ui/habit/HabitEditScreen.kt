@@ -191,21 +191,45 @@ fun HabitEditScreen(
             Spacer(Modifier.height(Dimens.xl))
 
             Column(modifier = Modifier.padding(horizontal = Dimens.xxl)) {
-                DescriptionBlock(
-                    label = "full version",
-                    value = uiState.fullDescription,
-                    onValueChange = viewModel::updateFullDescription,
-                    flashAlpha = flashAlpha.value,
-                    placeholder = "what it actually is — e.g. 20-minute guided meditation",
+                DedicationProgressBar(
+                    level = uiState.dedicationLevel,
+                    modifier = Modifier.padding(vertical = 8.dp)
                 )
-                Spacer(Modifier.height(Dimens.lg))
-                DescriptionBlock(
-                    label = "low-floor · counts as a win",
-                    value = uiState.lowFloorDescription,
-                    onValueChange = viewModel::updateLowFloorDescription,
-                    flashAlpha = flashAlpha.value,
-                    placeholder = "the minimum — e.g. 3 deep breaths",
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    MonoSectionLabel(text = "auto-adjust level")
+                    Switch(
+                        checked = uiState.autoAdjustLevel,
+                        onCheckedChange = { viewModel.updateAutoAdjustLevel(it) },
+                        colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.colorScheme.primary)
+                    )
+                }
+                Spacer(Modifier.height(Dimens.md))
+                uiState.levelDescriptions.forEachIndexed { level, desc ->
+                    val isCurrent = level == uiState.dedicationLevel
+                    TextField(
+                        value = desc,
+                        onValueChange = { viewModel.updateLevelDescription(level, it) },
+                        label = { Text(text = if (isCurrent) "level $level (current)" else "level $level", style = MonoLabel) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp)
+                            .then(
+                                if (isCurrent) Modifier.border(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.primary,
+                                    UnReminderShapes.small
+                                ) else Modifier
+                            ),
+                        colors = TextFieldDefaults.colors(
+                            unfocusedContainerColor = Color.Transparent,
+                            focusedContainerColor = Color.Transparent
+                        )
+                    )
+                }
             }
 
             Column(modifier = Modifier.padding(horizontal = Dimens.xxl, vertical = Dimens.xxl)) {
@@ -256,8 +280,7 @@ fun HabitEditScreen(
 
             PreviewCard(
                 enabled = uiState.name.isNotBlank() &&
-                    uiState.fullDescription.isNotBlank() &&
-                    uiState.lowFloorDescription.isNotBlank() &&
+                    uiState.levelDescriptions.any { it.isNotBlank() } &&
                     !uiState.isGeneratingFields,
                 loading = uiState.isGeneratingFields,
                 onResample = { viewModel.previewNotification() },

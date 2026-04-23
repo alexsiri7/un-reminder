@@ -108,13 +108,19 @@ The following must be set via `wrangler secret put` before deploying the CF Work
 A repeatable thing the user wants to do. Each habit has:
 - `id`
 - `name` — user-facing, short (e.g. "meditation", "gratefulness", "singing practice").
-- `full_description` — the full version (e.g. "20-minute guided meditation").
-- `low_floor_description` — the minimum-viable version (e.g. "3 deep breaths"). **Completing this counts as a win.**
+- `dedication_level` — integer 0–5. The user's current commitment level for this habit, auto-promoted
+  by `DedicationLevelManager` when completion thresholds are met. Defaults to 0.
+- `auto_adjust_level` — boolean. When `true`, `DedicationLevelManager` will auto-promote `dedication_level`
+  based on recent completions. Defaults to `true`.
 - `locations` — zero or more named `Location` records associated via the `habit_location` junction table. A habit with **no** associated locations is eligible everywhere ("Anywhere" semantics). A habit with one or more locations is only eligible when the user is at one of those locations.
 - `active` — boolean. Inactive habits are never selected. Can be toggled manually in the habit editor.
   The system also sets this to `false` automatically after 3 consecutive `DISMISSED` triggers
   (see [Trigger Logic §5](#5-trigger-logic)).
 - `created_at`, `updated_at`.
+
+Per-level descriptive text is stored separately in `HabitLevelDescriptionEntity` (`habit_level_descriptions`
+table), keyed by `(habit_id, level)`. Levels 0 and 5 are pre-populated during migration from the old
+`low_floor_description` and `full_description` values; levels 1–4 can be filled by the user or AI autofill.
 
 ### HabitLocationCrossRef
 A many-to-many join between `Habit` and `Location`. Each row has:
@@ -139,7 +145,7 @@ A scheduled notification event.
 - `habit_id` (populated at fire time, not schedule time — see below)
 - `scheduled_at` — timestamp.
 - `fired_at` — nullable.
-- `status` — `{SCHEDULED, FIRED, COMPLETED_FULL, COMPLETED_LOW_FLOOR, DISMISSED}`.
+- `status` — `{SCHEDULED, FIRED, COMPLETED, DISMISSED}`.
 - `generated_prompt` — the AI-generated text actually shown in the notification.
 
 ### Location
@@ -190,8 +196,8 @@ updated by geofence `ENTER`/`EXIT` callbacks. Empty set means no known location.
    not recently prompted. Weight formula: `1 + min(minutesSince, 1440) / 120`, where
    `minutesSince` is minutes since the habit was last fired (cap: 1440 min = 24 h). A habit
    never fired receives the maximum weight (~13×). If the eligible set is empty, skip silently.
-4. Pick an unused variation from the cloud-generated pool (see Variation entity). If the pool is empty, fall back to `habit.name` and enqueue a refill.
-5. Post the notification with the generated text. Action buttons: **Did the full version**, **Did the low-floor**, **Dismiss**.
+4. Pick an unused variation from the cloud-generated pool (see Variation entity). If the pool is empty, use the level description fallback (see Fallback below).
+5. Post the notification with the generated text. Action buttons: **Complete**, **Skip**.
 6. Record the trigger row with the generated prompt and the outcome when the user responds.
    If the last 3 triggers for the same habit are all `DISMISSED`, the habit is automatically set to
    `active = false` (auto-paused). The user can re-activate it by editing the habit.
@@ -203,11 +209,16 @@ Notification texts are pre-generated in batches by the Cloudflare Worker (`/v1/g
 When the pool runs low (`VariationRepository.needsRefill`), a `RefillWorker` is enqueued to fetch a fresh batch from the worker.
 
 ### Fallback
-If the variation pool is empty at fire time, the notification falls back to `habit.name` and a refill is enqueued. AI autofill and notification preview features call the worker directly and throw on failure so the UI can surface a clear error message.
+If the variation pool is empty at fire time, the notification uses the `HabitLevelDescriptionEntity`
+text for the habit's current `dedication_level` as the prompt body. If that is also blank, it falls
+back to `habit.name`. A refill is enqueued in both cases. AI autofill and notification preview features call the worker directly and throw on failure so the UI can surface a clear error message.
 
 ### Habit-field autofill (cloud)
 
-Used to generate `full_description` and `low_floor_description` when the user taps "Autofill with AI" in the Habit editor. Calls the worker's `/v1/habit-fields` endpoint with the habit title.
+Used to populate the 6-level description ladder when the user taps "Autofill with AI" in the Habit editor.
+Calls the worker's `/v1/habit-fields` endpoint (response still returns `fullDescription` + `lowFloorDescription`
+for backwards compatibility). The Android client maps `lowFloorDescription` → level 0 and `fullDescription`
+→ level 5; levels 1–4 remain blank until the user fills them in.
 
 ### Notification preview (cloud)
 
@@ -218,8 +229,12 @@ Generates a sample notification via the worker's `/v1/preview` endpoint. Shown i
 ## 6. Screens (MVP)
 
 1. **Home screen** — list of habits. FAB → add habit. Tap habit → edit.
-2. **Habit editor** — name, full description, low-floor description, location chips (multi-select from saved locations; no selection = "Anywhere"), active toggle.
-   AI-assist row: **Autofill with AI** (fills description fields from the habit name via on-device LLM; enabled when name ≥ 2 chars) · **Preview notification** (generates a sample notification text in a dialog; enabled when all description fields are filled).
+2. **Habit editor** — name, dedication level progress bar (0–5), auto-adjust toggle, 6-level
+   description fields (level 0 = minimum/low-floor, level 5 = full version; current level highlighted),
+   location chips (multi-select from saved locations; no selection = "Anywhere"), active toggle.
+   AI-assist row: **Autofill with AI** (populates levels 0 and 5 from the habit name via cloud AI;
+   enabled when name ≥ 2 chars) · **Preview notification** (generates a sample notification text;
+   enabled when at least one level description is non-blank).
 3. **Windows screen** — list of windows. FAB → add window. Tap → edit.
 4. **Window editor** — start/end time pickers, days-of-week chips, frequency slider (1–3), active toggle.
 5. **Locations screen** — dynamic list of named locations (any label, not restricted to HOME/WORK).
@@ -249,8 +264,9 @@ Generates a sample notification via the worker's `/v1/preview` endpoint. Shown i
 ## 8. Database Schema (Room)
 
 ```kotlin
-// DB version 5
-@Entity Habit(id, name, full_description, low_floor_description, active, created_at, updated_at)
+// DB version 7
+@Entity Habit(id, name, dedication_level/*Int 0-5*/, auto_adjust_level/*Boolean*/, active, created_at, updated_at)
+@Entity HabitLevelDescriptionEntity(habit_id → Habit.id CASCADE, level/*0-5*/, description)  // per-level text
 @Entity Window(id, start_time, end_time, days_of_week_bitmask, frequency_per_day, active)
 @Entity Location(id, name /* user-defined, e.g. "Home", "Gym", "Office" */, lat, lng, radius_m)
 @Entity HabitLocationCrossRef(habit_id → Habit.id CASCADE, location_id → Location.id CASCADE)  // junction
@@ -269,7 +285,7 @@ The app is considered MVP-complete when:
 2. Daily schedule job correctly populates `Trigger` rows for the next 24h based on active windows.
 3. At least one window trigger fires during its window with a Gemma 3 1B-generated prompt.
 4. Entering the registered `HOME` geofence triggers exactly one notification 5 minutes later (debounced).
-5. Notification actions correctly record `COMPLETED_FULL`, `COMPLETED_LOW_FLOOR`, or `DISMISSED`.
+5. Notification actions correctly record `COMPLETED` or `DISMISSED`.
 6. Recent triggers screen displays the last 20 triggers with their generated prompts.
 7. App works with airplane mode on (no network dependency).
 8. Cold-start to habit list is under 1 second.

@@ -79,7 +79,7 @@ class RefillWorkerTest {
 
     @Test
     fun `doWork inserts variants and returns success on happy path`() = runTest {
-        val habit = HabitEntity(id = 1L, name = "Meditate", fullDescription = "Daily", lowFloorDescription = "Sit")
+        val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
         val variants = (1..20).map { "variant $it" }
         coEvery {
@@ -101,7 +101,7 @@ class RefillWorkerTest {
 
     @Test
     fun `doWork returns failure on SpendCapExceededException`() = runTest {
-        val habit = HabitEntity(id = 1L, name = "Meditate", fullDescription = "Daily", lowFloorDescription = "Sit")
+        val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
         coEvery {
             mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any())
@@ -113,7 +113,7 @@ class RefillWorkerTest {
 
     @Test
     fun `doWork returns failure on WorkerAuthException`() = runTest {
-        val habit = HabitEntity(id = 1L, name = "Meditate", fullDescription = "Daily", lowFloorDescription = "Sit")
+        val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
         coEvery {
             mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any())
@@ -125,7 +125,7 @@ class RefillWorkerTest {
 
     @Test
     fun `doWork returns retry on IOException`() = runTest {
-        val habit = HabitEntity(id = 1L, name = "Meditate", fullDescription = "Daily", lowFloorDescription = "Sit")
+        val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
         coEvery {
             mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any())
@@ -137,7 +137,7 @@ class RefillWorkerTest {
 
     @Test
     fun `doWork returns retry on WorkerError with 500 code`() = runTest {
-        val habit = HabitEntity(id = 1L, name = "Meditate", fullDescription = "Daily", lowFloorDescription = "Sit")
+        val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
         coEvery {
             mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any())
@@ -149,7 +149,7 @@ class RefillWorkerTest {
 
     @Test
     fun `doWork returns failure on WorkerError with 400 code`() = runTest {
-        val habit = HabitEntity(id = 1L, name = "Meditate", fullDescription = "Daily", lowFloorDescription = "Sit")
+        val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
         coEvery {
             mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any())

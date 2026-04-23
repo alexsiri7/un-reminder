@@ -86,8 +86,8 @@ class CloudSettingsViewModelTest {
     @Test
     fun `regenerateAll deletes pool and enqueues refill for each active habit`() = runTest(testDispatcher) {
         val habits = listOf(
-            HabitEntity(id = 1L, name = "A", fullDescription = "", lowFloorDescription = ""),
-            HabitEntity(id = 2L, name = "B", fullDescription = "", lowFloorDescription = ""),
+            HabitEntity(id = 1L, name = "A"),
+            HabitEntity(id = 2L, name = "B"),
         )
         coEvery { mockHabitRepository.getAllActive() } returns flowOf(habits)
 
@@ -104,8 +104,8 @@ class CloudSettingsViewModelTest {
     @Test
     fun `regenerateAll shows success message when all habits succeed`() = runTest(testDispatcher) {
         val habits = listOf(
-            HabitEntity(id = 1L, name = "A", fullDescription = "", lowFloorDescription = ""),
-            HabitEntity(id = 2L, name = "B", fullDescription = "", lowFloorDescription = ""),
+            HabitEntity(id = 1L, name = "A"),
+            HabitEntity(id = 2L, name = "B"),
         )
         coEvery { mockHabitRepository.getAllActive() } returns flowOf(habits)
 
@@ -120,8 +120,8 @@ class CloudSettingsViewModelTest {
     @Test
     fun `regenerateAll reports partial failure count`() = runTest(testDispatcher) {
         val habits = listOf(
-            HabitEntity(id = 1L, name = "A", fullDescription = "", lowFloorDescription = ""),
-            HabitEntity(id = 2L, name = "B", fullDescription = "", lowFloorDescription = ""),
+            HabitEntity(id = 1L, name = "A"),
+            HabitEntity(id = 2L, name = "B"),
         )
         coEvery { mockHabitRepository.getAllActive() } returns flowOf(habits)
         coEvery { mockVariationRepository.deleteForHabit(1L) } throws RuntimeException("db error")
