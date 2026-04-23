@@ -218,10 +218,9 @@ back to `habit.name`. A refill is enqueued in both cases. AI autofill and notifi
 
 ### Habit-field autofill (cloud)
 
-Used to populate the 6-level description ladder when the user taps "Autofill with AI" in the Habit editor.
-Calls the worker's `/v1/habit-fields` endpoint (response still returns `fullDescription` + `lowFloorDescription`
-for backwards compatibility). The Android client maps `lowFloorDescription` → level 0 and `fullDescription`
-→ level 5; levels 1–4 remain blank until the user fills them in.
+Used to generate all 6 `description_ladder` slots when the user taps "Autofill with AI" in the Habit editor.
+Calls the worker's `/v1/habit-fields` endpoint with the habit title; the worker returns
+`{ descriptionLadder: string[] }` with one description per dedication level (0–5).
 
 ### Notification preview (cloud)
 
@@ -297,7 +296,7 @@ The app is considered MVP-complete when:
 
 ## 10. Success Metric (personal, not in-app)
 
-> The user completes at least one habit (full or low-floor) on **≥5 days per rolling 7-day window**, measured 2 weeks after starting daily use.
+> The user completes at least one habit on **≥5 days per rolling 7-day window**, measured 2 weeks after starting daily use.
 
 Tracked manually by glancing at the Recent triggers screen. Not a feature.
 

@@ -106,7 +106,7 @@ class NotificationHelper @Inject constructor(
         }
         return PendingIntent.getBroadcast(
             context,
-            triggerId.toInt() * 2 + requestCodeOffset,
+            triggerId.toInt() * 2 + requestCodeOffset, // * 2 = number of actions per notification (COMPLETED + DISMISSED)
             intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
