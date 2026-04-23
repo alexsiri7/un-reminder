@@ -1,16 +1,37 @@
 package net.interstellarai.unreminder.data.repository
 
+import androidx.room.withTransaction
+import net.interstellarai.unreminder.data.db.AppDatabase
 import net.interstellarai.unreminder.data.db.HabitLevelDescriptionDao
 import net.interstellarai.unreminder.data.db.HabitLevelDescriptionEntity
+import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import kotlinx.coroutines.test.runTest
+import org.junit.After
+import org.junit.Before
 import org.junit.Test
 
 class HabitLevelDescriptionRepositoryTest {
 
     private val dao: HabitLevelDescriptionDao = mockk(relaxUnitFun = true)
-    private val repo = HabitLevelDescriptionRepository(dao)
+    private val db: AppDatabase = mockk()
+    private val repo = HabitLevelDescriptionRepository(dao, db)
+
+    @Before
+    fun setUp() {
+        mockkStatic("androidx.room.RoomDatabaseKt")
+        coEvery { db.withTransaction(captureLambda<suspend () -> Any?>()) } coAnswers {
+            lambda<suspend () -> Any?>().coInvoke()
+        }
+    }
+
+    @After
+    fun tearDown() {
+        unmockkStatic("androidx.room.RoomDatabaseKt")
+    }
 
     @Test
     fun `setDescriptions skips blank entries and preserves level index`() = runTest {
