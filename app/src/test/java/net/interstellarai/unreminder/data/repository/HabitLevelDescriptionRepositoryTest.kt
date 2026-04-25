@@ -24,7 +24,7 @@ class HabitLevelDescriptionRepositoryTest {
     fun setUp() {
         mockkStatic("androidx.room.RoomDatabaseKt")
         coEvery { db.withTransaction(captureLambda<suspend () -> Any?>()) } coAnswers {
-            lambda<suspend () -> Any?>().coInvoke()
+            lambda<suspend () -> Any?>().invoke()
         }
     }
 
