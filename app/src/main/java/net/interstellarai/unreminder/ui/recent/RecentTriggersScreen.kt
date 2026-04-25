@@ -34,6 +34,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.ui.theme.CompletedFull
+import net.interstellarai.unreminder.ui.theme.CompletedLowFloor
 import net.interstellarai.unreminder.ui.theme.Dimens
 import net.interstellarai.unreminder.ui.theme.Dismissed
 import net.interstellarai.unreminder.ui.theme.DisplayHuge

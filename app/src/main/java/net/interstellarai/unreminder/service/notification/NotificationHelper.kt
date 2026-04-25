@@ -92,7 +92,7 @@ class NotificationHelper @Inject constructor(
         val notification = NotificationCompat.Builder(context, CHANNEL_ID_SYSTEM)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle("Paused $habitName")
-            .setContentText("Rewrite its low-floor description to re-activate.")
+            .setContentText("Tap to re-activate or lower its dedication level.")
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
             .build()
@@ -106,7 +106,7 @@ class NotificationHelper @Inject constructor(
         }
         return PendingIntent.getBroadcast(
             context,
-            triggerId.toInt() * 2 + requestCodeOffset,
+            triggerId.toInt() * 2 + requestCodeOffset, // * 2 = number of actions per notification (COMPLETED + DISMISSED)
             intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )

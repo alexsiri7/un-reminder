@@ -4,9 +4,12 @@ import net.interstellarai.unreminder.domain.model.TriggerStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import java.time.Instant
 import java.time.LocalTime
 
+@RunWith(RobolectricTestRunner::class)
 class ConvertersTest {
 
     private val converters = Converters()
@@ -69,5 +72,52 @@ class ConvertersTest {
         val seconds = converters.fromLocalTime(endOfDay)
         val result = converters.toLocalTime(seconds)
         assertEquals(endOfDay, result)
+    }
+
+    @Test
+    fun `descriptionLadder round-trip`() {
+        val ladder = listOf("3 deep breaths", "", "", "20-min session", "", "")
+        val json = converters.fromDescriptionLadder(ladder)
+        val result = converters.toDescriptionLadder(json)
+        assertEquals(ladder, result)
+    }
+
+    @Test
+    fun `descriptionLadder null round-trip`() {
+        assertNull(converters.fromDescriptionLadder(null))
+        assertNull(converters.toDescriptionLadder(null))
+    }
+
+    @Test
+    fun `descriptionLadder preserves 6-element structure`() {
+        val ladder = List(6) { "level $it" }
+        val json = converters.fromDescriptionLadder(ladder)
+        val result = converters.toDescriptionLadder(json)
+        assertEquals(6, result?.size)
+        assertEquals(ladder, result)
+    }
+
+    @Test
+    fun `descriptionLadder with special characters round-trip`() {
+        val ladder = listOf("Listen to a 5-minute \"body scan\" meditation", "", "", "20-min\\nsession", "", "")
+        val json = converters.fromDescriptionLadder(ladder)
+        val result = converters.toDescriptionLadder(json)
+        assertEquals(ladder, result)
+    }
+
+    @Test
+    fun `toDescriptionLadder malformed JSON returns blank ladder`() {
+        val result = converters.toDescriptionLadder("not-valid-json")
+        assertEquals(List(6) { "" }, result)
+    }
+
+    @Test
+    fun `toTriggerStatus maps legacy COMPLETED_FULL to COMPLETED`() {
+        assertEquals(TriggerStatus.COMPLETED, converters.toTriggerStatus("COMPLETED_FULL"))
+    }
+
+    @Test
+    fun `toTriggerStatus maps legacy COMPLETED_LOW_FLOOR to COMPLETED`() {
+        assertEquals(TriggerStatus.COMPLETED, converters.toTriggerStatus("COMPLETED_LOW_FLOOR"))
     }
 }

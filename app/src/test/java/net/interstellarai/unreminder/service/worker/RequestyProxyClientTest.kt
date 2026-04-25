@@ -38,13 +38,14 @@ class RequestyProxyClientTest {
         server.enqueue(
             MockResponse()
                 .setResponseCode(200)
-                .setBody("""{"fullDescription":"Meditate daily","lowFloorDescription":"Just sit"}""")
+                .setBody("""{"descriptionLadder":["Just sit","","","Meditate daily","",""]}""")
                 .addHeader("Content-Type", "application/json")
         )
 
         val result = proxyClient.habitFields("Meditate", baseUrl(), "secret")
-        assertEquals("Meditate daily", result.levelDescriptions[5])
-        assertEquals("Just sit", result.levelDescriptions[0])
+        assertEquals(6, result.descriptionLadder.size)
+        assertEquals("Just sit", result.descriptionLadder[0])
+        assertEquals("Meditate daily", result.descriptionLadder[3])
     }
 
     @Test
@@ -85,7 +86,7 @@ class RequestyProxyClientTest {
         )
 
         val habit = HabitEntity(name = "Meditate")
-        val result = proxyClient.preview(habit, "Daily practice", "Home", baseUrl(), "secret")
+        val result = proxyClient.preview(habit, "Home", baseUrl(), "secret")
         assertEquals("Time to meditate!", result)
     }
 
@@ -95,7 +96,7 @@ class RequestyProxyClientTest {
 
         val habit = HabitEntity(name = "Meditate")
         assertFailsWith<WorkerAuthException> {
-            proxyClient.preview(habit, "Daily practice", "Home", baseUrl(), "wrong-secret")
+            proxyClient.preview(habit, "Home", baseUrl(), "wrong-secret")
         }
     }
 
@@ -105,7 +106,7 @@ class RequestyProxyClientTest {
 
         val habit = HabitEntity(name = "Meditate")
         assertFailsWith<SpendCapExceededException> {
-            proxyClient.preview(habit, "Daily practice", "Home", baseUrl(), "secret")
+            proxyClient.preview(habit, "Home", baseUrl(), "secret")
         }
     }
 
@@ -115,7 +116,7 @@ class RequestyProxyClientTest {
 
         val habit = HabitEntity(name = "Meditate")
         val ex = assertFailsWith<WorkerError> {
-            proxyClient.preview(habit, "Daily practice", "Home", baseUrl(), "secret")
+            proxyClient.preview(habit, "Home", baseUrl(), "secret")
         }
         assertEquals(500, ex.code)
     }

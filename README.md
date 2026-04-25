@@ -57,7 +57,7 @@ Runs as a Cloudflare Worker (Hono framework). Exposes these routes:
 |---|---|---|
 | `GET /v1/health` | Public | Returns `{ status, spendUsedToday, spendUsedMonth, capDaily, capMonthly }` |
 | `POST /v1/generate/batch` | `X-UR-Secret` header | Accepts `{ habitTitle, habitTags, locationName, timeOfDay, n }`, returns `{ variants: string[] }` via Requesty |
-| `POST /v1/habit-fields` | `X-UR-Secret` header | Accepts `{ title }`, returns `{ fullDescription, lowFloorDescription }` via Requesty |
+| `POST /v1/habit-fields` | `X-UR-Secret` header | Accepts `{ title }`, returns `{ descriptionLadder: string[] }` (6 elements, one per dedication level) via Requesty |
 | `POST /v1/preview` | `X-UR-Secret` header | Accepts `{ habit: { title, tags, notes }, locationName }`, returns `{ text }` notification preview |
 
 **Local dev:**
@@ -114,7 +114,9 @@ A repeatable thing the user wants to do. Each habit has:
   based on recent completions. Defaults to `true`.
 - `locations` — zero or more named `Location` records associated via the `habit_location` junction table. A habit with **no** associated locations is eligible everywhere ("Anywhere" semantics). A habit with one or more locations is only eligible when the user is at one of those locations.
 - `active` — boolean. Inactive habits are never selected. Can be toggled manually in the habit editor.
-  The system also sets this to `false` automatically after 3 consecutive `DISMISSED` triggers
+  When `auto_adjust_level` is true, 3 consecutive `DISMISSED` triggers demote `dedication_level` by 1.
+  If the habit is already at level 0, 3 consecutive `DISMISSED` triggers set it to `active = false`
+  (auto-paused). The user can re-activate it from the habit editor.
   (see [Trigger Logic §5](#5-trigger-logic)).
 - `created_at`, `updated_at`.
 
@@ -197,10 +199,11 @@ updated by geofence `ENTER`/`EXIT` callbacks. Empty set means no known location.
    `minutesSince` is minutes since the habit was last fired (cap: 1440 min = 24 h). A habit
    never fired receives the maximum weight (~13×). If the eligible set is empty, skip silently.
 4. Pick an unused variation from the cloud-generated pool (see Variation entity). If the pool is empty, use the level description fallback (see Fallback below).
-5. Post the notification with the generated text. Action buttons: **Complete**, **Skip**.
+5. Post the notification with the generated text. Action buttons: **Did it**, **Dismiss**.
 6. Record the trigger row with the generated prompt and the outcome when the user responds.
-   If the last 3 triggers for the same habit are all `DISMISSED`, the habit is automatically set to
-   `active = false` (auto-paused). The user can re-activate it by editing the habit.
+   When `auto_adjust_level` is true: 3 consecutive `COMPLETED` triggers promote `dedication_level`
+   by 1 (up to max 5); 3 consecutive `DISMISSED` triggers demote it by 1. At level 0, 3 consecutive
+   `DISMISSED` triggers auto-pause the habit (`active = false`). The user can re-activate via the habit editor.
 
 ### Variation pool (cloud-generated)
 
@@ -215,10 +218,9 @@ back to `habit.name`. A refill is enqueued in both cases. AI autofill and notifi
 
 ### Habit-field autofill (cloud)
 
-Used to populate the 6-level description ladder when the user taps "Autofill with AI" in the Habit editor.
-Calls the worker's `/v1/habit-fields` endpoint (response still returns `fullDescription` + `lowFloorDescription`
-for backwards compatibility). The Android client maps `lowFloorDescription` → level 0 and `fullDescription`
-→ level 5; levels 1–4 remain blank until the user fills them in.
+Used to generate all 6 `description_ladder` slots when the user taps "Autofill with AI" in the Habit editor.
+Calls the worker's `/v1/habit-fields` endpoint with the habit title; the worker returns
+`{ descriptionLadder: string[] }` with one description per dedication level (0–5).
 
 ### Notification preview (cloud)
 
@@ -294,7 +296,7 @@ The app is considered MVP-complete when:
 
 ## 10. Success Metric (personal, not in-app)
 
-> The user completes at least one habit (full or low-floor) on **≥5 days per rolling 7-day window**, measured 2 weeks after starting daily use.
+> The user completes at least one habit on **≥5 days per rolling 7-day window**, measured 2 weeks after starting daily use.
 
 Tracked manually by glancing at the Recent triggers screen. Not a feature.
 

@@ -44,7 +44,7 @@ class DedicationLevelManager @Inject constructor(
 
         val (required, windowDays) = THRESHOLDS[habit.dedicationLevel] ?: return
         val sinceMillis = Instant.now().minusSeconds(windowDays.toLong() * 86_400L).toEpochMilli()
-        val count = triggerRepository.countCompletionsSince(habitId, sinceMillis)
+        val count = triggerRepository.getCompletionsSince(habitId, sinceMillis).size
 
         Log.d(TAG, "Habit $habitId level=${habit.dedicationLevel} completions=$count required=$required in ${windowDays}d")
 

@@ -1,8 +1,6 @@
 package net.interstellarai.unreminder.ui.habit
 
 import net.interstellarai.unreminder.data.db.HabitEntity
-import net.interstellarai.unreminder.data.db.HabitLevelDescriptionEntity
-import net.interstellarai.unreminder.data.repository.HabitLevelDescriptionRepository
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
@@ -52,14 +50,14 @@ class HabitEditViewModelTest {
     private val mockRefillScheduler: RefillScheduler = mockk(relaxed = true)
     private val mockVariationRepository: VariationRepository = mockk(relaxUnitFun = true)
     private val mockWindowRepository: WindowRepository = mockk(relaxed = true)
-    private val mockLevelDescriptionRepository: HabitLevelDescriptionRepository = mockk(relaxed = true)
     private lateinit var viewModel: HabitEditViewModel
+
+    private val testLadder = listOf("3 deep breaths", "", "", "20-minute guided meditation", "", "")
 
     private val testHabit = HabitEntity(
         id = 1L,
         name = "meditation",
-        dedicationLevel = 0,
-        autoAdjustLevel = true,
+        descriptionLadder = testLadder,
         createdAt = Instant.now(),
         updatedAt = Instant.now()
     )
@@ -70,7 +68,6 @@ class HabitEditViewModelTest {
         every { mockLocationRepository.getAll() } returns flowOf(emptyList())
         every { mockWindowRepository.getAll() } returns flowOf(emptyList())
         every { mockPromptGenerator.aiStatus } returns MutableStateFlow<AiStatus>(AiStatus.Ready)
-        coEvery { mockLevelDescriptionRepository.getDescriptionsForHabit(any()) } returns emptyList()
         viewModel = HabitEditViewModel(
             mockHabitRepository,
             mockLocationRepository,
@@ -78,11 +75,9 @@ class HabitEditViewModelTest {
             mockPromptGenerator,
             mockRefillScheduler,
             mockVariationRepository,
-            mockLevelDescriptionRepository,
         )
         viewModel.updateName("meditation")
-        viewModel.updateLevelDescription(0, "3 deep breaths")
-        viewModel.updateLevelDescription(5, "20-minute guided meditation")
+        testLadder.forEachIndexed { i, text -> viewModel.updateDescriptionAtLevel(i, text) }
     }
 
     @After
@@ -94,16 +89,16 @@ class HabitEditViewModelTest {
 
     @Test
     fun `autofillWithAi updates fields and clears isGeneratingFields on success`() = runTest(testDispatcher) {
+        val ladder = listOf("3 deep breaths", "", "", "20-min guided session", "", "")
         coEvery { mockPromptGenerator.generateHabitFields("meditation") } returns
-            AiHabitFields(listOf("3 deep breaths", "", "", "", "", "20-min guided session"))
+            AiHabitFields(ladder)
 
         viewModel.autofillWithAi()
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
         assertFalse(state.isGeneratingFields)
-        assertEquals("3 deep breaths", state.levelDescriptions[0])
-        assertEquals("20-min guided session", state.levelDescriptions[5])
+        assertEquals(ladder, state.descriptionLadder)
         assertNull(state.errorMessage)
     }
 
@@ -141,7 +136,7 @@ class HabitEditViewModelTest {
     @Test
     fun `previewNotification shows dialog with text and clears flag on success`() = runTest(testDispatcher) {
         coEvery {
-            mockPromptGenerator.previewHabitNotification(any(), any(), any())
+            mockPromptGenerator.previewHabitNotification(any(), any())
         } returns "Time to meditate — even 3 breaths counts"
 
         viewModel.previewNotification()
@@ -157,7 +152,7 @@ class HabitEditViewModelTest {
     @Test
     fun `previewNotification sets errorMessage and resets flag on failure`() = runTest(testDispatcher) {
         coEvery {
-            mockPromptGenerator.previewHabitNotification(any(), any(), any())
+            mockPromptGenerator.previewHabitNotification(any(), any())
         } throws IllegalStateException("LLM unavailable")
 
         viewModel.previewNotification()
@@ -173,7 +168,7 @@ class HabitEditViewModelTest {
 
     @Test
     fun `dismissPreviewDialog clears showPreviewDialog and previewNotification`() = runTest(testDispatcher) {
-        coEvery { mockPromptGenerator.previewHabitNotification(any(), any(), any()) } returns "preview"
+        coEvery { mockPromptGenerator.previewHabitNotification(any(), any()) } returns "preview"
         viewModel.previewNotification()
         advanceUntilIdle()
         assertTrue(viewModel.uiState.value.showPreviewDialog)
@@ -204,7 +199,7 @@ class HabitEditViewModelTest {
     @Test
     fun `autofillWithAi success sets fieldsFlashing to true`() = runTest(testDispatcher) {
         coEvery { mockPromptGenerator.generateHabitFields("meditation") } returns
-            AiHabitFields(listOf("low", "", "", "", "", "full"))
+            AiHabitFields(listOf("desc", "", "", "", "", ""))
 
         viewModel.autofillWithAi()
         advanceUntilIdle()
@@ -215,7 +210,7 @@ class HabitEditViewModelTest {
     @Test
     fun `clearFieldsFlash resets fieldsFlashing to false`() = runTest(testDispatcher) {
         coEvery { mockPromptGenerator.generateHabitFields("meditation") } returns
-            AiHabitFields(listOf("low", "", "", "", "", "full"))
+            AiHabitFields(listOf("desc", "", "", "", "", ""))
 
         viewModel.autofillWithAi()
         advanceUntilIdle()
@@ -248,7 +243,7 @@ class HabitEditViewModelTest {
     fun `previewNotification sets showSpendCapLink on SpendCapExceededException`() =
         runTest(testDispatcher) {
             coEvery {
-                mockPromptGenerator.previewHabitNotification(any(), any(), any())
+                mockPromptGenerator.previewHabitNotification(any(), any())
             } throws SpendCapExceededException()
 
             viewModel.previewNotification()
@@ -282,7 +277,7 @@ class HabitEditViewModelTest {
     fun `previewNotification sets errorMessage on WorkerAuthException`() =
         runTest(testDispatcher) {
             coEvery {
-                mockPromptGenerator.previewHabitNotification(any(), any(), any())
+                mockPromptGenerator.previewHabitNotification(any(), any())
             } throws WorkerAuthException()
 
             viewModel.previewNotification()
@@ -312,11 +307,6 @@ class HabitEditViewModelTest {
         val existingWithDifferentName = testHabit.copy(name = "OLD NAME")
         coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(existingWithDifferentName)
         coEvery { mockHabitRepository.update(any()) } returns Unit
-        coEvery { mockLevelDescriptionRepository.getDescriptionsForHabit(testHabit.id) } returns
-            listOf(
-                HabitLevelDescriptionEntity(testHabit.id, 0, "3 deep breaths"),
-                HabitLevelDescriptionEntity(testHabit.id, 5, "20-minute guided meditation")
-            )
 
         viewModel.loadHabit(testHabit.id)
         advanceUntilIdle()
@@ -336,15 +326,10 @@ class HabitEditViewModelTest {
     fun `save does not delete pool or enqueue when no prompt fields changed`() = runTest(testDispatcher) {
         coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit)
         coEvery { mockHabitRepository.update(any()) } returns Unit
-        coEvery { mockLevelDescriptionRepository.getDescriptionsForHabit(testHabit.id) } returns
-            listOf(
-                HabitLevelDescriptionEntity(testHabit.id, 0, "3 deep breaths"),
-                HabitLevelDescriptionEntity(testHabit.id, 5, "20-minute guided meditation")
-            )
 
         viewModel.loadHabit(testHabit.id)
         advanceUntilIdle()
-        // viewModel state now matches testHabit exactly (name, levelDescriptions)
+        // viewModel state now matches testHabit exactly (name, descriptionLadder)
 
         viewModel.save()
         advanceUntilIdle()
@@ -355,20 +340,15 @@ class HabitEditViewModelTest {
     }
 
     @Test
-    fun `save deletes pool and enqueues refill when only level descriptions changed`() = runTest(testDispatcher) {
+    fun `save deletes pool and enqueues refill when only description ladder changed`() = runTest(testDispatcher) {
         coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit)
         coEvery { mockHabitRepository.update(any()) } returns Unit
-        coEvery { mockLevelDescriptionRepository.getDescriptionsForHabit(testHabit.id) } returns
-            listOf(
-                HabitLevelDescriptionEntity(testHabit.id, 0, "OLD level 0"),
-                HabitLevelDescriptionEntity(testHabit.id, 5, "OLD level 5")
-            )
 
         viewModel.loadHabit(testHabit.id)
         advanceUntilIdle()
 
-        // Change only level descriptions, not the name
-        viewModel.updateLevelDescription(0, "NEW level 0")
+        // Change only description ladder, not the name
+        viewModel.updateDescriptionAtLevel(0, "NEW level 0")
 
         viewModel.save()
         advanceUntilIdle()
@@ -400,7 +380,6 @@ class HabitEditViewModelTest {
         val vm = HabitEditViewModel(
             mockHabitRepository, mockLocationRepository, mockWindowRepository,
             mockPromptGenerator, mockRefillScheduler, mockVariationRepository,
-            mockLevelDescriptionRepository,
         )
         assertEquals(AiStatus.Unavailable, vm.aiStatus.value)
     }
@@ -411,7 +390,6 @@ class HabitEditViewModelTest {
         val vm = HabitEditViewModel(
             mockHabitRepository, mockLocationRepository, mockWindowRepository,
             mockPromptGenerator, mockRefillScheduler, mockVariationRepository,
-            mockLevelDescriptionRepository,
         )
         assertEquals(AiStatus.Ready, vm.aiStatus.value)
     }
@@ -454,5 +432,37 @@ class HabitEditViewModelTest {
 
         coVerify { mockHabitRepository.setWindows(42L, setOf(5L, 7L)) }
         assertTrue(viewModel.uiState.value.isSaved)
+    }
+
+    @Test
+    fun `updateDescriptionAtLevel updates correct slot`() = runTest(testDispatcher) {
+        viewModel.updateDescriptionAtLevel(2, "half session")
+        assertEquals("half session", viewModel.uiState.value.descriptionLadder[2])
+    }
+
+    @Test
+    fun `updateDescriptionAtLevel out-of-range index is ignored`() = runTest(testDispatcher) {
+        val before = viewModel.uiState.value.descriptionLadder.toList()
+        viewModel.updateDescriptionAtLevel(6, "too high")
+        assertEquals(before, viewModel.uiState.value.descriptionLadder)
+    }
+
+    @Test
+    fun `updateDescriptionAtLevel negative index is ignored`() = runTest(testDispatcher) {
+        val before = viewModel.uiState.value.descriptionLadder.toList()
+        viewModel.updateDescriptionAtLevel(-1, "negative")
+        assertEquals(before, viewModel.uiState.value.descriptionLadder)
+    }
+
+    @Test
+    fun `updateDedicationLevel updates dedicationLevel in uiState`() = runTest(testDispatcher) {
+        viewModel.updateDedicationLevel(4)
+        assertEquals(4, viewModel.uiState.value.dedicationLevel)
+    }
+
+    @Test
+    fun `updateAutoAdjustLevel updates autoAdjustLevel in uiState`() = runTest(testDispatcher) {
+        viewModel.updateAutoAdjustLevel(false)
+        assertFalse(viewModel.uiState.value.autoAdjustLevel)
     }
 }

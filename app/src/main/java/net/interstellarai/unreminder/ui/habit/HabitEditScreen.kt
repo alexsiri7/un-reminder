@@ -31,6 +31,7 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -191,44 +192,58 @@ fun HabitEditScreen(
             Spacer(Modifier.height(Dimens.xl))
 
             Column(modifier = Modifier.padding(horizontal = Dimens.xxl)) {
-                DedicationProgressBar(
-                    level = uiState.dedicationLevel,
-                    modifier = Modifier.padding(vertical = 8.dp)
+                val levelLabels = listOf(
+                    "just starting", "unblocked", "regular",
+                    "committed", "routine", "your practice"
                 )
+
+                MonoSectionLabel("dedication level")
+                Spacer(Modifier.height(Dimens.sm))
+                Slider(
+                    value = uiState.dedicationLevel.toFloat(),
+                    onValueChange = { viewModel.updateDedicationLevel(it.toInt()) },
+                    valueRange = 0f..5f,
+                    steps = 4,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    "L${uiState.dedicationLevel} — ${levelLabels[uiState.dedicationLevel]}",
+                    style = MonoLabelTiny,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                )
+
+                Spacer(Modifier.height(Dimens.lg))
+
+                MonoSectionLabel("description ladder")
+                Spacer(Modifier.height(Dimens.sm))
+
+                levelLabels.forEachIndexed { level, label ->
+                    DescriptionBlock(
+                        label = "level $level — $label",
+                        value = uiState.descriptionLadder.getOrElse(level) { "" },
+                        onValueChange = { viewModel.updateDescriptionAtLevel(level, it) },
+                        flashAlpha = flashAlpha.value,
+                        placeholder = "description for level $level",
+                    )
+                    if (level < 5) Spacer(Modifier.height(Dimens.lg))
+                }
+
+                Spacer(Modifier.height(Dimens.lg))
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    MonoSectionLabel(text = "auto-adjust level")
                     Switch(
                         checked = uiState.autoAdjustLevel,
-                        onCheckedChange = { viewModel.updateAutoAdjustLevel(it) },
-                        colors = SwitchDefaults.colors(checkedThumbColor = MaterialTheme.colorScheme.primary)
+                        onCheckedChange = viewModel::updateAutoAdjustLevel,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.background,
+                            checkedTrackColor = MaterialTheme.colorScheme.primary,
+                            uncheckedThumbColor = MaterialTheme.colorScheme.background,
+                            uncheckedTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                        ),
                     )
-                }
-                Spacer(Modifier.height(Dimens.md))
-                uiState.levelDescriptions.forEachIndexed { level, desc ->
-                    val isCurrent = level == uiState.dedicationLevel
-                    TextField(
-                        value = desc,
-                        onValueChange = { viewModel.updateLevelDescription(level, it) },
-                        label = { Text(text = if (isCurrent) "level $level (current)" else "level $level", style = MonoLabel) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 2.dp)
-                            .then(
-                                if (isCurrent) Modifier.border(
-                                    1.dp,
-                                    MaterialTheme.colorScheme.primary,
-                                    UnReminderShapes.small
-                                ) else Modifier
-                            ),
-                        colors = TextFieldDefaults.colors(
-                            unfocusedContainerColor = Color.Transparent,
-                            focusedContainerColor = Color.Transparent
-                        )
-                    )
+                    Spacer(Modifier.size(Dimens.md - 2.dp))
+                    Text("Auto-adjust level", style = SansBodyStrong, color = MaterialTheme.colorScheme.onBackground)
                 }
             }
 
@@ -280,7 +295,7 @@ fun HabitEditScreen(
 
             PreviewCard(
                 enabled = uiState.name.isNotBlank() &&
-                    uiState.levelDescriptions.any { it.isNotBlank() } &&
+                    uiState.descriptionLadder.any { it.isNotBlank() } &&
                     !uiState.isGeneratingFields,
                 loading = uiState.isGeneratingFields,
                 onResample = { viewModel.previewNotification() },
