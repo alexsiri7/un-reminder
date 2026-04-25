@@ -78,7 +78,7 @@ jobs:
           packageName: net.interstellarai.unreminder
           releaseFiles: app/build/outputs/bundle/release/*.aab
           track: internal
-          status: completed
+          status: draft
           releaseName: ${{ env.VERSION_NAME }}
 
       - name: Build signed universal APK (for sideload)
