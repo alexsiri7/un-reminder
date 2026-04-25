@@ -24,7 +24,7 @@ android {
     defaultConfig {
         applicationId = "net.interstellarai.unreminder"
         minSdk = 31
-        targetSdk = 34
+        targetSdk = 35
         versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 1
         versionName = System.getenv("VERSION_NAME") ?: "0.1.0"
 
