@@ -59,7 +59,7 @@ class DedicationLevelManagerTest {
     @Test
     fun `no promotion below threshold`() = runTest {
         coEvery { habitRepository.getByIdOnce(habitId) } returns makeHabit(level = 0)
-        coEvery { triggerRepository.countCompletionsSince(habitId, any()) } returns 2 // threshold is 3
+        coEvery { triggerRepository.getCompletionsSince(habitId, any()) } returns List(2) { mockk(relaxed = true) } // threshold is 3
 
         manager.maybePromote(habitId)
 
@@ -69,7 +69,7 @@ class DedicationLevelManagerTest {
     @Test
     fun `promotes at threshold`() = runTest {
         coEvery { habitRepository.getByIdOnce(habitId) } returns makeHabit(level = 0)
-        coEvery { triggerRepository.countCompletionsSince(habitId, any()) } returns 3 // threshold is 3
+        coEvery { triggerRepository.getCompletionsSince(habitId, any()) } returns List(3) { mockk(relaxed = true) } // threshold is 3
 
         manager.maybePromote(habitId)
 

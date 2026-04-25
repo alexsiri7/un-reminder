@@ -96,7 +96,7 @@ class RequestyProxyClientTest {
 
         val habit = HabitEntity(name = "Meditate")
         assertFailsWith<WorkerAuthException> {
-            proxyClient.preview(habit, "Daily practice", "Home", baseUrl(), "wrong-secret")
+            proxyClient.preview(habit, "Home", baseUrl(), "wrong-secret")
         }
     }
 
@@ -106,7 +106,7 @@ class RequestyProxyClientTest {
 
         val habit = HabitEntity(name = "Meditate")
         assertFailsWith<SpendCapExceededException> {
-            proxyClient.preview(habit, "Daily practice", "Home", baseUrl(), "secret")
+            proxyClient.preview(habit, "Home", baseUrl(), "secret")
         }
     }
 
@@ -116,7 +116,7 @@ class RequestyProxyClientTest {
 
         val habit = HabitEntity(name = "Meditate")
         val ex = assertFailsWith<WorkerError> {
-            proxyClient.preview(habit, "Daily practice", "Home", baseUrl(), "secret")
+            proxyClient.preview(habit, "Home", baseUrl(), "secret")
         }
         assertEquals(500, ex.code)
     }
