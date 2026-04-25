@@ -138,7 +138,7 @@ class TriggerPipelineTest {
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
         coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
         coEvery { variationRepository.pickRandomUnused(1L) } returns null
-        coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 0) } returns ""
+        coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 2) } returns ""
 
         pipeline.execute(42L)
 
@@ -158,7 +158,7 @@ class TriggerPipelineTest {
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
         coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
         coEvery { variationRepository.pickRandomUnused(1L) } returns null
-        coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 0) } returns
+        coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 2) } returns
             "Take three deep breaths"
 
         pipeline.execute(42L)
@@ -195,7 +195,7 @@ class TriggerPipelineTest {
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
         coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
         coEvery { variationRepository.pickRandomUnused(1L) } throws RuntimeException("db error")
-        coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 0) } returns null
+        coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 2) } returns null
 
         pipeline.execute(42L)
 

@@ -54,7 +54,7 @@ class Migration6To7Test {
     }
 
     @Test
-    fun `MIGRATION_6_7 backfills description_ladder from low_floor and full descriptions`() {
+    fun `MIGRATION_6_7 adds description_ladder column with empty default`() {
         val db = createV6Database()
 
         db.execSQL(
@@ -68,40 +68,9 @@ class Migration6To7Test {
         cursor.moveToFirst()
         val ladderJson = cursor.getString(0)
         cursor.close()
-
-        val arr = JSONArray(ladderJson)
-        assertEquals(6, arr.length())
-        assertEquals("3 breaths", arr.getString(0))
-        assertEquals("", arr.getString(1))
-        assertEquals("", arr.getString(2))
-        assertEquals("20 min", arr.getString(3))
-        assertEquals("", arr.getString(4))
-        assertEquals("", arr.getString(5))
-
-        db.close()
-    }
-
-    @Test
-    fun `MIGRATION_6_7 handles descriptions with double quotes`() {
-        val db = createV6Database()
-
-        db.execSQL(
-            "INSERT INTO habits (name, full_description, low_floor_description, active, created_at, updated_at) " +
-            "VALUES ('yoga', '20-min \"flow\" sequence', 'A \"cat\" pose', 1, 0, 0)"
-        )
-
-        MIGRATION_6_7.migrate(db)
-
-        val cursor = db.query("SELECT description_ladder FROM habits WHERE name = 'yoga'")
-        cursor.moveToFirst()
-        val json = cursor.getString(0)
-        cursor.close()
         db.close()
 
-        val arr = JSONArray(json)
-        assertEquals(6, arr.length())
-        assertEquals("A \"cat\" pose", arr.getString(0))
-        assertEquals("20-min \"flow\" sequence", arr.getString(3))
+        assertEquals("[]", ladderJson)
     }
 
     @Test

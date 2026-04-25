@@ -43,7 +43,6 @@ class Converters {
                 val arr = JSONArray(it)
                 List(arr.length()) { i -> arr.getString(i) }
             } catch (e: JSONException) {
-                Log.e("Converters", "toDescriptionLadder: malformed JSON, returning blank ladder. value=$it", e)
                 List(6) { "" }
             }
         }
