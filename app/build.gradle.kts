@@ -128,6 +128,7 @@ dependencies {
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material.icons.extended)
     implementation(libs.activity.compose)
+    // Pinned to 1.7.0+ to guard against NoSuchFieldError: fontWeightAdjustment on OEM Android 12 (see PR #155)
     implementation(libs.androidx.appcompat)
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.lifecycle.runtime.compose)
