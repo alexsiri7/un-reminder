@@ -254,14 +254,14 @@ fun HabitEditScreen(
                     horizontalArrangement = Arrangement.spacedBy(Dimens.sm),
                     verticalArrangement = Arrangement.spacedBy(Dimens.sm),
                 ) {
-                    LocationChip(
+                    SelectionChip(
                         label = "Anywhere",
                         selected = uiState.selectedLocationIds.isEmpty(),
                         muted = uiState.selectedLocationIds.isEmpty(),
                         onClick = { viewModel.setAnywhere() },
                     )
                     allLocations.forEach { loc ->
-                        LocationChip(
+                        SelectionChip(
                             label = loc.name,
                             selected = loc.id in uiState.selectedLocationIds,
                             onClick = { viewModel.toggleLocation(loc.id) },
@@ -277,14 +277,14 @@ fun HabitEditScreen(
                     horizontalArrangement = Arrangement.spacedBy(Dimens.sm),
                     verticalArrangement = Arrangement.spacedBy(Dimens.sm),
                 ) {
-                    WindowChip(
+                    SelectionChip(
                         label = "Any time",
                         selected = uiState.selectedWindowIds.isEmpty(),
                         muted = uiState.selectedWindowIds.isEmpty(),
                         onClick = { viewModel.setAnyTime() },
                     )
                     allWindows.forEach { win ->
-                        WindowChip(
+                        SelectionChip(
                             label = win.label(),
                             selected = win.id in uiState.selectedWindowIds,
                             onClick = { viewModel.toggleWindow(win.id) },
@@ -539,39 +539,7 @@ private fun DescriptionBlock(
 }
 
 @Composable
-private fun WindowChip(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    muted: Boolean = false,
-) {
-    val (bg, fg) = if (selected) {
-        MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
-    } else {
-        Color.Transparent to MaterialTheme.colorScheme.onBackground
-    }
-    val borderColor = if (selected) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f)
-    }
-    Box(
-        modifier = Modifier
-            .background(bg, UnReminderShapes.small)
-            .border(BorderStroke(1.5.dp, borderColor), UnReminderShapes.small)
-            .clickable(onClick = onClick)
-            .padding(horizontal = Dimens.md + 2.dp, vertical = Dimens.sm),
-    ) {
-        Text(
-            text = label,
-            style = SansBodyStrong,
-            color = fg.copy(alpha = if (muted && !selected) 0.5f else 1f),
-        )
-    }
-}
-
-@Composable
-private fun LocationChip(
+private fun SelectionChip(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
