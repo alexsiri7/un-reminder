@@ -232,6 +232,14 @@ class HabitEditViewModel @Inject constructor(
                     // errorMessage intentionally omitted — showSpendCapLink snackbar carries the full message + action
                     showSpendCapLink = true,
                 )
+            } catch (e: IllegalStateException) {
+                if (e.message == "LLM unavailable") {
+                    _uiState.value = _uiState.value.copy(isGeneratingFields = false, errorMessage = errorMsg)
+                } else {
+                    Log.e(TAG, "launchWithAi failed", e)
+                    Sentry.captureException(e) { scope -> scope.setTag("component", "ai-ui") }
+                    _uiState.value = _uiState.value.copy(isGeneratingFields = false, errorMessage = errorMsg)
+                }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "launchWithAi failed", e)

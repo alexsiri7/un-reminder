@@ -39,12 +39,14 @@ class CloudPromptGenerator @Inject constructor(
     override suspend fun generateHabitFields(title: String): AiHabitFields {
         val url = workerSettingsRepository.effectiveWorkerUrl.first()
         val secret = workerSettingsRepository.effectiveWorkerSecret.first()
+        if (url.isBlank() || secret.isBlank()) throw IllegalStateException("LLM unavailable")
         return requestyProxyClient.habitFields(title, url, secret)
     }
 
     override suspend fun previewHabitNotification(habit: HabitEntity, locationName: String): String {
         val url = workerSettingsRepository.effectiveWorkerUrl.first()
         val secret = workerSettingsRepository.effectiveWorkerSecret.first()
+        if (url.isBlank() || secret.isBlank()) throw IllegalStateException("LLM unavailable")
         return requestyProxyClient.preview(habit, locationName, url, secret)
     }
 }
