@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.Data
 import androidx.work.ListenableWorker.Result
 import androidx.work.WorkerParameters
+import io.mockk.Ordering
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -96,6 +97,24 @@ class RefillWorkerTest {
         assertEquals(Result.success(), result)
         coVerify(exactly = 1) {
             mockVariationRepository.insertAll(match<List<VariationEntity>> { it.size == 20 })
+        }
+    }
+
+    @Test
+    fun `doWork prunes consumed variations before inserting new ones`() = runTest {
+        val habit = HabitEntity(id = 1L, name = "Meditate")
+        coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
+        val variants = (1..20).map { "variant $it" }
+        coEvery {
+            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any())
+        } returns variants
+
+        val worker = createWorker()
+        worker.doWork()
+
+        coVerify(ordering = Ordering.ORDERED) {
+            mockVariationRepository.deleteConsumedForHabit(1L)
+            mockVariationRepository.insertAll(any())
         }
     }
 

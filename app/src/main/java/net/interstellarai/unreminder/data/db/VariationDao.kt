@@ -24,6 +24,9 @@ interface VariationDao {
     @Query("DELETE FROM variations WHERE habit_id = :habitId")
     suspend fun deleteByHabit(habitId: Long)
 
+    @Query("DELETE FROM variations WHERE habit_id = :habitId AND consumed_at IS NOT NULL")
+    suspend fun deleteConsumedByHabit(habitId: Long)
+
     /** Inserts variations, silently ignoring duplicates that match the unique (habit_id, prompt_fingerprint, text) index. */
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(variants: List<VariationEntity>)
