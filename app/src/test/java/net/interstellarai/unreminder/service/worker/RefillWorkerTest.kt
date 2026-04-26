@@ -119,6 +119,22 @@ class RefillWorkerTest {
     }
 
     @Test
+    fun `doWork returns failure when deleteConsumedForHabit throws`() = runTest {
+        val habit = HabitEntity(id = 1L, name = "Meditate")
+        coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
+        coEvery {
+            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any())
+        } returns listOf("variant 1")
+        coEvery {
+            mockVariationRepository.deleteConsumedForHabit(1L)
+        } throws RuntimeException("SQLite disk full")
+
+        val worker = createWorker()
+        assertEquals(Result.failure(), worker.doWork())
+        coVerify(exactly = 0) { mockVariationRepository.insertAll(any()) }
+    }
+
+    @Test
     fun `doWork returns failure on SpendCapExceededException`() = runTest {
         val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit

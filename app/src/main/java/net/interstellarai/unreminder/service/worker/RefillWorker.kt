@@ -77,6 +77,9 @@ class RefillWorker @AssistedInject constructor(
                     generatedAt = now,
                 )
             }
+            // Prune consumed rows first: the unique (habit_id, prompt_fingerprint, text) index
+            // would silently drop re-insertions of the same texts via OnConflictStrategy.IGNORE,
+            // starving the pool if consumed rows are not cleared before the new batch is written.
             variationRepository.deleteConsumedForHabit(habitId)
             variationRepository.insertAll(entities)
             Result.success()

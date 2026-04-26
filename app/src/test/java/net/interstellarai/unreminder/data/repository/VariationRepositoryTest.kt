@@ -87,4 +87,9 @@ class VariationRepositoryTest {
         repository.deleteForHabit(42L)
         coVerify { mockDao.deleteByHabit(42L) }
     }
+
+    @Test fun `deleteConsumedForHabit delegates to dao deleteConsumedByHabit`() = runTest {
+        repository.deleteConsumedForHabit(42L)
+        coVerify { mockDao.deleteConsumedByHabit(42L) }
+    }
 }

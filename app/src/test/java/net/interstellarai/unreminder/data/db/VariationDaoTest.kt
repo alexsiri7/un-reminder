@@ -132,4 +132,41 @@ class VariationDaoTest {
         assertEquals(0, variationDao.countUnused(h1))
         assertEquals(1, variationDao.countUnused(h2))
     }
+
+    @Test fun `deleteConsumedByHabit removes consumed rows and preserves unused rows`() = runTest {
+        val hId = insertHabit()
+        val now = Instant.now()
+        variationDao.insert(listOf(
+            VariationEntity(habitId = hId, text = "unused", promptFingerprint = "fp1", generatedAt = Instant.EPOCH),
+            VariationEntity(habitId = hId, text = "consumed", promptFingerprint = "fp2", generatedAt = Instant.EPOCH),
+        ))
+        val consumed = variationDao.getUnusedForHabit(hId, 50).first { it.text == "consumed" }
+        variationDao.markConsumed(consumed.id, now)
+
+        variationDao.deleteConsumedByHabit(hId)
+
+        assertEquals(1, variationDao.countUnused(hId))
+        assertEquals("unused", variationDao.getUnusedForHabit(hId, 50).single().text)
+    }
+
+    @Test fun `deleteConsumedByHabit does not touch other habits rows`() = runTest {
+        val h1 = insertHabit()
+        val h2 = habitDao.insert(HabitEntity(name = "h2"))
+        val now = Instant.now()
+        variationDao.insert(listOf(
+            VariationEntity(habitId = h1, text = "v1", promptFingerprint = "fp1", generatedAt = Instant.EPOCH),
+            VariationEntity(habitId = h2, text = "v2", promptFingerprint = "fp2", generatedAt = Instant.EPOCH),
+        ))
+        val h1Row = variationDao.getUnusedForHabit(h1, 50).first()
+        val h2Row = variationDao.getUnusedForHabit(h2, 50).first()
+        variationDao.markConsumed(h1Row.id, now)
+        variationDao.markConsumed(h2Row.id, now)
+
+        variationDao.deleteConsumedByHabit(h1)
+
+        val cursor = db.query("SELECT COUNT(*) FROM variations WHERE habit_id = ${h2}", emptyArray())
+        cursor.moveToFirst()
+        assertEquals(1, cursor.getInt(0))
+        cursor.close()
+    }
 }
