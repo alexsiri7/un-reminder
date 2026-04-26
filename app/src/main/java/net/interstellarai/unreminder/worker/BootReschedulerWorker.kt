@@ -4,19 +4,14 @@ import android.content.Context
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
-import net.interstellarai.unreminder.data.repository.TriggerRepository
-import net.interstellarai.unreminder.service.alarm.AlarmScheduler
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
-import java.time.Instant
 
 @HiltWorker
 class BootReschedulerWorker @AssistedInject constructor(
     @Assisted appContext: Context,
     @Assisted workerParams: WorkerParameters,
-    private val triggerRepository: TriggerRepository,
-    private val alarmScheduler: AlarmScheduler,
     private val geofenceManager: GeofenceManager
 ) : CoroutineWorker(appContext, workerParams) {
 
@@ -25,18 +20,7 @@ class BootReschedulerWorker @AssistedInject constructor(
     }
 
     override suspend fun doWork(): Result {
-        // Re-register geofences
         geofenceManager.registerAllFromDb()
-
-        // Re-schedule all future SCHEDULED triggers
-        val scheduledTriggers = triggerRepository.getAllScheduled()
-        val now = Instant.now()
-        for (trigger in scheduledTriggers) {
-            if (trigger.scheduledAt.isAfter(now)) {
-                alarmScheduler.scheduleExactAlarm(trigger.id, trigger.scheduledAt)
-            }
-        }
-
         return Result.success()
     }
 }

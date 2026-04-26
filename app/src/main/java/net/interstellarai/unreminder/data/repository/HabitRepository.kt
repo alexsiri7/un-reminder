@@ -35,7 +35,7 @@ class HabitRepository @Inject constructor(
 
     suspend fun getEligibleHabits(
         currentLocationIds: Set<Long>,
-        excludeRecentMinutes: Long = 90
+        excludeRecentMinutes: Long = 240
     ): List<HabitEntity> {
         val cutoff = Instant.now().minusSeconds(excludeRecentMinutes * 60).toEpochMilli()
         // Room crashes if IN-clause receives an empty list. Use an impossible ID (-1) so the

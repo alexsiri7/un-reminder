@@ -7,13 +7,11 @@ import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
 import net.interstellarai.unreminder.data.db.TriggerEntity
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.trigger.TriggerPipeline
-import net.interstellarai.unreminder.worker.DailySchedulerWorker
+import net.interstellarai.unreminder.worker.RandomIntervalWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -88,9 +86,7 @@ class SettingsViewModel @Inject constructor(
     fun regenerateTriggers() {
         viewModelScope.launch {
             triggerRepository.deleteAllScheduled()
-            WorkManager.getInstance(context).enqueue(
-                OneTimeWorkRequestBuilder<DailySchedulerWorker>().build()
-            )
+            RandomIntervalWorker.enqueueNext(context)
         }
     }
 }

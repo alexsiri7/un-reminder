@@ -1,6 +1,5 @@
 package net.interstellarai.unreminder.data.db
 
-import android.util.Log
 import androidx.room.TypeConverter
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import org.json.JSONArray

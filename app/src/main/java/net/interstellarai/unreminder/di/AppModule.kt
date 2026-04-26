@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.room.Room
+import androidx.work.WorkManager
 import net.interstellarai.unreminder.data.db.AppDatabase
 import net.interstellarai.unreminder.data.db.HabitDao
 import net.interstellarai.unreminder.data.db.HabitLocationCrossRefDao
@@ -80,6 +81,11 @@ object AppModule {
     @Provides
     fun provideHabitLevelDescriptionDao(db: AppDatabase): HabitLevelDescriptionDao =
         db.habitLevelDescriptionDao()
+
+    @Provides
+    @Singleton
+    fun provideWorkManager(@ApplicationContext context: Context): WorkManager =
+        WorkManager.getInstance(context)
 
     @Provides
     @IoDispatcher
