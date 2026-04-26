@@ -8,10 +8,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import io.mockk.coEvery
 import io.mockk.coVerify
-import io.mockk.every
 import io.mockk.mockk
-import io.mockk.mockkStatic
-import io.mockk.unmockkStatic
 import io.mockk.verify
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
@@ -23,7 +20,6 @@ import net.interstellarai.unreminder.data.repository.WindowRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.trigger.TriggerPipeline
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -44,8 +40,6 @@ class RandomIntervalWorkerTest {
 
     @Before
     fun setup() {
-        mockkStatic(WorkManager::class)
-        every { WorkManager.getInstance(any()) } returns mockWorkManager
         worker = RandomIntervalWorker(
             mockContext,
             mockWorkerParams,
@@ -53,13 +47,9 @@ class RandomIntervalWorkerTest {
             mockHabitRepository,
             mockTriggerRepository,
             mockGeofenceManager,
-            mockTriggerPipeline
+            mockTriggerPipeline,
+            mockWorkManager
         )
-    }
-
-    @After
-    fun tearDown() {
-        unmockkStatic(WorkManager::class)
     }
 
     private fun windowCoveringAllDay(): WindowEntity = WindowEntity(

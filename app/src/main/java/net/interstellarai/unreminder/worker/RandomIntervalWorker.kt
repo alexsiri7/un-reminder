@@ -32,7 +32,8 @@ class RandomIntervalWorker @AssistedInject constructor(
     private val habitRepository: HabitRepository,
     private val triggerRepository: TriggerRepository,
     private val geofenceManager: GeofenceManager,
-    private val triggerPipeline: TriggerPipeline
+    private val triggerPipeline: TriggerPipeline,
+    private val workManager: WorkManager
 ) : CoroutineWorker(appContext, workerParams) {
 
     companion object {
@@ -82,7 +83,7 @@ class RandomIntervalWorker @AssistedInject constructor(
 
             if (!inWindow) {
                 Log.d(TAG, "No active window covers now, skipping")
-                enqueueNext(applicationContext)
+                scheduleNext()
                 return Result.success()
             }
 
@@ -90,7 +91,7 @@ class RandomIntervalWorker @AssistedInject constructor(
             val eligibleHabits = habitRepository.getEligibleHabits(geofenceManager.currentLocationIds)
             if (eligibleHabits.isEmpty()) {
                 Log.d(TAG, "No eligible habits, skipping")
-                enqueueNext(applicationContext)
+                scheduleNext()
                 return Result.success()
             }
 
@@ -106,7 +107,7 @@ class RandomIntervalWorker @AssistedInject constructor(
             step = "pipeline"
             triggerPipeline.execute(triggerId)
         } catch (e: CancellationException) {
-            // Intentionally not calling enqueueNext here — WorkManager may not be
+            // Intentionally not calling scheduleNext here — WorkManager may not be
             // in a safe state to accept new work during coroutine cancellation.
             // Recovery: UnReminderApp calls ensureEnqueued() on next app start
             // (KEEP policy re-enqueues after CANCELLED terminal state).
@@ -116,7 +117,18 @@ class RandomIntervalWorker @AssistedInject constructor(
             Log.e(TAG, "Random interval worker failed at step=$step", e)
         }
 
-        enqueueNext(applicationContext)
+        scheduleNext()
         return Result.success()
+    }
+
+    private fun scheduleNext() {
+        val delay = Random.nextLong(MIN_DELAY_MINUTES, MAX_DELAY_MINUTES)
+        workManager.enqueueUniqueWork(
+            WORK_NAME,
+            ExistingWorkPolicy.REPLACE,
+            OneTimeWorkRequestBuilder<RandomIntervalWorker>()
+                .setInitialDelay(delay, TimeUnit.MINUTES)
+                .build()
+        )
     }
 }
