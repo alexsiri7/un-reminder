@@ -91,7 +91,7 @@ class OnboardingViewModel @Inject constructor(
                         WindowEntity(
                             startTime = state.windowStartTime,
                             endTime = state.windowEndTime,
-                            // Mon–Fri: bit 0 = Monday, bit 4 = Friday (matches DailySchedulerWorkerTest convention)
+                            // Mon–Fri: bit 0 = Monday, bit 4 = Friday
                             daysOfWeekBitmask = 0b0011111,
                             frequencyPerDay = 1,
                             active = true

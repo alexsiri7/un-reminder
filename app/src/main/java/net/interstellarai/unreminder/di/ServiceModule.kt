@@ -2,7 +2,6 @@ package net.interstellarai.unreminder.di
 
 import android.content.Context
 import net.interstellarai.unreminder.data.repository.LocationRepository
-import net.interstellarai.unreminder.service.alarm.AlarmScheduler
 import net.interstellarai.unreminder.service.worker.RefillScheduler
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.llm.CloudPromptGenerator
@@ -20,11 +19,6 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object ServiceModule {
-
-    @Provides
-    @Singleton
-    fun provideAlarmScheduler(@ApplicationContext context: Context): AlarmScheduler =
-        AlarmScheduler(context)
 
     @Provides
     @Singleton

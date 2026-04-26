@@ -6,7 +6,6 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <!-- Model download worker promotes itself to a foreground service so Android
@@ -78,10 +77,6 @@
             android:name=".ui.shortcut.SurpriseMeActivity"
             android:exported="true"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-
-        <receiver
-            android:name=".service.alarm.AlarmReceiver"
-            android:exported="false" />
 
         <receiver
             android:name=".service.geofence.GeofenceBroadcastReceiver"

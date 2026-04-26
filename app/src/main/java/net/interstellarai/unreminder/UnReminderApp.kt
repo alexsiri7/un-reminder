@@ -4,14 +4,14 @@ import android.app.Application
 import android.util.Log
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import net.interstellarai.unreminder.service.notification.NotificationHelper
 import net.interstellarai.unreminder.service.sentry.LaunchSmokeTest
 import net.interstellarai.unreminder.service.sentry.applyOptions
 import net.interstellarai.unreminder.service.sentry.shouldInitSentry
-import net.interstellarai.unreminder.worker.DailySchedulerWorker
+import net.interstellarai.unreminder.worker.RandomIntervalWorker
 import dagger.hilt.android.HiltAndroidApp
 import io.sentry.android.core.SentryAndroid
 import java.util.concurrent.TimeUnit
@@ -35,7 +35,7 @@ class UnReminderApp : Application(), Configuration.Provider {
         initSentry() // must run before super.onCreate() to capture any init-phase crashes
         super.onCreate()
         notificationHelper.createNotificationChannel()
-        scheduleDailyWorker()
+        ensureRandomIntervalWorker()
     }
 
     private fun initSentry() {
@@ -66,15 +66,14 @@ class UnReminderApp : Application(), Configuration.Provider {
         private const val TAG = "UnReminderApp"
     }
 
-    private fun scheduleDailyWorker() {
-        val dailyWork = PeriodicWorkRequestBuilder<DailySchedulerWorker>(
-            24, TimeUnit.HOURS
-        ).build()
-
-        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
-            DailySchedulerWorker.WORK_NAME,
-            ExistingPeriodicWorkPolicy.KEEP,
-            dailyWork
+    private fun ensureRandomIntervalWorker() {
+        val request = OneTimeWorkRequestBuilder<RandomIntervalWorker>()
+            .setInitialDelay(RandomIntervalWorker.MIN_DELAY_MINUTES, TimeUnit.MINUTES)
+            .build()
+        WorkManager.getInstance(this).enqueueUniqueWork(
+            RandomIntervalWorker.WORK_NAME,
+            ExistingWorkPolicy.KEEP,
+            request
         )
     }
 }
