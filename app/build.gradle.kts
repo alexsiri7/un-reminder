@@ -109,6 +109,7 @@ android {
 
 sentry {
     autoInstallation { enabled.set(false) }
+    tracingInstrumentation { enabled.set(false) }
     org.set("alex-siri")
     projectName.set("un-reminder")
     includeProguardMapping.set(false)
@@ -116,7 +117,6 @@ sentry {
     autoUploadProguardMapping.set(false)
     autoUploadSourceContext.set(!System.getenv("SENTRY_AUTH_TOKEN").isNullOrBlank())
     uploadNativeSymbols.set(false)
-    tracingInstrumentation { enabled.set(false) }
 }
 
 dependencies {
