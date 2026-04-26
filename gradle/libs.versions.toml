@@ -12,6 +12,7 @@ hiltNavigationCompose = "1.2.0"
 hiltWork = "1.2.0"
 workRuntime = "2.10.0"
 playServicesLocation = "21.3.0"
+appUpdate = "2.1.0"
 coroutines = "1.9.0"
 junit = "4.13.2"
 androidxJunit = "1.2.1"
@@ -51,6 +52,7 @@ hilt-work = { group = "androidx.hilt", name = "hilt-work", version.ref = "hiltWo
 hilt-compiler = { group = "androidx.hilt", name = "hilt-compiler", version.ref = "hiltWork" }
 work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "workRuntime" }
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
+play-app-update = { group = "com.google.android.play", name = "app-update-ktx", version.ref = "appUpdate" }
 coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "coroutines" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
