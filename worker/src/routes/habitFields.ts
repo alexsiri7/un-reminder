@@ -46,8 +46,8 @@ function validate(parsed: unknown): HabitFieldsResult | null {
   if (typeof parsed !== 'object' || parsed === null) return null
   const p = parsed as Record<string, unknown>
   if (!Array.isArray(p.descriptionLadder)) return null
-  if (p.descriptionLadder.length !== 6) return null
-  if (!p.descriptionLadder.every((s) => typeof s === 'string')) return null
+  if (p.descriptionLadder.length !== LEVEL_LABELS.length) return null
+  if (!p.descriptionLadder.every((s) => typeof s === 'string' && s.trim() !== '')) return null
   return { descriptionLadder: p.descriptionLadder as string[] }
 }
 
