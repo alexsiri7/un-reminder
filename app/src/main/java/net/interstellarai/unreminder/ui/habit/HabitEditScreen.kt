@@ -71,8 +71,8 @@ import net.interstellarai.unreminder.ui.theme.UnReminderShapes
 // Habit editor — mirrors `components/editor.jsx`:
 //   - Thin top bar ("← back · EDITING · save")
 //   - "habit name" label + big display-serif field underlined in accent
-//   - "gemma · on-device" AI-assist strip with an "✦ autofill" accent pill
-//   - Full + low-floor description fields rendered as italic serif blocks
+//   - "gemini · cloud" AI-assist strip with an "✦ autofill" accent pill
+//   - 6-level description ladder (just starting → your practice)
 //   - Location chips with sharp corners, filled-accent when selected
 //   - Dark "preview" card at the bottom (ink bg, bg ink)
 //   - Bottom row: active toggle + delete habit link

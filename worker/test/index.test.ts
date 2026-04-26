@@ -474,6 +474,51 @@ describe('un-reminder-worker', () => {
     expect(res.status).toBe(502)
   })
 
+  it('returns 502 on /v1/habit-fields when descriptionLadder has fewer than 6 entries', async () => {
+    mockRequestySuccess({ descriptionLadder: ['a', 'b', 'c'] })
+    mockRequestySuccess({ descriptionLadder: ['a', 'b', 'c'] })
+
+    const req = makeRequest('/v1/habit-fields', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
+      body: { title: 'Meditate' },
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, testEnv(), ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(502)
+  })
+
+  it('returns 502 on /v1/habit-fields when descriptionLadder has more than 6 entries', async () => {
+    mockRequestySuccess({ descriptionLadder: Array(7).fill('A description.') })
+    mockRequestySuccess({ descriptionLadder: Array(7).fill('A description.') })
+
+    const req = makeRequest('/v1/habit-fields', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
+      body: { title: 'Meditate' },
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, testEnv(), ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(502)
+  })
+
+  it('returns 502 on /v1/habit-fields when descriptionLadder contains non-string entries', async () => {
+    mockRequestySuccess({ descriptionLadder: [1, 2, 3, 4, 5, 6] })
+    mockRequestySuccess({ descriptionLadder: [1, 2, 3, 4, 5, 6] })
+
+    const req = makeRequest('/v1/habit-fields', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
+      body: { title: 'Meditate' },
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, testEnv(), ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(502)
+  })
+
   it('returns 400 on /v1/habit-fields with empty title', async () => {
     const req = makeRequest('/v1/habit-fields', {
       method: 'POST',
