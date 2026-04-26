@@ -109,6 +109,7 @@ android {
 
 sentry {
     autoInstallation { enabled.set(false) }
+    tracingInstrumentation { enabled.set(false) }
     org.set("alex-siri")
     projectName.set("un-reminder")
     includeProguardMapping.set(false)
