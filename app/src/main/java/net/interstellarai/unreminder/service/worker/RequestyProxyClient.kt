@@ -24,28 +24,28 @@ private fun Response.throwOnError(): Nothing = when (code) {
 class RequestyProxyClient @Inject constructor(
     private val okHttpClient: OkHttpClient,
 ) {
+    private suspend fun postJson(path: String, payload: JSONObject, workerUrl: String, secret: String): String =
+        withContext(Dispatchers.IO) {
+            val request = Request.Builder()
+                .url("${workerUrl.trimEnd('/')}/v1$path")
+                .addHeader("X-UR-Secret", secret)
+                .addHeader("Accept", "application/json")
+                .post(payload.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+            okHttpClient.newCall(request).execute().use { response ->
+                if (response.code !in 200..299) response.throwOnError()
+                response.body?.string() ?: throw RuntimeException("Worker returned empty body")
+            }
+        }
+
     suspend fun habitFields(
         title: String,
         workerUrl: String,
         secret: String,
-    ): AiHabitFields = withContext(Dispatchers.IO) {
+    ): AiHabitFields {
         val payload = JSONObject().apply { put("title", title) }
-        val request = Request.Builder()
-            .url("${workerUrl.trimEnd('/')}/v1/habit-fields")
-            .addHeader("X-UR-Secret", secret)
-            .addHeader("Accept", "application/json")
-            .post(payload.toString().toRequestBody("application/json".toMediaType()))
-            .build()
-
-        okHttpClient.newCall(request).execute().use { response ->
-            if (response.code !in 200..299) response.throwOnError()
-            val rawBody = response.body?.string()
-                ?: throw RuntimeException("Worker returned empty body")
-            val body = JSONObject(rawBody)
-            val arr = body.getJSONArray("descriptionLadder")
-            val ladder = (0 until arr.length()).map { arr.getString(it) }
-            AiHabitFields(descriptionLadder = ladder)
-        }
+        val arr = JSONObject(postJson("/habit-fields", payload, workerUrl, secret)).getJSONArray("descriptionLadder")
+        return AiHabitFields(descriptionLadder = (0 until arr.length()).map { arr.getString(it) })
     }
 
     suspend fun preview(
@@ -53,31 +53,18 @@ class RequestyProxyClient @Inject constructor(
         locationName: String,
         workerUrl: String,
         secret: String,
-    ): String = withContext(Dispatchers.IO) {
+    ): String {
         val habitObj = JSONObject().apply {
             put("title", habit.name)
             // TODO: pass real tags once HabitEntity carries them (currently loaded via junction table)
             put("tags", JSONArray())
-            // maps current dedication level description -> notes
             put("notes", habit.descriptionLadder.getOrElse(habit.dedicationLevel) { "" })
         }
         val payload = JSONObject().apply {
             put("habit", habitObj)
             put("locationName", locationName)
         }
-        val request = Request.Builder()
-            .url("${workerUrl.trimEnd('/')}/v1/preview")
-            .addHeader("X-UR-Secret", secret)
-            .addHeader("Accept", "application/json")
-            .post(payload.toString().toRequestBody("application/json".toMediaType()))
-            .build()
-
-        okHttpClient.newCall(request).execute().use { response ->
-            if (response.code !in 200..299) response.throwOnError()
-            val rawBody = response.body?.string()
-                ?: throw RuntimeException("Worker returned empty body")
-            JSONObject(rawBody).getString("text")
-        }
+        return JSONObject(postJson("/preview", payload, workerUrl, secret)).getString("text")
     }
 
     suspend fun generateBatch(
@@ -88,7 +75,7 @@ class RequestyProxyClient @Inject constructor(
         n: Int,
         workerUrl: String,
         workerSecret: String,
-    ): List<String> = withContext(Dispatchers.IO) {
+    ): List<String> {
         val payload = JSONObject().apply {
             put("habitTitle", habitTitle)
             put("habitTags", JSONArray(habitTags))
@@ -96,19 +83,7 @@ class RequestyProxyClient @Inject constructor(
             put("timeOfDay", timeOfDay)
             put("n", n)
         }
-        val request = Request.Builder()
-            .url("${workerUrl.trimEnd('/')}/v1/generate/batch")
-            .addHeader("X-UR-Secret", workerSecret)
-            .addHeader("Accept", "application/json")
-            .post(payload.toString().toRequestBody("application/json".toMediaType()))
-            .build()
-
-        okHttpClient.newCall(request).execute().use { response ->
-            if (response.code !in 200..299) response.throwOnError()
-            val rawBody = response.body?.string()
-                ?: throw RuntimeException("Worker returned empty body")
-            val arr = JSONObject(rawBody).getJSONArray("variants")
-            (0 until arr.length()).map { arr.getString(it) }
-        }
+        val arr = JSONObject(postJson("/generate/batch", payload, workerUrl, workerSecret)).getJSONArray("variants")
+        return (0 until arr.length()).map { arr.getString(it) }
     }
 }
