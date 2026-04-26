@@ -234,7 +234,7 @@ Generates a sample notification via the worker's `/v1/preview` endpoint. Shown i
 2. **Habit editor** — name, dedication level progress bar (0–5), auto-adjust toggle, 6-level
    description fields (level 0 = minimum/low-floor, level 5 = full version; current level highlighted),
    location chips (multi-select from saved locations; no selection = "Anywhere"), active toggle.
-   AI-assist row: **Autofill with AI** (populates levels 0 and 5 from the habit name via cloud AI;
+   AI-assist row: **Autofill with AI** (populates all 6 levels (0–5) from the habit name via cloud AI;
    enabled when name ≥ 2 chars) · **Preview notification** (generates a sample notification text;
    enabled when at least one level description is non-blank).
 3. **Windows screen** — list of windows. FAB → add window. Tap → edit.
