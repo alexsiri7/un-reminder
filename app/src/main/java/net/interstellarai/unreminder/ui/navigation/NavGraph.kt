@@ -13,6 +13,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -55,7 +57,10 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector)
 val bottomNavItems = listOf(Screen.Habits, Screen.Windows, Screen.Recent, Screen.Settings)
 
 @Composable
-fun NavGraph(navViewModel: NavViewModel = hiltViewModel()) {
+fun NavGraph(
+    navViewModel: NavViewModel = hiltViewModel(),
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
+) {
     val isOnboarded by navViewModel.isOnboarded.collectAsStateWithLifecycle()
 
     // Lock startDestination once: prevents NavHost from re-routing after onboarding
@@ -92,6 +97,7 @@ fun NavGraph(navViewModel: NavViewModel = hiltViewModel()) {
 
     Scaffold(
         containerColor = androidx.compose.material3.MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             if (showBottomBar) NavigationBar(
                 containerColor = androidx.compose.material3.MaterialTheme.colorScheme.background,

@@ -154,6 +154,7 @@ dependencies {
 
     // Play Services Location (geofencing)
     implementation(libs.play.services.location)
+    implementation(libs.play.app.update)
     implementation(libs.osmdroid.android)
 
     // DataStore

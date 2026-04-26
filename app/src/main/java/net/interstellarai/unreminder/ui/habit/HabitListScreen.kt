@@ -184,38 +184,25 @@ private fun HabitListHeader() {
 private fun AiDownloadBanner(
     aiStatus: AiStatus,
 ) {
-    val shouldRender = aiStatus is AiStatus.Unavailable || aiStatus is AiStatus.Empty
-    if (!shouldRender) return
-
+    val label = when (aiStatus) {
+        is AiStatus.Empty -> "cloud pool empty — variants being generated"
+        is AiStatus.Unavailable -> "AI unavailable — check cloud settings"
+        else -> return
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(horizontal = Dimens.xxl, vertical = Dimens.md),
     ) {
-        when (aiStatus) {
-            is AiStatus.Empty -> {
-                MonoSectionLabel("cloud pool empty — variants being generated")
-                Spacer(Modifier.height(Dimens.xs + 2.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(2.dp)
-                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)),
-                )
-            }
-            is AiStatus.Unavailable -> {
-                MonoSectionLabel("AI unavailable — check cloud settings")
-                Spacer(Modifier.height(Dimens.xs + 2.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(2.dp)
-                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)),
-                )
-            }
-            else -> {} // Ready — not rendered
-        }
+        MonoSectionLabel(label)
+        Spacer(Modifier.height(Dimens.xs + 2.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(2.dp)
+                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)),
+        )
     }
 }
 
