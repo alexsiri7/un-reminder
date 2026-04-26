@@ -21,10 +21,6 @@ const LEVEL_LABELS = [
 ]
 
 function buildPrompt(title: string, strict = false): string {
-  const levelLines = LEVEL_LABELS.map(
-    (label, i) =>
-      `  "level${i}": A description for someone at the "${label}" stage (1 sentence).`,
-  ).join('\n')
   const outputInstruction = strict
     ? `Output ONLY valid JSON with exactly the key descriptionLadder whose value is a JSON array of exactly 6 strings. No markdown, no commentary, no code blocks.`
     : `Output JSON with exactly the key "descriptionLadder" whose value is an array of exactly 6 strings. No markdown, no commentary.`
