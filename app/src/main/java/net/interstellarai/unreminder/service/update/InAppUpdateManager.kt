@@ -32,11 +32,16 @@ class InAppUpdateManager @Inject constructor(
     private val _updateDownloaded = MutableStateFlow(false)
     val updateDownloaded: StateFlow<Boolean> = _updateDownloaded.asStateFlow()
 
+    // Register once: startUpdateCheck is called on every onResume; re-registering
+    // the same listener accumulates duplicate callbacks from AppUpdateManager.
     private var listenerRegistered = false
+    private var updateCheckStarted = false
 
     private val installStateListener = InstallStateUpdatedListener { state ->
-        if (state.installStatus() == InstallStatus.DOWNLOADED) {
-            _updateDownloaded.value = true
+        when (state.installStatus()) {
+            InstallStatus.DOWNLOADED -> _updateDownloaded.value = true
+            InstallStatus.FAILED -> Log.w(TAG, "Update download failed: errorCode=${state.installErrorCode()}")
+            else -> Unit
         }
     }
 
@@ -48,24 +53,41 @@ class InAppUpdateManager @Inject constructor(
             appUpdateManager.registerListener(installStateListener)
             listenerRegistered = true
         }
-        appUpdateManager.appUpdateInfo.addOnSuccessListener { info ->
-            if (info.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE &&
-                info.isFlexibleUpdateAllowed
-            ) {
-                try {
-                    appUpdateManager.startUpdateFlowForResult(
-                        info,
-                        launcher,
-                        AppUpdateOptions.newBuilder(AppUpdateType.FLEXIBLE).build(),
-                    )
-                } catch (e: android.content.IntentSender.SendIntentException) {
-                    Log.w(TAG, "startUpdateFlowForResult failed (debug/sideload)", e)
+        if (updateCheckStarted) return
+        updateCheckStarted = true
+        appUpdateManager.appUpdateInfo
+            .addOnSuccessListener { info ->
+                if (info.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE &&
+                    info.isFlexibleUpdateAllowed
+                ) {
+                    try {
+                        appUpdateManager.startUpdateFlowForResult(
+                            info,
+                            launcher,
+                            AppUpdateOptions.newBuilder(AppUpdateType.FLEXIBLE).build(),
+                        )
+                    } catch (e: android.content.IntentSender.SendIntentException) {
+                        Log.w(TAG, "startUpdateFlowForResult failed (debug/sideload)", e)
+                    }
                 }
             }
-        }
+            .addOnFailureListener { e ->
+                Log.w(TAG, "appUpdateInfo check failed", e)
+            }
     }
 
     fun completeUpdate() {
+        appUpdateManager.unregisterListener(installStateListener)
+        listenerRegistered = false
+        _updateDownloaded.value = false
         appUpdateManager.completeUpdate()
+            .addOnFailureListener { e ->
+                Log.w(TAG, "completeUpdate failed, resetting state", e)
+                _updateDownloaded.value = false
+            }
+    }
+
+    fun resetUpdateDownloaded() {
+        _updateDownloaded.value = false
     }
 }
