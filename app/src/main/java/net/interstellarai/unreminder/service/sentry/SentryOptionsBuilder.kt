@@ -20,5 +20,5 @@ fun applyOptions(
     options.isSendDefaultPii = false
     options.isAttachScreenshot = false
     options.isAttachViewHierarchy = false
-    options.isAnrEnabled = false
+    options.isAnrEnabled = false // belt-and-suspenders guard against ANR watchdog crash on sideloaded pre-API-31 devices (see #133)
 }
