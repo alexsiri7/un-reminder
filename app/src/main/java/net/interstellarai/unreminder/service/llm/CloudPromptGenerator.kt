@@ -37,14 +37,15 @@ class CloudPromptGenerator @Inject constructor(
     }
 
     override suspend fun generateHabitFields(title: String): AiHabitFields {
-        val url = workerSettingsRepository.effectiveWorkerUrl.first()
-        val secret = workerSettingsRepository.effectiveWorkerSecret.first()
+        val (url, secret) = workerConfig()
         return requestyProxyClient.habitFields(title, url, secret)
     }
 
     override suspend fun previewHabitNotification(habit: HabitEntity, locationName: String): String {
-        val url = workerSettingsRepository.effectiveWorkerUrl.first()
-        val secret = workerSettingsRepository.effectiveWorkerSecret.first()
+        val (url, secret) = workerConfig()
         return requestyProxyClient.preview(habit, locationName, url, secret)
     }
+
+    private suspend fun workerConfig(): Pair<String, String> =
+        workerSettingsRepository.effectiveWorkerUrl.first() to workerSettingsRepository.effectiveWorkerSecret.first()
 }
