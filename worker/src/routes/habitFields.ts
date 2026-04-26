@@ -67,7 +67,7 @@ export async function habitFieldsHandler(c: Context<{ Bindings: Env }>): Promise
     c.env.UR_REQUESTY_KEY,
     c.env.UR_MODEL,
     buildPrompt(body.title),
-    buildPrompt(body.title, true),
+    buildPrompt(body.title, /* strict */ true),
     validate,
   )
 

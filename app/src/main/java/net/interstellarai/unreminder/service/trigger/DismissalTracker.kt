@@ -51,15 +51,17 @@ class DismissalTracker @Inject constructor(
             return
         }
 
-        if (habit.dedicationLevel > 0 && habit.autoAdjustLevel) {
+        if (!habit.autoAdjustLevel) {
+            Log.d(TAG, "Habit ${habit.name} autoAdjustLevel disabled — skipping demotion/pause (level=${habit.dedicationLevel})")
+            return
+        }
+        if (habit.dedicationLevel > 0) {
             Log.i(TAG, "Habit ${habit.name} demoted to level ${habit.dedicationLevel - 1}")
             habitRepository.update(habit.copy(dedicationLevel = habit.dedicationLevel - 1))
-        } else if (habit.dedicationLevel == 0 && habit.autoAdjustLevel) {
+        } else {
             Log.i(TAG, "Habit ${habit.name} at level 0 with $STREAK_THRESHOLD consecutive DISMISSEDs — pausing")
             habitRepository.update(habit.copy(active = false))
             notificationHelper.postHabitPausedNotification(habitId, habit.name)
-        } else {
-            Log.d(TAG, "Habit ${habit.name} autoAdjustLevel disabled — skipping demotion/pause (level=${habit.dedicationLevel})")
         }
     }
 
