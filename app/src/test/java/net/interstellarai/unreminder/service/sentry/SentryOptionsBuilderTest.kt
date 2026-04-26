@@ -28,6 +28,7 @@ class SentryOptionsBuilderTest {
     @Test fun `pii not sent`() = assertFalse(buildOptions().isSendDefaultPii)
     @Test fun `screenshots not attached`() = assertFalse(buildOptions().isAttachScreenshot)
     @Test fun `view hierarchy not attached`() = assertFalse(buildOptions().isAttachViewHierarchy)
+    @Test fun `anr detection disabled`() = assertFalse(buildOptions().isAnrEnabled)
     @Test fun `shouldInitSentry returns false for blank dsn`() = assertFalse(shouldInitSentry(""))
     @Test fun `shouldInitSentry returns false for whitespace dsn`() = assertFalse(shouldInitSentry("   "))
     @Test fun `shouldInitSentry returns true for non-blank dsn`() = assertTrue(shouldInitSentry("https://key@sentry.io/123"))
