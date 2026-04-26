@@ -11,7 +11,20 @@ interface HabitFieldsResult {
   descriptionLadder: string[]
 }
 
+const LEVEL_LABELS = [
+  'just starting',
+  'unblocked',
+  'regular',
+  'committed',
+  'routine',
+  'your practice',
+]
+
 function buildPrompt(title: string, strict = false): string {
+  const levelLines = LEVEL_LABELS.map(
+    (label, i) =>
+      `  "level${i}": A description for someone at the "${label}" stage (1 sentence).`,
+  ).join('\n')
   const outputInstruction = strict
     ? `Output ONLY valid JSON with exactly the key descriptionLadder whose value is a JSON array of exactly 6 strings. No markdown, no commentary, no code blocks.`
     : `Output JSON with exactly the key "descriptionLadder" whose value is an array of exactly 6 strings. No markdown, no commentary.`
@@ -33,8 +46,8 @@ function validate(parsed: unknown): HabitFieldsResult | null {
   if (typeof parsed !== 'object' || parsed === null) return null
   const p = parsed as Record<string, unknown>
   if (!Array.isArray(p.descriptionLadder)) return null
-  if (p.descriptionLadder.length !== 6) return null
-  if (!p.descriptionLadder.every((s) => typeof s === 'string')) return null
+  if (p.descriptionLadder.length !== LEVEL_LABELS.length) return null
+  if (!p.descriptionLadder.every((s) => typeof s === 'string' && s.trim() !== '')) return null
   return { descriptionLadder: p.descriptionLadder as string[] }
 }
 
@@ -54,7 +67,7 @@ export async function habitFieldsHandler(c: Context<{ Bindings: Env }>): Promise
     c.env.UR_REQUESTY_KEY,
     c.env.UR_MODEL,
     buildPrompt(body.title),
-    buildPrompt(body.title, true),
+    buildPrompt(body.title, /* strict */ true),
     validate,
   )
 

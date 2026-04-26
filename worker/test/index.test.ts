@@ -459,6 +459,22 @@ describe('un-reminder-worker', () => {
     expect(body.descriptionLadder).toEqual(ladder)
   })
 
+  it('returns 502 on /v1/habit-fields when response has fewer than 6 levels', async () => {
+    const partial = { descriptionLadder: ['l0', 'l1', 'l2', 'l3', 'l4'] }
+    mockRequestySuccess(partial)
+    mockRequestySuccess(partial)
+
+    const req = makeRequest('/v1/habit-fields', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
+      body: { title: 'Meditate' },
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, testEnv(), ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(502)
+  })
+
   it('returns 502 on /v1/habit-fields when response is persistently malformed', async () => {
     mockRequestyMalformed()
     mockRequestyMalformed()
