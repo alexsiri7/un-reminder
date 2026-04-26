@@ -143,6 +143,26 @@ class HabitEditViewModelTest {
         advanceUntilIdle()
 
         verify(exactly = 0) { Sentry.captureException(any(), any<ScopeCallback>()) }
+        val state = viewModel.uiState.value
+        assertFalse(state.isGeneratingFields)
+        assertEquals("AI unavailable — fill in manually.", state.errorMessage)
+        unmockkStatic(Sentry::class)
+    }
+
+    @Test
+    fun `autofillWithAi captures unexpected IllegalStateException to Sentry`() = runTest(testDispatcher) {
+        mockkStatic(Sentry::class)
+        every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
+
+        coEvery { mockPromptGenerator.generateHabitFields(any()) } throws
+            IllegalStateException("some internal state failure")
+
+        viewModel.autofillWithAi()
+        advanceUntilIdle()
+
+        verify(exactly = 1) { Sentry.captureException(any(), any<ScopeCallback>()) }
+        assertFalse(viewModel.uiState.value.isGeneratingFields)
+        assertNotNull(viewModel.uiState.value.errorMessage)
         unmockkStatic(Sentry::class)
     }
 

@@ -233,6 +233,7 @@ class HabitEditViewModel @Inject constructor(
                     showSpendCapLink = true,
                 )
             } catch (e: IllegalStateException) {
+                if (e is CancellationException) throw e
                 if (e.message == "LLM unavailable") {
                     _uiState.value = _uiState.value.copy(isGeneratingFields = false, errorMessage = errorMsg)
                 } else {
