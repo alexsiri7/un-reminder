@@ -117,7 +117,22 @@ class HabitEditViewModelTest {
     }
 
     @Test
-    fun `autofillWithAi captures exception to Sentry on failure`() = runTest(testDispatcher) {
+    fun `autofillWithAi captures unexpected exception to Sentry`() = runTest(testDispatcher) {
+        mockkStatic(Sentry::class)
+        every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
+
+        coEvery { mockPromptGenerator.generateHabitFields(any()) } throws
+            RuntimeException("unexpected network failure")
+
+        viewModel.autofillWithAi()
+        advanceUntilIdle()
+
+        verify(exactly = 1) { Sentry.captureException(any(), any<ScopeCallback>()) }
+        unmockkStatic(Sentry::class)
+    }
+
+    @Test
+    fun `autofillWithAi does not send Sentry event for LLM unavailable`() = runTest(testDispatcher) {
         mockkStatic(Sentry::class)
         every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
 
@@ -127,7 +142,7 @@ class HabitEditViewModelTest {
         viewModel.autofillWithAi()
         advanceUntilIdle()
 
-        verify(exactly = 1) { Sentry.captureException(any(), any<ScopeCallback>()) }
+        verify(exactly = 0) { Sentry.captureException(any(), any<ScopeCallback>()) }
         unmockkStatic(Sentry::class)
     }
 
