@@ -30,6 +30,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
     @Inject
     lateinit var geofenceManager: GeofenceManager
 
+    // No goAsync/DB/network per geofence — ANR-prone in onReceive otherwise (see #137).
     override fun onReceive(context: Context, intent: Intent) {
         val event = GeofencingEvent.fromIntent(intent) ?: return
         if (event.hasError()) {
