@@ -433,7 +433,7 @@ private fun AiAssistStrip(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                MonoSectionLabel("gemma · on-device")
+                MonoSectionLabel("gemini · cloud")
                 Spacer(Modifier.height(2.dp))
                 Text(
                     "Autofill descriptions",
@@ -610,7 +610,7 @@ private fun PreviewCard(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.padding(horizontal = Dimens.xs)) {
-        MonoSectionLabel("preview · sampled from gemma")
+        MonoSectionLabel("preview · gemini cloud")
         Spacer(Modifier.height(Dimens.md - 2.dp))
         Box(
             modifier = Modifier

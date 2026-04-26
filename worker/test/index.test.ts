@@ -436,8 +436,15 @@ describe('un-reminder-worker', () => {
   })
 
   it('returns 200 with habit fields on success', async () => {
-    const fields = { fullDescription: 'Sit quietly for 10 minutes', lowFloorDescription: 'Just sit down' }
-    mockRequestySuccess(fields)
+    const ladder = [
+      'Just try sitting for one minute.',
+      'Sit quietly for 3 minutes.',
+      'A 10-minute daily sit.',
+      'A focused 20-minute session.',
+      'A structured 30-minute sit each morning.',
+      'A dedicated meditation session that defines your relationship with stillness.',
+    ]
+    mockRequestySuccess({ descriptionLadder: ladder })
 
     const req = makeRequest('/v1/habit-fields', {
       method: 'POST',
@@ -448,9 +455,8 @@ describe('un-reminder-worker', () => {
     const res = await app.fetch(req, testEnv(), ctx)
     await waitOnExecutionContext(ctx)
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { fullDescription: string; lowFloorDescription: string }
-    expect(body.fullDescription).toBe(fields.fullDescription)
-    expect(body.lowFloorDescription).toBe(fields.lowFloorDescription)
+    const body = (await res.json()) as { descriptionLadder: string[] }
+    expect(body.descriptionLadder).toEqual(ladder)
   })
 
   it('returns 502 on /v1/habit-fields when response is persistently malformed', async () => {
@@ -581,8 +587,7 @@ describe('un-reminder-worker', () => {
   })
 
   it('increments spend counter after successful /v1/habit-fields call', async () => {
-    const fields = { fullDescription: 'Sit quietly', lowFloorDescription: 'Just sit' }
-    mockRequestySuccess(fields)
+    mockRequestySuccess({ descriptionLadder: Array(6).fill('A description.') })
 
     const e = testEnv()
     const req = makeRequest('/v1/habit-fields', {

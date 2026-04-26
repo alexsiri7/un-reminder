@@ -8,20 +8,23 @@ interface HabitFieldsRequest {
 }
 
 interface HabitFieldsResult {
-  fullDescription: string
-  lowFloorDescription: string
+  descriptionLadder: string[]
 }
 
 function buildPrompt(title: string, strict = false): string {
   const outputInstruction = strict
-    ? `Output ONLY valid JSON with exactly the keys fullDescription and lowFloorDescription. No markdown, no commentary, no code blocks.`
-    : `Output JSON with exactly the keys "fullDescription" and "lowFloorDescription". No markdown, no commentary.`
+    ? `Output ONLY valid JSON with exactly the key descriptionLadder whose value is a JSON array of exactly 6 strings. No markdown, no commentary, no code blocks.`
+    : `Output JSON with exactly the key "descriptionLadder" whose value is an array of exactly 6 strings. No markdown, no commentary.`
   return (
     `You are a habit description generator for a habit-tracker app.\n` +
     `Habit title: "${title}"\n\n` +
-    `Write two descriptions for this habit:\n` +
-    `1. "fullDescription": A clear, motivating description of the habit (1-2 sentences).\n` +
-    `2. "lowFloorDescription": A minimal, easy version of the habit to do on low-motivation days (1 sentence).\n\n` +
+    `Write exactly 6 short descriptions for this habit, one per dedication level (index 0–5):\n` +
+    `  0 — just starting: a minimal, one-time or exploratory version (1 sentence)\n` +
+    `  1 — unblocked: a low-effort, any-day version (1 sentence)\n` +
+    `  2 — regular: a consistent baseline version (1 sentence)\n` +
+    `  3 — committed: a meaningful, deliberate version (1 sentence)\n` +
+    `  4 — routine: a deep, habitual version (1 sentence)\n` +
+    `  5 — your practice: a full, immersive version that defines the habit (1-2 sentences)\n\n` +
     outputInstruction
   )
 }
@@ -29,8 +32,10 @@ function buildPrompt(title: string, strict = false): string {
 function validate(parsed: unknown): HabitFieldsResult | null {
   if (typeof parsed !== 'object' || parsed === null) return null
   const p = parsed as Record<string, unknown>
-  if (typeof p.fullDescription !== 'string' || typeof p.lowFloorDescription !== 'string') return null
-  return { fullDescription: p.fullDescription, lowFloorDescription: p.lowFloorDescription }
+  if (!Array.isArray(p.descriptionLadder)) return null
+  if (p.descriptionLadder.length !== 6) return null
+  if (!p.descriptionLadder.every((s) => typeof s === 'string')) return null
+  return { descriptionLadder: p.descriptionLadder as string[] }
 }
 
 export async function habitFieldsHandler(c: Context<{ Bindings: Env }>): Promise<Response> {
