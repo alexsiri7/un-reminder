@@ -52,10 +52,24 @@ class RandomIntervalWorker @AssistedInject constructor(
                 request
             )
         }
+
+        fun ensureEnqueued(context: Context) {
+            val request = OneTimeWorkRequestBuilder<RandomIntervalWorker>()
+                .setInitialDelay(MIN_DELAY_MINUTES, TimeUnit.MINUTES)
+                .build()
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                WORK_NAME,
+                ExistingWorkPolicy.KEEP,
+                request
+            )
+        }
     }
 
     override suspend fun doWork(): Result {
+        var step = "init"
+        var triggerId: Long? = null
         try {
+            step = "windowQuery"
             val activeWindows = windowRepository.getActiveWindows()
             val dayBit = 1 shl (LocalDate.now().dayOfWeek.value - 1)
             val currentSecondOfDay = LocalTime.now().toSecondOfDay()
@@ -72,6 +86,7 @@ class RandomIntervalWorker @AssistedInject constructor(
                 return Result.success()
             }
 
+            step = "habitQuery"
             val eligibleHabits = habitRepository.getEligibleHabits(geofenceManager.currentLocationIds)
             if (eligibleHabits.isEmpty()) {
                 Log.d(TAG, "No eligible habits, skipping")
@@ -79,7 +94,8 @@ class RandomIntervalWorker @AssistedInject constructor(
                 return Result.success()
             }
 
-            val triggerId = triggerRepository.insert(
+            step = "triggerInsert"
+            triggerId = triggerRepository.insert(
                 TriggerEntity(
                     scheduledAt = Instant.now(),
                     status = TriggerStatus.SCHEDULED,
@@ -87,11 +103,17 @@ class RandomIntervalWorker @AssistedInject constructor(
                 )
             )
 
+            step = "pipeline"
             triggerPipeline.execute(triggerId)
         } catch (e: CancellationException) {
+            // Intentionally not calling enqueueNext here — WorkManager may not be
+            // in a safe state to accept new work during coroutine cancellation.
+            // Recovery: UnReminderApp calls ensureEnqueued() on next app start
+            // (KEEP policy re-enqueues after CANCELLED terminal state).
+            triggerId?.let { triggerRepository.updateOutcome(it, TriggerStatus.DISMISSED) }
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Random interval worker failed", e)
+            Log.e(TAG, "Random interval worker failed at step=$step", e)
         }
 
         enqueueNext(applicationContext)
