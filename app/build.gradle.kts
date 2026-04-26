@@ -116,6 +116,7 @@ sentry {
     autoUploadProguardMapping.set(false)
     autoUploadSourceContext.set(!System.getenv("SENTRY_AUTH_TOKEN").isNullOrBlank())
     uploadNativeSymbols.set(false)
+    tracingInstrumentation { enabled.set(false) }
 }
 
 dependencies {
