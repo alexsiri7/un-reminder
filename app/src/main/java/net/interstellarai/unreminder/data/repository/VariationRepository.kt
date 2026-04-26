@@ -50,6 +50,8 @@ class VariationRepository @Inject constructor(
 
     suspend fun deleteForHabit(habitId: Long) = dao.deleteByHabit(habitId)
 
+    suspend fun deleteConsumedForHabit(habitId: Long) = dao.deleteConsumedByHabit(habitId)
+
     fun unusedVariationsFlow(habitId: Long): Flow<List<VariationEntity>> =
         dao.getUnusedFlow(habitId)
 

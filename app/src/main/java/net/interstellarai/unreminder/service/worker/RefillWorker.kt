@@ -77,6 +77,7 @@ class RefillWorker @AssistedInject constructor(
                     generatedAt = now,
                 )
             }
+            variationRepository.deleteConsumedForHabit(habitId)
             variationRepository.insertAll(entities)
             Result.success()
         } catch (e: CancellationException) {
