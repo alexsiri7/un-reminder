@@ -20,4 +20,5 @@ fun applyOptions(
     options.isSendDefaultPii = false
     options.isAttachScreenshot = false
     options.isAttachViewHierarchy = false
+    options.isAnrEnabled = false
 }
