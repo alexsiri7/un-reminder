@@ -57,6 +57,11 @@ class InAppUpdateManager @Inject constructor(
         updateCheckStarted = true
         appUpdateManager.appUpdateInfo
             .addOnSuccessListener { info ->
+                if (info.installStatus() == InstallStatus.DOWNLOADED) {
+                    Log.i(TAG, "Stalled download detected on resume — prompting install")
+                    _updateDownloaded.value = true
+                    return@addOnSuccessListener
+                }
                 if (info.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE &&
                     info.isFlexibleUpdateAllowed
                 ) {
@@ -76,14 +81,18 @@ class InAppUpdateManager @Inject constructor(
             }
     }
 
-    fun completeUpdate() {
+    fun unregisterListener() {
+        if (!listenerRegistered) return
         appUpdateManager.unregisterListener(installStateListener)
         listenerRegistered = false
+    }
+
+    fun completeUpdate() {
+        unregisterListener()
         _updateDownloaded.value = false
         appUpdateManager.completeUpdate()
             .addOnFailureListener { e ->
-                Log.w(TAG, "completeUpdate failed, resetting state", e)
-                _updateDownloaded.value = false
+                Log.w(TAG, "completeUpdate failed", e)
             }
     }
 
