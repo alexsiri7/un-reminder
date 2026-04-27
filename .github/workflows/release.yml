@@ -78,7 +78,8 @@ jobs:
           packageName: net.interstellarai.unreminder
           releaseFiles: app/build/outputs/bundle/release/*.aab
           track: internal
-          status: completed
+          # App is in Play Store draft state until first public release; use 'completed' after first publish
+          status: draft
           releaseName: ${{ env.VERSION_NAME }}
 
       - name: Build signed universal APK (for sideload)
