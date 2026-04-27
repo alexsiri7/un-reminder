@@ -41,6 +41,7 @@ import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.ui.theme.Dimens
 import net.interstellarai.unreminder.ui.theme.DisplayHuge
 import net.interstellarai.unreminder.ui.theme.DisplaySmall
+import net.interstellarai.unreminder.ui.theme.FeedbackIconButton
 import net.interstellarai.unreminder.ui.theme.MonoContextStrip
 import net.interstellarai.unreminder.ui.theme.MonoLabel
 import net.interstellarai.unreminder.ui.theme.MonoLabelTiny
@@ -66,6 +67,7 @@ import java.util.Locale
 fun HabitListScreen(
     onAddHabit: () -> Unit,
     onEditHabit: (Long) -> Unit,
+    onNavigateToFeedback: () -> Unit = {},
     viewModel: HabitListViewModel = hiltViewModel(),
 ) {
     val habits by viewModel.habits.collectAsStateWithLifecycle()
@@ -91,7 +93,7 @@ fun HabitListScreen(
         ) {
             AiDownloadBanner(aiStatus = aiStatus)
 
-            HabitListHeader()
+            HabitListHeader(onNavigateToFeedback)
 
             if (habits.isEmpty()) {
                 Column(
@@ -153,24 +155,30 @@ fun HabitListScreen(
 }
 
 @Composable
-private fun HabitListHeader() {
+private fun HabitListHeader(onNavigateToFeedback: () -> Unit) {
     val today = LocalDate.now()
     val dateLabel = today.format(DateTimeFormatter.ofPattern("EEE · MMM d", Locale.getDefault()))
 
-    Column(
-        modifier = Modifier.padding(
-            start = Dimens.xxl,
-            end = Dimens.xxl,
-            top = Dimens.xl,
-            bottom = Dimens.md,
-        ),
-    ) {
-        MonoContextStrip(dateLabel)
-        Spacer(Modifier.height(Dimens.sm))
-        Text(
-            text = "un-reminder",
-            style = DisplayHuge,
-            color = MaterialTheme.colorScheme.onBackground,
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(
+                start = Dimens.xxl,
+                end = Dimens.xxl,
+                top = Dimens.xl,
+                bottom = Dimens.md,
+            ),
+        ) {
+            MonoContextStrip(dateLabel)
+            Spacer(Modifier.height(Dimens.sm))
+            Text(
+                text = "un-reminder",
+                style = DisplayHuge,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+        }
+        FeedbackIconButton(
+            onClick = onNavigateToFeedback,
+            modifier = Modifier.align(Alignment.TopEnd),
         )
     }
 }

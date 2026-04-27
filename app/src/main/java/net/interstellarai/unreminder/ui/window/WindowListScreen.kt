@@ -39,6 +39,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import net.interstellarai.unreminder.ui.theme.Dimens
 import net.interstellarai.unreminder.ui.theme.DisplayHuge
 import net.interstellarai.unreminder.ui.theme.DisplaySmall
+import net.interstellarai.unreminder.ui.theme.FeedbackIconButton
 import net.interstellarai.unreminder.ui.theme.MonoContextStrip
 import net.interstellarai.unreminder.ui.theme.MonoLabel
 import net.interstellarai.unreminder.ui.theme.MonoLabelTiny
@@ -61,6 +62,7 @@ import java.util.Locale
 fun WindowListScreen(
     onAddWindow: () -> Unit,
     onEditWindow: (Long) -> Unit,
+    onNavigateToFeedback: () -> Unit = {},
     viewModel: WindowListViewModel = hiltViewModel(),
 ) {
     val windows by viewModel.windows.collectAsStateWithLifecycle()
@@ -83,20 +85,7 @@ fun WindowListScreen(
                 .fillMaxSize()
                 .padding(padding),
         ) {
-            Column(
-                modifier = Modifier.padding(
-                    horizontal = Dimens.xxl,
-                    vertical = Dimens.xl,
-                ),
-            ) {
-                MonoContextStrip("windows")
-                Spacer(Modifier.height(Dimens.sm))
-                Text(
-                    "when",
-                    style = DisplayHuge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-            }
+            WindowListHeader(onNavigateToFeedback)
 
             if (windows.isEmpty()) {
                 Column(
@@ -154,6 +143,30 @@ fun WindowListScreen(
 
             NavPill()
         }
+    }
+}
+
+@Composable
+private fun WindowListHeader(onNavigateToFeedback: () -> Unit) {
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(
+                horizontal = Dimens.xxl,
+                vertical = Dimens.xl,
+            ),
+        ) {
+            MonoContextStrip("windows")
+            Spacer(Modifier.height(Dimens.sm))
+            Text(
+                "when",
+                style = DisplayHuge,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+        }
+        FeedbackIconButton(
+            onClick = onNavigateToFeedback,
+            modifier = Modifier.align(Alignment.TopEnd),
+        )
     }
 }
 

@@ -230,14 +230,14 @@ Generates a sample notification via the worker's `/v1/preview` endpoint. Shown i
 
 ## 6. Screens (MVP)
 
-1. **Home screen** — list of habits. FAB → add habit. Tap habit → edit.
+1. **Home screen** — list of habits. FAB → add habit. Tap habit → edit. BugReport icon in header → Feedback screen.
 2. **Habit editor** — name, dedication level progress bar (0–5), auto-adjust toggle, 6-level
    description fields (level 0 = minimum/low-floor, level 5 = full version; current level highlighted),
    location chips (multi-select from saved locations; no selection = "Anywhere"), active toggle.
    AI-assist row: **Autofill with AI** (populates all 6 levels (0–5) from the habit name via cloud AI;
    enabled when name ≥ 2 chars) · **Preview notification** (generates a sample notification text;
    enabled when at least one level description is non-blank).
-3. **Windows screen** — list of windows. FAB → add window. Tap → edit.
+3. **Windows screen** — list of windows. FAB → add window. Tap → edit. BugReport icon in header → Feedback screen.
 4. **Window editor** — start/end time pickers, days-of-week chips, frequency slider (1–3), active toggle.
 5. **Locations screen** — dynamic list of named locations (any label, not restricted to HOME/WORK).
    FAB opens the map picker; each list item has an Edit button. Map picker shows a full-screen
