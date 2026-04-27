@@ -51,16 +51,12 @@ fun MonoContextStrip(
     text: String,
     modifier: Modifier = Modifier,
 ) {
-    Row(
+    Text(
+        text = "\u2500\u2500 ${text.lowercase(Locale.getDefault())} \u2500\u2500",
+        style = MonoLabelTiny,
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
         modifier = modifier,
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-    ) {
-        Text(
-            text = "\u2500\u2500 ${text.lowercase(Locale.getDefault())} \u2500\u2500",
-            style = MonoLabelTiny,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-        )
-    }
+    )
 }
 
 /**
