@@ -37,7 +37,6 @@ class NotificationActionMappingTest {
 }
 
 class RequestCodeTest {
-    private fun Long.toRequestCode(): Int = (this xor (this ushr 32)).toInt()
 
     @Test
     fun `toRequestCode is stable for small IDs`() {
@@ -45,11 +44,12 @@ class RequestCodeTest {
     }
 
     @Test
-    fun `toRequestCode does not overflow for large IDs`() {
+    fun `toRequestCode folds high-32-bits into result for large IDs`() {
         // 0x1_0000_0001L has non-zero high 32 bits; XOR-fold folds them in, producing 0 ≠ 1
         val largeId = 4_294_967_297L
         val code = largeId.toRequestCode()
         assertNotEquals(largeId.toInt(), code)
+        assertEquals(0, code)
     }
 
     @Test
@@ -65,5 +65,12 @@ class RequestCodeTest {
         val id1 = 1L
         val id2 = 2L
         assertNotEquals((id1 * 2 + 0).toRequestCode(), (id2 * 2 + 0).toRequestCode())
+    }
+
+    @Test
+    fun `toRequestCode folds to zero when high bits equal low bits (known XOR cancellation)`() {
+        // XOR(x, x) == 0 — known property; these trigger IDs map to notification slot 0
+        assertEquals(0, (-1L).toRequestCode())
+        assertEquals(0, 0x0000_0001_0000_0001L.toRequestCode())
     }
 }

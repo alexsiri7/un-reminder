@@ -89,11 +89,9 @@ class NotificationHelper @Inject constructor(
         }
         return PendingIntent.getBroadcast(
             context,
-            (triggerId * 2 + requestCodeOffset).toRequestCode(),
+            (triggerId * 2 + requestCodeOffset).toRequestCode(), // * 2 = slots per notification: offset 0 = COMPLETED, offset 1 = DISMISSED
             intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
     }
 }
-
-private fun Long.toRequestCode(): Int = (this xor (this ushr 32)).toInt()

@@ -60,5 +60,3 @@ class NotificationActionReceiver : BroadcastReceiver() {
         }
     }
 }
-
-private fun Long.toRequestCode(): Int = (this xor (this ushr 32)).toInt()
