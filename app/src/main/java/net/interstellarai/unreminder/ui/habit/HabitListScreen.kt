@@ -20,10 +20,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -66,6 +68,7 @@ import java.util.Locale
 fun HabitListScreen(
     onAddHabit: () -> Unit,
     onEditHabit: (Long) -> Unit,
+    onNavigateToFeedback: () -> Unit = {},
     viewModel: HabitListViewModel = hiltViewModel(),
 ) {
     val habits by viewModel.habits.collectAsStateWithLifecycle()
@@ -91,7 +94,7 @@ fun HabitListScreen(
         ) {
             AiDownloadBanner(aiStatus = aiStatus)
 
-            HabitListHeader()
+            HabitListHeader(onNavigateToFeedback)
 
             if (habits.isEmpty()) {
                 Column(
@@ -153,25 +156,39 @@ fun HabitListScreen(
 }
 
 @Composable
-private fun HabitListHeader() {
+private fun HabitListHeader(onNavigateToFeedback: () -> Unit) {
     val today = LocalDate.now()
     val dateLabel = today.format(DateTimeFormatter.ofPattern("EEE · MMM d", Locale.getDefault()))
 
-    Column(
-        modifier = Modifier.padding(
-            start = Dimens.xxl,
-            end = Dimens.xxl,
-            top = Dimens.xl,
-            bottom = Dimens.md,
-        ),
-    ) {
-        MonoContextStrip(dateLabel)
-        Spacer(Modifier.height(Dimens.sm))
-        Text(
-            text = "un-reminder",
-            style = DisplayHuge,
-            color = MaterialTheme.colorScheme.onBackground,
-        )
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(
+                start = Dimens.xxl,
+                end = Dimens.xxl,
+                top = Dimens.xl,
+                bottom = Dimens.md,
+            ),
+        ) {
+            MonoContextStrip(dateLabel)
+            Spacer(Modifier.height(Dimens.sm))
+            Text(
+                text = "un-reminder",
+                style = DisplayHuge,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+        }
+        IconButton(
+            onClick = onNavigateToFeedback,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(end = Dimens.md),
+        ) {
+            Icon(
+                Icons.Default.BugReport,
+                contentDescription = "Send Feedback",
+                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+            )
+        }
     }
 }
 

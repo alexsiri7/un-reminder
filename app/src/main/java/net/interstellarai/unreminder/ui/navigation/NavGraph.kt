@@ -144,7 +144,8 @@ fun NavGraph(
             composable(Screen.Habits.route) {
                 HabitListScreen(
                     onAddHabit = { navController.navigate("habit_add") },
-                    onEditHabit = { id -> navController.navigate("habit_edit/$id") }
+                    onEditHabit = { id -> navController.navigate("habit_edit/$id") },
+                    onNavigateToFeedback = { captureAndNavigate("feedback") },
                 )
             }
             composable("habit_add") {
@@ -175,7 +176,8 @@ fun NavGraph(
             composable(Screen.Windows.route) {
                 WindowListScreen(
                     onAddWindow = { navController.navigate("window_add") },
-                    onEditWindow = { id -> navController.navigate("window_edit/$id") }
+                    onEditWindow = { id -> navController.navigate("window_edit/$id") },
+                    onNavigateToFeedback = { captureAndNavigate("feedback") },
                 )
             }
             composable("window_add") {
