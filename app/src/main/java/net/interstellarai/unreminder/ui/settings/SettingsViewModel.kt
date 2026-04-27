@@ -68,8 +68,6 @@ class SettingsViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(testTriggered = true)
     })
 
-    fun surpriseMe() = executeTrigger(source = "MANUAL")
-
     private fun executeTrigger(source: String? = null, onComplete: (() -> Unit)? = null) {
         viewModelScope.launch {
             val trigger = TriggerEntity(

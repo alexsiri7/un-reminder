@@ -181,8 +181,6 @@ fun SettingsScreen(
                     onClick = onNavigateToLocations,
                 )
                 Spacer(Modifier.height(Dimens.sm))
-                OutlineAction(label = "surprise me") { viewModel.surpriseMe() }
-                Spacer(Modifier.height(Dimens.sm))
                 OutlineAction(label = "test trigger now") { viewModel.testTriggerNow() }
                 Spacer(Modifier.height(Dimens.sm))
                 OutlineAction(label = "regenerate tomorrow's triggers") {

@@ -50,30 +50,4 @@ class SettingsViewModelTest {
         Dispatchers.resetMain()
     }
 
-    @Test
-    fun `surpriseMe inserts trigger with MANUAL source and null windowId`() = runTest {
-        coEvery { triggerRepository.insert(any()) } returns 1L
-
-        viewModel.surpriseMe()
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        coVerify {
-            triggerRepository.insert(match { trigger ->
-                trigger.source == "MANUAL" &&
-                trigger.windowId == null &&
-                trigger.status == TriggerStatus.SCHEDULED
-            })
-        }
-    }
-
-    @Test
-    fun `surpriseMe executes pipeline with inserted trigger id`() = runTest {
-        val triggerId = 7L
-        coEvery { triggerRepository.insert(any()) } returns triggerId
-
-        viewModel.surpriseMe()
-        testDispatcher.scheduler.advanceUntilIdle()
-
-        coVerify { triggerPipeline.execute(triggerId) }
-    }
 }
