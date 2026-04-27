@@ -13,10 +13,10 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import net.interstellarai.unreminder.BuildConfig
 import net.interstellarai.unreminder.data.repository.FeedbackRepository
-import net.interstellarai.unreminder.service.log.collectLogs
 import net.interstellarai.unreminder.di.DefaultDispatcher
 import net.interstellarai.unreminder.di.IoDispatcher
 import net.interstellarai.unreminder.service.github.GitHubApiService
+import net.interstellarai.unreminder.service.log.collectLogs
 import net.interstellarai.unreminder.worker.FeedbackUploadWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -159,7 +159,7 @@ class FeedbackViewModel @Inject constructor(
                     appendLine("<details><summary>Logs</summary>")
                     appendLine()
                     appendLine("```")
-                    append(logTail)
+                    appendLine(logTail)
                     appendLine("```")
                     appendLine()
                     appendLine("</details>")

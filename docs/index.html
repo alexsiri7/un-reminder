@@ -55,6 +55,9 @@
 <ul>
   <li>An annotated screenshot of the current screen (may include habit names, location names, or trigger text visible at the time).</li>
   <li>A description you type.</li>
+  <li>Up to 200 lines of recent app diagnostic logs (logcat output, scoped to this app's process only).
+      Before transmission, email addresses are replaced with <code>[EMAIL]</code> and IPv4/IPv6 addresses
+      are replaced with <code>[IP]</code>. No logs are attached if the collection step fails.</li>
 </ul>
 <p>
   This data is stored as a public GitHub issue in the

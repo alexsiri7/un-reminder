@@ -11,8 +11,10 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.slot
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.junit.Test
 import java.io.IOException
@@ -91,6 +93,23 @@ class FeedbackUploadWorkerTest {
 
         assertEquals(Result.failure(), result)
         coVerify(exactly = 0) { mockRepository.deleteById(any()) }
+    }
+
+    @Test fun `doWork body excludes log section when collectLogs returns null`() = runTest {
+        val item = PendingFeedbackEntity(
+            id = 1L,
+            screenshotPath = null,
+            description = "test feedback",
+            queuedAt = Instant.now()
+        )
+        coEvery { mockRepository.getPending() } returns listOf(item)
+        val bodySlot = slot<String>()
+        coEvery { mockGitHubApiService.submit(any(), capture(bodySlot), any()) } just Runs
+
+        worker.doWork()
+
+        // In JVM tests collectLogs() always returns null — verify the null branch
+        assertFalse(bodySlot.captured.contains("<details>"))
     }
 
     @Test fun `WORK_NAME constant is defined`() {

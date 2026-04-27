@@ -54,7 +54,7 @@ class FeedbackUploadWorker @AssistedInject constructor(
                         appendLine("<details><summary>Logs</summary>")
                         appendLine()
                         appendLine("```")
-                        append(logTail)
+                        appendLine(logTail)
                         appendLine("```")
                         appendLine()
                         appendLine("</details>")

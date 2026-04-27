@@ -7,6 +7,7 @@ import net.interstellarai.unreminder.service.github.GitHubApiService
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -20,6 +21,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -98,5 +100,29 @@ class FeedbackViewModelTest {
         assert(viewModel.uiState.value.isSubmitting)
         advanceUntilIdle()
         assertFalse(viewModel.uiState.value.isSubmitting)
+    }
+
+    @Test fun `submit passes device info and description in body`() = runTest {
+        val bodySlot = slot<String>()
+        coEvery { mockGitHubApiService.submit(any(), capture(bodySlot), any()) } returns Unit
+        viewModel.updateDescription("test bug")
+        viewModel.submit(mockk(relaxed = true))
+        advanceUntilIdle()
+
+        val body = bodySlot.captured
+        assertTrue(body.contains("Device:"))
+        assertTrue(body.contains("Android:"))
+        assertTrue(body.contains("App:"))
+        assertTrue(body.contains("test bug"))
+    }
+
+    @Test fun `submit body excludes log section when no logs available`() = runTest {
+        val bodySlot = slot<String>()
+        coEvery { mockGitHubApiService.submit(any(), capture(bodySlot), any()) } returns Unit
+        viewModel.submit(mockk(relaxed = true))
+        advanceUntilIdle()
+
+        // In JVM tests collectLogs() returns null — the details block must be absent
+        assertFalse(bodySlot.captured.contains("<details>"))
     }
 }
