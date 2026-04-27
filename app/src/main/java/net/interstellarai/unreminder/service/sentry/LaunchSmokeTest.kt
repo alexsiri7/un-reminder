@@ -27,7 +27,12 @@ object LaunchSmokeTest {
         context: Context,
         versionName: String,
         versionCode: Int,
-        capture: (String) -> Unit = { Sentry.captureMessage(it) },
+        capture: (String) -> Unit = { msg ->
+            Sentry.withScope { scope ->
+                scope.fingerprint = listOf("launch-smoke")
+                Sentry.captureMessage(msg)
+            }
+        },
         store: SmokeStore = SharedPrefsSmokeStore(context)
     ): Boolean {
         val last = store.lastReportedVersionCode()
