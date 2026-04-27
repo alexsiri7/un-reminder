@@ -223,23 +223,19 @@ class HabitEditViewModel @Inject constructor(
             try {
                 block()
             } catch (e: WorkerAuthException) {
-                _uiState.value = _uiState.value.copy(
-                    isGeneratingFields = false,
-                    errorMessage = "Wrong worker secret \u2014 check Settings.",
-                )
+                _uiState.value = _uiState.value.copy(errorMessage = "Wrong worker secret \u2014 check Settings.")
             } catch (e: SpendCapExceededException) {
-                _uiState.value = _uiState.value.copy(
-                    isGeneratingFields = false,
-                    // errorMessage intentionally omitted — showSpendCapLink snackbar carries the full message + action
-                    showSpendCapLink = true,
-                )
+                // showSpendCapLink snackbar carries the message+action; errorMessage intentionally not set
+                _uiState.value = _uiState.value.copy(showSpendCapLink = true)
             } catch (e: LlmUnavailableException) {
-                _uiState.value = _uiState.value.copy(isGeneratingFields = false, errorMessage = errorMsg)
+                _uiState.value = _uiState.value.copy(errorMessage = errorMsg)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "launchWithAi failed", e)
                 Sentry.captureException(e) { scope -> scope.setTag("component", "ai-ui") }
-                _uiState.value = _uiState.value.copy(isGeneratingFields = false, errorMessage = errorMsg)
+                _uiState.value = _uiState.value.copy(errorMessage = errorMsg)
+            } finally {
+                _uiState.value = _uiState.value.copy(isGeneratingFields = false)
             }
         }
     }
@@ -248,7 +244,6 @@ class HabitEditViewModel @Inject constructor(
         val fields = promptGenerator.generateHabitFields(_uiState.value.name)
         _uiState.value = _uiState.value.copy(
             descriptionLadder = fields.descriptionLadder,
-            isGeneratingFields = false,
             fieldsFlashing = true
         )
     }
@@ -270,7 +265,6 @@ class HabitEditViewModel @Inject constructor(
         }
         val text = promptGenerator.previewHabitNotification(tempHabit, locationName)
         _uiState.value = _uiState.value.copy(
-            isGeneratingFields = false,
             previewNotification = text,
             showPreviewDialog = true
         )
