@@ -241,9 +241,7 @@ class HabitEditViewModel @Inject constructor(
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "launchWithAi failed", e)
-                Sentry.captureException(e) { scope ->
-                    scope.setTag("component", "ai-ui")
-                }
+                Sentry.captureException(e) { scope -> scope.setTag("component", "ai-ui") }
                 _uiState.value = _uiState.value.copy(isGeneratingFields = false, errorMessage = errorMsg)
             }
         }
