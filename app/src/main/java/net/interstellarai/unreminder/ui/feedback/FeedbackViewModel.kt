@@ -13,6 +13,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import net.interstellarai.unreminder.BuildConfig
 import net.interstellarai.unreminder.data.repository.FeedbackRepository
+import net.interstellarai.unreminder.service.log.collectLogs
 import net.interstellarai.unreminder.di.DefaultDispatcher
 import net.interstellarai.unreminder.di.IoDispatcher
 import net.interstellarai.unreminder.service.github.GitHubApiService
@@ -143,13 +144,27 @@ class FeedbackViewModel @Inject constructor(
         return file.absolutePath
     }
 
-    private fun buildIssueBody(description: String): String =
-        buildString {
-            if (description.isNotBlank()) appendLine(description).appendLine()
-            appendLine("---")
-            appendLine("Device: ${Build.MANUFACTURER} ${Build.MODEL}")
-            appendLine("Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
-            appendLine("App: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
+    private suspend fun buildIssueBody(description: String): String =
+        withContext(ioDispatcher) {
+            val logTail = collectLogs()
+            buildString {
+                if (description.isNotBlank()) appendLine(description).appendLine()
+                appendLine("---")
+                appendLine("Device: ${Build.MANUFACTURER} ${Build.MODEL}")
+                appendLine("Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
+                appendLine("App: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
+                if (logTail != null) {
+                    appendLine()
+                    appendLine("---")
+                    appendLine("<details><summary>Logs</summary>")
+                    appendLine()
+                    appendLine("```")
+                    append(logTail)
+                    appendLine("```")
+                    appendLine()
+                    appendLine("</details>")
+                }
+            }
         }
 
     private fun scheduleUploadWorker() {

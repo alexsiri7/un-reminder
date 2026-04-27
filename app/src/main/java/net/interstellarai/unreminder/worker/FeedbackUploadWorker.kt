@@ -9,9 +9,12 @@ import androidx.work.WorkerParameters
 import net.interstellarai.unreminder.BuildConfig
 import net.interstellarai.unreminder.data.repository.FeedbackRepository
 import net.interstellarai.unreminder.service.github.GitHubApiService
+import net.interstellarai.unreminder.service.log.collectLogs
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 
@@ -34,6 +37,8 @@ class FeedbackUploadWorker @AssistedInject constructor(
 
         if (BuildConfig.FEEDBACK_ENDPOINT_URL.isBlank()) return Result.failure()
 
+        val logTail = withContext(Dispatchers.IO) { collectLogs() }
+
         for (item in pending) {
             try {
                 val title = item.description.take(60).ifBlank { "Feedback from app" }
@@ -43,6 +48,17 @@ class FeedbackUploadWorker @AssistedInject constructor(
                     appendLine("Device: ${Build.MANUFACTURER} ${Build.MODEL}")
                     appendLine("Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
                     appendLine("App: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
+                    if (logTail != null) {
+                        appendLine()
+                        appendLine("---")
+                        appendLine("<details><summary>Logs</summary>")
+                        appendLine()
+                        appendLine("```")
+                        append(logTail)
+                        appendLine("```")
+                        appendLine()
+                        appendLine("</details>")
+                    }
                 }
 
                 val screenshotFile = item.screenshotPath
