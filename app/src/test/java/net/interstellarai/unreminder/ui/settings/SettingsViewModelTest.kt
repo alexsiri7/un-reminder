@@ -11,8 +11,6 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.mockkStatic
-import io.mockk.unmockkStatic
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -32,6 +30,7 @@ class SettingsViewModelTest {
     private lateinit var triggerRepository: TriggerRepository
     private lateinit var triggerPipeline: TriggerPipeline
     private lateinit var context: Context
+    private lateinit var workManager: WorkManager
     private lateinit var viewModel: SettingsViewModel
 
     private val testDispatcher = StandardTestDispatcher()
@@ -42,12 +41,14 @@ class SettingsViewModelTest {
         triggerRepository = mockk(relaxUnitFun = true)
         triggerPipeline = mockk(relaxUnitFun = true)
         context = mockk(relaxed = true)
+        workManager = mockk(relaxed = true)
         every { context.getSystemService(Context.ALARM_SERVICE) } returns mockk<AlarmManager>(relaxed = true)
 
         viewModel = SettingsViewModel(
             context = context,
             triggerPipeline = triggerPipeline,
             triggerRepository = triggerRepository,
+            workManager = workManager,
         )
     }
 
@@ -85,15 +86,9 @@ class SettingsViewModelTest {
 
     @Test
     fun `regenerateTriggers deletes all scheduled triggers and enqueues next worker`() = runTest {
-        mockkStatic(WorkManager::class)
-        val workManager = mockk<WorkManager>(relaxed = true)
-        every { WorkManager.getInstance(any()) } returns workManager
-        try {
-            viewModel.regenerateTriggers()
-            advanceUntilIdle()
-            coVerify { triggerRepository.deleteAllScheduled() }
-        } finally {
-            unmockkStatic(WorkManager::class)
-        }
+        viewModel.regenerateTriggers()
+        advanceUntilIdle()
+        coVerify { triggerRepository.deleteAllScheduled() }
+        coVerify { workManager.enqueueUniqueWork(any(), any(), any<androidx.work.OneTimeWorkRequest>()) }
     }
 }

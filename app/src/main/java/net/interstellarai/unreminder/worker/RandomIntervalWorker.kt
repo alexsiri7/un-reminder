@@ -43,12 +43,12 @@ class RandomIntervalWorker @AssistedInject constructor(
         const val MAX_DELAY_MINUTES = 180L
         private const val TAG = "RandomIntervalWorker"
 
-        fun enqueueNext(context: Context) {
+        fun enqueueNext(workManager: WorkManager) {
             val delay = Random.nextLong(MIN_DELAY_MINUTES, MAX_DELAY_MINUTES)
             val request = OneTimeWorkRequestBuilder<RandomIntervalWorker>()
                 .setInitialDelay(delay, TimeUnit.MINUTES)
                 .build()
-            WorkManager.getInstance(context).enqueueUniqueWork(
+            workManager.enqueueUniqueWork(
                 WORK_NAME,
                 ExistingWorkPolicy.REPLACE,
                 request
