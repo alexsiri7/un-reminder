@@ -2,6 +2,7 @@ package net.interstellarai.unreminder.service.notification
 
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -32,5 +33,36 @@ class NotificationActionMappingTest {
             NotificationHelper.ACTION_DISMISSED -> TriggerStatus.DISMISSED
             else -> null
         }
+    }
+}
+
+class RequestCodeTest {
+    private fun Long.toRequestCode(): Int = (this xor (this ushr 32)).toInt()
+
+    @Test
+    fun `toRequestCode is stable for small IDs`() {
+        assertEquals(42, 42L.toRequestCode())
+    }
+
+    @Test
+    fun `toRequestCode does not overflow for large IDs`() {
+        val largeId = Int.MAX_VALUE.toLong() + 1
+        val code = largeId.toRequestCode()
+        assertNotEquals(largeId.toInt(), code)
+    }
+
+    @Test
+    fun `action request codes are distinct for same triggerId`() {
+        val triggerId = 42L
+        val completedCode = (triggerId * 2 + 0).toRequestCode()
+        val dismissedCode = (triggerId * 2 + 1).toRequestCode()
+        assertNotEquals(completedCode, dismissedCode)
+    }
+
+    @Test
+    fun `action request codes are distinct across trigger IDs`() {
+        val id1 = 1L
+        val id2 = 2L
+        assertNotEquals((id1 * 2 + 0).toRequestCode(), (id2 * 2 + 0).toRequestCode())
     }
 }

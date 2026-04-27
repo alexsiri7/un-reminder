@@ -50,7 +50,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
                     else -> {}
                 }
                 val manager = context.getSystemService(NotificationManager::class.java)
-                manager.cancel(triggerId.toInt())
+                manager.cancel(triggerId.toRequestCode())
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "onReceive: failed for trigger=$triggerId action=$action", e)
@@ -60,3 +60,5 @@ class NotificationActionReceiver : BroadcastReceiver() {
         }
     }
 }
+
+private fun Long.toRequestCode(): Int = (this xor (this ushr 32)).toInt()

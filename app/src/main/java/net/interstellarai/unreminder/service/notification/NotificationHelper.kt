@@ -68,7 +68,7 @@ class NotificationHelper @Inject constructor(
             .addAction(0, "Dismiss", dismissIntent)
             .build()
 
-        notificationManager.notify(triggerId.toInt(), notification)
+        notificationManager.notify(triggerId.toRequestCode(), notification)
     }
 
     fun postHabitPausedNotification(habitId: Long, habitName: String) {
@@ -79,7 +79,7 @@ class NotificationHelper @Inject constructor(
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
             .build()
-        notificationManager.notify((NOTIFICATION_ID_PAUSED_BASE + habitId).toInt(), notification)
+        notificationManager.notify((NOTIFICATION_ID_PAUSED_BASE + habitId).toRequestCode(), notification)
     }
 
     private fun createActionIntent(triggerId: Long, action: String, requestCodeOffset: Int): PendingIntent {
@@ -89,9 +89,11 @@ class NotificationHelper @Inject constructor(
         }
         return PendingIntent.getBroadcast(
             context,
-            triggerId.toInt() * 2 + requestCodeOffset, // * 2 = number of actions per notification (COMPLETED + DISMISSED)
+            (triggerId * 2 + requestCodeOffset).toRequestCode(),
             intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
     }
 }
+
+private fun Long.toRequestCode(): Int = (this xor (this ushr 32)).toInt()
