@@ -10,6 +10,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import io.sentry.Sentry
 import kotlinx.coroutines.CancellationException
 import net.interstellarai.unreminder.data.db.TriggerEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
@@ -115,6 +116,10 @@ class RandomIntervalWorker @AssistedInject constructor(
             throw e
         } catch (e: Exception) {
             Log.e(TAG, "Random interval worker failed at step=$step", e)
+            Sentry.captureException(e) { scope ->
+                scope.setTag("component", "random-interval-worker")
+                scope.setTag("step", step)
+            }
         }
 
         scheduleNext()

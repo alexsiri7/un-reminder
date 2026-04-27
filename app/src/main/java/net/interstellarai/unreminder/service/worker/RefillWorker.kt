@@ -13,6 +13,7 @@ import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.data.repository.WorkerSettingsRepository
+import io.sentry.Sentry
 import java.io.IOException
 import java.time.Instant
 
@@ -101,6 +102,10 @@ class RefillWorker @AssistedInject constructor(
             Result.retry()
         } catch (e: Exception) {
             Log.e(TAG, "Unexpected error for habit $habitId", e)
+            Sentry.captureException(e) { scope ->
+                scope.setTag("component", "refill-worker")
+                scope.setTag("habit_id", habitId.toString())
+            }
             Result.failure()
         }
     }
