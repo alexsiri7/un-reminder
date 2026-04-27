@@ -57,9 +57,10 @@ class RequestyProxyClientTest {
                 .addHeader("Content-Type", "application/json")
         )
 
-        assertFailsWith<WorkerError> {
+        val ex = assertFailsWith<WorkerError> {
             proxyClient.habitFields("Meditate", baseUrl(), "secret")
         }
+        assertEquals(200, ex.code)
     }
 
     @Test
