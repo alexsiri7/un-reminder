@@ -17,6 +17,12 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
+import io.mockk.verify
+import io.sentry.Sentry
+import io.sentry.ScopeCallback
+import io.sentry.protocol.SentryId
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -274,6 +280,20 @@ class TriggerPipelineTest {
         pipeline.execute(42L)
 
         coVerify { triggerRepository.updateOutcome(42L, TriggerStatus.DISMISSED) }
+    }
+
+    @Test
+    fun `pipeline runtime exception reports to Sentry with trigger_id tag`() = runTest {
+        mockkStatic(Sentry::class)
+        every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
+
+        coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } throws RuntimeException("boom")
+
+        pipeline.execute(42L)
+
+        verify(exactly = 1) { Sentry.captureException(any(), any<ScopeCallback>()) }
+        unmockkStatic(Sentry::class)
     }
 }
 

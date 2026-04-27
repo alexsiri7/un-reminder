@@ -9,6 +9,12 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
+import io.mockk.verify
+import io.sentry.Sentry
+import io.sentry.ScopeCallback
+import io.sentry.protocol.SentryId
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import net.interstellarai.unreminder.data.db.HabitEntity
@@ -176,5 +182,22 @@ class RefillWorkerTest {
 
         val worker = createWorker()
         assertEquals(Result.failure(), worker.doWork())
+    }
+
+    @Test
+    fun `doWork returns failure and reports to Sentry on unexpected exception`() = runTest {
+        mockkStatic(Sentry::class)
+        every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
+
+        val habit = HabitEntity(id = 1L, name = "Meditate")
+        coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
+        coEvery {
+            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any())
+        } throws RuntimeException("unexpected failure")
+
+        val worker = createWorker()
+        assertEquals(Result.failure(), worker.doWork())
+        verify(exactly = 1) { Sentry.captureException(any(), any<ScopeCallback>()) }
+        unmockkStatic(Sentry::class)
     }
 }

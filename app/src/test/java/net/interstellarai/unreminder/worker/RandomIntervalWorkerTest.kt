@@ -8,8 +8,14 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import io.mockk.verify
+import io.sentry.Sentry
+import io.sentry.ScopeCallback
+import io.sentry.protocol.SentryId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import net.interstellarai.unreminder.data.db.TriggerEntity
@@ -111,6 +117,22 @@ class RandomIntervalWorkerTest {
 
         assertEquals(Result.success(), result)
         verify(exactly = 1) { mockWorkManager.enqueueUniqueWork(any<String>(), any<ExistingWorkPolicy>(), any<OneTimeWorkRequest>()) }
+    }
+
+    @Test
+    fun `doWork reports to Sentry when pipeline throws non-cancellation exception`() = runTest {
+        mockkStatic(Sentry::class)
+        every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
+
+        coEvery { mockWindowRepository.getActiveWindows() } returns listOf(windowCoveringAllDay())
+        coEvery { mockHabitRepository.getEligibleHabits(any()) } returns listOf(mockk())
+        coEvery { mockTriggerRepository.insert(any()) } returns 1L
+        coEvery { mockTriggerPipeline.execute(any()) } throws RuntimeException("pipeline error")
+
+        worker.doWork()
+
+        verify(exactly = 1) { Sentry.captureException(any(), any<ScopeCallback>()) }
+        unmockkStatic(Sentry::class)
     }
 
     @Test

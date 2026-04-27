@@ -55,7 +55,11 @@ class NotificationActionReceiver : BroadcastReceiver() {
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "onReceive: failed for trigger=$triggerId action=$action", e)
-                Sentry.captureException(e) { scope -> scope.setTag("component", "notification-action") }
+                Sentry.captureException(e) { scope ->
+                    scope.setTag("component", "notification-action")
+                    scope.setTag("trigger_id", triggerId.toString())
+                    scope.setTag("action", action)
+                }
             } finally {
                 pendingResult.finish()
             }

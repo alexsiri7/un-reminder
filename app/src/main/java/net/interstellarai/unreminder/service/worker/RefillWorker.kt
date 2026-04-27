@@ -102,7 +102,10 @@ class RefillWorker @AssistedInject constructor(
             Result.retry()
         } catch (e: Exception) {
             Log.e(TAG, "Unexpected error for habit $habitId", e)
-            Sentry.captureException(e) { scope -> scope.setTag("component", "refill-worker") }
+            Sentry.captureException(e) { scope ->
+                scope.setTag("component", "refill-worker")
+                scope.setTag("habit_id", habitId.toString())
+            }
             Result.failure()
         }
     }

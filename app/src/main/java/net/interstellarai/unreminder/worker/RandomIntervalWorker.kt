@@ -116,7 +116,10 @@ class RandomIntervalWorker @AssistedInject constructor(
             throw e
         } catch (e: Exception) {
             Log.e(TAG, "Random interval worker failed at step=$step", e)
-            Sentry.captureException(e) { scope -> scope.setTag("component", "random-interval-worker") }
+            Sentry.captureException(e) { scope ->
+                scope.setTag("component", "random-interval-worker")
+                scope.setTag("step", step)
+            }
         }
 
         scheduleNext()
