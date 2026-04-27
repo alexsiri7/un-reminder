@@ -17,7 +17,7 @@ import androidx.room.TypeConverters
         HabitLevelDescriptionEntity::class
     ],
     version = 7,
-    exportSchema = false
+    exportSchema = true
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {

@@ -184,3 +184,7 @@ dependencies {
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.ui.test.junit4)
 }
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
