@@ -8,6 +8,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -110,6 +114,27 @@ private fun ContextStripSlot(
             text = value,
             style = SansBodyStrong,
             color = MaterialTheme.colorScheme.onSurface,
+        )
+    }
+}
+
+/**
+ * Subtle bug-report icon overlaid at the top-end of a header Box, used on
+ * list screens to reach the Feedback screen.
+ */
+@Composable
+fun FeedbackIconButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    IconButton(
+        onClick = onClick,
+        modifier = modifier.padding(end = Dimens.md),
+    ) {
+        Icon(
+            Icons.Default.BugReport,
+            contentDescription = "Send Feedback",
+            tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
         )
     }
 }

@@ -20,12 +20,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -43,6 +41,7 @@ import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.ui.theme.Dimens
 import net.interstellarai.unreminder.ui.theme.DisplayHuge
 import net.interstellarai.unreminder.ui.theme.DisplaySmall
+import net.interstellarai.unreminder.ui.theme.FeedbackIconButton
 import net.interstellarai.unreminder.ui.theme.MonoContextStrip
 import net.interstellarai.unreminder.ui.theme.MonoLabel
 import net.interstellarai.unreminder.ui.theme.MonoLabelTiny
@@ -177,18 +176,10 @@ private fun HabitListHeader(onNavigateToFeedback: () -> Unit) {
                 color = MaterialTheme.colorScheme.onBackground,
             )
         }
-        IconButton(
+        FeedbackIconButton(
             onClick = onNavigateToFeedback,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(end = Dimens.md),
-        ) {
-            Icon(
-                Icons.Default.BugReport,
-                contentDescription = "Send Feedback",
-                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
-            )
-        }
+            modifier = Modifier.align(Alignment.TopEnd),
+        )
     }
 }
 
