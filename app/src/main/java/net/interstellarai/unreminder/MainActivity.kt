@@ -74,4 +74,9 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         inAppUpdateManager.startUpdateCheck(this, updateLauncher)
     }
+
+    override fun onStop() {
+        super.onStop()
+        inAppUpdateManager.unregisterListener()
+    }
 }

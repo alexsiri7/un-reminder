@@ -57,6 +57,10 @@ class InAppUpdateManager @Inject constructor(
         updateCheckStarted = true
         appUpdateManager.appUpdateInfo
             .addOnSuccessListener { info ->
+                if (info.installStatus() == InstallStatus.DOWNLOADED) {
+                    _updateDownloaded.value = true
+                    return@addOnSuccessListener
+                }
                 if (info.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE &&
                     info.isFlexibleUpdateAllowed
                 ) {
@@ -76,9 +80,14 @@ class InAppUpdateManager @Inject constructor(
             }
     }
 
-    fun completeUpdate() {
+    fun unregisterListener() {
+        if (!listenerRegistered) return
         appUpdateManager.unregisterListener(installStateListener)
         listenerRegistered = false
+    }
+
+    fun completeUpdate() {
+        unregisterListener()
         _updateDownloaded.value = false
         appUpdateManager.completeUpdate()
             .addOnFailureListener { e ->
