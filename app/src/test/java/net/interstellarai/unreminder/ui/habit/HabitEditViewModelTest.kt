@@ -7,6 +7,7 @@ import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.data.repository.WindowRepository
 import net.interstellarai.unreminder.domain.model.AiHabitFields
 import net.interstellarai.unreminder.service.llm.AiStatus
+import net.interstellarai.unreminder.service.llm.LlmUnavailableException
 import net.interstellarai.unreminder.service.llm.PromptGenerator
 import net.interstellarai.unreminder.service.worker.RefillScheduler
 import net.interstellarai.unreminder.service.worker.SpendCapExceededException
@@ -105,7 +106,7 @@ class HabitEditViewModelTest {
     @Test
     fun `autofillWithAi sets errorMessage and resets isGeneratingFields on failure`() = runTest(testDispatcher) {
         coEvery { mockPromptGenerator.generateHabitFields(any()) } throws
-            IllegalStateException("LLM unavailable")
+            LlmUnavailableException()
 
         viewModel.autofillWithAi()
         advanceUntilIdle()
@@ -137,7 +138,7 @@ class HabitEditViewModelTest {
         every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
 
         coEvery { mockPromptGenerator.generateHabitFields(any()) } throws
-            IllegalStateException("LLM unavailable")
+            LlmUnavailableException()
 
         viewModel.autofillWithAi()
         advanceUntilIdle()
@@ -168,7 +169,7 @@ class HabitEditViewModelTest {
     fun `previewNotification sets errorMessage and resets flag on failure`() = runTest(testDispatcher) {
         coEvery {
             mockPromptGenerator.previewHabitNotification(any(), any())
-        } throws IllegalStateException("LLM unavailable")
+        } throws LlmUnavailableException()
 
         viewModel.previewNotification()
         advanceUntilIdle()

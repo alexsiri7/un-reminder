@@ -12,6 +12,7 @@ import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.data.repository.WindowRepository
 import net.interstellarai.unreminder.service.llm.AiStatus
+import net.interstellarai.unreminder.service.llm.LlmUnavailableException
 import net.interstellarai.unreminder.service.llm.PromptGenerator
 import net.interstellarai.unreminder.service.worker.RefillScheduler
 import net.interstellarai.unreminder.service.worker.SpendCapExceededException
@@ -232,11 +233,7 @@ class HabitEditViewModel @Inject constructor(
                     // errorMessage intentionally omitted — showSpendCapLink snackbar carries the full message + action
                     showSpendCapLink = true,
                 )
-            } catch (e: IllegalStateException) {
-                if (e.message != "LLM unavailable") {
-                    Log.e(TAG, "launchWithAi failed", e)
-                    Sentry.captureException(e) { scope -> scope.setTag("component", "ai-ui") }
-                }
+            } catch (e: LlmUnavailableException) {
                 _uiState.value = _uiState.value.copy(isGeneratingFields = false, errorMessage = errorMsg)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
