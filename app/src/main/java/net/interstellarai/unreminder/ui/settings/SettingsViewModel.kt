@@ -12,6 +12,7 @@ import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.trigger.TriggerPipeline
 import net.interstellarai.unreminder.worker.RandomIntervalWorker
+import androidx.work.WorkManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,6 +36,7 @@ class SettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val triggerPipeline: TriggerPipeline,
     private val triggerRepository: TriggerRepository,
+    private val workManager: WorkManager,
 ) : ViewModel() {
 
     companion object {
@@ -68,8 +70,6 @@ class SettingsViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(testTriggered = true)
     })
 
-    fun surpriseMe() = executeTrigger(source = "MANUAL")
-
     private fun executeTrigger(source: String? = null, onComplete: (() -> Unit)? = null) {
         viewModelScope.launch {
             val trigger = TriggerEntity(
@@ -86,7 +86,7 @@ class SettingsViewModel @Inject constructor(
     fun regenerateTriggers() {
         viewModelScope.launch {
             triggerRepository.deleteAllScheduled()
-            RandomIntervalWorker.enqueueNext(context)
+            RandomIntervalWorker.enqueueNext(workManager)
         }
     }
 }
