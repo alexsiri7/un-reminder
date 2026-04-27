@@ -16,6 +16,7 @@ class VariationRepository @Inject constructor(
     companion object {
         const val POOL_SIZE = 50
         const val REFILL_THRESHOLD = 5
+        private const val TAG = "VariationRepository"
     }
 
     /**
@@ -34,7 +35,7 @@ class VariationRepository @Inject constructor(
             if (updated == 1) {
                 return candidate.copy(consumedAt = now)
             }
-            Log.w("VariationRepo", "markConsumed race: habitId=$habitId variation=${candidate.id} already consumed or deleted")
+            Log.w(TAG, "markConsumed race: habitId=$habitId variation=${candidate.id} already consumed or deleted")
         }
         return null
     }
