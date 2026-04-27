@@ -43,7 +43,8 @@ class RequestyProxyClient @Inject constructor(
         secret: String,
     ): AiHabitFields = withContext(Dispatchers.IO) {
         val body = post("v1/habit-fields", JSONObject().apply { put("title", title) }, workerUrl, secret)
-        val arr = body.getJSONArray("descriptionLadder")
+        val arr = body.optJSONArray("descriptionLadder")
+            ?: throw WorkerError(200, "Missing descriptionLadder in response")
         AiHabitFields(descriptionLadder = (0 until arr.length()).map { arr.getString(it) })
     }
 

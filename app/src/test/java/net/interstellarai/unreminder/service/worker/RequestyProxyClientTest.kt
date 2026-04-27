@@ -49,6 +49,20 @@ class RequestyProxyClientTest {
     }
 
     @Test
+    fun `habitFields throws WorkerError when descriptionLadder missing from 200 response`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"fullDescription":"foo","lowFloorDescription":"bar"}""")
+                .addHeader("Content-Type", "application/json")
+        )
+
+        assertFailsWith<WorkerError> {
+            proxyClient.habitFields("Meditate", baseUrl(), "secret")
+        }
+    }
+
+    @Test
     fun `habitFields throws WorkerAuthException on 401`() = runTest {
         server.enqueue(MockResponse().setResponseCode(401).setBody("Unauthorized"))
 
