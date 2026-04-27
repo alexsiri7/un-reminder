@@ -48,7 +48,6 @@ class NotificationActionReceiver : BroadcastReceiver() {
                 when (status) {
                     TriggerStatus.COMPLETED -> dismissalTracker.onCompleted(triggerId)
                     TriggerStatus.DISMISSED -> dismissalTracker.onDismissed(triggerId)
-                    else -> {}
                 }
                 val manager = context.getSystemService(NotificationManager::class.java)
                 manager.cancel(triggerId.toRequestCode())

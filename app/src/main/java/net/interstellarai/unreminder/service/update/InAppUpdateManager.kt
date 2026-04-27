@@ -92,8 +92,7 @@ class InAppUpdateManager @Inject constructor(
         _updateDownloaded.value = false
         appUpdateManager.completeUpdate()
             .addOnFailureListener { e ->
-                Log.w(TAG, "completeUpdate failed, resetting state", e)
-                _updateDownloaded.value = false
+                Log.w(TAG, "completeUpdate failed", e)
             }
     }
 

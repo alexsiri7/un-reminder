@@ -65,10 +65,10 @@ class HabitEditViewModel @Inject constructor(
     val uiState: StateFlow<HabitEditUiState> = _uiState.asStateFlow()
 
     val allLocations: StateFlow<List<LocationEntity>> = locationRepository.getAll()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val allWindows: StateFlow<List<WindowEntity>> = windowRepository.getAll()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val aiStatus: StateFlow<AiStatus> = promptGenerator.aiStatus
 
