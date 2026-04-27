@@ -46,7 +46,8 @@ class RequestCodeTest {
 
     @Test
     fun `toRequestCode does not overflow for large IDs`() {
-        val largeId = Int.MAX_VALUE.toLong() + 1
+        // 0x1_0000_0001L has non-zero high 32 bits; XOR-fold folds them in, producing 0 ≠ 1
+        val largeId = 4_294_967_297L
         val code = largeId.toRequestCode()
         assertNotEquals(largeId.toInt(), code)
     }
