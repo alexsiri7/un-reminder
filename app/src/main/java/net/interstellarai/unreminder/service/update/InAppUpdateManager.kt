@@ -58,6 +58,7 @@ class InAppUpdateManager @Inject constructor(
         appUpdateManager.appUpdateInfo
             .addOnSuccessListener { info ->
                 if (info.installStatus() == InstallStatus.DOWNLOADED) {
+                    Log.i(TAG, "Stalled download detected on resume — prompting install")
                     _updateDownloaded.value = true
                     return@addOnSuccessListener
                 }
