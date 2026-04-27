@@ -9,6 +9,7 @@ import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.trigger.DismissalTracker
 import dagger.hilt.android.AndroidEntryPoint
+import io.sentry.Sentry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -54,6 +55,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "onReceive: failed for trigger=$triggerId action=$action", e)
+                Sentry.captureException(e) { scope -> scope.setTag("component", "notification-action") }
             } finally {
                 pendingResult.finish()
             }

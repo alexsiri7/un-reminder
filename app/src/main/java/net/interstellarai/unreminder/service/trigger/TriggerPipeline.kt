@@ -97,6 +97,7 @@ class TriggerPipeline @Inject constructor(
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             Log.e(TAG, "Trigger pipeline failed for trigger=$triggerId", e)
+            Sentry.captureException(e) { scope -> scope.setTag("component", "trigger-pipeline") }
             triggerRepository.updateOutcome(triggerId, TriggerStatus.DISMISSED)
         }
     }

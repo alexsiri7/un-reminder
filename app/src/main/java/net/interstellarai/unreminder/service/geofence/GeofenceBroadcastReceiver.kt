@@ -8,6 +8,7 @@ import android.util.Log
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
 import dagger.hilt.android.AndroidEntryPoint
+import io.sentry.Sentry
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -35,6 +36,9 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         val event = GeofencingEvent.fromIntent(intent) ?: return
         if (event.hasError()) {
             Log.e(TAG, "Geofence error: code=${event.errorCode}")
+            Sentry.captureMessage("Geofence error: code=${event.errorCode}") { scope ->
+                scope.setTag("component", "geofence")
+            }
             return
         }
 
