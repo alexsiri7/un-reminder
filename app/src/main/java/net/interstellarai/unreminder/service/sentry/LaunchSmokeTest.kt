@@ -19,7 +19,9 @@ object LaunchSmokeTest {
 
     /**
      * Fires the smoke event for [versionCode] if not already reported. Uses [Sentry.captureMessage]
-     * by default; the [capture] and [store] parameters exist for dependency injection in tests.
+     * by default, wrapped in [Sentry.withScope] to set a fixed fingerprint so all smoke events
+     * group under one Sentry issue across deploys; the [capture] and [store] parameters exist for
+     * dependency injection in tests.
      *
      * @return true if a message was fired, false if already reported for this versionCode.
      */
@@ -27,7 +29,12 @@ object LaunchSmokeTest {
         context: Context,
         versionName: String,
         versionCode: Int,
-        capture: (String) -> Unit = { Sentry.captureMessage(it) },
+        capture: (String) -> Unit = { msg ->
+            Sentry.withScope { scope ->
+                scope.fingerprint = listOf("launch-smoke")
+                Sentry.captureMessage(msg)
+            }
+        },
         store: SmokeStore = SharedPrefsSmokeStore(context)
     ): Boolean {
         val last = store.lastReportedVersionCode()
