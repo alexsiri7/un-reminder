@@ -49,7 +49,7 @@ class CloudPromptGenerator @Inject constructor(
     private suspend fun requireCredentials(): Pair<String, String> {
         val url = workerSettingsRepository.effectiveWorkerUrl.first()
         val secret = workerSettingsRepository.effectiveWorkerSecret.first()
-        if (url.isBlank() || secret.isBlank()) throw IllegalStateException("LLM unavailable")
+        if (url.isBlank() || secret.isBlank()) throw LlmUnavailableException()
         return url to secret
     }
 }
