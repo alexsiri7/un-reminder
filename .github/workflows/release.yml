@@ -102,15 +102,24 @@ jobs:
           eid = edit['id']
           track = svc.edits().tracks().get(packageName=pkg, editId=eid, track='internal').execute()
           print(f"Track state: {json.dumps(track, indent=2)}")
-          promoted = False
+          draft_release = None
           for r in track.get('releases', []):
               if r.get('status') == 'draft':
-                  r['status'] = 'completed'
-                  promoted = True
-          if not promoted:
+                  draft_release = r
+          if not draft_release:
               print("No draft releases to promote")
               svc.edits().delete(packageName=pkg, editId=eid).execute()
               sys.exit(0)
+          # Retire old completed releases, promote the draft
+          updated_releases = []
+          for r in track.get('releases', []):
+              if r.get('status') == 'completed':
+                  r['status'] = 'inactive'
+              updated_releases.append(r)
+          for r in updated_releases:
+              if r is draft_release:
+                  r['status'] = 'completed'
+          track['releases'] = updated_releases
           svc.edits().tracks().update(packageName=pkg, editId=eid, track='internal', body=track).execute()
           svc.edits().commit(packageName=pkg, editId=eid).execute()
           print("Successfully promoted draft to completed")
