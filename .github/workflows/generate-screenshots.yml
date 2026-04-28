@@ -26,6 +26,21 @@ jobs:
       - name: Record Paparazzi snapshots
         run: ./gradlew :app:recordPaparazzi --no-configuration-cache
 
+      - name: List generated snapshots
+        if: always()
+        run: |
+          echo "=== Snapshots found ==="
+          find app/src/test/snapshots -name "*.png" 2>/dev/null | sort || echo "(none)"
+
+      - name: Upload Paparazzi report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: paparazzi-report
+          path: app/build/reports/paparazzi/
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Copy screenshots to store-listing
         run: |
           SNAP="app/src/test/snapshots/images/net/interstellarai/unreminder/screenshot"
