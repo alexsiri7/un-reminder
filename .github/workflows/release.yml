@@ -79,7 +79,7 @@ jobs:
           packageName: net.interstellarai.unreminder
           releaseFiles: app/build/outputs/bundle/release/*.aab
           track: internal
-          status: draft
+          status: completed
           releaseName: ${{ env.VERSION_NAME }}
 
       - name: Publish to Play Store production (tag release)
