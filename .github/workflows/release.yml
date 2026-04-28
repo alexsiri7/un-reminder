@@ -110,16 +110,9 @@ jobs:
               print("No draft releases to promote")
               svc.edits().delete(packageName=pkg, editId=eid).execute()
               sys.exit(0)
-          # Retire old completed releases, promote the draft
-          updated_releases = []
-          for r in track.get('releases', []):
-              if r.get('status') == 'completed':
-                  r['status'] = 'inactive'
-              updated_releases.append(r)
-          for r in updated_releases:
-              if r is draft_release:
-                  r['status'] = 'completed'
-          track['releases'] = updated_releases
+          # Only send the new release as completed; omit older releases so Play retires them
+          draft_release['status'] = 'completed'
+          track['releases'] = [draft_release]
           svc.edits().tracks().update(packageName=pkg, editId=eid, track='internal', body=track).execute()
           svc.edits().commit(packageName=pkg, editId=eid).execute()
           print("Successfully promoted draft to completed")
