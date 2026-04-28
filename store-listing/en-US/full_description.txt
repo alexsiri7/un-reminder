@@ -1,0 +1,29 @@
+Break the 7 PM habit trap.
+
+Most habit apps schedule reminders at the same time every day — and your brain quickly learns to ignore them. Un-Reminder takes a different approach: every notification fires at a random moment within your chosen time window, and every message is uniquely written by AI.
+
+The result? Notifications that feel fresh every time, prompting real behavior change instead of reflexive swipe-aways.
+
+HOW IT WORKS
+• Add your habits — just a title and what you're working on
+• Set time windows when you're available (e.g. "evenings 6–9 PM")
+• Optionally pin habits to locations — only get notified where you can act
+• Receive uniquely AI-written notifications at random moments
+• Tap to complete, dismiss, or snooze — the app learns your patterns
+
+AI NOTIFICATIONS
+Un-Reminder generates unique notification text for each habit using your personal AI proxy (Cloudflare Worker + Gemini Flash). No third-party service ever receives your habit data — only the AI backend you configure yourself.
+
+SMART ADAPTATION
+• Dedication levels rise as you complete habits consistently
+• After repeated dismissals, habits pause automatically
+• Geofencing ensures you're only prompted where you can actually act
+
+PRIVACY FIRST
+• Your habits never leave your device
+• No account, no sign-in, no subscription
+• AI runs through your own personal cloud proxy
+• Open source — full source code available on GitHub
+
+TECHNICAL NOTES
+Requires Android 12 (API 31) or higher. Background location permission is needed for geofencing. Exact alarm permission is needed for precise notification timing. A personal Cloudflare Worker (source included) powers AI notification generation.

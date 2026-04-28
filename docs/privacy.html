@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy — Un-Reminder</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 700px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #222; }
+  h1 { color: #1a3a6b; } h2 { color: #2a5090; margin-top: 2em; }
+  p, li { color: #444; }
+</style>
+</head>
+<body>
+<h1>Privacy Policy — Un-Reminder</h1>
+<p><em>Last updated: April 2026</em></p>
+
+<p>Un-Reminder is a personal habit reminder app. This policy explains what data is collected and how it is used.</p>
+
+<h2>Data stored on your device</h2>
+<p>All habit data (habit titles, descriptions, time windows, locations, trigger history, and settings) is stored exclusively on your device using a local SQLite database. This data is never transmitted to any server operated by the app developer.</p>
+
+<h2>AI notification generation</h2>
+<p>If you configure the AI feature, your habit title and optional tags are sent to a Cloudflare Worker URL that you specify and control. That worker forwards requests to an AI provider (Requesty.ai / Google Gemini) to generate notification text variations. The app developer does not operate or have access to your worker or the responses it returns. No personally identifiable information is included in these requests.</p>
+
+<h2>Location data</h2>
+<p>If you add location triggers to a habit, the app uses Android's geofencing APIs to detect when you enter or leave those locations. Location data is processed entirely on-device and is never transmitted to any server.</p>
+
+<h2>Crash reporting</h2>
+<p>If a Sentry DSN is configured at build time, anonymous crash reports (stack traces, device model, OS version) may be sent to Sentry.io. No habit data, location data, or personally identifiable information is included in crash reports.</p>
+
+<h2>Feedback (optional)</h2>
+<p>If you use the in-app feedback feature, an annotated screenshot is submitted to a GitHub repository via the GitHub API. This is always user-initiated and the screenshot content is visible to the repository owner.</p>
+
+<h2>Third-party services</h2>
+<ul>
+  <li><strong>Google Play Services</strong> — used for geofencing. Subject to Google's privacy policy.</li>
+  <li><strong>Sentry.io</strong> — optional crash reporting. Subject to Sentry's privacy policy.</li>
+  <li><strong>GitHub API</strong> — optional feedback submission. Subject to GitHub's privacy policy.</li>
+</ul>
+
+<h2>Data deletion</h2>
+<p>Uninstalling the app removes all locally stored habit data. No account deletion is necessary because no account is created.</p>
+
+<h2>Contact</h2>
+<p>Questions about this policy can be directed to the developer via GitHub Issues on the project repository.</p>
+</body>
+</html>
