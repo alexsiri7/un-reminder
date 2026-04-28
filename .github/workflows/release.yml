@@ -71,7 +71,7 @@ jobs:
           WORKER_SECRET: ${{ secrets.WORKER_SECRET }}
         run: ./gradlew bundleRelease --stacktrace
 
-      - name: Publish to Play Store (internal draft — non-tag)
+      - name: Publish to Play Store internal track (non-tag)
         if: "!startsWith(github.ref, 'refs/tags/v')"
         uses: r0adkll/upload-google-play@v1
         with:
@@ -79,8 +79,7 @@ jobs:
           packageName: net.interstellarai.unreminder
           releaseFiles: app/build/outputs/bundle/release/*.aab
           track: internal
-          # App is in Play Store draft state until first public release; use 'completed' after first publish
-          status: draft
+          status: completed
           releaseName: ${{ env.VERSION_NAME }}
 
       - name: Publish to Play Store production (tag release)
