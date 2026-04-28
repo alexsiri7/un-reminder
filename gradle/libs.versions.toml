@@ -1,8 +1,8 @@
 [versions]
 agp = "8.13.2"
 paparazzi = "2.0.0-alpha04"
-kotlin = "2.1.0"
-ksp = "2.1.0-1.0.29"
+kotlin = "2.3.0"
+ksp = "2.3.0"
 composeBom = "2024.12.01"
 activityCompose = "1.9.3"
 lifecycleViewmodelCompose = "2.8.7"
