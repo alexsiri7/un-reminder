@@ -37,6 +37,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.ui.theme.Dimens
 import net.interstellarai.unreminder.ui.theme.DisplayHuge
@@ -72,7 +73,24 @@ fun HabitListScreen(
 ) {
     val habits by viewModel.habits.collectAsStateWithLifecycle()
     val aiStatus by viewModel.aiStatus.collectAsStateWithLifecycle()
+    HabitListContent(
+        habits = habits,
+        aiStatus = aiStatus,
+        onAddHabit = onAddHabit,
+        onEditHabit = onEditHabit,
+        onNavigateToFeedback = onNavigateToFeedback,
+    )
+}
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun HabitListContent(
+    habits: List<HabitEntity>,
+    aiStatus: AiStatus,
+    onAddHabit: () -> Unit,
+    onEditHabit: (Long) -> Unit,
+    onNavigateToFeedback: () -> Unit,
+) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {

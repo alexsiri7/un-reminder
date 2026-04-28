@@ -83,6 +83,60 @@ fun OnboardingScreen(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { viewModel.refreshPermissions() }
 
+    OnboardingContent(
+        uiState = uiState,
+        onSkip = { viewModel.skip() },
+        onGrantNotification = { notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) },
+        onGrantLocation = {
+            locationLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                )
+            )
+        },
+        onAdvanceToStep = viewModel::advanceToStep,
+        onUpdateHabitName = viewModel::updateHabitName,
+        onPickWindowStart = {
+            TimePickerDialog(
+                context,
+                { _, h, m -> viewModel.updateWindowStartTime(LocalTime.of(h, m)) },
+                uiState.windowStartTime.hour,
+                uiState.windowStartTime.minute,
+                true,
+            ).show()
+        },
+        onPickWindowEnd = {
+            TimePickerDialog(
+                context,
+                { _, h, m -> viewModel.updateWindowEndTime(LocalTime.of(h, m)) },
+                uiState.windowEndTime.hour,
+                uiState.windowEndTime.minute,
+                true,
+            ).show()
+        },
+        onComplete = {
+            viewModel.completeOnboarding(
+                saveHabit = uiState.habitName.isNotBlank(),
+                saveWindow = true,
+            )
+        },
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun OnboardingContent(
+    uiState: OnboardingUiState,
+    onSkip: () -> Unit,
+    onGrantNotification: () -> Unit,
+    onGrantLocation: () -> Unit,
+    onAdvanceToStep: (Int) -> Unit,
+    onUpdateHabitName: (String) -> Unit,
+    onPickWindowStart: () -> Unit,
+    onPickWindowEnd: () -> Unit,
+    onComplete: () -> Unit,
+) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
     ) { padding ->
@@ -114,7 +168,7 @@ fun OnboardingScreen(
                     "skip \u2192",
                     style = MonoLabel,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
-                    modifier = Modifier.clickable { viewModel.skip() },
+                    modifier = Modifier.clickable(onClick = onSkip),
                 )
             }
 
@@ -133,27 +187,20 @@ fun OnboardingScreen(
                             else "Grant Notifications",
                         enabled = !uiState.hasNotificationPermission,
                         modifier = Modifier.weight(1f),
-                    ) {
-                        notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    }
+                        onClick = onGrantNotification,
+                    )
                     PermissionButton(
                         label = if (uiState.hasFineLocationPermission) "Location \u2713"
                             else "Grant Location",
                         enabled = !uiState.hasFineLocationPermission,
                         modifier = Modifier.weight(1f),
-                    ) {
-                        locationLauncher.launch(
-                            arrayOf(
-                                Manifest.permission.ACCESS_FINE_LOCATION,
-                                Manifest.permission.ACCESS_COARSE_LOCATION,
-                            ),
-                        )
-                    }
+                        onClick = onGrantLocation,
+                    )
                 }
                 Spacer(Modifier.height(Dimens.sm))
                 AccentPillButton(
                     label = "next",
-                    onClick = { viewModel.advanceToStep(1) },
+                    onClick = { onAdvanceToStep(1) },
                     modifier = Modifier.align(Alignment.End),
                 )
             }
@@ -166,7 +213,7 @@ fun OnboardingScreen(
             ) {
                 OutlinedTextField(
                     value = uiState.habitName,
-                    onValueChange = { viewModel.updateHabitName(it) },
+                    onValueChange = onUpdateHabitName,
                     label = { Text("Habit name", style = MonoLabel) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -181,11 +228,11 @@ fun OnboardingScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,
                 ) {
-                    GhostButton(label = "skip") { viewModel.advanceToStep(2) }
+                    GhostButton(label = "skip") { onAdvanceToStep(2) }
                     Spacer(modifier = Modifier.width(Dimens.sm))
                     AccentPillButton(
                         label = "next",
-                        onClick = { viewModel.advanceToStep(2) },
+                        onClick = { onAdvanceToStep(2) },
                         enabled = uiState.habitName.isNotBlank(),
                     )
                 }
@@ -205,20 +252,14 @@ fun OnboardingScreen(
                         label = "From: ${uiState.windowStartTime}",
                         enabled = true,
                         modifier = Modifier.weight(1f),
-                    ) {
-                        TimePickerDialog(context, { _, h, m ->
-                            viewModel.updateWindowStartTime(LocalTime.of(h, m))
-                        }, uiState.windowStartTime.hour, uiState.windowStartTime.minute, true).show()
-                    }
+                        onClick = onPickWindowStart,
+                    )
                     PermissionButton(
                         label = "To: ${uiState.windowEndTime}",
                         enabled = true,
                         modifier = Modifier.weight(1f),
-                    ) {
-                        TimePickerDialog(context, { _, h, m ->
-                            viewModel.updateWindowEndTime(LocalTime.of(h, m))
-                        }, uiState.windowEndTime.hour, uiState.windowEndTime.minute, true).show()
-                    }
+                        onClick = onPickWindowEnd,
+                    )
                 }
                 Text(
                     "monday \u2013 friday",
@@ -228,12 +269,7 @@ fun OnboardingScreen(
                 )
                 AccentPillButton(
                     label = "done",
-                    onClick = {
-                        viewModel.completeOnboarding(
-                            saveHabit = uiState.habitName.isNotBlank(),
-                            saveWindow = true,
-                        )
-                    },
+                    onClick = onComplete,
                     modifier = Modifier.align(Alignment.End),
                 )
             }
