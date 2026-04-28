@@ -45,16 +45,16 @@ jobs:
 
       - name: Copy screenshots to store-listing
         run: |
-          SNAP="app/src/test/snapshots/images/net/interstellarai/unreminder/screenshot"
+          SNAP="app/src/test/snapshots/images/net.interstellarai.unreminder.screenshot"
 
           for f in phone_1 phone_2 phone_3; do
-            cp "$SNAP/PhoneScreenshotTest/${f}.png" store-listing/screenshots/${f}.png
+            cp "${SNAP}_PhoneScreenshotTest_${f}.png" store-listing/screenshots/${f}.png
           done
           for f in tablet7_1 tablet7_2 tablet7_3; do
-            cp "$SNAP/Tablet7ScreenshotTest/${f}.png" store-listing/screenshots/${f}.png
+            cp "${SNAP}_Tablet7ScreenshotTest_${f}.png" store-listing/screenshots/${f}.png
           done
           for f in tablet10_1 tablet10_2 tablet10_3; do
-            cp "$SNAP/Tablet10ScreenshotTest/${f}.png" store-listing/screenshots/${f}.png
+            cp "${SNAP}_Tablet10ScreenshotTest_${f}.png" store-listing/screenshots/${f}.png
           done
 
       - name: Commit updated screenshots
