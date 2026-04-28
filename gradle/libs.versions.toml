@@ -1,5 +1,6 @@
 [versions]
-agp = "8.7.3"
+agp = "8.13.2"
+paparazzi = "2.0.0-alpha04"
 kotlin = "2.1.0"
 ksp = "2.1.0-1.0.29"
 composeBom = "2024.12.01"
@@ -75,3 +76,4 @@ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 sentry = { id = "io.sentry.android.gradle", version.ref = "sentryGradle" }
+paparazzi = { id = "app.cash.paparazzi", version.ref = "paparazzi" }

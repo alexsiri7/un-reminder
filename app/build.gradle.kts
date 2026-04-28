@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
     alias(libs.plugins.sentry)
+    alias(libs.plugins.paparazzi)
 }
 
 // Reads an environment variable via gradle's `providers` API so the lookup is

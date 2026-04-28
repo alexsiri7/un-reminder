@@ -1,0 +1,49 @@
+name: Generate Store Screenshots
+
+on:
+  workflow_dispatch:
+
+jobs:
+  record:
+    name: Record Paparazzi snapshots & update store-listing
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Record Paparazzi snapshots
+        run: ./gradlew :app:recordPaparazzi --no-configuration-cache
+
+      - name: Copy screenshots to store-listing
+        run: |
+          SNAP="app/src/test/snapshots/images/net/interstellarai/unreminder/screenshot"
+
+          for f in phone_1 phone_2 phone_3; do
+            cp "$SNAP/PhoneScreenshotTest/${f}.png" store-listing/screenshots/${f}.png
+          done
+          for f in tablet7_1 tablet7_2 tablet7_3; do
+            cp "$SNAP/Tablet7ScreenshotTest/${f}.png" store-listing/screenshots/${f}.png
+          done
+          for f in tablet10_1 tablet10_2 tablet10_3; do
+            cp "$SNAP/Tablet10ScreenshotTest/${f}.png" store-listing/screenshots/${f}.png
+          done
+
+      - name: Commit updated screenshots
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add store-listing/screenshots/ app/src/test/snapshots/
+          git diff --staged --quiet || git commit -m "chore: update store screenshots from Paparazzi"
+          git push
