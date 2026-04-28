@@ -29,8 +29,10 @@ jobs:
       - name: List generated snapshots
         if: always()
         run: |
-          echo "=== Snapshots found ==="
-          find app/src/test/snapshots -name "*.png" 2>/dev/null | sort || echo "(none)"
+          echo "=== All PNGs anywhere under app/ (first 30) ==="
+          find app -name "*.png" 2>/dev/null | head -30 || echo "(none)"
+          echo "=== Expected snapshot dir contents ==="
+          ls -la app/src/test/snapshots/images/ 2>/dev/null || echo "(dir missing)"
 
       - name: Upload Paparazzi report
         if: always()
