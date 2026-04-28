@@ -1,0 +1,23 @@
+name: Setup Store Listing
+
+on:
+  workflow_dispatch:
+
+jobs:
+  upload-listing:
+    name: Upload listing text & screenshots to Play
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: pip install google-api-python-client google-auth Pillow --quiet
+
+      - name: Upload listing
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: python3 store-listing/upload_listing.py
