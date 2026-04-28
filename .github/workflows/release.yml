@@ -79,8 +79,42 @@ jobs:
           packageName: net.interstellarai.unreminder
           releaseFiles: app/build/outputs/bundle/release/*.aab
           track: internal
-          status: completed
+          status: draft
           releaseName: ${{ env.VERSION_NAME }}
+
+      - name: Promote internal track draft to completed
+        if: "!startsWith(github.ref, 'refs/tags/v')"
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          pip install google-api-python-client google-auth --quiet
+          python3 << 'EOF'
+          import json, os, sys
+          from google.oauth2 import service_account
+          from googleapiclient.discovery import build
+          pkg = 'net.interstellarai.unreminder'
+          creds = service_account.Credentials.from_service_account_info(
+              json.loads(os.environ['PLAY_SERVICE_ACCOUNT_JSON']),
+              scopes=['https://www.googleapis.com/auth/androidpublisher']
+          )
+          svc = build('androidpublisher', 'v3', credentials=creds)
+          edit = svc.edits().insert(packageName=pkg, body={}).execute()
+          eid = edit['id']
+          track = svc.edits().tracks().get(packageName=pkg, editId=eid, track='internal').execute()
+          print(f"Track state: {json.dumps(track, indent=2)}")
+          promoted = False
+          for r in track.get('releases', []):
+              if r.get('status') == 'draft':
+                  r['status'] = 'completed'
+                  promoted = True
+          if not promoted:
+              print("No draft releases to promote")
+              svc.edits().delete(packageName=pkg, editId=eid).execute()
+              sys.exit(0)
+          svc.edits().tracks().update(packageName=pkg, editId=eid, track='internal', body=track).execute()
+          svc.edits().commit(packageName=pkg, editId=eid).execute()
+          print("Successfully promoted draft to completed")
+          EOF
 
       - name: Publish to Play Store production (tag release)
         if: startsWith(github.ref, 'refs/tags/v')
