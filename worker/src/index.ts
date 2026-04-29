@@ -1,3 +1,4 @@
+import { withSentry } from '@sentry/cloudflare'
 import { Hono } from 'hono'
 import type { Env } from './types'
 import { authMiddleware } from './middleware/auth'
@@ -22,4 +23,7 @@ app.post('/v1/generate/batch', generateBatchHandler)
 app.post('/v1/habit-fields', habitFieldsHandler)
 app.post('/v1/preview', previewHandler)
 
-export default app
+export default withSentry(
+  (env: Env) => ({ dsn: env.SENTRY_DSN ?? '' }),
+  { fetch: app.fetch }
+)
