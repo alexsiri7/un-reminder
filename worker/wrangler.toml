@@ -6,6 +6,7 @@
 name = "un-reminder-worker"
 main = "src/index.ts"
 compatibility_date = "2026-04-18"
+compatibility_flags = ["nodejs_compat"]
 
 [vars]
 UR_DAILY_CAP_CENTS  = "50"
