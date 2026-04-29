@@ -12,6 +12,7 @@ import net.interstellarai.unreminder.service.llm.PromptGenerator
 import net.interstellarai.unreminder.service.worker.RefillScheduler
 import net.interstellarai.unreminder.service.worker.SpendCapExceededException
 import net.interstellarai.unreminder.service.worker.WorkerAuthException
+import net.interstellarai.unreminder.service.worker.WorkerError
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -480,5 +481,35 @@ class HabitEditViewModelTest {
     fun `updateAutoAdjustLevel updates autoAdjustLevel in uiState`() = runTest(testDispatcher) {
         viewModel.updateAutoAdjustLevel(false)
         assertFalse(viewModel.uiState.value.autoAdjustLevel)
+    }
+
+    @Test
+    fun `autofillWithAi shows retry message and does not capture to Sentry on 5xx WorkerError`() = runTest(testDispatcher) {
+        mockkStatic(Sentry::class)
+        every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
+
+        coEvery { mockPromptGenerator.generateHabitFields(any()) } throws WorkerError(502, """{"error":"Upstream unavailable or returned invalid response"}""")
+
+        viewModel.autofillWithAi()
+        advanceUntilIdle()
+
+        assertEquals("Service temporarily unavailable — please try again.", viewModel.uiState.value.errorMessage)
+        verify(exactly = 0) { Sentry.captureException(any(), any<ScopeCallback>()) }
+        unmockkStatic(Sentry::class)
+    }
+
+    @Test
+    fun `autofillWithAi captures to Sentry and shows generic message on non-5xx WorkerError`() = runTest(testDispatcher) {
+        mockkStatic(Sentry::class)
+        every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
+
+        coEvery { mockPromptGenerator.generateHabitFields(any()) } throws WorkerError(422, """{"error":"Invalid input"}""")
+
+        viewModel.autofillWithAi()
+        advanceUntilIdle()
+
+        assertEquals("AI unavailable — fill in manually.", viewModel.uiState.value.errorMessage)
+        verify(exactly = 1) { Sentry.captureException(any(), any<ScopeCallback>()) }
+        unmockkStatic(Sentry::class)
     }
 }

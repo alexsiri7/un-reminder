@@ -17,6 +17,7 @@ import net.interstellarai.unreminder.service.llm.PromptGenerator
 import net.interstellarai.unreminder.service.worker.RefillScheduler
 import net.interstellarai.unreminder.service.worker.SpendCapExceededException
 import net.interstellarai.unreminder.service.worker.WorkerAuthException
+import net.interstellarai.unreminder.service.worker.WorkerError
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.sentry.Sentry
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -229,6 +230,13 @@ class HabitEditViewModel @Inject constructor(
                 _uiState.value = _uiState.value.copy(showSpendCapLink = true)
             } catch (e: LlmUnavailableException) {
                 _uiState.value = _uiState.value.copy(errorMessage = errorMsg)
+            } catch (e: WorkerError) {
+                if (e.code in 500..599) {
+                    _uiState.value = _uiState.value.copy(errorMessage = "Service temporarily unavailable — please try again.")
+                } else {
+                    Sentry.captureException(e) { scope -> scope.setTag("component", "ai-ui") }
+                    _uiState.value = _uiState.value.copy(errorMessage = errorMsg)
+                }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "launchWithAi failed", e)
