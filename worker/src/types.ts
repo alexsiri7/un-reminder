@@ -6,6 +6,7 @@ export interface Env {
   // Secrets (set via `wrangler secret put`)
   UR_SHARED_SECRET: string
   UR_REQUESTY_KEY: string
+  SENTRY_DSN?: string
   // Vars (from wrangler.toml [vars])
   UR_DAILY_CAP_CENTS: string
   UR_MONTHLY_CAP_CENTS: string
