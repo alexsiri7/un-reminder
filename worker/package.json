@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@sentry/cloudflare": "^10.0",
     "hono": "^4.12.0"
   },
   "devDependencies": {

@@ -1,3 +1,5 @@
+import * as Sentry from '@sentry/cloudflare'
+
 const REQUESTY_URL = 'https://router.requesty.ai/v1/chat/completions'
 
 // Pricing per token via Requesty for gemini-3-flash-preview (2026-04).
@@ -75,6 +77,7 @@ export async function callRequestyWithSchemaRetry<T>(
       const match = err instanceof Error ? err.message.match(/Requesty (\d+)/) : null
       const status = match ? parseInt(match[1], 10) : 0
       console.error('[requesty] callRequesty failed', { isRetry, status, err })
+      Sentry.captureException(err instanceof Error ? err : new Error(String(err)), scope => { scope.setTag('requesty.failure', 'http'); scope.setContext('requesty', { isRetry, status }); return scope })
       return null
     }
 
@@ -88,8 +91,10 @@ export async function callRequestyWithSchemaRetry<T>(
         return { data: validated, outputTokens: totalOutputTokens, inputTokens: totalInputTokens }
       }
       console.warn('[requesty] schema validation failed', { isRetry, text: result.text.slice(0, 200) })
+      Sentry.captureMessage('Requesty schema validation failed', { level: 'warning', contexts: { requesty: { isRetry, text: result.text.slice(0, 200) } } })
     } catch (err) {
       console.warn('[requesty] JSON.parse failed', { isRetry, err, text: result.text.slice(0, 200) })
+      Sentry.captureException(err instanceof Error ? err : new Error(String(err)), scope => { scope.setTag('requesty.failure', 'json-parse'); scope.setContext('requesty', { isRetry, text: result.text.slice(0, 200) }); return scope })
     }
 
     if (isRetry) return null
