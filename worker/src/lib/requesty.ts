@@ -2,6 +2,9 @@ import * as Sentry from '@sentry/cloudflare'
 
 const REQUESTY_URL = 'https://router.requesty.ai/v1/chat/completions'
 
+const toError = (err: unknown): Error =>
+  err instanceof Error ? err : new Error(String(err))
+
 // Pricing per token via Requesty for gemini-3-flash-preview (2026-04).
 // These constants MUST match the model configured in UR_MODEL (wrangler.toml).
 // If you change the model, update pricing here too.
@@ -77,7 +80,7 @@ export async function callRequestyWithSchemaRetry<T>(
       const match = err instanceof Error ? err.message.match(/Requesty (\d+)/) : null
       const status = match ? parseInt(match[1], 10) : 0
       console.error('[requesty] callRequesty failed', { isRetry, status, err })
-      Sentry.captureException(err instanceof Error ? err : new Error(String(err)), {
+      Sentry.captureException(toError(err), {
         tags: { 'requesty.failure': 'http' },
         contexts: { requesty: { isRetry, status } },
       })
@@ -87,20 +90,30 @@ export async function callRequestyWithSchemaRetry<T>(
     totalOutputTokens += result.outputTokens
     totalInputTokens += result.inputTokens
 
+    const sample = result.text.slice(0, 200)
     try {
       const parsed = JSON.parse(result.text)
       const validated = validate(parsed)
       if (validated !== null) {
         return { data: validated, outputTokens: totalOutputTokens, inputTokens: totalInputTokens }
       }
-      console.warn('[requesty] schema validation failed', { isRetry, text: result.text.slice(0, 200) })
-      Sentry.captureMessage('Requesty schema validation failed', { level: 'warning', contexts: { requesty: { isRetry, text: result.text.slice(0, 200) } } })
+      console.warn('[requesty] schema validation failed', { isRetry, text: sample })
+      // Only report to Sentry on final failure; first-attempt misses are expected
+      // and recovered via stricterPrompt retry.
+      if (isRetry) {
+        Sentry.captureMessage('Requesty schema validation failed', {
+          level: 'warning',
+          contexts: { requesty: { text: sample } },
+        })
+      }
     } catch (err) {
-      console.warn('[requesty] JSON.parse failed', { isRetry, err, text: result.text.slice(0, 200) })
-      Sentry.captureException(err instanceof Error ? err : new Error(String(err)), {
-        tags: { 'requesty.failure': 'json-parse' },
-        contexts: { requesty: { isRetry, text: result.text.slice(0, 200) } },
-      })
+      console.warn('[requesty] JSON.parse failed', { isRetry, err, text: sample })
+      if (isRetry) {
+        Sentry.captureException(toError(err), {
+          tags: { 'requesty.failure': 'json-parse' },
+          contexts: { requesty: { text: sample } },
+        })
+      }
     }
 
     if (isRetry) return null

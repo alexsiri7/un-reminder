@@ -92,6 +92,7 @@ jobs:
           import json, os, sys
           from google.oauth2 import service_account
           from googleapiclient.discovery import build
+          from googleapiclient.errors import HttpError
           pkg = 'net.interstellarai.unreminder'
           creds = service_account.Credentials.from_service_account_info(
               json.loads(os.environ['PLAY_SERVICE_ACCOUNT_JSON']),
@@ -113,9 +114,25 @@ jobs:
           # Only send the new release as completed; omit older releases so Play retires them
           draft_release['status'] = 'completed'
           track['releases'] = [draft_release]
-          svc.edits().tracks().update(packageName=pkg, editId=eid, track='internal', body=track).execute()
-          svc.edits().commit(packageName=pkg, editId=eid).execute()
-          print("Successfully promoted draft to completed")
+          try:
+              svc.edits().tracks().update(packageName=pkg, editId=eid, track='internal', body=track).execute()
+              svc.edits().commit(packageName=pkg, editId=eid).execute()
+              print("Successfully promoted draft to completed")
+          except HttpError as e:
+              # Play API rejects 'completed' releases while the app itself is in
+              # draft state (first publication not yet approved). The release was
+              # uploaded fine as a draft and is reachable via Internal App Sharing;
+              # CI shouldn't go red on a Play Console state we can't fix from here.
+              msg = (e.content or b'').decode('utf-8', errors='replace')
+              if e.resp.status == 400 and 'on draft app' in msg.lower():
+                  msg_oneline = msg.replace('\n', ' ').replace('\r', ' ')
+                  print(f"::warning::Play app is still in draft state — draft release uploaded but promotion to 'completed' is not allowed yet. Complete Play Console setup (content rating, target audience, data safety, etc.) to exit draft state. API said: {msg_oneline}")
+                  try:
+                      svc.edits().delete(packageName=pkg, editId=eid).execute()
+                  except HttpError:
+                      pass
+                  sys.exit(0)
+              raise
           EOF
 
       - name: Publish to Play Store production (tag release)
