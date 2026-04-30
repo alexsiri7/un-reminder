@@ -27,11 +27,11 @@ class HabitRepositoryTest {
 
     @Test
     fun `getEligibleHabits with empty set uses sentinel -1L`() = runTest {
-        coEvery { habitDao.getEligibleHabits(listOf(-1L), any(), any(), any()) } returns emptyList()
+        coEvery { habitDao.getEligibleHabits(listOf(-1L), any(), any(), any(), any()) } returns emptyList()
 
         repo.getEligibleHabits(emptySet())
 
-        coVerify { habitDao.getEligibleHabits(listOf(-1L), any(), any(), any()) }
+        coVerify { habitDao.getEligibleHabits(listOf(-1L), any(), any(), any(), any()) }
     }
 
     @Test
@@ -45,10 +45,10 @@ class HabitRepositoryTest {
 
     @Test
     fun `getEligibleHabits with non-empty set passes ids directly`() = runTest {
-        coEvery { habitDao.getEligibleHabits(listOf(1L, 2L), any(), any(), any()) } returns emptyList()
+        coEvery { habitDao.getEligibleHabits(listOf(1L, 2L), any(), any(), any(), any()) } returns emptyList()
 
         repo.getEligibleHabits(setOf(1L, 2L))
 
-        coVerify { habitDao.getEligibleHabits(listOf(1L, 2L), any(), any(), any()) }
+        coVerify { habitDao.getEligibleHabits(listOf(1L, 2L), any(), any(), any(), any()) }
     }
 }

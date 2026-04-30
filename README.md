@@ -195,7 +195,9 @@ updated by geofence `ENTER`/`EXIT` callbacks. Empty set means no known location.
    - `active = true`
    - Has **no** entries in `habit_location` (eligible everywhere), OR has at least one
      `location_id` matching a geofence the user is currently inside.
-   - Not fired within the last N minutes (configurable, default 90m) to avoid tight repeats.
+   - Has an active time window covering the current day and time (or no window association).
+   - **Not completed today**: any habit with a `COMPLETED` trigger fired after midnight is excluded for the rest of the day.
+   - **Not on cooldown**: any habit with a `DISMISSED` or unanswered `FIRED` trigger in the last 3 hours is excluded.
 3. Pick **one** habit by weighted-random selection from the eligible set, biased toward habits
    not recently prompted. Weight formula: `1 + min(minutesSince, 1440) / 120`, where
    `minutesSince` is minutes since the habit was last fired (cap: 1440 min = 24 h). A habit
@@ -203,15 +205,17 @@ updated by geofence `ENTER`/`EXIT` callbacks. Empty set means no known location.
 4. Pick an unused variation from the cloud-generated pool (see Variation entity). If the pool is empty, use the level description fallback (see Fallback below).
 5. Post the notification with the generated text. Action buttons: **Did it**, **Dismiss**.
 6. Record the trigger row with the generated prompt and the outcome when the user responds.
-   When `auto_adjust_level` is true: 3 consecutive `COMPLETED` triggers promote `dedication_level`
-   by 1 (up to max 5); 3 consecutive `DISMISSED` triggers demote it by 1. At level 0, 3 consecutive
-   `DISMISSED` triggers auto-pause the habit (`active = false`). The user can re-activate via the habit editor.
+   - **Did it (COMPLETED):** the habit is excluded from the rest of today's triggers (step 2 above). When `auto_adjust_level` is true, consecutive completions promote `dedication_level` (up to max 5).
+   - **Dismiss (DISMISSED):** a 3-hour cooldown applies before this habit is eligible again. When `auto_adjust_level` is true: 3 consecutive `DISMISSED` triggers demote `dedication_level` by 1; at level 0, 3 consecutive dismissals auto-pause the habit (`active = false`). The user can re-activate via the habit editor.
 
 ### Variation pool (cloud-generated)
 
 Notification texts are pre-generated in batches by the Cloudflare Worker (`/v1/generate/batch`) and stored locally in the `Variation` table. At fire time, `TriggerPipeline` picks an unused variation from the pool — no LLM call on the hot path.
 
-When the pool runs low (`VariationRepository.needsRefill`), a `RefillWorker` is enqueued to fetch a fresh batch from the worker.
+**Pool lifecycle:**
+- **Initial fill:** saving a new habit immediately enqueues `RefillWorker`, which calls `/v1/generate/batch` with `n = POOL_SIZE` (50) and stores the results. The pool starts at up to 50 unused variations.
+- **Refill:** when the unused count drops below `REFILL_THRESHOLD` (5), `TriggerPipeline` enqueues another `RefillWorker` run after each notification fire. Consumed variations are pruned before each batch is inserted, so the pool stays near the 50-variation target.
+- **Prompt change:** if a habit's name or description ladder changes on save, the entire pool is cleared and a fresh 50-variation refill is enqueued.
 
 ### Fallback
 If the variation pool is empty at fire time, the notification uses the `HabitLevelDescriptionEntity`
@@ -220,9 +224,11 @@ back to `habit.name`. A refill is enqueued in both cases. AI autofill and notifi
 
 ### Habit-field autofill (cloud)
 
-Used to generate all 6 `description_ladder` slots when the user taps "Autofill with AI" in the Habit editor.
-Calls the worker's `/v1/habit-fields` endpoint with the habit title; the worker returns
-`{ descriptionLadder: string[] }` with one description per dedication level (0–5).
+Used to generate all 6 `description_ladder` slots when the user taps "✦ autofill" in the Habit editor
+(labeled "Autofill descriptions" in the UI). Calls the worker's `/v1/habit-fields` endpoint with the habit
+title; the worker returns `{ descriptionLadder: string[] }` with one description per dedication level (0–5).
+This fills the description fields only — the 50-notification pool is generated separately when the habit is
+saved (see Variation pool above).
 
 ### Notification preview (cloud)
 
@@ -236,9 +242,12 @@ Generates a sample notification via the worker's `/v1/preview` endpoint. Shown i
 2. **Habit editor** — name, dedication level progress bar (0–5), auto-adjust toggle, 6-level
    description fields (level 0 = minimum/low-floor, level 5 = full version; current level highlighted),
    location chips (multi-select from saved locations; no selection = "Anywhere"), active toggle.
-   AI-assist row: **Autofill with AI** (populates all 6 levels (0–5) from the habit name via cloud AI;
-   enabled when name ≥ 2 chars) · **Preview notification** (generates a sample notification text;
-   enabled when at least one level description is non-blank).
+   AI-assist row: **✦ autofill** ("Autofill descriptions" — populates all 6 description-ladder levels (0–5)
+   from the habit name via cloud AI; enabled when name ≥ 2 chars) · **↻ resample** / **Preview** (generates
+   a live sample notification text via cloud AI; enabled when at least one level description is non-blank).
+   Saving the habit (new or edited) automatically queues background generation of up to 50 notification
+   variants via `RefillWorker` — these are the texts that fire as actual notifications. The autofill button
+   fills descriptions only; the pool is built on save.
 3. **Windows screen** — list of windows. FAB → add window. Tap → edit. BugReport icon in header → Feedback screen.
 4. **Window editor** — start/end time pickers, days-of-week chips, frequency slider (1–3), active toggle.
 5. **Locations screen** — dynamic list of named locations (any label, not restricted to HOME/WORK).
@@ -287,7 +296,7 @@ The app is considered MVP-complete when:
 
 1. User can CRUD habits, windows, and locations in the UI.
 2. Daily schedule job correctly populates `Trigger` rows for the next 24h based on active windows.
-3. At least one window trigger fires during its window with a Gemma 3 1B-generated prompt.
+3. At least one window trigger fires during its window using a prompt drawn from the variation pool (Gemini Flash via Requesty.ai, pre-generated by the Cloudflare Worker).
 4. Entering the registered `HOME` geofence triggers exactly one notification 5 minutes later (debounced).
 5. Notification actions correctly record `COMPLETED` or `DISMISSED`.
 6. Recent triggers screen displays the last 20 triggers with their generated prompts.
