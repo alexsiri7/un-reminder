@@ -231,7 +231,7 @@ class HabitEditViewModel @Inject constructor(
             } catch (e: LlmUnavailableException) {
                 _uiState.value = _uiState.value.copy(errorMessage = errorMsg)
             } catch (e: WorkerError) {
-                if (e.code in 500..599) {
+                if (e.isServerError()) {
                     _uiState.value = _uiState.value.copy(errorMessage = "Service temporarily unavailable — please try again.")
                 } else {
                     Sentry.captureException(e) { scope -> scope.setTag("component", "ai-ui") }

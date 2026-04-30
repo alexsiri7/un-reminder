@@ -124,10 +124,6 @@ jobs:
               # uploaded fine as a draft and is reachable via Internal App Sharing;
               # CI shouldn't go red on a Play Console state we can't fix from here.
               msg = (e.content or b'').decode('utf-8', errors='replace')
-              # Match the unique 'on draft app' fragment of the documented Play API
-              # error ("Only releases with status draft may be created on draft app.")
-              # case-insensitively so a future capitalisation/wording tweak doesn't
-              # silently red the build on the same known-benign condition.
               if e.resp.status == 400 and 'on draft app' in msg.lower():
                   msg_oneline = msg.replace('\n', ' ').replace('\r', ' ')
                   print(f"::warning::Play app is still in draft state — draft release uploaded but promotion to 'completed' is not allowed yet. Complete Play Console setup (content rating, target audience, data safety, etc.) to exit draft state. API said: {msg_oneline}")

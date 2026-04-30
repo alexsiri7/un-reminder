@@ -90,7 +90,7 @@ class RefillWorker @AssistedInject constructor(
             Log.w(TAG, "Auth failed for habit $habitId", e)
             Result.failure()
         } catch (e: WorkerError) {
-            if (e.code in 500..599) {
+            if (e.isServerError()) {
                 Log.w(TAG, "Server error ${e.code} for habit $habitId, will retry", e)
                 Result.retry()
             } else {
