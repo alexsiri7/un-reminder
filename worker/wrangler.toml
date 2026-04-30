@@ -1,7 +1,17 @@
-# Required secrets (set via wrangler secret put):
+# Required Worker secrets (set via wrangler secret put):
 #   SENTRY_DSN       — (optional) Sentry DSN for error tracking
 #   UR_SHARED_SECRET — shared auth secret for X-UR-Secret header
 #   UR_REQUESTY_KEY  — Requesty.ai API key for LLM calls
+#
+# CI deploy (.github/workflows/deploy-worker.yml) needs CLOUDFLARE_API_TOKEN
+# (a *user-owned* token from dash.cloudflare.com/profile/api-tokens) with:
+#   - Account → Workers Scripts:     Edit   (wrangler deploy)
+#   - Account → Workers KV Storage:  Edit   (this Worker uses [[kv_namespaces]] below)
+#   - Account → Account Settings:    Read   (wrangler 4.x calls /memberships)
+#   - User → User Details:           Read   (wrangler whoami)
+# Account resources scope: limit to the account that owns this Worker.
+# Stored as the CLOUDFLARE_API_TOKEN repo secret. Rotating it without these scopes
+# reproduces issue #199 (Authentication error [code: 10000] / [code: 9106]).
 
 name = "un-reminder-worker"
 main = "src/index.ts"
