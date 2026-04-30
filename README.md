@@ -76,7 +76,7 @@ wrangler deploy
 
 ### Build Configuration / GitHub Secrets
 
-The following repository secrets are required for CI release builds:
+The following repository secrets are required for CI release builds and Worker deploy:
 
 | Secret | Purpose | Format |
 |---|---|---|
@@ -85,6 +85,8 @@ The following repository secrets are required for CI release builds:
 | `SENTRY_DSN` | Automated crash reporting (optional — blank value disables Sentry) | Sentry DSN URL, e.g. `https://key@org.ingest.sentry.io/projectid` |
 | `WORKER_URL` | Default URL for cloud AI variant generation worker (optional — configurable at runtime via Cloud AI settings) | Full URL, e.g. `https://un-reminder-worker.yourname.workers.dev` |
 | `WORKER_SECRET` | Default shared secret baked into BuildConfig (optional — blank disables default) | Must match worker's `UR_SHARED_SECRET` |
+| `CLOUDFLARE_API_TOKEN` | Used by `.github/workflows/deploy-worker.yml` to deploy the Cloudflare Worker | User-owned token from dash.cloudflare.com/profile/api-tokens — see required scopes in `worker/wrangler.toml` header comment |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account that owns the Worker | Account ID from the Cloudflare dashboard |
 
 All secrets are optional in the sense that the app compiles and runs without them; missing secrets disable the corresponding feature at runtime.
 

@@ -77,7 +77,10 @@ export async function callRequestyWithSchemaRetry<T>(
       const match = err instanceof Error ? err.message.match(/Requesty (\d+)/) : null
       const status = match ? parseInt(match[1], 10) : 0
       console.error('[requesty] callRequesty failed', { isRetry, status, err })
-      Sentry.captureException(err instanceof Error ? err : new Error(String(err)), scope => { scope.setTag('requesty.failure', 'http'); scope.setContext('requesty', { isRetry, status }); return scope })
+      Sentry.captureException(err instanceof Error ? err : new Error(String(err)), {
+        tags: { 'requesty.failure': 'http' },
+        contexts: { requesty: { isRetry, status } },
+      })
       return null
     }
 
@@ -94,7 +97,10 @@ export async function callRequestyWithSchemaRetry<T>(
       Sentry.captureMessage('Requesty schema validation failed', { level: 'warning', contexts: { requesty: { isRetry, text: result.text.slice(0, 200) } } })
     } catch (err) {
       console.warn('[requesty] JSON.parse failed', { isRetry, err, text: result.text.slice(0, 200) })
-      Sentry.captureException(err instanceof Error ? err : new Error(String(err)), scope => { scope.setTag('requesty.failure', 'json-parse'); scope.setContext('requesty', { isRetry, text: result.text.slice(0, 200) }); return scope })
+      Sentry.captureException(err instanceof Error ? err : new Error(String(err)), {
+        tags: { 'requesty.failure': 'json-parse' },
+        contexts: { requesty: { isRetry, text: result.text.slice(0, 200) } },
+      })
     }
 
     if (isRetry) return null
