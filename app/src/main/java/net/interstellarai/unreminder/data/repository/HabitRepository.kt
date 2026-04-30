@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.Flow
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -34,16 +35,21 @@ class HabitRepository @Inject constructor(
     suspend fun getByIdOnce(id: Long): HabitEntity? = habitDao.getByIdOnce(id)
 
     suspend fun getEligibleHabits(
-        currentLocationIds: Set<Long>,
-        excludeRecentMinutes: Long = 240
+        currentLocationIds: Set<Long>
     ): List<HabitEntity> {
-        val cutoff = Instant.now().minusSeconds(excludeRecentMinutes * 60).toEpochMilli()
+        // COMPLETED today: excluded until midnight (done for the day).
+        val completedCutoff = LocalDate.now()
+            .atStartOfDay(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
+        // DISMISSED or FIRED-but-not-responded: 3-hour cooldown.
+        val dismissedCutoff = Instant.now().minusSeconds(3 * 3600L).toEpochMilli()
         // Room crashes if IN-clause receives an empty list. Use an impossible ID (-1) so the
         // clause is syntactically valid but never matches any real habit row.
         val ids = if (currentLocationIds.isEmpty()) listOf(-1L) else currentLocationIds.toList()
         val currentSecondOfDay = LocalTime.now().toSecondOfDay()
         val dayOfWeekBit = 1 shl (LocalDate.now().dayOfWeek.value - 1)
-        return habitDao.getEligibleHabits(ids, cutoff, currentSecondOfDay, dayOfWeekBit)
+        return habitDao.getEligibleHabits(ids, completedCutoff, dismissedCutoff, currentSecondOfDay, dayOfWeekBit)
     }
 
     suspend fun getLocationIds(habitId: Long): List<Long> =

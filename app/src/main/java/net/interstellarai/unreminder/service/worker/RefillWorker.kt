@@ -65,7 +65,7 @@ class RefillWorker @AssistedInject constructor(
                 habitTags = emptyList(),
                 locationName = "",
                 timeOfDay = "",
-                n = 20,
+                n = VariationRepository.POOL_SIZE,
                 workerUrl = url,
                 workerSecret = secret,
             )

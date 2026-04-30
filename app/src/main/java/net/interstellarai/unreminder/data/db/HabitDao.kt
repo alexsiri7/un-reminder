@@ -61,12 +61,21 @@ interface HabitDao {
             SELECT habit_id FROM triggers
             WHERE habit_id IS NOT NULL
             AND fired_at IS NOT NULL
-            AND fired_at > :excludeAfter
+            AND status = 'COMPLETED'
+            AND fired_at > :completedCutoff
+        )
+        AND h.id NOT IN (
+            SELECT habit_id FROM triggers
+            WHERE habit_id IS NOT NULL
+            AND fired_at IS NOT NULL
+            AND (status = 'DISMISSED' OR status = 'FIRED')
+            AND fired_at > :dismissedCutoff
         )
     """)
     suspend fun getEligibleHabits(
         locationIds: List<Long>,
-        excludeAfter: Long,
+        completedCutoff: Long,
+        dismissedCutoff: Long,
         currentSecondOfDay: Int,
         dayOfWeekBit: Int
     ): List<HabitEntity>
