@@ -15,7 +15,10 @@ class VariationRepository @Inject constructor(
 ) {
     companion object {
         const val POOL_SIZE = 50
-        const val REFILL_THRESHOLD = 5
+        // Trigger refill at 40% pool depletion. Was 5 when POOL_SIZE = 20 (25% buffer);
+        // #205 raised the pool to 50 and left this at 5 (10% buffer) — too thin to
+        // survive WorkManager exponential backoff when refills fail (Sentry #181, #193).
+        const val REFILL_THRESHOLD = 20
     }
 
     /**
