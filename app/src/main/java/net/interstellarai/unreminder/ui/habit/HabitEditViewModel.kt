@@ -38,6 +38,7 @@ data class HabitEditUiState(
     val descriptionLadder: List<String> = List(6) { "" },
     val dedicationLevel: Int = 2,
     val autoAdjustLevel: Boolean = true,
+    val dailyLimit: Int = 1,
     val selectedLocationIds: Set<Long> = emptySet(),
     val selectedWindowIds: Set<Long> = emptySet(),
     val active: Boolean = true,
@@ -115,6 +116,7 @@ class HabitEditViewModel @Inject constructor(
                     descriptionLadder = habit.descriptionLadder,
                     dedicationLevel = habit.dedicationLevel,
                     autoAdjustLevel = habit.autoAdjustLevel,
+                    dailyLimit = habit.dailyLimit,
                     selectedLocationIds = locationIds,
                     selectedWindowIds = windowIds,
                     active = habit.active
@@ -137,6 +139,7 @@ class HabitEditViewModel @Inject constructor(
     }
     fun updateDedicationLevel(level: Int) { _uiState.value = _uiState.value.copy(dedicationLevel = level) }
     fun updateAutoAdjustLevel(enabled: Boolean) { _uiState.value = _uiState.value.copy(autoAdjustLevel = enabled) }
+    fun updateDailyLimit(limit: Int) { _uiState.value = _uiState.value.copy(dailyLimit = limit) }
 
     fun toggleLocation(locationId: Long) {
         val current = _uiState.value.selectedLocationIds
@@ -174,6 +177,7 @@ class HabitEditViewModel @Inject constructor(
                             descriptionLadder = state.descriptionLadder,
                             dedicationLevel = state.dedicationLevel,
                             autoAdjustLevel = state.autoAdjustLevel,
+                            dailyLimit = state.dailyLimit,
                             active = state.active
                         )
                     )
@@ -185,6 +189,7 @@ class HabitEditViewModel @Inject constructor(
                             descriptionLadder = state.descriptionLadder,
                             dedicationLevel = state.dedicationLevel,
                             autoAdjustLevel = state.autoAdjustLevel,
+                            dailyLimit = state.dailyLimit,
                             active = state.active
                         )
                     )

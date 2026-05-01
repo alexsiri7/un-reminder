@@ -16,6 +16,8 @@ data class HabitEntity(
     val descriptionLadder: List<String> = List(6) { "" },
     @ColumnInfo(name = "auto_adjust_level")
     val autoAdjustLevel: Boolean = true,
+    @ColumnInfo(name = "daily_limit")
+    val dailyLimit: Int = 1,
     val active: Boolean = true,
     @ColumnInfo(name = "created_at")
     val createdAt: Instant = Instant.now(),

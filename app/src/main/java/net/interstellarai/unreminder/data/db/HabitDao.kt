@@ -71,11 +71,19 @@ interface HabitDao {
             AND (status = 'DISMISSED' OR status = 'FIRED')
             AND fired_at > :dismissedCutoff
         )
+        AND (
+            SELECT COUNT(*) FROM triggers
+            WHERE habit_id = h.id
+            AND fired_at IS NOT NULL
+            AND fired_at >= :startOfDayCutoff
+            AND (status = 'COMPLETED' OR status = 'DISMISSED' OR status = 'FIRED')
+        ) < h.daily_limit
     """)
     suspend fun getEligibleHabits(
         locationIds: List<Long>,
         completedCutoff: Long,
         dismissedCutoff: Long,
+        startOfDayCutoff: Long,
         currentSecondOfDay: Int,
         dayOfWeekBit: Int
     ): List<HabitEntity>
