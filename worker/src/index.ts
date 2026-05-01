@@ -25,8 +25,9 @@ app.post('/v1/preview', previewHandler)
 
 export default withSentry(
   (env: Env) => {
-    if (!env.SENTRY_DSN) console.warn('[un-reminder-worker] SENTRY_DSN not set — errors will not be reported to Sentry')
-    return { dsn: env.SENTRY_DSN ?? '' }
+    const dsn = env.SENTRY_DSN ?? ''
+    if (!dsn) console.warn('[un-reminder-worker] SENTRY_DSN not set — errors will not be reported to Sentry')
+    return { dsn }
   },
   { fetch: app.fetch }
 )
