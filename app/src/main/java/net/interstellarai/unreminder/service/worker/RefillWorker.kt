@@ -109,20 +109,19 @@ class RefillWorker @AssistedInject constructor(
                 Log.w(TAG, "JSON parse error (wrapped) for habit $habitId, will retry", e)
                 Result.retry()
             } else {
-                Log.e(TAG, "Unexpected error for habit $habitId", e)
-                Sentry.captureException(e) { scope ->
-                    scope.setTag("component", "refill-worker")
-                    scope.setTag("habit_id", habitId.toString())
-                }
-                Result.failure()
+                reportUnexpected(e, habitId)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Unexpected error for habit $habitId", e)
-            Sentry.captureException(e) { scope ->
-                scope.setTag("component", "refill-worker")
-                scope.setTag("habit_id", habitId.toString())
-            }
-            Result.failure()
+            reportUnexpected(e, habitId)
         }
+    }
+
+    private fun reportUnexpected(e: Exception, habitId: Long): Result {
+        Log.e(TAG, "Unexpected error for habit $habitId", e)
+        Sentry.captureException(e) { scope ->
+            scope.setTag("component", "refill-worker")
+            scope.setTag("habit_id", habitId.toString())
+        }
+        return Result.failure()
     }
 }
