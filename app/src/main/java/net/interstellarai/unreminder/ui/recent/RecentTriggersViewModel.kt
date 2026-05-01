@@ -1,5 +1,6 @@
 package net.interstellarai.unreminder.ui.recent
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.WorkInfo
@@ -10,8 +11,10 @@ import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.worker.RandomIntervalWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -52,9 +55,18 @@ class RecentTriggersViewModel @Inject constructor(
                 if (millis == Long.MAX_VALUE) NextTriggerState.NotScheduled
                 else NextTriggerState.Scheduled(Instant.ofEpochMilli(millis))
             }
+            .catch { e ->
+                if (e is CancellationException) throw e
+                Log.w(TAG, "WorkManager nextTrigger flow error — defaulting to NotScheduled", e)
+                emit(NextTriggerState.NotScheduled)
+            }
             .stateIn(
                 viewModelScope,
                 SharingStarted.WhileSubscribed(5000),
                 NextTriggerState.NotScheduled,
             )
+
+    private companion object {
+        private const val TAG = "RecentTriggersVM"
+    }
 }

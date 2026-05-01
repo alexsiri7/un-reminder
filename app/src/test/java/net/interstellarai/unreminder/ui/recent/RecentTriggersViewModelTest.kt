@@ -110,4 +110,27 @@ class RecentTriggersViewModelTest {
             vm.nextTrigger.value,
         )
     }
+
+    @Test
+    fun `nextTrigger re-emits when WorkManager flow updates`() = runTest(testDispatcher) {
+        workInfos.value = emptyList()
+        val vm = buildViewModel()
+        backgroundScope.launch { vm.nextTrigger.collect {} }
+        advanceUntilIdle()
+        assertEquals(NextTriggerState.NotScheduled, vm.nextTrigger.value)
+
+        val millis = 1_700_000_000_000L
+        workInfos.value = listOf(mockInfo(WorkInfo.State.ENQUEUED, millis))
+        advanceUntilIdle()
+
+        assertEquals(
+            NextTriggerState.Scheduled(Instant.ofEpochMilli(millis)),
+            vm.nextTrigger.value,
+        )
+
+        workInfos.value = emptyList()
+        advanceUntilIdle()
+
+        assertEquals(NextTriggerState.NotScheduled, vm.nextTrigger.value)
+    }
 }

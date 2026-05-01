@@ -3,9 +3,10 @@ package net.interstellarai.unreminder.ui.recent
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 
-private val TIME_ONLY = DateTimeFormatter.ofPattern("HH:mm")
-private val DATE_TIME = DateTimeFormatter.ofPattern("MMM d HH:mm")
+private val TIME_ONLY = DateTimeFormatter.ofPattern("HH:mm", Locale.US)
+private val DATE_TIME = DateTimeFormatter.ofPattern("MMM d HH:mm", Locale.US)
 
 fun formatNextTrigger(
     state: NextTriggerState,
