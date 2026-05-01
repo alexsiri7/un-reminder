@@ -297,6 +297,26 @@ describe('un-reminder-worker', () => {
     expect(res.status).toBe(502)
   })
 
+  // ---- Empty-string rejection test ----
+
+  it('returns 502 when LLM returns empty strings in variants array', async () => {
+    mockRequestySuccess(['', '', ''])
+    mockRequestySuccess(['', '', ''])
+
+    const req = makeRequest('/v1/generate/batch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-UR-Secret': SECRET,
+      },
+      body: validBody(3),
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, testEnv(), ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(502)
+  })
+
   // ---- Retry-then-succeed test ----
 
   it('returns 200 when first call is malformed but retry succeeds', async () => {

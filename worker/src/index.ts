@@ -24,6 +24,9 @@ app.post('/v1/habit-fields', habitFieldsHandler)
 app.post('/v1/preview', previewHandler)
 
 export default withSentry(
-  (env: Env) => ({ dsn: env.SENTRY_DSN ?? '' }),
+  (env: Env) => {
+    if (!env.SENTRY_DSN) console.warn('[un-reminder-worker] SENTRY_DSN not set — errors will not be reported to Sentry')
+    return { dsn: env.SENTRY_DSN ?? '' }
+  },
   { fetch: app.fetch }
 )

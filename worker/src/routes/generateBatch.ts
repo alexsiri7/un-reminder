@@ -21,7 +21,7 @@ function buildPrompt(habitTitle: string, habitTags: string[], locationName: stri
 
 function validateVariants(parsed: unknown): string[] | null {
   if (!Array.isArray(parsed)) return null
-  if (!parsed.every((s) => typeof s === 'string')) return null
+  if (!parsed.every((s) => typeof s === 'string' && s.trim() !== '')) return null
   return parsed as string[]
 }
 
