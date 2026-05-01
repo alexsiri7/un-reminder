@@ -44,6 +44,7 @@ import net.interstellarai.unreminder.ui.theme.MonoLabelTiny
 import net.interstellarai.unreminder.ui.theme.MonoSectionLabel
 import net.interstellarai.unreminder.ui.theme.NavPill
 import net.interstellarai.unreminder.ui.theme.SansBody
+import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -60,6 +61,7 @@ fun RecentTriggersScreen(
     viewModel: RecentTriggersViewModel = hiltViewModel(),
 ) {
     val triggers by viewModel.triggers.collectAsStateWithLifecycle()
+    val nextTrigger by viewModel.nextTrigger.collectAsStateWithLifecycle()
     val formatter = DateTimeFormatter.ofPattern("MMM d \u00b7 HH:mm")
 
     Scaffold(
@@ -93,6 +95,20 @@ fun RecentTriggersScreen(
                     style = DisplayHuge,
                     color = MaterialTheme.colorScheme.onBackground,
                 )
+                Spacer(Modifier.height(Dimens.sm))
+                Row {
+                    MonoSectionLabel("next")
+                    Spacer(Modifier.width(Dimens.sm))
+                    Text(
+                        text = formatNextTrigger(
+                            nextTrigger,
+                            Instant.now(),
+                            ZoneId.systemDefault(),
+                        ),
+                        style = MonoLabelTiny,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                    )
+                }
             }
 
             if (triggers.isEmpty()) {
