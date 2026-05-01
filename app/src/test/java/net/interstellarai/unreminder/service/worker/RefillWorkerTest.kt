@@ -22,6 +22,7 @@ import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.data.repository.WorkerSettingsRepository
+import org.json.JSONException
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -182,6 +183,30 @@ class RefillWorkerTest {
 
         val worker = createWorker()
         assertEquals(Result.failure(), worker.doWork())
+    }
+
+    @Test
+    fun `doWork returns retry on JSONException`() = runTest {
+        val habit = HabitEntity(id = 1L, name = "Meditate")
+        coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
+        coEvery {
+            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any())
+        } throws JSONException("Value at 0 is null")
+
+        val worker = createWorker()
+        assertEquals(Result.retry(), worker.doWork())
+    }
+
+    @Test
+    fun `doWork returns retry on RuntimeException wrapping JSONException`() = runTest {
+        val habit = HabitEntity(id = 1L, name = "Meditate")
+        coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
+        coEvery {
+            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any())
+        } throws RuntimeException("json error", JSONException("Unexpected token"))
+
+        val worker = createWorker()
+        assertEquals(Result.retry(), worker.doWork())
     }
 
     @Test
