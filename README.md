@@ -120,6 +120,11 @@ A repeatable thing the user wants to do. Each habit has:
   If the habit is already at level 0, 3 consecutive `DISMISSED` triggers set it to `active = false`
   (auto-paused). The user can re-activate it from the habit editor.
   (see [Trigger Logic §5](#5-trigger-logic)).
+- `daily_limit` — integer; default 1. Maximum number of `COMPLETED`/`FIRED` triggers per local day before
+  the habit is excluded from selection. User-configurable in the Habit editor.
+- `cooldown_minutes` — integer minutes; default 180 (= 3 h). After a `DISMISSED` or unanswered `FIRED`
+  trigger, the habit is excluded from selection until this many minutes have passed. `0` disables this
+  exclusion. User-configurable in the Habit editor (presets 1h · 2h · 3h · 6h · 12h · None).
 - `created_at`, `updated_at`.
 
 Per-level descriptive text is stored separately in `HabitLevelDescriptionEntity` (`habit_level_descriptions`
@@ -197,7 +202,7 @@ updated by geofence `ENTER`/`EXIT` callbacks. Empty set means no known location.
      `location_id` matching a geofence the user is currently inside.
    - Has an active time window covering the current day and time (or no window association).
    - **Not completed today**: any habit with a `COMPLETED` trigger fired after midnight is excluded for the rest of the day.
-   - **Not on cooldown**: any habit with a `DISMISSED` or unanswered `FIRED` trigger in the last 3 hours is excluded.
+   - **Not on cooldown**: any habit with a `DISMISSED` or unanswered `FIRED` trigger inside its `cooldown_minutes` window (default 180 min, configurable per habit in the editor; `0` disables this exclusion entirely) is excluded.
 3. Pick **one** habit by weighted-random selection from the eligible set, biased toward habits
    not recently prompted. Weight formula: `1 + min(minutesSince, 1440) / 120`, where
    `minutesSince` is minutes since the habit was last fired (cap: 1440 min = 24 h). A habit
@@ -206,7 +211,7 @@ updated by geofence `ENTER`/`EXIT` callbacks. Empty set means no known location.
 5. Post the notification with the generated text. Action buttons: **Did it**, **Dismiss**.
 6. Record the trigger row with the generated prompt and the outcome when the user responds.
    - **Did it (COMPLETED):** the habit is excluded from the rest of today's triggers (step 2 above). When `auto_adjust_level` is true, consecutive completions promote `dedication_level` (up to max 5).
-   - **Dismiss (DISMISSED):** a 3-hour cooldown applies before this habit is eligible again. When `auto_adjust_level` is true: 3 consecutive `DISMISSED` triggers demote `dedication_level` by 1; at level 0, 3 consecutive dismissals auto-pause the habit (`active = false`). The user can re-activate via the habit editor.
+   - **Dismiss (DISMISSED):** a per-habit cooldown (default 3 h, configurable via `cooldownMinutes` in the Habit editor — presets 1h · 2h · 3h · 6h · 12h · None, where None=`0` disables the cooldown) applies before this habit is eligible again. When `auto_adjust_level` is true: 3 consecutive `DISMISSED` triggers demote `dedication_level` by 1; at level 0, 3 consecutive dismissals auto-pause the habit (`active = false`). The user can re-activate via the habit editor.
 
 ### Variation pool (cloud-generated)
 
@@ -241,7 +246,8 @@ Generates a sample notification via the worker's `/v1/preview` endpoint. Shown i
 1. **Home screen** — list of habits. FAB → add habit. Tap habit → edit. BugReport icon in header → Feedback screen.
 2. **Habit editor** — name, dedication level progress bar (0–5), auto-adjust toggle, 6-level
    description fields (level 0 = minimum/low-floor, level 5 = full version; current level highlighted),
-   location chips (multi-select from saved locations; no selection = "Anywhere"), active toggle.
+   location chips (multi-select from saved locations; no selection = "Anywhere"), active toggle,
+   daily-limit dropdown (1–10/day, default 1), cooldown dropdown (1h · 2h · 3h · 6h · 12h · None, default 3h).
    AI-assist row: **✦ autofill** ("Autofill descriptions" — populates all 6 description-ladder levels (0–5)
    from the habit name via cloud AI; enabled when name ≥ 2 chars) · **↻ resample** / **Preview** (generates
    a live sample notification text via cloud AI; enabled when at least one level description is non-blank).
@@ -277,8 +283,8 @@ Generates a sample notification via the worker's `/v1/preview` endpoint. Shown i
 ## 8. Database Schema (Room)
 
 ```kotlin
-// DB version 7
-@Entity Habit(id, name, dedication_level/*Int 0-5*/, auto_adjust_level/*Boolean*/, active, created_at, updated_at)
+// DB version 9
+@Entity Habit(id, name, dedication_level/*Int 0-5*/, auto_adjust_level/*Boolean*/, daily_limit/*Int, default 1*/, cooldown_minutes/*Int, default 180*/, active, created_at, updated_at)
 @Entity HabitLevelDescriptionEntity(habit_id → Habit.id CASCADE, level/*0-5*/, description)  // per-level text
 @Entity Window(id, start_time, end_time, days_of_week_bitmask, frequency_per_day, active)
 @Entity Location(id, name /* user-defined, e.g. "Home", "Gym", "Office" */, lat, lng, radius_m)

@@ -18,6 +18,8 @@ data class HabitEntity(
     val autoAdjustLevel: Boolean = true,
     @ColumnInfo(name = "daily_limit")
     val dailyLimit: Int = 1,
+    @ColumnInfo(name = "cooldown_minutes", defaultValue = "180")
+    val cooldownMinutes: Int = 180,
     val active: Boolean = true,
     @ColumnInfo(name = "created_at")
     val createdAt: Instant = Instant.now(),

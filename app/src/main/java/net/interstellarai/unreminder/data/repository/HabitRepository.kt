@@ -42,8 +42,8 @@ class HabitRepository @Inject constructor(
             .atStartOfDay(ZoneId.systemDefault())
             .toInstant()
             .toEpochMilli()
-        // DISMISSED or FIRED-but-not-responded: 3-hour cooldown.
-        val dismissedCutoff = Instant.now().minusSeconds(3 * 3600L).toEpochMilli()
+        // "now" is passed so the DAO can correlate per-habit cooldown_minutes (see HabitDao.kt).
+        val nowEpochMillis = Instant.now().toEpochMilli()
         // Per-habit daily cap boundary: same epoch as completedCutoff today, kept as a
         // distinct named param so the SQL stays self-documenting if cooldown semantics diverge.
         val startOfDayCutoff = completedCutoff
@@ -55,7 +55,7 @@ class HabitRepository @Inject constructor(
         return habitDao.getEligibleHabits(
             ids,
             completedCutoff,
-            dismissedCutoff,
+            nowEpochMillis,
             startOfDayCutoff,
             currentSecondOfDay,
             dayOfWeekBit
