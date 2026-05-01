@@ -73,11 +73,11 @@ class VariationRepositoryTest {
         assertFalse(repository.needsRefill(1L, threshold = 5))
     }
 
-    @Test fun `needsRefill uses default threshold of 5`() = runTest {
-        coEvery { mockDao.countUnused(1L) } returns 4
+    @Test fun `needsRefill uses default threshold of 20`() = runTest {
+        coEvery { mockDao.countUnused(1L) } returns 19
         assertTrue(repository.needsRefill(1L))
 
-        coEvery { mockDao.countUnused(1L) } returns 5
+        coEvery { mockDao.countUnused(1L) } returns 20
         assertFalse(repository.needsRefill(1L))
     }
 
