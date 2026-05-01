@@ -27,7 +27,7 @@ class RefillScheduler @Inject constructor(
             .build()
         WorkManager.getInstance(context).enqueueUniqueWork(
             "${RefillWorker.WORK_NAME}-$habitId",
-            ExistingWorkPolicy.KEEP,
+            ExistingWorkPolicy.REPLACE,
             request,
         )
     }
