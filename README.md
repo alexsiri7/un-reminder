@@ -214,7 +214,7 @@ Notification texts are pre-generated in batches by the Cloudflare Worker (`/v1/g
 
 **Pool lifecycle:**
 - **Initial fill:** saving a new habit immediately enqueues `RefillWorker`, which calls `/v1/generate/batch` with `n = POOL_SIZE` (50) and stores the results. The pool starts at up to 50 unused variations.
-- **Refill:** when the unused count drops below `REFILL_THRESHOLD` (20 — a 40% buffer over `POOL_SIZE = 50`, sized to outlast multiple WorkManager backoff cycles when refills fail), `TriggerPipeline` enqueues another `RefillWorker` run after each notification fire. Consumed variations are pruned before each batch is inserted, so the pool stays near the 50-variation target.
+- **Refill:** when the unused count drops below `REFILL_THRESHOLD` (20 — a 40% buffer over `POOL_SIZE = 50`, sized to outlast multiple WorkManager backoff cycles when refills fail), `TriggerPipeline` enqueues another `RefillWorker` run after each notification fire. Consumed variations are pruned before each batch is inserted, so the pool stays at or above the 50-variation target after each refill.
 - **Prompt change:** if a habit's name or description ladder changes on save, the entire pool is cleared and a fresh 50-variation refill is enqueued.
 
 ### Fallback

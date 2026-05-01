@@ -1,5 +1,6 @@
 package net.interstellarai.unreminder.ui.habit
 
+import android.util.Log
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
@@ -40,6 +41,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.io.IOException
+import java.net.SocketTimeoutException
 import java.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -67,6 +70,11 @@ class HabitEditViewModelTest {
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
+        mockkStatic(Log::class)
+        every { Log.e(any(), any(), any()) } returns 0
+        every { Log.e(any(), any()) } returns 0
+        every { Log.w(any<String>(), any<String>(), any()) } returns 0
+        every { Log.w(any<String>(), any<String>()) } returns 0
         every { mockLocationRepository.getAll() } returns flowOf(emptyList())
         every { mockWindowRepository.getAll() } returns flowOf(emptyList())
         every { mockPromptGenerator.aiStatus } returns MutableStateFlow<AiStatus>(AiStatus.Ready)
@@ -84,6 +92,7 @@ class HabitEditViewModelTest {
 
     @After
     fun tearDown() {
+        unmockkStatic(Log::class)
         Dispatchers.resetMain()
     }
 
@@ -130,6 +139,43 @@ class HabitEditViewModelTest {
         advanceUntilIdle()
 
         verify(exactly = 1) { Sentry.captureException(any(), any<ScopeCallback>()) }
+        unmockkStatic(Sentry::class)
+    }
+
+    @Test
+    fun `autofillWithAi shows network message and skips Sentry on IOException`() = runTest(testDispatcher) {
+        mockkStatic(Sentry::class)
+        every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
+
+        coEvery { mockPromptGenerator.generateHabitFields(any()) } throws
+            SocketTimeoutException("timeout")
+
+        viewModel.autofillWithAi()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.isGeneratingFields)
+        assertEquals("Network slow — please try again.", state.errorMessage)
+        verify(exactly = 0) { Sentry.captureException(any(), any<ScopeCallback>()) }
+        unmockkStatic(Sentry::class)
+    }
+
+    @Test
+    fun `previewNotification shows network message and skips Sentry on IOException`() = runTest(testDispatcher) {
+        mockkStatic(Sentry::class)
+        every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
+
+        coEvery { mockPromptGenerator.previewHabitNotification(any(), any()) } throws
+            IOException("network unreachable")
+
+        viewModel.previewNotification()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.showPreviewDialog)
+        assertFalse(state.isGeneratingFields)
+        assertEquals("Network slow — please try again.", state.errorMessage)
+        verify(exactly = 0) { Sentry.captureException(any(), any<ScopeCallback>()) }
         unmockkStatic(Sentry::class)
     }
 

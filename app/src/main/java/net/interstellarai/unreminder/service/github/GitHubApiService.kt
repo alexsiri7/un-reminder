@@ -11,6 +11,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.io.File
 import javax.inject.Inject
+import javax.inject.Named
 import javax.inject.Singleton
 
 // Forwards feedback submissions to the feedback Cloudflare Worker, which
@@ -19,7 +20,7 @@ import javax.inject.Singleton
 // the signed APK, so it was removed.
 @Singleton
 class GitHubApiService @Inject constructor(
-    private val okHttpClient: OkHttpClient
+    @Named("feedback") private val okHttpClient: OkHttpClient
 ) {
     suspend fun submit(
         title: String,

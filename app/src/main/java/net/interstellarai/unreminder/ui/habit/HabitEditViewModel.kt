@@ -31,6 +31,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.io.IOException
 import javax.inject.Inject
 
 data class HabitEditUiState(
@@ -242,6 +243,13 @@ class HabitEditViewModel @Inject constructor(
                     Sentry.captureException(e) { scope -> scope.setTag("component", "ai-ui") }
                     _uiState.value = _uiState.value.copy(errorMessage = errorMsg)
                 }
+            } catch (e: IOException) {
+                // OkHttp timeout / DNS / connectivity failure — expected on flaky networks,
+                // don't ship to Sentry. Mirrors FeedbackViewModel.submit pattern.
+                Log.w(TAG, "launchWithAi network failure", e)
+                _uiState.value = _uiState.value.copy(
+                    errorMessage = "Network slow — please try again."
+                )
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "launchWithAi failed", e)
