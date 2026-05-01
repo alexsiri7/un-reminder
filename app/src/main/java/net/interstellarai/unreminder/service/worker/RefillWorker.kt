@@ -8,11 +8,10 @@ import androidx.work.WorkerParameters
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.first
+import net.interstellarai.unreminder.BuildConfig
 import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
-import net.interstellarai.unreminder.data.repository.WorkerSettingsRepository
 import io.sentry.Sentry
 import java.io.IOException
 import java.time.Instant
@@ -25,7 +24,6 @@ class RefillWorker @AssistedInject constructor(
     private val habitRepository: HabitRepository,
     private val variationRepository: VariationRepository,
     private val requestyProxyClient: RequestyProxyClient,
-    private val workerSettingsRepository: WorkerSettingsRepository,
 ) : CoroutineWorker(appContext, workerParams) {
 
     companion object {
@@ -41,16 +39,8 @@ class RefillWorker @AssistedInject constructor(
             return Result.failure()
         }
 
-        val url = workerSettingsRepository.workerUrl.first()
-        if (url.isBlank()) {
-            Log.w(TAG, "Worker URL is blank, skipping refill for habit $habitId")
-            return Result.failure()
-        }
-        val secret = workerSettingsRepository.workerSecret.first()
-        if (secret.isBlank()) {
-            Log.w(TAG, "Worker secret is blank, skipping refill for habit $habitId")
-            return Result.failure()
-        }
+        val url = BuildConfig.WORKER_URL
+        val secret = BuildConfig.WORKER_SECRET
 
         val habit = habitRepository.getByIdOnce(habitId)
         if (habit == null) {
