@@ -69,7 +69,8 @@ interface HabitDao {
             WHERE habit_id IS NOT NULL
             AND fired_at IS NOT NULL
             AND (status = 'DISMISSED' OR status = 'FIRED')
-            AND fired_at > :dismissedCutoff
+            AND fired_at > (:nowEpochMillis - h.cooldown_minutes * 60 * 1000)
+            AND h.cooldown_minutes > 0
         )
         AND (
             SELECT COUNT(*) FROM triggers
@@ -82,7 +83,7 @@ interface HabitDao {
     suspend fun getEligibleHabits(
         locationIds: List<Long>,
         completedCutoff: Long,
-        dismissedCutoff: Long,
+        nowEpochMillis: Long,
         startOfDayCutoff: Long,
         currentSecondOfDay: Int,
         dayOfWeekBit: Int

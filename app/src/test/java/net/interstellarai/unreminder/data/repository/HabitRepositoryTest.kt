@@ -6,9 +6,12 @@ import net.interstellarai.unreminder.data.db.HabitWindowCrossRefDao
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import io.mockk.slot
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.time.Instant
 
 class HabitRepositoryTest {
 
@@ -50,5 +53,22 @@ class HabitRepositoryTest {
         repo.getEligibleHabits(setOf(1L, 2L))
 
         coVerify { habitDao.getEligibleHabits(listOf(1L, 2L), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `getEligibleHabits passes nowEpochMillis (not pre-subtracted by 3h) as third arg`() = runTest {
+        val captured = slot<Long>()
+        coEvery {
+            habitDao.getEligibleHabits(any(), any(), capture(captured), any(), any(), any())
+        } returns emptyList()
+
+        val before = Instant.now().toEpochMilli()
+        repo.getEligibleHabits(emptySet())
+        val after = Instant.now().toEpochMilli()
+
+        assertTrue(captured.captured >= before - 1000)
+        assertTrue(captured.captured <= after + 1000)
+        val threeHoursMillis = 3 * 3600 * 1000L
+        assertTrue(captured.captured > before - threeHoursMillis + 60_000)
     }
 }

@@ -245,6 +245,46 @@ fun HabitEditScreen(
 
                 Spacer(Modifier.height(Dimens.lg))
 
+                MonoSectionLabel("cooldown")
+                Spacer(Modifier.height(Dimens.sm))
+                val cooldownOptions = listOf(
+                    60 to "1 hour",
+                    120 to "2 hours",
+                    180 to "3 hours",
+                    360 to "6 hours",
+                    720 to "12 hours",
+                    0 to "None",
+                )
+                var cooldownMenuExpanded by remember { mutableStateOf(false) }
+                val cooldownLabel = cooldownOptions.firstOrNull { it.first == uiState.cooldownMinutes }?.second
+                    ?: "${uiState.cooldownMinutes} min"
+                Box {
+                    Text(
+                        cooldownLabel,
+                        style = SansBody,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier
+                            .clickable { cooldownMenuExpanded = true }
+                            .padding(vertical = Dimens.sm),
+                    )
+                    DropdownMenu(
+                        expanded = cooldownMenuExpanded,
+                        onDismissRequest = { cooldownMenuExpanded = false },
+                    ) {
+                        cooldownOptions.forEach { (mins, label) ->
+                            DropdownMenuItem(
+                                text = { Text(label, style = SansBody) },
+                                onClick = {
+                                    viewModel.updateCooldownMinutes(mins)
+                                    cooldownMenuExpanded = false
+                                },
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(Dimens.lg))
+
                 MonoSectionLabel("description ladder")
                 Spacer(Modifier.height(Dimens.sm))
 

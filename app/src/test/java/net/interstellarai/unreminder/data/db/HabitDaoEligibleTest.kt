@@ -49,14 +49,23 @@ class HabitDaoEligibleTest {
     private suspend fun queryEligible(): List<HabitEntity> = habitDao.getEligibleHabits(
         locationIds = listOf(-1L),
         completedCutoff = midnightMillis,
-        dismissedCutoff = midnightMillis,
+        nowEpochMillis = midnightMillis,
         startOfDayCutoff = midnightMillis,
         currentSecondOfDay = 0,
         dayOfWeekBit = 1
     )
 
-    private suspend fun insertHabit(name: String, dailyLimit: Int = 1): Long =
-        habitDao.insert(HabitEntity(name = name, dailyLimit = dailyLimit))
+    private suspend fun queryEligibleAt(nowMillis: Long): List<HabitEntity> = habitDao.getEligibleHabits(
+        locationIds = listOf(-1L),
+        completedCutoff = midnightMillis,
+        nowEpochMillis = nowMillis,
+        startOfDayCutoff = midnightMillis - 1,
+        currentSecondOfDay = 0,
+        dayOfWeekBit = 1
+    )
+
+    private suspend fun insertHabit(name: String, dailyLimit: Int = 1, cooldownMinutes: Int = 180): Long =
+        habitDao.insert(HabitEntity(name = name, dailyLimit = dailyLimit, cooldownMinutes = cooldownMinutes))
 
     private suspend fun insertTrigger(habitId: Long, status: TriggerStatus, firedAt: Instant?) {
         triggerDao.insert(
@@ -91,7 +100,8 @@ class HabitDaoEligibleTest {
 
     @Test
     fun `dailyLimit 2 with one DISMISSED trigger today is eligible`() = runTest {
-        val id = insertHabit("h3", dailyLimit = 2)
+        // cooldownMinutes = 0 isolates the daily-limit clause from the new per-row cooldown branch.
+        val id = insertHabit("h3", dailyLimit = 2, cooldownMinutes = 0)
         insertTrigger(id, TriggerStatus.DISMISSED, Instant.ofEpochMilli(midnightMillis))
 
         val eligible = queryEligible()
@@ -130,5 +140,53 @@ class HabitDaoEligibleTest {
         val eligible = queryEligible()
 
         assertTrue(eligible.any { it.id == id })
+    }
+
+    @Test
+    fun `cooldown 180 with DISMISSED 2h ago is excluded`() = runTest {
+        val twoHoursAgo = Instant.now().minus(java.time.Duration.ofHours(2)).toEpochMilli()
+        val now = Instant.now().toEpochMilli()
+        val id = insertHabit("hCooldown180Excluded", cooldownMinutes = 180, dailyLimit = 999)
+        insertTrigger(id, TriggerStatus.DISMISSED, Instant.ofEpochMilli(twoHoursAgo))
+
+        val eligible = queryEligibleAt(now)
+
+        assertTrue(eligible.none { it.id == id })
+    }
+
+    @Test
+    fun `cooldown 180 with DISMISSED 4h ago is eligible`() = runTest {
+        val fourHoursAgo = Instant.now().minus(java.time.Duration.ofHours(4)).toEpochMilli()
+        val now = Instant.now().toEpochMilli()
+        val id = insertHabit("hCooldown180Eligible", cooldownMinutes = 180, dailyLimit = 999)
+        insertTrigger(id, TriggerStatus.DISMISSED, Instant.ofEpochMilli(fourHoursAgo))
+
+        val eligible = queryEligibleAt(now)
+
+        assertTrue(eligible.any { it.id == id })
+    }
+
+    @Test
+    fun `cooldown 0 with DISMISSED 1 minute ago is eligible`() = runTest {
+        val oneMinAgo = Instant.now().minusSeconds(60).toEpochMilli()
+        val now = Instant.now().toEpochMilli()
+        val id = insertHabit("hCooldown0", cooldownMinutes = 0, dailyLimit = 999)
+        insertTrigger(id, TriggerStatus.DISMISSED, Instant.ofEpochMilli(oneMinAgo))
+
+        val eligible = queryEligibleAt(now)
+
+        assertTrue(eligible.any { it.id == id })
+    }
+
+    @Test
+    fun `cooldown 60 with FIRED 30 minutes ago is excluded`() = runTest {
+        val thirtyMinAgo = Instant.now().minusSeconds(30 * 60).toEpochMilli()
+        val now = Instant.now().toEpochMilli()
+        val id = insertHabit("hCooldown60", cooldownMinutes = 60, dailyLimit = 999)
+        insertTrigger(id, TriggerStatus.FIRED, Instant.ofEpochMilli(thirtyMinAgo))
+
+        val eligible = queryEligibleAt(now)
+
+        assertTrue(eligible.none { it.id == id })
     }
 }
