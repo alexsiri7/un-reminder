@@ -214,6 +214,37 @@ fun HabitEditScreen(
 
                 Spacer(Modifier.height(Dimens.lg))
 
+                MonoSectionLabel("daily limit")
+                Spacer(Modifier.height(Dimens.sm))
+                val limitOptions = listOf(1, 2, 3, 5, 10)
+                var limitMenuExpanded by remember { mutableStateOf(false) }
+                Box {
+                    Text(
+                        "${uiState.dailyLimit}× / day",
+                        style = SansBody,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier
+                            .clickable { limitMenuExpanded = true }
+                            .padding(vertical = Dimens.sm),
+                    )
+                    DropdownMenu(
+                        expanded = limitMenuExpanded,
+                        onDismissRequest = { limitMenuExpanded = false },
+                    ) {
+                        limitOptions.forEach { n ->
+                            DropdownMenuItem(
+                                text = { Text("${n}× / day", style = SansBody) },
+                                onClick = {
+                                    viewModel.updateDailyLimit(n)
+                                    limitMenuExpanded = false
+                                },
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(Dimens.lg))
+
                 MonoSectionLabel("description ladder")
                 Spacer(Modifier.height(Dimens.sm))
 

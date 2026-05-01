@@ -44,12 +44,22 @@ class HabitRepository @Inject constructor(
             .toEpochMilli()
         // DISMISSED or FIRED-but-not-responded: 3-hour cooldown.
         val dismissedCutoff = Instant.now().minusSeconds(3 * 3600L).toEpochMilli()
+        // Per-habit daily cap boundary: same epoch as completedCutoff today, kept as a
+        // distinct named param so the SQL stays self-documenting if cooldown semantics diverge.
+        val startOfDayCutoff = completedCutoff
         // Room crashes if IN-clause receives an empty list. Use an impossible ID (-1) so the
         // clause is syntactically valid but never matches any real habit row.
         val ids = if (currentLocationIds.isEmpty()) listOf(-1L) else currentLocationIds.toList()
         val currentSecondOfDay = LocalTime.now().toSecondOfDay()
         val dayOfWeekBit = 1 shl (LocalDate.now().dayOfWeek.value - 1)
-        return habitDao.getEligibleHabits(ids, completedCutoff, dismissedCutoff, currentSecondOfDay, dayOfWeekBit)
+        return habitDao.getEligibleHabits(
+            ids,
+            completedCutoff,
+            dismissedCutoff,
+            startOfDayCutoff,
+            currentSecondOfDay,
+            dayOfWeekBit
+        )
     }
 
     suspend fun getLocationIds(habitId: Long): List<Long> =
