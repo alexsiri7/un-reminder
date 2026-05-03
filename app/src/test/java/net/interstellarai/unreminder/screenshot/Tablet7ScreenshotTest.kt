@@ -16,7 +16,7 @@ class Tablet7ScreenshotTest {
     @get:Rule
     val paparazzi = Paparazzi(
         deviceConfig = DeviceConfig.NEXUS_7.copy(
-            screenWidth = 1200,
+            screenWidth = 1080,
             screenHeight = 1920,
             xdpi = 320,
             ydpi = 320,

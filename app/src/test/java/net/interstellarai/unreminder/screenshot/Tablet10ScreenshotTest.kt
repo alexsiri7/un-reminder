@@ -16,7 +16,7 @@ class Tablet10ScreenshotTest {
     @get:Rule
     val paparazzi = Paparazzi(
         deviceConfig = DeviceConfig.NEXUS_10.copy(
-            screenWidth = 1600,
+            screenWidth = 1440,
             screenHeight = 2560,
             xdpi = 320,
             ydpi = 320,
