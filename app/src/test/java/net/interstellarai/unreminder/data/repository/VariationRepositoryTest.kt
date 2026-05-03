@@ -94,4 +94,28 @@ class VariationRepositoryTest {
         repository.deleteForHabit(42L)
         coVerify { mockDao.deleteByHabit(42L) }
     }
+
+    @Test fun `peekUnused returns first unused row text`() = runTest {
+        val entity = VariationEntity(
+            id = 7L, habitId = 1L, text = "preview-me",
+            promptFingerprint = "fp", generatedAt = Instant.EPOCH,
+        )
+        coEvery { mockDao.getUnusedForHabit(1L, 1) } returns listOf(entity)
+        assertEquals("preview-me", repository.peekUnused(1L))
+    }
+
+    @Test fun `peekUnused returns null when pool is empty`() = runTest {
+        coEvery { mockDao.getUnusedForHabit(1L, 1) } returns emptyList()
+        assertNull(repository.peekUnused(1L))
+    }
+
+    @Test fun `peekUnused does not consume the row`() = runTest {
+        val entity = VariationEntity(
+            id = 7L, habitId = 1L, text = "x",
+            promptFingerprint = "fp", generatedAt = Instant.EPOCH,
+        )
+        coEvery { mockDao.getUnusedForHabit(1L, 1) } returns listOf(entity)
+        repository.peekUnused(1L)
+        coVerify(exactly = 0) { mockDao.markConsumed(any(), any()) }
+    }
 }

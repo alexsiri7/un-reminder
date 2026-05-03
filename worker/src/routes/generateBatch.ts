@@ -14,7 +14,7 @@ function buildPrompt(habitTitle: string, habitTags: string[], locationName: stri
     `Location: "${locationName}"\n` +
     `Time of day: "${timeOfDay}"\n\n` +
     `Write ${n} short notification messages (max 80 characters each) that prompt ` +
-    `the user to do this habit. Be varied, warm, and specific.\n` +
+    `the user to do this habit. Each message must open with an action verb and tell the user exactly what to DO — never write a passive observation, thought, or feeling. Examples of good form: "Take 5 minutes to...", "Open your journal and...", "Do one set of...". Be varied and specific.\n` +
     outputInstruction
   )
 }

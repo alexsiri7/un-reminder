@@ -567,106 +567,6 @@ describe('un-reminder-worker', () => {
     expect(res.status).toBe(400)
   })
 
-  // ---- /v1/preview tests ----
-
-  it('returns 401 without secret on /v1/preview', async () => {
-    const req = makeRequest('/v1/preview', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: { habit: { title: 'Run', tags: [], notes: '' }, locationName: 'Park' },
-    })
-    const ctx = createExecutionContext()
-    const res = await app.fetch(req, testEnv(), ctx)
-    await waitOnExecutionContext(ctx)
-    expect(res.status).toBe(401)
-  })
-
-  it('returns 402 on /v1/preview when daily cap exceeded', async () => {
-    const e = testEnv()
-    const d = new Date()
-    const dayKey = `day:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
-    await e.UR_SPEND.put(dayKey, '999')
-
-    const req = makeRequest('/v1/preview', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
-      body: { habit: { title: 'Run', tags: [], notes: '' }, locationName: 'Park' },
-    })
-    const ctx = createExecutionContext()
-    const res = await app.fetch(req, e, ctx)
-    await waitOnExecutionContext(ctx)
-    expect(res.status).toBe(402)
-    const body = (await res.json()) as { error: string }
-    expect(body.error.toLowerCase()).toContain('daily')
-
-    await e.UR_SPEND.delete(dayKey)
-  })
-
-  it('returns 402 on /v1/preview when monthly cap exceeded', async () => {
-    const e = testEnv()
-    const d = new Date()
-    const mKey = `month:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
-    await e.UR_SPEND.put(mKey, '999')
-
-    const req = makeRequest('/v1/preview', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
-      body: { habit: { title: 'Run', tags: [], notes: '' }, locationName: 'Park' },
-    })
-    const ctx = createExecutionContext()
-    const res = await app.fetch(req, e, ctx)
-    await waitOnExecutionContext(ctx)
-    expect(res.status).toBe(402)
-    const body = (await res.json()) as { error: string }
-    expect(body.error.toLowerCase()).toContain('monthly')
-
-    await e.UR_SPEND.delete(mKey)
-  })
-
-  it('returns 200 with preview text on success', async () => {
-    const preview = { text: 'Time to run!' }
-    mockRequestySuccess(preview)
-
-    const req = makeRequest('/v1/preview', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
-      body: { habit: { title: 'Run', tags: ['fitness'], notes: 'Daily jog' }, locationName: 'Park' },
-    })
-    const ctx = createExecutionContext()
-    const res = await app.fetch(req, testEnv(), ctx)
-    await waitOnExecutionContext(ctx)
-    expect(res.status).toBe(200)
-    const body = (await res.json()) as { text: string }
-    expect(body.text).toBe('Time to run!')
-  })
-
-  it('returns 502 on /v1/preview when response is persistently malformed', async () => {
-    mockRequestyMalformed()
-    mockRequestyMalformed()
-
-    const req = makeRequest('/v1/preview', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
-      body: { habit: { title: 'Run', tags: [], notes: '' }, locationName: 'Park' },
-    })
-    const ctx = createExecutionContext()
-    const res = await app.fetch(req, testEnv(), ctx)
-    await waitOnExecutionContext(ctx)
-    expect(res.status).toBe(502)
-  })
-
-  it('returns 400 on /v1/preview with empty title', async () => {
-    const req = makeRequest('/v1/preview', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
-      body: { habit: { title: '', tags: [], notes: '' }, locationName: 'Park' },
-    })
-    const ctx = createExecutionContext()
-    const res = await app.fetch(req, testEnv(), ctx)
-    await waitOnExecutionContext(ctx)
-    expect(res.status).toBe(400)
-  })
-
   it('increments spend counter after successful /v1/habit-fields call', async () => {
     mockRequestySuccess({ descriptionLadder: Array(6).fill('A description.') })
 
@@ -675,27 +575,6 @@ describe('un-reminder-worker', () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
       body: { title: 'Meditate' },
-    })
-    const ctx = createExecutionContext()
-    const res = await app.fetch(req, e, ctx)
-    await waitOnExecutionContext(ctx)
-    expect(res.status).toBe(200)
-
-    const d = new Date()
-    const dayKey = `day:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
-    const dailySpend = await e.UR_SPEND.get(dayKey)
-    expect(Number(dailySpend)).toBeGreaterThan(0)
-  })
-
-  it('increments spend counter after successful /v1/preview call', async () => {
-    const preview = { text: 'Time to run!' }
-    mockRequestySuccess(preview)
-
-    const e = testEnv()
-    const req = makeRequest('/v1/preview', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
-      body: { habit: { title: 'Run', tags: ['fitness'], notes: 'Daily jog' }, locationName: 'Park' },
     })
     const ctx = createExecutionContext()
     const res = await app.fetch(req, e, ctx)

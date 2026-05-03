@@ -49,6 +49,9 @@ class VariationRepository @Inject constructor(
     suspend fun needsRefill(habitId: Long, threshold: Int = REFILL_THRESHOLD): Boolean =
         dao.countUnused(habitId) < threshold
 
+    suspend fun peekUnused(habitId: Long): String? =
+        dao.getUnusedForHabit(habitId, 1).firstOrNull()?.text
+
     suspend fun insertAll(variants: List<VariationEntity>) = dao.insert(variants)
 
     suspend fun deleteForHabit(habitId: Long) = dao.deleteByHabit(habitId)

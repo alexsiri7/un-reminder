@@ -148,44 +148,83 @@ class HabitEditViewModelTest {
         unmockkStatic(Sentry::class)
     }
 
-    // --- previewNotification ---
+    // --- previewNotification (peeks variation pool; falls back to errorMessage) ---
 
     @Test
-    fun `previewNotification shows dialog with text and clears flag on success`() = runTest(testDispatcher) {
-        coEvery {
-            mockPromptGenerator.previewHabitNotification(any(), any())
-        } returns "Time to meditate — even 3 breaths counts"
+    fun `previewNotification shows dialog with pooled variation when available`() = runTest(testDispatcher) {
+        coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit)
+        coEvery { mockVariationRepository.peekUnused(testHabit.id) } returns
+            "Open your journal and write one line"
+        viewModel.loadHabit(testHabit.id)
+        advanceUntilIdle()
 
         viewModel.previewNotification()
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
         assertTrue(state.showPreviewDialog)
-        assertEquals("Time to meditate — even 3 breaths counts", state.previewNotification)
-        assertFalse(state.isGeneratingFields)
+        assertEquals("Open your journal and write one line", state.previewNotification)
         assertNull(state.errorMessage)
     }
 
     @Test
-    fun `previewNotification sets errorMessage and resets flag on failure`() = runTest(testDispatcher) {
-        coEvery {
-            mockPromptGenerator.previewHabitNotification(any(), any())
-        } throws LlmUnavailableException()
+    fun `previewNotification surfaces errorMessage and does not open dialog when pool is empty`() = runTest(testDispatcher) {
+        coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit)
+        coEvery { mockVariationRepository.peekUnused(testHabit.id) } returns null
+        viewModel.loadHabit(testHabit.id)
+        advanceUntilIdle()
 
         viewModel.previewNotification()
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
         assertFalse(state.showPreviewDialog)
-        assertFalse(state.isGeneratingFields)
-        assertEquals("AI unavailable — preview not available.", state.errorMessage)
+        assertNull(state.previewNotification)
+        assertEquals(
+            "Notifications are still being generated — try again in a moment.",
+            state.errorMessage
+        )
+    }
+
+    @Test
+    fun `previewNotification surfaces errorMessage when habit is unsaved`() = runTest(testDispatcher) {
+        // setup() did not call loadHabit, so _habitId is null
+        viewModel.previewNotification()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.showPreviewDialog)
+        assertNull(state.previewNotification)
+        assertEquals(
+            "Save the habit first to preview a real notification.",
+            state.errorMessage
+        )
+        coVerify(exactly = 0) { mockVariationRepository.peekUnused(any()) }
+    }
+
+    @Test
+    fun `previewNotification sets errorMessage when peekUnused throws`() = runTest(testDispatcher) {
+        coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit)
+        coEvery { mockVariationRepository.peekUnused(testHabit.id) } throws RuntimeException("db error")
+        viewModel.loadHabit(testHabit.id)
+        advanceUntilIdle()
+
+        viewModel.previewNotification()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertFalse(state.showPreviewDialog)
+        assertEquals("Preview unavailable — try again.", state.errorMessage)
     }
 
     // --- dismissPreviewDialog ---
 
     @Test
     fun `dismissPreviewDialog clears showPreviewDialog and previewNotification`() = runTest(testDispatcher) {
-        coEvery { mockPromptGenerator.previewHabitNotification(any(), any()) } returns "preview"
+        coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit)
+        coEvery { mockVariationRepository.peekUnused(testHabit.id) } returns "preview text"
+        viewModel.loadHabit(testHabit.id)
+        advanceUntilIdle()
         viewModel.previewNotification()
         advanceUntilIdle()
         assertTrue(viewModel.uiState.value.showPreviewDialog)
@@ -256,22 +295,6 @@ class HabitEditViewModelTest {
             assertFalse(state.isGeneratingFields)
         }
 
-    @Test
-    fun `previewNotification sets showSpendCapLink on SpendCapExceededException`() =
-        runTest(testDispatcher) {
-            coEvery {
-                mockPromptGenerator.previewHabitNotification(any(), any())
-            } throws SpendCapExceededException()
-
-            viewModel.previewNotification()
-            advanceUntilIdle()
-
-            val state = viewModel.uiState.value
-            assertTrue(state.showSpendCapLink)
-            assertNull(state.errorMessage)
-            assertFalse(state.isGeneratingFields)
-        }
-
     // --- WorkerAuthException ---
 
     @Test
@@ -288,21 +311,6 @@ class HabitEditViewModelTest {
             assertEquals("Wrong worker secret \u2014 check Settings.", state.errorMessage)
             assertFalse(state.isGeneratingFields)
             assertFalse(state.showSpendCapLink)
-        }
-
-    @Test
-    fun `previewNotification sets errorMessage on WorkerAuthException`() =
-        runTest(testDispatcher) {
-            coEvery {
-                mockPromptGenerator.previewHabitNotification(any(), any())
-            } throws WorkerAuthException()
-
-            viewModel.previewNotification()
-            advanceUntilIdle()
-
-            val state = viewModel.uiState.value
-            assertEquals("Wrong worker secret \u2014 check Settings.", state.errorMessage)
-            assertFalse(state.isGeneratingFields)
         }
 
     // --- save: refill scheduling ---
