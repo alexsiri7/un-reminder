@@ -9,8 +9,10 @@ import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.data.db.WindowEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
+import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.data.repository.WindowRepository
+import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.service.llm.LlmUnavailableException
 import net.interstellarai.unreminder.service.llm.PromptGenerator
@@ -31,7 +33,19 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
 import javax.inject.Inject
+
+sealed class AvailabilityStatus {
+    object Available : AvailabilityStatus()
+    object NewHabit : AvailabilityStatus()
+    data class Unavailable(val reasons: List<UnavailableReason>) : AvailabilityStatus()
+}
+
+enum class UnavailableReason { LOCATION, TIME_WINDOW, COMPLETED, COOLDOWN }
 
 data class HabitEditUiState(
     val name: String = "",
@@ -50,7 +64,8 @@ data class HabitEditUiState(
     val previewNotification: String? = null,
     val showPreviewDialog: Boolean = false,
     val errorMessage: String? = null,
-    val showSpendCapLink: Boolean = false
+    val showSpendCapLink: Boolean = false,
+    val availabilityStatus: AvailabilityStatus = AvailabilityStatus.NewHabit
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -62,6 +77,8 @@ class HabitEditViewModel @Inject constructor(
     private val promptGenerator: PromptGenerator,
     private val refillScheduler: RefillScheduler,
     private val variationRepository: VariationRepository,
+    private val geofenceManager: GeofenceManager,
+    private val triggerRepository: TriggerRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HabitEditUiState())
@@ -112,6 +129,7 @@ class HabitEditViewModel @Inject constructor(
                 val locationIds = habitRepository.getLocationIds(id).toSet()
                 val windowIds = habitRepository.getWindowIds(id).toSet()
                 existingHabit = habit
+                val availability = computeAvailability(habit, locationIds, windowIds)
                 _uiState.value = HabitEditUiState(
                     name = habit.name,
                     descriptionLadder = habit.descriptionLadder,
@@ -121,7 +139,8 @@ class HabitEditViewModel @Inject constructor(
                     cooldownMinutes = habit.cooldownMinutes,
                     selectedLocationIds = locationIds,
                     selectedWindowIds = windowIds,
-                    active = habit.active
+                    active = habit.active,
+                    availabilityStatus = availability
                 )
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
@@ -314,5 +333,65 @@ class HabitEditViewModel @Inject constructor(
                 Log.w(TAG, "deleteVariation: failed to delete variation $id", e)
             }
         }
+    }
+
+    /**
+     * Computes the current availability status for an existing habit, checking each
+     * ineligibility reason independently (mirroring the SQL in HabitDao.getEligibleHabits).
+     */
+    private suspend fun computeAvailability(
+        habit: HabitEntity,
+        locationIds: Set<Long>,
+        windowIds: Set<Long>,
+    ): AvailabilityStatus {
+        val reasons = mutableListOf<UnavailableReason>()
+
+        // --- Location ---
+        // Habit has location restrictions AND current location not in them.
+        if (locationIds.isNotEmpty()) {
+            val currentIds = geofenceManager.currentLocationIds
+            if (currentIds.none { it in locationIds }) {
+                reasons += UnavailableReason.LOCATION
+            }
+        }
+
+        // --- Time window ---
+        // Habit has windows AND current time not in any active window for today.
+        if (windowIds.isNotEmpty()) {
+            val now = LocalTime.now()
+            val currentSecondOfDay = now.toSecondOfDay()
+            val dayOfWeekBit = 1 shl (LocalDate.now().dayOfWeek.value - 1)
+            val activeWindows = windowRepository.getActiveWindows()
+                .filter { it.id in windowIds }
+            val inWindow = activeWindows.any { w ->
+                w.startTime.toSecondOfDay() <= currentSecondOfDay &&
+                    w.endTime.toSecondOfDay() >= currentSecondOfDay &&
+                    (w.daysOfWeekBitmask and dayOfWeekBit) != 0
+            }
+            if (!inWindow) reasons += UnavailableReason.TIME_WINDOW
+        }
+
+        // --- Completed today ---
+        // status = 'COMPLETED' (exact, matching the SQL) since start of today.
+        val completedCutoff = LocalDate.now()
+            .atStartOfDay(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
+        val completedCount = triggerRepository.countCompletedSince(habit.id, completedCutoff)
+        if (completedCount > 0) reasons += UnavailableReason.COMPLETED
+
+        // --- Cooldown ---
+        // DISMISSED or FIRED within cooldown_minutes (mirrors SQL; 0 cooldown = no restriction).
+        if (habit.cooldownMinutes > 0) {
+            val nowEpochMillis = Instant.now().toEpochMilli()
+            val cooldownCutoff = nowEpochMillis - habit.cooldownMinutes * 60 * 1000L
+            val lastFiredOrDismissed = triggerRepository.getLastFiredOrDismissedForHabit(habit.id)
+            if (lastFiredOrDismissed != null && lastFiredOrDismissed > cooldownCutoff) {
+                reasons += UnavailableReason.COOLDOWN
+            }
+        }
+
+        return if (reasons.isEmpty()) AvailabilityStatus.Available
+        else AvailabilityStatus.Unavailable(reasons)
     }
 }

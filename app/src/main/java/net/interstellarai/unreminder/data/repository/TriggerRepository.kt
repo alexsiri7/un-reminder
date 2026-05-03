@@ -48,4 +48,10 @@ class TriggerRepository @Inject constructor(
 
     suspend fun getCompletionsSince(habitId: Long, sinceMillis: Long): List<TriggerEntity> =
         triggerDao.getCompletionsSince(habitId, sinceMillis)
+
+    suspend fun getLastFiredOrDismissedForHabit(habitId: Long): Long? =
+        triggerDao.getLastFiredOrDismissedForHabit(habitId)
+
+    suspend fun countCompletedSince(habitId: Long, sinceMillis: Long): Int =
+        triggerDao.countCompletedSince(habitId, sinceMillis)
 }
