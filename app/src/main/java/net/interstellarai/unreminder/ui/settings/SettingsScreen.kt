@@ -83,6 +83,18 @@ fun SettingsScreen(
         viewModel.clearError()
     }
 
+    LaunchedEffect(uiState.testTriggered) {
+        if (!uiState.testTriggered) return@LaunchedEffect
+        snackbarHostState.showSnackbar("Trigger fired")
+        viewModel.clearTestTriggered()
+    }
+
+    LaunchedEffect(uiState.testTriggeredEmpty) {
+        if (!uiState.testTriggeredEmpty) return@LaunchedEffect
+        snackbarHostState.showSnackbar("No eligible habits right now")
+        viewModel.clearTestTriggeredEmpty()
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
