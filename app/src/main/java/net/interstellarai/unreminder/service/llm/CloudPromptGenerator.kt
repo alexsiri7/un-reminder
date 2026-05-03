@@ -33,11 +33,6 @@ class CloudPromptGenerator @Inject constructor(
         return requestyProxyClient.habitFields(title, url, secret)
     }
 
-    override suspend fun previewHabitNotification(habit: HabitEntity, locationName: String): String {
-        val (url, secret) = requireCredentials()
-        return requestyProxyClient.preview(habit, locationName, url, secret)
-    }
-
     private fun requireCredentials(): Pair<String, String> {
         val url = BuildConfig.WORKER_URL
         val secret = BuildConfig.WORKER_SECRET

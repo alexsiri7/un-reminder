@@ -268,18 +268,33 @@ class HabitEditViewModel @Inject constructor(
 
     fun previewNotification() {
         viewModelScope.launch {
-            val state = _uiState.value
-            val habitId = _habitId.value
-            val text = if (habitId != null) {
-                variationRepository.peekUnused(habitId)
-                    ?: state.name.ifBlank { "Your habit" }
-            } else {
-                state.name.ifBlank { "Your habit" }
+            try {
+                val habitId = _habitId.value
+                if (habitId == null) {
+                    _uiState.value = _uiState.value.copy(
+                        errorMessage = "Save the habit first to preview a real notification."
+                    )
+                    return@launch
+                }
+                val variation = variationRepository.peekUnused(habitId)
+                if (variation == null) {
+                    Log.w(TAG, "previewNotification: no variation available for habit $habitId")
+                    _uiState.value = _uiState.value.copy(
+                        errorMessage = "Notifications are still being generated — try again in a moment."
+                    )
+                    return@launch
+                }
+                _uiState.value = _uiState.value.copy(
+                    previewNotification = variation,
+                    showPreviewDialog = true
+                )
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                Log.w(TAG, "previewNotification failed", e)
+                _uiState.value = _uiState.value.copy(
+                    errorMessage = "Preview unavailable — try again."
+                )
             }
-            _uiState.value = _uiState.value.copy(
-                previewNotification = text,
-                showPreviewDialog = true
-            )
         }
     }
 

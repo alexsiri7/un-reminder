@@ -12,7 +12,6 @@ interface PromptGenerator {
     // VariationRepository directly). Remove once confirmed dead project-wide.
     suspend fun generate(habit: HabitEntity, locationName: String, timeOfDay: String): String
     suspend fun generateHabitFields(title: String): AiHabitFields
-    suspend fun previewHabitNotification(habit: HabitEntity, locationName: String = "Anywhere"): String
 }
 
 sealed interface AiStatus {

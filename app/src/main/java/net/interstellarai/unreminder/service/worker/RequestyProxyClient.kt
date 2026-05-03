@@ -2,7 +2,6 @@ package net.interstellarai.unreminder.service.worker
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.domain.model.AiHabitFields
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -46,27 +45,6 @@ class RequestyProxyClient @Inject constructor(
         val arr = body.optJSONArray("descriptionLadder")
             ?: throw WorkerError(200, "Missing descriptionLadder in response")
         AiHabitFields(descriptionLadder = (0 until arr.length()).map { arr.getString(it) })
-    }
-
-    suspend fun preview(
-        habit: HabitEntity,
-        locationName: String,
-        workerUrl: String,
-        secret: String,
-    ): String {
-        val habitObj = JSONObject().apply {
-            put("title", habit.name)
-            // TODO: pass real tags once HabitEntity carries them (currently loaded via junction table)
-            put("tags", JSONArray())
-            put("notes", habit.descriptionLadder.getOrElse(habit.dedicationLevel) { "" })
-        }
-        val payload = JSONObject().apply {
-            put("habit", habitObj)
-            put("locationName", locationName)
-        }
-        return withContext(Dispatchers.IO) {
-            post("v1/preview", payload, workerUrl, secret).getString("text")
-        }
     }
 
     suspend fun generateBatch(

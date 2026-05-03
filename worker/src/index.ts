@@ -7,7 +7,6 @@ import { spendGate } from './middleware/spendGate'
 import { healthHandler } from './routes/health'
 import { generateBatchHandler } from './routes/generateBatch'
 import { habitFieldsHandler } from './routes/habitFields'
-import { previewHandler } from './routes/preview'
 
 const app = new Hono<{ Bindings: Env }>()
 
@@ -15,13 +14,12 @@ const app = new Hono<{ Bindings: Env }>()
 app.get('/v1/health', healthHandler)
 
 // Shared protection for all AI generation routes — applied in order: rate-limit → auth → spend gate
-for (const path of ['/v1/generate/*', '/v1/habit-fields', '/v1/preview']) {
+for (const path of ['/v1/generate/*', '/v1/habit-fields']) {
   app.use(path, rateLimitMiddleware, authMiddleware, spendGate)
 }
 
 app.post('/v1/generate/batch', generateBatchHandler)
 app.post('/v1/habit-fields', habitFieldsHandler)
-app.post('/v1/preview', previewHandler)
 
 export default withSentry(
   (env: Env) => {

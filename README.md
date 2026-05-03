@@ -58,7 +58,6 @@ Runs as a Cloudflare Worker (Hono framework). Exposes these routes:
 | `GET /v1/health` | Public | Returns `{ status, spendUsedToday, spendUsedMonth, capDaily, capMonthly }` |
 | `POST /v1/generate/batch` | `X-UR-Secret` header | Accepts `{ habitTitle, habitTags, locationName, timeOfDay, n }`, returns `{ variants: string[] }` via Requesty |
 | `POST /v1/habit-fields` | `X-UR-Secret` header | Accepts `{ title }`, returns `{ descriptionLadder: string[] }` (6 elements, one per dedication level) via Requesty |
-| `POST /v1/preview` | `X-UR-Secret` header | Accepts `{ habit: { title, tags, notes }, locationName }`, returns `{ text }` notification preview |
 
 **Local dev:**
 ```sh
@@ -225,7 +224,7 @@ Notification texts are pre-generated in batches by the Cloudflare Worker (`/v1/g
 ### Fallback
 If the variation pool is empty at fire time, the notification uses the `HabitLevelDescriptionEntity`
 text for the habit's current `dedication_level` as the prompt body. If that is also blank, it falls
-back to `habit.name`. A refill is enqueued in both cases. AI autofill and notification preview features call the worker directly and throw on failure so the UI can surface a clear error message.
+back to `habit.name`. A refill is enqueued in both cases. AI autofill calls the worker directly and throws on failure so the UI can surface a clear error message.
 
 ### Habit-field autofill (cloud)
 
@@ -235,22 +234,26 @@ title; the worker returns `{ descriptionLadder: string[] }` with one description
 This fills the description fields only — the 50-notification pool is generated separately when the habit is
 saved (see Variation pool above).
 
-### Notification preview (cloud)
+### Notification preview
 
-Generates a sample notification via the worker's `/v1/preview` endpoint. Shown in a dialog in the Habit editor.
+Picks one unused entry from the habit's local `Variation` pool and shows it in a dialog
+in the Habit editor. No cloud call. If the pool is empty (or the habit is unsaved), the
+button surfaces an inline message instead of opening the dialog. The displayed text comes
+from the pool, not from a fresh generation.
 
 ---
 
 ## 6. Screens (MVP)
 
 1. **Home screen** — list of habits. FAB → add habit. Tap habit → edit. BugReport icon in header → Feedback screen.
-2. **Habit editor** — name, dedication level progress bar (0–5), auto-adjust toggle, 6-level
-   description fields (level 0 = minimum/low-floor, level 5 = full version; current level highlighted),
-   location chips (multi-select from saved locations; no selection = "Anywhere"), active toggle,
-   daily-limit dropdown (1–10/day, default 1), cooldown dropdown (1h · 2h · 3h · 6h · 12h · None, default 3h).
+2. **Habit editor** — name, dedication level progress bar (0–5), auto-adjust toggle, a collapsible
+   "description ladder" section (collapsed by default, showing only the current dedication level's
+   description; tap the header chevron to expand all 6 levels — level 0 = minimum/low-floor through
+   level 5 = full version), location chips (multi-select from saved locations; no selection = "Anywhere"),
+   active toggle, daily-limit dropdown (1–10/day, default 1), cooldown dropdown (1h · 2h · 3h · 6h · 12h · None, default 3h).
    AI-assist row: **✦ autofill** ("Autofill descriptions" — populates all 6 description-ladder levels (0–5)
-   from the habit name via cloud AI; enabled when name ≥ 2 chars) · **↻ resample** / **Preview** (generates
-   a live sample notification text via cloud AI; enabled when at least one level description is non-blank).
+   from the habit name via cloud AI; enabled when name ≥ 2 chars) · **↻ resample** / **Preview** (shows
+   one unused entry from the local variation pool; enabled when at least one level description is non-blank).
    Saving the habit (new or edited) automatically queues background generation of up to 50 notification
    variants via `RefillWorker` — these are the texts that fire as actual notifications. The autofill button
    fills descriptions only; the pool is built on save.
