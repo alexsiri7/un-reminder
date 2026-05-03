@@ -35,7 +35,6 @@ class InAppUpdateManager @Inject constructor(
     // Register once: startUpdateCheck is called on every onResume; re-registering
     // the same listener accumulates duplicate callbacks from AppUpdateManager.
     private var listenerRegistered = false
-    private var updateCheckStarted = false
 
     private val installStateListener = InstallStateUpdatedListener { state ->
         when (state.installStatus()) {
@@ -53,8 +52,6 @@ class InAppUpdateManager @Inject constructor(
             appUpdateManager.registerListener(installStateListener)
             listenerRegistered = true
         }
-        if (updateCheckStarted) return
-        updateCheckStarted = true
         appUpdateManager.appUpdateInfo
             .addOnSuccessListener { info ->
                 if (info.installStatus() == InstallStatus.DOWNLOADED) {
