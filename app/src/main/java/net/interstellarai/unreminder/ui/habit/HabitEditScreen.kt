@@ -19,12 +19,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
@@ -196,6 +200,7 @@ fun HabitEditScreen(
                     "just starting", "unblocked", "regular",
                     "committed", "routine", "your practice"
                 )
+                var ladderExpanded by remember { mutableStateOf(false) }
 
                 MonoSectionLabel("dedication level")
                 Spacer(Modifier.height(Dimens.sm))
@@ -285,18 +290,41 @@ fun HabitEditScreen(
 
                 Spacer(Modifier.height(Dimens.lg))
 
-                MonoSectionLabel("description ladder")
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { ladderExpanded = !ladderExpanded },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    MonoSectionLabel("description ladder")
+                    Icon(
+                        imageVector = if (ladderExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = if (ladderExpanded) "collapse" else "expand",
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                    )
+                }
                 Spacer(Modifier.height(Dimens.sm))
 
-                levelLabels.forEachIndexed { level, label ->
+                if (ladderExpanded) {
+                    levelLabels.forEachIndexed { level, label ->
+                        DescriptionBlock(
+                            label = "level $level — $label",
+                            value = uiState.descriptionLadder.getOrElse(level) { "" },
+                            onValueChange = { viewModel.updateDescriptionAtLevel(level, it) },
+                            flashAlpha = flashAlpha.value,
+                            placeholder = "description for level $level",
+                        )
+                        if (level < 5) Spacer(Modifier.height(Dimens.lg))
+                    }
+                } else {
                     DescriptionBlock(
-                        label = "level $level — $label",
-                        value = uiState.descriptionLadder.getOrElse(level) { "" },
-                        onValueChange = { viewModel.updateDescriptionAtLevel(level, it) },
+                        label = "level ${uiState.dedicationLevel} — ${levelLabels[uiState.dedicationLevel]}",
+                        value = uiState.descriptionLadder.getOrElse(uiState.dedicationLevel) { "" },
+                        onValueChange = { viewModel.updateDescriptionAtLevel(uiState.dedicationLevel, it) },
                         flashAlpha = flashAlpha.value,
-                        placeholder = "description for level $level",
+                        placeholder = "description for level ${uiState.dedicationLevel}",
                     )
-                    if (level < 5) Spacer(Modifier.height(Dimens.lg))
                 }
 
                 Spacer(Modifier.height(Dimens.lg))
