@@ -266,26 +266,21 @@ class HabitEditViewModel @Inject constructor(
         )
     }
 
-    fun previewNotification() = launchWithAi("AI unavailable — preview not available.") {
-        val state = _uiState.value
-        val tempHabit = HabitEntity(
-            name = state.name,
-            descriptionLadder = state.descriptionLadder,
-            dedicationLevel = state.dedicationLevel,
-            autoAdjustLevel = state.autoAdjustLevel
-        )
-        val locationName = if (state.selectedLocationIds.isEmpty()) {
-            "Anywhere"
-        } else {
-            locationRepository.getByIds(state.selectedLocationIds)
-                .joinToString(", ") { it.name }
-                .ifBlank { "Anywhere" }
+    fun previewNotification() {
+        viewModelScope.launch {
+            val state = _uiState.value
+            val habitId = _habitId.value
+            val text = if (habitId != null) {
+                variationRepository.peekUnused(habitId)
+                    ?: state.name.ifBlank { "Your habit" }
+            } else {
+                state.name.ifBlank { "Your habit" }
+            }
+            _uiState.value = _uiState.value.copy(
+                previewNotification = text,
+                showPreviewDialog = true
+            )
         }
-        val text = promptGenerator.previewHabitNotification(tempHabit, locationName)
-        _uiState.value = _uiState.value.copy(
-            previewNotification = text,
-            showPreviewDialog = true
-        )
     }
 
     fun dismissPreviewDialog() {
