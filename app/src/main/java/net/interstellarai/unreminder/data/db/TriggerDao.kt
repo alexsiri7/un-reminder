@@ -51,4 +51,36 @@ interface TriggerDao {
         ORDER BY fired_at DESC
     """)
     suspend fun getCompletionsSince(habitId: Long, sinceMillis: Long): List<TriggerEntity>
+
+    /** Returns max fired_at for DISMISSED or FIRED triggers (used for per-habit cooldown check). */
+    @Query("""
+        SELECT MAX(fired_at) FROM triggers
+        WHERE habit_id = :habitId
+          AND fired_at IS NOT NULL
+          AND (status = 'DISMISSED' OR status = 'FIRED')
+    """)
+    suspend fun getLastFiredOrDismissedForHabit(habitId: Long): Long?
+
+    /** Counts COMPLETED (exact status) triggers since a cutoff (used for completed-today check). */
+    @Query("""
+        SELECT COUNT(*) FROM triggers
+        WHERE habit_id = :habitId
+          AND fired_at IS NOT NULL
+          AND status = 'COMPLETED'
+          AND fired_at > :sinceMillis
+    """)
+    suspend fun countCompletedSince(habitId: Long, sinceMillis: Long): Int
+
+    /**
+     * Counts non-SCHEDULED triggers (COMPLETED, DISMISSED, FIRED) since a cutoff (used for the
+     * per-habit daily-limit check; mirrors the `< h.daily_limit` clause in HabitDao.getEligibleHabits).
+     */
+    @Query("""
+        SELECT COUNT(*) FROM triggers
+        WHERE habit_id = :habitId
+          AND fired_at IS NOT NULL
+          AND fired_at >= :sinceMillis
+          AND (status = 'COMPLETED' OR status = 'DISMISSED' OR status = 'FIRED')
+    """)
+    suspend fun countNonScheduledSince(habitId: Long, sinceMillis: Long): Int
 }

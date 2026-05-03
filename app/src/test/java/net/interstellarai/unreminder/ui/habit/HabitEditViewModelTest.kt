@@ -3,9 +3,11 @@ package net.interstellarai.unreminder.ui.habit
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
+import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.data.repository.WindowRepository
 import net.interstellarai.unreminder.domain.model.AiHabitFields
+import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.service.llm.LlmUnavailableException
 import net.interstellarai.unreminder.service.llm.PromptGenerator
@@ -52,6 +54,8 @@ class HabitEditViewModelTest {
     private val mockRefillScheduler: RefillScheduler = mockk(relaxed = true)
     private val mockVariationRepository: VariationRepository = mockk(relaxUnitFun = true)
     private val mockWindowRepository: WindowRepository = mockk(relaxed = true)
+    private val mockGeofenceManager: GeofenceManager = mockk(relaxed = true)
+    private val mockTriggerRepository: TriggerRepository = mockk(relaxed = true)
     private lateinit var viewModel: HabitEditViewModel
 
     private val testLadder = listOf("3 deep breaths", "", "", "20-minute guided meditation", "", "")
@@ -70,6 +74,10 @@ class HabitEditViewModelTest {
         every { mockLocationRepository.getAll() } returns flowOf(emptyList())
         every { mockWindowRepository.getAll() } returns flowOf(emptyList())
         every { mockPromptGenerator.aiStatus } returns MutableStateFlow<AiStatus>(AiStatus.Ready)
+        every { mockGeofenceManager.currentLocationIds } returns emptySet()
+        coEvery { mockTriggerRepository.countCompletedSince(any(), any()) } returns 0
+        coEvery { mockTriggerRepository.countNonScheduledSince(any(), any()) } returns 0
+        coEvery { mockTriggerRepository.getLastFiredOrDismissedForHabit(any()) } returns null
         viewModel = HabitEditViewModel(
             mockHabitRepository,
             mockLocationRepository,
@@ -77,6 +85,8 @@ class HabitEditViewModelTest {
             mockPromptGenerator,
             mockRefillScheduler,
             mockVariationRepository,
+            mockGeofenceManager,
+            mockTriggerRepository,
         )
         viewModel.updateName("meditation")
         testLadder.forEachIndexed { i, text -> viewModel.updateDescriptionAtLevel(i, text) }
@@ -405,6 +415,7 @@ class HabitEditViewModelTest {
         val vm = HabitEditViewModel(
             mockHabitRepository, mockLocationRepository, mockWindowRepository,
             mockPromptGenerator, mockRefillScheduler, mockVariationRepository,
+            mockGeofenceManager, mockTriggerRepository,
         )
         assertEquals(AiStatus.Unavailable, vm.aiStatus.value)
     }
@@ -415,6 +426,7 @@ class HabitEditViewModelTest {
         val vm = HabitEditViewModel(
             mockHabitRepository, mockLocationRepository, mockWindowRepository,
             mockPromptGenerator, mockRefillScheduler, mockVariationRepository,
+            mockGeofenceManager, mockTriggerRepository,
         )
         assertEquals(AiStatus.Ready, vm.aiStatus.value)
     }
@@ -519,5 +531,172 @@ class HabitEditViewModelTest {
         assertEquals("AI unavailable — fill in manually.", viewModel.uiState.value.errorMessage)
         verify(exactly = 1) { Sentry.captureException(any(), any<ScopeCallback>()) }
         unmockkStatic(Sentry::class)
+    }
+
+    // --- computeAvailability (via loadHabit) ---
+
+    @Test
+    fun `availability is Available when no constraints apply`() = runTest(testDispatcher) {
+        coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit)
+        coEvery { mockHabitRepository.getLocationIds(testHabit.id) } returns emptyList()
+        coEvery { mockHabitRepository.getWindowIds(testHabit.id) } returns emptyList()
+
+        viewModel.loadHabit(testHabit.id)
+        advanceUntilIdle()
+
+        assertEquals(AvailabilityStatus.Available, viewModel.uiState.value.availabilityStatus)
+    }
+
+    @Test
+    fun `availability includes INACTIVE when habit is inactive`() = runTest(testDispatcher) {
+        val inactive = testHabit.copy(active = false)
+        coEvery { mockHabitRepository.getById(inactive.id) } returns flowOf(inactive)
+        coEvery { mockHabitRepository.getLocationIds(inactive.id) } returns emptyList()
+        coEvery { mockHabitRepository.getWindowIds(inactive.id) } returns emptyList()
+
+        viewModel.loadHabit(inactive.id)
+        advanceUntilIdle()
+
+        val status = viewModel.uiState.value.availabilityStatus as AvailabilityStatus.Unavailable
+        assertTrue(UnavailableReason.INACTIVE in status.reasons)
+    }
+
+    @Test
+    fun `availability includes LOCATION when current geofence does not overlap habit locations`() = runTest(testDispatcher) {
+        coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit)
+        coEvery { mockHabitRepository.getLocationIds(testHabit.id) } returns listOf(1L, 2L)
+        coEvery { mockHabitRepository.getWindowIds(testHabit.id) } returns emptyList()
+        every { mockGeofenceManager.currentLocationIds } returns setOf(99L)
+
+        viewModel.loadHabit(testHabit.id)
+        advanceUntilIdle()
+
+        val status = viewModel.uiState.value.availabilityStatus as AvailabilityStatus.Unavailable
+        assertTrue(UnavailableReason.LOCATION in status.reasons)
+    }
+
+    @Test
+    fun `availability omits LOCATION when current geofence overlaps habit locations`() = runTest(testDispatcher) {
+        coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit)
+        coEvery { mockHabitRepository.getLocationIds(testHabit.id) } returns listOf(1L, 2L)
+        coEvery { mockHabitRepository.getWindowIds(testHabit.id) } returns emptyList()
+        every { mockGeofenceManager.currentLocationIds } returns setOf(2L, 99L)
+
+        viewModel.loadHabit(testHabit.id)
+        advanceUntilIdle()
+
+        assertEquals(AvailabilityStatus.Available, viewModel.uiState.value.availabilityStatus)
+    }
+
+    @Test
+    fun `availability includes COMPLETED when at least one COMPLETED trigger today`() = runTest(testDispatcher) {
+        coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit)
+        coEvery { mockHabitRepository.getLocationIds(testHabit.id) } returns emptyList()
+        coEvery { mockHabitRepository.getWindowIds(testHabit.id) } returns emptyList()
+        coEvery { mockTriggerRepository.countCompletedSince(testHabit.id, any()) } returns 1
+
+        viewModel.loadHabit(testHabit.id)
+        advanceUntilIdle()
+
+        val status = viewModel.uiState.value.availabilityStatus as AvailabilityStatus.Unavailable
+        assertTrue(UnavailableReason.COMPLETED in status.reasons)
+    }
+
+    @Test
+    fun `availability omits COOLDOWN when cooldownMinutes is 0 even after recent DISMISSED`() = runTest(testDispatcher) {
+        val noCooldown = testHabit.copy(cooldownMinutes = 0)
+        coEvery { mockHabitRepository.getById(noCooldown.id) } returns flowOf(noCooldown)
+        coEvery { mockHabitRepository.getLocationIds(noCooldown.id) } returns emptyList()
+        coEvery { mockHabitRepository.getWindowIds(noCooldown.id) } returns emptyList()
+        coEvery { mockTriggerRepository.getLastFiredOrDismissedForHabit(any()) } returns Instant.now().toEpochMilli()
+
+        viewModel.loadHabit(noCooldown.id)
+        advanceUntilIdle()
+
+        assertEquals(AvailabilityStatus.Available, viewModel.uiState.value.availabilityStatus)
+    }
+
+    @Test
+    fun `availability includes COOLDOWN when last DISMISSED is within cooldown window`() = runTest(testDispatcher) {
+        val cooldownHabit = testHabit.copy(cooldownMinutes = 60)
+        val tenMinAgo = Instant.now().toEpochMilli() - 10 * 60 * 1000L
+        coEvery { mockHabitRepository.getById(cooldownHabit.id) } returns flowOf(cooldownHabit)
+        coEvery { mockHabitRepository.getLocationIds(cooldownHabit.id) } returns emptyList()
+        coEvery { mockHabitRepository.getWindowIds(cooldownHabit.id) } returns emptyList()
+        coEvery { mockTriggerRepository.getLastFiredOrDismissedForHabit(cooldownHabit.id) } returns tenMinAgo
+
+        viewModel.loadHabit(cooldownHabit.id)
+        advanceUntilIdle()
+
+        val status = viewModel.uiState.value.availabilityStatus as AvailabilityStatus.Unavailable
+        assertTrue(UnavailableReason.COOLDOWN in status.reasons)
+    }
+
+    @Test
+    fun `availability omits COOLDOWN when last DISMISSED is outside cooldown window`() = runTest(testDispatcher) {
+        val cooldownHabit = testHabit.copy(cooldownMinutes = 60)
+        val twoHoursAgo = Instant.now().toEpochMilli() - 2 * 60 * 60 * 1000L
+        coEvery { mockHabitRepository.getById(cooldownHabit.id) } returns flowOf(cooldownHabit)
+        coEvery { mockHabitRepository.getLocationIds(cooldownHabit.id) } returns emptyList()
+        coEvery { mockHabitRepository.getWindowIds(cooldownHabit.id) } returns emptyList()
+        coEvery { mockTriggerRepository.getLastFiredOrDismissedForHabit(cooldownHabit.id) } returns twoHoursAgo
+
+        viewModel.loadHabit(cooldownHabit.id)
+        advanceUntilIdle()
+
+        assertEquals(AvailabilityStatus.Available, viewModel.uiState.value.availabilityStatus)
+    }
+
+    @Test
+    fun `availability includes DAILY_LIMIT when non-scheduled count meets the limit`() = runTest(testDispatcher) {
+        val limit2 = testHabit.copy(dailyLimit = 2, cooldownMinutes = 0)
+        coEvery { mockHabitRepository.getById(limit2.id) } returns flowOf(limit2)
+        coEvery { mockHabitRepository.getLocationIds(limit2.id) } returns emptyList()
+        coEvery { mockHabitRepository.getWindowIds(limit2.id) } returns emptyList()
+        coEvery { mockTriggerRepository.countNonScheduledSince(limit2.id, any()) } returns 2
+
+        viewModel.loadHabit(limit2.id)
+        advanceUntilIdle()
+
+        val status = viewModel.uiState.value.availabilityStatus as AvailabilityStatus.Unavailable
+        assertTrue(
+            "daily limit hit but UI is not surfacing DAILY_LIMIT — SQL/Kotlin parity broken",
+            UnavailableReason.DAILY_LIMIT in status.reasons
+        )
+    }
+
+    @Test
+    fun `availability omits DAILY_LIMIT when non-scheduled count is under the limit`() = runTest(testDispatcher) {
+        val limit3 = testHabit.copy(dailyLimit = 3, cooldownMinutes = 0)
+        coEvery { mockHabitRepository.getById(limit3.id) } returns flowOf(limit3)
+        coEvery { mockHabitRepository.getLocationIds(limit3.id) } returns emptyList()
+        coEvery { mockHabitRepository.getWindowIds(limit3.id) } returns emptyList()
+        coEvery { mockTriggerRepository.countNonScheduledSince(limit3.id, any()) } returns 1
+
+        viewModel.loadHabit(limit3.id)
+        advanceUntilIdle()
+
+        assertEquals(AvailabilityStatus.Available, viewModel.uiState.value.availabilityStatus)
+    }
+
+    @Test
+    fun `availability falls back to NewHabit (badge hidden) when computeAvailability throws`() = runTest(testDispatcher) {
+        mockkStatic(android.util.Log::class)
+        every { android.util.Log.w(any<String>(), any<String>(), any<Throwable>()) } returns 0
+
+        coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit)
+        coEvery { mockHabitRepository.getLocationIds(testHabit.id) } returns emptyList()
+        coEvery { mockHabitRepository.getWindowIds(testHabit.id) } returns emptyList()
+        coEvery { mockTriggerRepository.countCompletedSince(any(), any()) } throws RuntimeException("room boom")
+
+        viewModel.loadHabit(testHabit.id)
+        advanceUntilIdle()
+
+        // Edit screen still loaded — only the badge is hidden.
+        val state = viewModel.uiState.value
+        assertEquals(AvailabilityStatus.NewHabit, state.availabilityStatus)
+        assertNull(state.errorMessage)
+        assertEquals(testHabit.name, state.name)
+        unmockkStatic(android.util.Log::class)
     }
 }

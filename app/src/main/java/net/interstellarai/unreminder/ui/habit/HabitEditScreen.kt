@@ -176,6 +176,10 @@ fun HabitEditScreen(
                     onValueChange = viewModel::updateName,
                     placeholder = "e.g. meditation",
                 )
+                if (habitId != null) {
+                    Spacer(Modifier.height(Dimens.sm))
+                    AvailabilityStatusRow(status = uiState.availabilityStatus)
+                }
             }
 
             val aiHelper: String? = when {
@@ -907,6 +911,42 @@ private fun RecentlyUsedVariationRow(
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.35f),
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun AvailabilityStatusRow(
+    status: AvailabilityStatus,
+    modifier: Modifier = Modifier,
+) {
+    when (status) {
+        is AvailabilityStatus.NewHabit -> Unit
+        is AvailabilityStatus.Available -> {
+            Text(
+                text = "available now",
+                style = MonoLabelTiny,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f),
+                modifier = modifier,
+            )
+        }
+        is AvailabilityStatus.Unavailable -> {
+            val labels = status.reasons.map { reason ->
+                when (reason) {
+                    UnavailableReason.INACTIVE -> "inactive"
+                    UnavailableReason.LOCATION -> "location"
+                    UnavailableReason.TIME_WINDOW -> "time window"
+                    UnavailableReason.COMPLETED -> "completed today"
+                    UnavailableReason.COOLDOWN -> "in cooldown"
+                    UnavailableReason.DAILY_LIMIT -> "daily limit reached"
+                }
+            }
+            Text(
+                text = "not available \u00b7 ${labels.joinToString(" \u00b7 ")}",
+                style = MonoLabelTiny,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.75f),
+                modifier = modifier,
+            )
         }
     }
 }

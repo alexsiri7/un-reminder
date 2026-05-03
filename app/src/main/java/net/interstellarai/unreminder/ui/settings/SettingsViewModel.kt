@@ -8,8 +8,10 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import net.interstellarai.unreminder.data.db.TriggerEntity
+import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
+import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.trigger.TriggerPipeline
 import net.interstellarai.unreminder.worker.RandomIntervalWorker
 import androidx.work.WorkManager
@@ -28,6 +30,7 @@ data class SettingsUiState(
     val hasBackgroundLocationPermission: Boolean = false,
     val hasExactAlarmPermission: Boolean = false,
     val testTriggered: Boolean = false,
+    val testTriggeredEmpty: Boolean = false,
     val errorMessage: String? = null,
 )
 
@@ -36,6 +39,8 @@ class SettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val triggerPipeline: TriggerPipeline,
     private val triggerRepository: TriggerRepository,
+    private val habitRepository: HabitRepository,
+    private val geofenceManager: GeofenceManager,
     private val workManager: WorkManager,
 ) : ViewModel() {
 
@@ -48,6 +53,14 @@ class SettingsViewModel @Inject constructor(
 
     fun clearError() {
         _uiState.value = _uiState.value.copy(errorMessage = null)
+    }
+
+    fun clearTestTriggeredEmpty() {
+        _uiState.value = _uiState.value.copy(testTriggeredEmpty = false)
+    }
+
+    fun clearTestTriggered() {
+        _uiState.value = _uiState.value.copy(testTriggered = false)
     }
 
     fun refreshPermissions() {
@@ -66,9 +79,19 @@ class SettingsViewModel @Inject constructor(
         )
     }
 
-    fun testTriggerNow() = executeTrigger(onComplete = {
-        _uiState.value = _uiState.value.copy(testTriggered = true)
-    })
+    fun testTriggerNow() {
+        viewModelScope.launch {
+            val locationIds = geofenceManager.currentLocationIds
+            val eligible = habitRepository.getEligibleHabits(locationIds)
+            if (eligible.isEmpty()) {
+                _uiState.value = _uiState.value.copy(testTriggeredEmpty = true)
+                return@launch
+            }
+            executeTrigger(onComplete = {
+                _uiState.value = _uiState.value.copy(testTriggered = true)
+            })
+        }
+    }
 
     private fun executeTrigger(source: String? = null, onComplete: (() -> Unit)? = null) {
         viewModelScope.launch {
