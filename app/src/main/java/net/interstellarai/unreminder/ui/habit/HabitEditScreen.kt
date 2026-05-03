@@ -933,10 +933,12 @@ private fun AvailabilityStatusRow(
         is AvailabilityStatus.Unavailable -> {
             val labels = status.reasons.map { reason ->
                 when (reason) {
+                    UnavailableReason.INACTIVE -> "inactive"
                     UnavailableReason.LOCATION -> "location"
                     UnavailableReason.TIME_WINDOW -> "time window"
                     UnavailableReason.COMPLETED -> "completed today"
                     UnavailableReason.COOLDOWN -> "in cooldown"
+                    UnavailableReason.DAILY_LIMIT -> "daily limit reached"
                 }
             }
             Text(

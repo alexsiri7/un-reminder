@@ -45,7 +45,7 @@ sealed class AvailabilityStatus {
     data class Unavailable(val reasons: List<UnavailableReason>) : AvailabilityStatus()
 }
 
-enum class UnavailableReason { LOCATION, TIME_WINDOW, COMPLETED, COOLDOWN }
+enum class UnavailableReason { INACTIVE, LOCATION, TIME_WINDOW, COMPLETED, COOLDOWN, DAILY_LIMIT }
 
 data class HabitEditUiState(
     val name: String = "",
@@ -129,7 +129,14 @@ class HabitEditViewModel @Inject constructor(
                 val locationIds = habitRepository.getLocationIds(id).toSet()
                 val windowIds = habitRepository.getWindowIds(id).toSet()
                 existingHabit = habit
-                val availability = computeAvailability(habit, locationIds, windowIds)
+                // Availability is informational; don't let its failure block the edit screen.
+                val availability = try {
+                    computeAvailability(habit, locationIds, windowIds)
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    Log.w(TAG, "loadHabit: availability computation failed for habit $id — hiding badge", e)
+                    AvailabilityStatus.NewHabit
+                }
                 _uiState.value = HabitEditUiState(
                     name = habit.name,
                     descriptionLadder = habit.descriptionLadder,
@@ -346,6 +353,9 @@ class HabitEditViewModel @Inject constructor(
     ): AvailabilityStatus {
         val reasons = mutableListOf<UnavailableReason>()
 
+        // --- Active --- (mirrors `h.active = 1` in HabitDao.getEligibleHabits)
+        if (!habit.active) reasons += UnavailableReason.INACTIVE
+
         // --- Location ---
         // Habit has location restrictions AND current location not in them.
         if (locationIds.isNotEmpty()) {
@@ -390,6 +400,11 @@ class HabitEditViewModel @Inject constructor(
                 reasons += UnavailableReason.COOLDOWN
             }
         }
+
+        // --- Daily limit --- (mirrors `COUNT(...) < h.daily_limit` in HabitDao.getEligibleHabits;
+        // SQL counts COMPLETED|DISMISSED|FIRED since start-of-day, same epoch as completedCutoff.)
+        val dailyTotal = triggerRepository.countNonScheduledSince(habit.id, completedCutoff)
+        if (dailyTotal >= habit.dailyLimit) reasons += UnavailableReason.DAILY_LIMIT
 
         return if (reasons.isEmpty()) AvailabilityStatus.Available
         else AvailabilityStatus.Unavailable(reasons)
