@@ -83,6 +83,11 @@ class RefillWorker @AssistedInject constructor(
         } catch (e: WorkerError) {
             if (e.isServerError()) {
                 Log.w(TAG, "Server error ${e.code} for habit $habitId, will retry", e)
+                Sentry.captureException(e) { scope ->
+                    scope.setTag("component", "refill-worker")
+                    scope.setTag("habit_id", habitId.toString())
+                    scope.setTag("error_code", e.code.toString())
+                }
                 Result.retry()
             } else {
                 Log.w(TAG, "Client error ${e.code} for habit $habitId", e)
@@ -90,13 +95,25 @@ class RefillWorker @AssistedInject constructor(
             }
         } catch (e: IOException) {
             Log.w(TAG, "IO error for habit $habitId, will retry", e)
+            Sentry.captureException(e) { scope ->
+                scope.setTag("component", "refill-worker")
+                scope.setTag("habit_id", habitId.toString())
+            }
             Result.retry()
         } catch (e: JSONException) {
             Log.w(TAG, "JSON parse error for habit $habitId, will retry", e)
+            Sentry.captureException(e) { scope ->
+                scope.setTag("component", "refill-worker")
+                scope.setTag("habit_id", habitId.toString())
+            }
             Result.retry()
         } catch (e: RuntimeException) {
             if (e.cause is JSONException) {
                 Log.w(TAG, "JSON parse error (wrapped) for habit $habitId, will retry", e)
+                Sentry.captureException(e) { scope ->
+                    scope.setTag("component", "refill-worker")
+                    scope.setTag("habit_id", habitId.toString())
+                }
                 Result.retry()
             } else {
                 reportUnexpected(e, habitId)
