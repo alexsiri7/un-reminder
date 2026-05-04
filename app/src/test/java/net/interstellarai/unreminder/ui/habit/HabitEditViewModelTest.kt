@@ -42,6 +42,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.io.IOException
+import java.net.UnknownHostException
 import java.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -514,6 +516,38 @@ class HabitEditViewModelTest {
         advanceUntilIdle()
 
         assertEquals("Service temporarily unavailable — please try again.", viewModel.uiState.value.errorMessage)
+        verify(exactly = 0) { Sentry.captureException(any(), any<ScopeCallback>()) }
+        unmockkStatic(Sentry::class)
+    }
+
+    @Test
+    fun `autofillWithAi shows connection message and does not capture to Sentry on UnknownHostException`() = runTest(testDispatcher) {
+        mockkStatic(Sentry::class)
+        every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
+
+        coEvery { mockPromptGenerator.generateHabitFields(any()) } throws
+            UnknownHostException("un-reminder-worker.alexsiri7.workers.dev")
+
+        viewModel.autofillWithAi()
+        advanceUntilIdle()
+
+        assertEquals("AI unavailable — check your connection.", viewModel.uiState.value.errorMessage)
+        verify(exactly = 0) { Sentry.captureException(any(), any<ScopeCallback>()) }
+        unmockkStatic(Sentry::class)
+    }
+
+    @Test
+    fun `autofillWithAi shows connection message and does not capture to Sentry on generic IOException`() = runTest(testDispatcher) {
+        mockkStatic(Sentry::class)
+        every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
+
+        coEvery { mockPromptGenerator.generateHabitFields(any()) } throws
+            IOException("connection reset")
+
+        viewModel.autofillWithAi()
+        advanceUntilIdle()
+
+        assertEquals("AI unavailable — check your connection.", viewModel.uiState.value.errorMessage)
         verify(exactly = 0) { Sentry.captureException(any(), any<ScopeCallback>()) }
         unmockkStatic(Sentry::class)
     }

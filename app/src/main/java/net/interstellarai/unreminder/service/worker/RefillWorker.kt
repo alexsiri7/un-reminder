@@ -14,6 +14,7 @@ import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
 import io.sentry.Sentry
 import java.io.IOException
+import java.net.UnknownHostException
 import java.time.Instant
 import org.json.JSONException
 
@@ -93,6 +94,11 @@ class RefillWorker @AssistedInject constructor(
                 Log.w(TAG, "Client error ${e.code} for habit $habitId", e)
                 Result.failure()
             }
+        } catch (e: UnknownHostException) {
+            // Transient DNS failure (offline, Doze wake-up race, captive portal).
+            // Not actionable for the developer — WorkManager retries with backoff.
+            Log.w(TAG, "DNS lookup failed for habit $habitId, will retry", e)
+            Result.retry()
         } catch (e: IOException) {
             Log.w(TAG, "IO error for habit $habitId, will retry", e)
             Sentry.captureException(e) { scope ->
