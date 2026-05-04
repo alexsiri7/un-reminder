@@ -7,14 +7,24 @@ function buildPrompt(habitTitle: string, habitTags: string[], locationName: stri
   const outputInstruction = strict
     ? `Output ONLY a raw JSON array of ${n} strings. No markdown, no commentary, no code blocks.`
     : `Output a JSON array of ${n} strings. No markdown, no commentary.`
+
+  const contextLines: string[] = []
+  if (habitTags.length > 0) contextLines.push(`Tags: ${habitTags.join(', ')}`)
+  if (locationName) contextLines.push(`Location: "${locationName}"`)
+  if (timeOfDay) contextLines.push(`Time of day: "${timeOfDay}"`)
+  const contextBlock = contextLines.length > 0 ? contextLines.join('\n') + '\n' : ''
+
   return (
     `You are a notification writer for a habit-tracker app.\n` +
     `Habit: "${habitTitle}"\n` +
-    `Tags: ${habitTags.join(', ')}\n` +
-    `Location: "${locationName}"\n` +
-    `Time of day: "${timeOfDay}"\n\n` +
-    `Write ${n} short notification messages (max 80 characters each) that prompt ` +
-    `the user to do this habit. Each message must open with an action verb and tell the user exactly what to DO — never write a passive observation, thought, or feeling. Examples of good form: "Take 5 minutes to...", "Open your journal and...", "Do one set of...". Be varied and specific.\n` +
+    contextBlock +
+    `\nWrite ${n} short notification messages (max 80 characters each) that make the user act right now. Rules:\n` +
+    `1. Open with an action verb.\n` +
+    `2. Always include a specific quantity, duration, or named target (e.g. "10 reps", "5 minutes", "C major scale"). If the habit gives no specifics, invent a reasonable concrete goal.\n` +
+    `3. Make each message fully self-contained: the user knows exactly what to do and when they are done — no extra decision needed.\n` +
+    `4. When location or time of day is relevant, weave it into the message naturally.\n` +
+    `5. Never use vague phrases like "do a set", "get started", or "work on your habit".\n` +
+    `6. Vary tone, structure, and the specific goal across all ${n} messages.\n` +
     outputInstruction
   )
 }
