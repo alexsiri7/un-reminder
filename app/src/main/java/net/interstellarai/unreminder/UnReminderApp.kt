@@ -6,7 +6,6 @@ import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import androidx.work.WorkManager
 import net.interstellarai.unreminder.service.notification.NotificationHelper
-import net.interstellarai.unreminder.service.sentry.LaunchSmokeTest
 import net.interstellarai.unreminder.service.sentry.applyOptions
 import net.interstellarai.unreminder.service.sentry.shouldInitSentry
 import net.interstellarai.unreminder.worker.RandomIntervalWorker
@@ -49,11 +48,6 @@ class UnReminderApp : Application(), Configuration.Provider {
                     versionCode = BuildConfig.VERSION_CODE
                 )
             }
-            LaunchSmokeTest.maybeFire(
-                context = this,
-                versionName = BuildConfig.VERSION_NAME,
-                versionCode = BuildConfig.VERSION_CODE
-            )
         } catch (e: Throwable) {
             Log.w(TAG, "Sentry init failed", e)
         }
