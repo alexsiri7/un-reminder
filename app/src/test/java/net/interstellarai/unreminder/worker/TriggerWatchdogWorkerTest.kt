@@ -7,7 +7,6 @@ import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
-import com.google.common.util.concurrent.Futures
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -20,6 +19,8 @@ import io.sentry.Sentry
 import io.sentry.ScopeCallback
 import io.sentry.protocol.SentryId
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import org.junit.Assert.assertEquals
@@ -51,8 +52,8 @@ class TriggerWatchdogWorkerTest {
             mockk<WorkInfo> { every { this@mockk.state } returns state }
         }
         every {
-            mockWorkManager.getWorkInfosForUniqueWork(RandomIntervalWorker.WORK_NAME)
-        } returns Futures.immediateFuture(infos)
+            mockWorkManager.getWorkInfosForUniqueWorkFlow(RandomIntervalWorker.WORK_NAME)
+        } returns flowOf(infos)
     }
 
     @Test
@@ -155,27 +156,30 @@ class TriggerWatchdogWorkerTest {
     @Test
     fun `doWork captures exception to Sentry and returns success when workInfos query throws`() = runTest {
         mockkStatic(android.util.Log::class)
-        every { android.util.Log.e(any<String>(), any<String>(), any<Throwable>()) } returns 0
         mockkStatic(Sentry::class)
-        every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
+        try {
+            every { android.util.Log.e(any<String>(), any<String>(), any<Throwable>()) } returns 0
+            every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
 
-        every {
-            mockWorkManager.getWorkInfosForUniqueWork(RandomIntervalWorker.WORK_NAME)
-        } throws RuntimeException("workmanager unavailable")
+            every {
+                mockWorkManager.getWorkInfosForUniqueWorkFlow(RandomIntervalWorker.WORK_NAME)
+            } returns flow { throw RuntimeException("workmanager unavailable") }
 
-        val result = worker.doWork()
+            val result = worker.doWork()
 
-        assertEquals(Result.success(), result)
-        verify(exactly = 1) { Sentry.captureException(any(), any<ScopeCallback>()) }
-        unmockkStatic(Sentry::class)
-        unmockkStatic(android.util.Log::class)
+            assertEquals(Result.success(), result)
+            verify(exactly = 1) { Sentry.captureException(any(), any<ScopeCallback>()) }
+        } finally {
+            unmockkStatic(Sentry::class)
+            unmockkStatic(android.util.Log::class)
+        }
     }
 
     @Test
     fun `doWork propagates CancellationException`() = runTest {
         every {
-            mockWorkManager.getWorkInfosForUniqueWork(RandomIntervalWorker.WORK_NAME)
-        } throws CancellationException("cancelled")
+            mockWorkManager.getWorkInfosForUniqueWorkFlow(RandomIntervalWorker.WORK_NAME)
+        } returns flow { throw CancellationException("cancelled") }
 
         var threw = false
         try {

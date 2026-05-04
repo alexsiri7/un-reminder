@@ -39,8 +39,6 @@ class TriggerRepository @Inject constructor(
         triggerDao.updateStatus(id, status.name)
     }
 
-    suspend fun deleteAllScheduled() = triggerDao.deleteAllScheduled()
-
     suspend fun deleteScheduledOlderThan(cutoffMillis: Long) =
         triggerDao.deleteScheduledOlderThan(cutoffMillis)
 

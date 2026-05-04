@@ -13,6 +13,7 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import io.sentry.Sentry
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import java.time.Instant
 import java.util.concurrent.TimeUnit
@@ -59,8 +60,8 @@ class TriggerWatchdogWorker @AssistedInject constructor(
         try {
             step = "queryWorkInfos"
             val workInfos = workManager
-                .getWorkInfosForUniqueWork(RandomIntervalWorker.WORK_NAME)
-                .get()
+                .getWorkInfosForUniqueWorkFlow(RandomIntervalWorker.WORK_NAME)
+                .first()
             val healthy = workInfos.any { it.state in HEALTHY_STATES }
             if (!healthy) {
                 step = "enqueueNext"
