@@ -13,8 +13,6 @@ import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.trigger.TriggerPipeline
-import net.interstellarai.unreminder.worker.RandomIntervalWorker
-import androidx.work.WorkManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,7 +39,6 @@ class SettingsViewModel @Inject constructor(
     private val triggerRepository: TriggerRepository,
     private val habitRepository: HabitRepository,
     private val geofenceManager: GeofenceManager,
-    private val workManager: WorkManager,
 ) : ViewModel() {
 
     companion object {
@@ -103,13 +100,6 @@ class SettingsViewModel @Inject constructor(
             val id = triggerRepository.insert(trigger)
             triggerPipeline.execute(id)
             onComplete?.invoke()
-        }
-    }
-
-    fun regenerateTriggers() {
-        viewModelScope.launch {
-            triggerRepository.deleteAllScheduled()
-            RandomIntervalWorker.enqueueNext(workManager)
         }
     }
 }

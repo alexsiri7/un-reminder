@@ -36,6 +36,9 @@ interface TriggerDao {
     @Query("DELETE FROM triggers WHERE status = 'SCHEDULED'")
     suspend fun deleteAllScheduled()
 
+    @Query("DELETE FROM triggers WHERE status = 'SCHEDULED' AND scheduled_at < :cutoffMillis")
+    suspend fun deleteScheduledOlderThan(cutoffMillis: Long)
+
     @Query("SELECT fired_at FROM triggers WHERE habit_id = :habitId AND fired_at IS NOT NULL ORDER BY fired_at DESC LIMIT 1")
     suspend fun getLastFiredForHabit(habitId: Long): Long?
 

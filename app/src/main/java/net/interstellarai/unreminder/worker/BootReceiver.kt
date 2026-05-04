@@ -16,8 +16,5 @@ class BootReceiver : BroadcastReceiver() {
         workManager.enqueue(
             OneTimeWorkRequestBuilder<BootReschedulerWorker>().build()
         )
-
-        // Re-enqueue random interval worker
-        RandomIntervalWorker.ensureEnqueued(context)
     }
 }
