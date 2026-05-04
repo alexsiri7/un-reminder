@@ -8,13 +8,22 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.google.common.util.concurrent.Futures
+import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.slot
+import io.mockk.unmockkStatic
 import io.mockk.verify
+import io.sentry.Sentry
+import io.sentry.ScopeCallback
+import io.sentry.protocol.SentryId
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -60,6 +69,7 @@ class TriggerWatchdogWorkerTest {
                 any<OneTimeWorkRequest>()
             )
         }
+        coVerify(exactly = 1) { mockTriggerRepository.deleteScheduledOlderThan(any()) }
     }
 
     @Test
@@ -109,11 +119,71 @@ class TriggerWatchdogWorkerTest {
     }
 
     @Test
-    fun `doWork sweeps stuck scheduled triggers`() = runTest {
-        stubWorkInfos(listOf(WorkInfo.State.ENQUEUED))
+    fun `doWork does not re-enqueue when random interval worker is blocked`() = runTest {
+        stubWorkInfos(listOf(WorkInfo.State.BLOCKED))
 
         worker.doWork()
 
-        coVerify(exactly = 1) { mockTriggerRepository.deleteScheduledOlderThan(any()) }
+        verify(exactly = 0) {
+            mockWorkManager.enqueueUniqueWork(
+                eq(RandomIntervalWorker.WORK_NAME),
+                any<ExistingWorkPolicy>(),
+                any<OneTimeWorkRequest>()
+            )
+        }
+    }
+
+    @Test
+    fun `doWork sweeps stuck scheduled triggers older than configured age`() = runTest {
+        stubWorkInfos(listOf(WorkInfo.State.ENQUEUED))
+        val cutoffSlot = slot<Long>()
+        coEvery { mockTriggerRepository.deleteScheduledOlderThan(capture(cutoffSlot)) } returns Unit
+
+        val before = System.currentTimeMillis()
+        worker.doWork()
+        val after = System.currentTimeMillis()
+
+        val ageMillis = TriggerWatchdogWorker.STUCK_TRIGGER_AGE_SECONDS * 1000
+        val expectedCutoffLow = before - ageMillis
+        val expectedCutoffHigh = after - ageMillis
+        assertTrue(
+            "cutoff ${cutoffSlot.captured} outside expected window [$expectedCutoffLow, $expectedCutoffHigh]",
+            cutoffSlot.captured in expectedCutoffLow..expectedCutoffHigh
+        )
+    }
+
+    @Test
+    fun `doWork captures exception to Sentry and returns success when workInfos query throws`() = runTest {
+        mockkStatic(android.util.Log::class)
+        every { android.util.Log.e(any<String>(), any<String>(), any<Throwable>()) } returns 0
+        mockkStatic(Sentry::class)
+        every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
+
+        every {
+            mockWorkManager.getWorkInfosForUniqueWork(RandomIntervalWorker.WORK_NAME)
+        } throws RuntimeException("workmanager unavailable")
+
+        val result = worker.doWork()
+
+        assertEquals(Result.success(), result)
+        verify(exactly = 1) { Sentry.captureException(any(), any<ScopeCallback>()) }
+        unmockkStatic(Sentry::class)
+        unmockkStatic(android.util.Log::class)
+    }
+
+    @Test
+    fun `doWork propagates CancellationException`() = runTest {
+        every {
+            mockWorkManager.getWorkInfosForUniqueWork(RandomIntervalWorker.WORK_NAME)
+        } throws CancellationException("cancelled")
+
+        var threw = false
+        try {
+            worker.doWork()
+        } catch (e: CancellationException) {
+            threw = true
+        }
+
+        assertTrue("Expected CancellationException to propagate", threw)
     }
 }

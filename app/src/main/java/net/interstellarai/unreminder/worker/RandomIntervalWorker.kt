@@ -110,8 +110,8 @@ class RandomIntervalWorker @AssistedInject constructor(
         } catch (e: CancellationException) {
             // Intentionally not calling scheduleNext here — WorkManager may not be
             // in a safe state to accept new work during coroutine cancellation.
-            // Recovery: UnReminderApp calls ensureEnqueued() on next app start
-            // (KEEP policy re-enqueues after CANCELLED terminal state).
+            // Recovery: TriggerWatchdogWorker re-enqueues the chain on its next
+            // ~24 h tick if no healthy RandomIntervalWorker work exists.
             triggerId?.let { triggerRepository.updateOutcome(it, TriggerStatus.DISMISSED) }
             throw e
         } catch (e: Exception) {
@@ -120,6 +120,8 @@ class RandomIntervalWorker @AssistedInject constructor(
                 scope.setTag("component", "random-interval-worker")
                 scope.setTag("step", step)
             }
+            // Best-effort: if this DB write throws, scheduleNext() is skipped and
+            // TriggerWatchdogWorker recovers the chain on its next ~24 h tick.
             triggerId?.let { triggerRepository.updateOutcome(it, TriggerStatus.DISMISSED) }
         }
 

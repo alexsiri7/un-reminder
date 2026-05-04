@@ -31,6 +31,15 @@ class TriggerWatchdogWorker @AssistedInject constructor(
         const val STUCK_TRIGGER_AGE_SECONDS = 1800L
         private const val TAG = "TriggerWatchdogWorker"
 
+        // BLOCKED kept defensively in case the chain ever grows constraints or
+        // a `then(...)` prerequisite — currently unreachable for the unconstrained,
+        // unchained `RandomIntervalWorker` OneTimeWorkRequest.
+        private val HEALTHY_STATES = setOf(
+            WorkInfo.State.ENQUEUED,
+            WorkInfo.State.RUNNING,
+            WorkInfo.State.BLOCKED
+        )
+
         // If INTERVAL_HOURS ever changes, switch the policy below to UPDATE so the
         // new cadence takes effect; KEEP preserves the previously-scheduled interval.
         fun enqueue(context: Context) {
@@ -46,15 +55,19 @@ class TriggerWatchdogWorker @AssistedInject constructor(
     }
 
     override suspend fun doWork(): Result {
+        var step = "init"
         try {
+            step = "queryWorkInfos"
             val workInfos = workManager
                 .getWorkInfosForUniqueWork(RandomIntervalWorker.WORK_NAME)
                 .get()
             val healthy = workInfos.any { it.state in HEALTHY_STATES }
             if (!healthy) {
+                step = "enqueueNext"
                 RandomIntervalWorker.enqueueNext(workManager)
             }
 
+            step = "sweep"
             val cutoff = Instant.now()
                 .minusSeconds(STUCK_TRIGGER_AGE_SECONDS)
                 .toEpochMilli()
@@ -62,17 +75,12 @@ class TriggerWatchdogWorker @AssistedInject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Trigger watchdog worker failed", e)
+            Log.e(TAG, "Trigger watchdog worker failed at step=$step", e)
             Sentry.captureException(e) { scope ->
                 scope.setTag("component", "trigger-watchdog-worker")
+                scope.setTag("step", step)
             }
         }
         return Result.success()
     }
 }
-
-private val HEALTHY_STATES = setOf(
-    WorkInfo.State.ENQUEUED,
-    WorkInfo.State.RUNNING,
-    WorkInfo.State.BLOCKED
-)
