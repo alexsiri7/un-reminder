@@ -78,6 +78,7 @@ jobs:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: net.interstellarai.unreminder
           releaseFiles: app/build/outputs/bundle/release/*.aab
+          mappingFile: app/build/outputs/mapping/release/mapping.txt
           track: internal
           status: draft
           releaseName: ${{ env.VERSION_NAME }}
@@ -142,6 +143,7 @@ jobs:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: net.interstellarai.unreminder
           releaseFiles: app/build/outputs/bundle/release/*.aab
+          mappingFile: app/build/outputs/mapping/release/mapping.txt
           track: production
           status: completed
           releaseName: ${{ env.VERSION_NAME }}
