@@ -120,6 +120,7 @@ class RandomIntervalWorker @AssistedInject constructor(
                 scope.setTag("component", "random-interval-worker")
                 scope.setTag("step", step)
             }
+            triggerId?.let { triggerRepository.updateOutcome(it, TriggerStatus.DISMISSED) }
         }
 
         scheduleNext()

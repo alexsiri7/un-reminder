@@ -195,10 +195,6 @@ fun SettingsScreen(
                 Spacer(Modifier.height(Dimens.sm))
                 OutlineAction(label = "test trigger now") { viewModel.testTriggerNow() }
                 Spacer(Modifier.height(Dimens.sm))
-                OutlineAction(label = "regenerate tomorrow's triggers") {
-                    viewModel.regenerateTriggers()
-                }
-                Spacer(Modifier.height(Dimens.sm))
                 OutlineAction(label = "send feedback", onClick = onNavigateToFeedback)
             }
 

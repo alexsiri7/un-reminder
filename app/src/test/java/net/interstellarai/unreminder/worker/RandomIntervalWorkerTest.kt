@@ -120,6 +120,19 @@ class RandomIntervalWorkerTest {
     }
 
     @Test
+    fun `doWork marks trigger dismissed when pipeline throws non-cancellation exception`() = runTest {
+        coEvery { mockWindowRepository.getActiveWindows() } returns listOf(windowCoveringAllDay())
+        coEvery { mockHabitRepository.getEligibleHabits(any()) } returns listOf(mockk())
+        coEvery { mockTriggerRepository.insert(any()) } returns 77L
+        coEvery { mockTriggerPipeline.execute(any()) } throws RuntimeException("pipeline error")
+
+        val result = worker.doWork()
+
+        assertEquals(Result.success(), result)
+        coVerify(exactly = 1) { mockTriggerRepository.updateOutcome(77L, TriggerStatus.DISMISSED) }
+    }
+
+    @Test
     fun `doWork reports to Sentry when pipeline throws non-cancellation exception`() = runTest {
         mockkStatic(Sentry::class)
         every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID

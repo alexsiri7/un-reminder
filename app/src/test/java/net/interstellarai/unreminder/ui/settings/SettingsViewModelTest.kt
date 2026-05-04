@@ -8,7 +8,6 @@ import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.trigger.TriggerPipeline
-import androidx.work.WorkManager
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -35,7 +34,6 @@ class SettingsViewModelTest {
     private lateinit var habitRepository: HabitRepository
     private lateinit var geofenceManager: GeofenceManager
     private lateinit var context: Context
-    private lateinit var workManager: WorkManager
     private lateinit var viewModel: SettingsViewModel
 
     private val testDispatcher = StandardTestDispatcher()
@@ -48,7 +46,6 @@ class SettingsViewModelTest {
         habitRepository = mockk(relaxUnitFun = true)
         geofenceManager = mockk(relaxed = true)
         context = mockk(relaxed = true)
-        workManager = mockk(relaxed = true)
         every { context.getSystemService(Context.ALARM_SERVICE) } returns mockk<AlarmManager>(relaxed = true)
         // Default: at least one eligible habit so the pre-existing tests still exercise the pipeline path.
         every { geofenceManager.currentLocationIds } returns emptySet()
@@ -62,7 +59,6 @@ class SettingsViewModelTest {
             triggerRepository = triggerRepository,
             habitRepository = habitRepository,
             geofenceManager = geofenceManager,
-            workManager = workManager,
         )
     }
 
@@ -96,14 +92,6 @@ class SettingsViewModelTest {
     fun `clearError sets errorMessage to null`() {
         viewModel.clearError()
         assertNull(viewModel.uiState.value.errorMessage)
-    }
-
-    @Test
-    fun `regenerateTriggers deletes all scheduled triggers and enqueues next worker`() = runTest {
-        viewModel.regenerateTriggers()
-        advanceUntilIdle()
-        coVerify { triggerRepository.deleteAllScheduled() }
-        coVerify { workManager.enqueueUniqueWork(any(), any(), any<androidx.work.OneTimeWorkRequest>()) }
     }
 
     // --- testTriggerNow eligibility branches ---
