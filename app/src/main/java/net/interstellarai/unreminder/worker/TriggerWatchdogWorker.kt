@@ -14,6 +14,7 @@ import dagger.assisted.AssistedInject
 import io.sentry.Sentry
 import kotlinx.coroutines.CancellationException
 import net.interstellarai.unreminder.data.repository.TriggerRepository
+import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 
@@ -28,7 +29,7 @@ class TriggerWatchdogWorker @AssistedInject constructor(
     companion object {
         const val WORK_NAME = "trigger_watchdog"
         const val INTERVAL_HOURS = 24L
-        const val STUCK_TRIGGER_AGE_SECONDS = 1800L
+        const val STALE_SCHEDULED_MINUTES = 30L
         private const val TAG = "TriggerWatchdogWorker"
 
         // If INTERVAL_HOURS ever changes, switch the policy below to UPDATE so the
@@ -55,17 +56,16 @@ class TriggerWatchdogWorker @AssistedInject constructor(
                 RandomIntervalWorker.enqueueNext(workManager)
             }
 
-            val cutoff = Instant.now()
-                .minusSeconds(STUCK_TRIGGER_AGE_SECONDS)
-                .toEpochMilli()
+            val cutoff = Instant.now().minus(Duration.ofMinutes(STALE_SCHEDULED_MINUTES))
             triggerRepository.deleteScheduledOlderThan(cutoff)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Trigger watchdog worker failed", e)
+            Log.e(TAG, "Watchdog failed", e)
             Sentry.captureException(e) { scope ->
-                scope.setTag("component", "trigger-watchdog-worker")
+                scope.setTag("component", "trigger-watchdog")
             }
+            return Result.retry()
         }
         return Result.success()
     }

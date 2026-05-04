@@ -164,6 +164,36 @@ class RandomIntervalWorkerTest {
     }
 
     @Test
+    fun `enqueueInitial uses KEEP policy so a live chain is not disturbed`() = runTest {
+        val workManager: WorkManager = mockk(relaxed = true)
+
+        RandomIntervalWorker.enqueueInitial(workManager)
+
+        verify(exactly = 1) {
+            workManager.enqueueUniqueWork(
+                RandomIntervalWorker.WORK_NAME,
+                ExistingWorkPolicy.KEEP,
+                any<OneTimeWorkRequest>(),
+            )
+        }
+    }
+
+    @Test
+    fun `enqueueNext uses REPLACE policy to forcibly restart the chain`() = runTest {
+        val workManager: WorkManager = mockk(relaxed = true)
+
+        RandomIntervalWorker.enqueueNext(workManager)
+
+        verify(exactly = 1) {
+            workManager.enqueueUniqueWork(
+                RandomIntervalWorker.WORK_NAME,
+                ExistingWorkPolicy.REPLACE,
+                any<OneTimeWorkRequest>(),
+            )
+        }
+    }
+
+    @Test
     fun `doWork marks trigger dismissed when CancellationException thrown after insert`() = runTest {
         coEvery { mockWindowRepository.getActiveWindows() } returns listOf(windowCoveringAllDay())
         coEvery { mockHabitRepository.getEligibleHabits(any()) } returns listOf(mockk())

@@ -33,9 +33,6 @@ interface TriggerDao {
     @Query("UPDATE triggers SET status = :status WHERE id = :id")
     suspend fun updateStatus(id: Long, status: String)
 
-    @Query("DELETE FROM triggers WHERE status = 'SCHEDULED'")
-    suspend fun deleteAllScheduled()
-
     @Query("DELETE FROM triggers WHERE status = 'SCHEDULED' AND scheduled_at < :cutoffMillis")
     suspend fun deleteScheduledOlderThan(cutoffMillis: Long)
 

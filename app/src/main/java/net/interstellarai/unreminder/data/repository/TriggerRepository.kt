@@ -39,10 +39,8 @@ class TriggerRepository @Inject constructor(
         triggerDao.updateStatus(id, status.name)
     }
 
-    suspend fun deleteAllScheduled() = triggerDao.deleteAllScheduled()
-
-    suspend fun deleteScheduledOlderThan(cutoffMillis: Long) =
-        triggerDao.deleteScheduledOlderThan(cutoffMillis)
+    suspend fun deleteScheduledOlderThan(cutoff: Instant) =
+        triggerDao.deleteScheduledOlderThan(cutoff.toEpochMilli())
 
     suspend fun getLastNForHabit(habitId: Long, n: Int): List<TriggerEntity> =
         triggerDao.getLastNForHabit(habitId, n)
