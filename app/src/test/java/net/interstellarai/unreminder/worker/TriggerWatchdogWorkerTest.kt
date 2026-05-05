@@ -11,7 +11,12 @@ import com.google.common.util.concurrent.Futures
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import io.mockk.verify
+import io.sentry.Sentry
+import io.sentry.ScopeCallback
+import io.sentry.protocol.SentryId
 import kotlinx.coroutines.test.runTest
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import org.junit.Assert.assertEquals
@@ -115,5 +120,19 @@ class TriggerWatchdogWorkerTest {
         worker.doWork()
 
         coVerify(exactly = 1) { mockTriggerRepository.deleteScheduledOlderThan(any()) }
+    }
+
+    @Test
+    fun `reports unexpected exceptions to Sentry with component tag`() = runTest {
+        mockkStatic(Sentry::class)
+        every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
+        every {
+            mockWorkManager.getWorkInfosForUniqueWork(RandomIntervalWorker.WORK_NAME)
+        } throws RuntimeException("boom")
+
+        worker.doWork()
+
+        verify(exactly = 1) { Sentry.captureException(any(), any<ScopeCallback>()) }
+        unmockkStatic(Sentry::class)
     }
 }

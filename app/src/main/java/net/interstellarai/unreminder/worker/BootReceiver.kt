@@ -16,5 +16,9 @@ class BootReceiver : BroadcastReceiver() {
         workManager.enqueue(
             OneTimeWorkRequestBuilder<BootReschedulerWorker>().build()
         )
+
+        // Kick-start the random-interval chain after reboot. KEEP semantics make this
+        // a no-op when the chain is still alive, but recover quickly when it isn't.
+        RandomIntervalWorker.enqueueInitial(workManager)
     }
 }

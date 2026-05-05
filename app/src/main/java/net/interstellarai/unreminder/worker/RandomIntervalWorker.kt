@@ -55,11 +55,15 @@ class RandomIntervalWorker @AssistedInject constructor(
             )
         }
 
-        fun ensureEnqueued(context: Context) {
+        // Bootstrap entrypoint for app start / boot. Uses KEEP so an already-alive
+        // chain is not disturbed; enqueues a fresh first tick when nothing is scheduled.
+        // Recovery from a dead/terminal chain remains the watchdog's job (REPLACE).
+        fun enqueueInitial(workManager: WorkManager) {
+            val delay = Random.nextLong(MIN_DELAY_MINUTES, MAX_DELAY_MINUTES)
             val request = OneTimeWorkRequestBuilder<RandomIntervalWorker>()
-                .setInitialDelay(MIN_DELAY_MINUTES, TimeUnit.MINUTES)
+                .setInitialDelay(delay, TimeUnit.MINUTES)
                 .build()
-            WorkManager.getInstance(context).enqueueUniqueWork(
+            workManager.enqueueUniqueWork(
                 WORK_NAME,
                 ExistingWorkPolicy.KEEP,
                 request
@@ -110,7 +114,7 @@ class RandomIntervalWorker @AssistedInject constructor(
         } catch (e: CancellationException) {
             // Intentionally not calling scheduleNext here — WorkManager may not be
             // in a safe state to accept new work during coroutine cancellation.
-            // Recovery: UnReminderApp calls ensureEnqueued() on next app start
+            // Recovery: UnReminderApp calls enqueueInitial() on next app start
             // (KEEP policy re-enqueues after CANCELLED terminal state).
             triggerId?.let { triggerRepository.updateOutcome(it, TriggerStatus.DISMISSED) }
             throw e
