@@ -93,9 +93,8 @@ class GeofenceManagerTest {
     }
 
     companion object {
-        // Pinned to the production constants — if either is renamed, these tests break,
-        // which is exactly the regression we want CI to catch (older installs would
-        // silently fail to load and reintroduce issue #245).
+        // Mirror of GeofenceManager's private prefs schema; renaming there must rename here
+        // or older installs silently fail to rehydrate (the bug from issue #245).
         private const val PREFS_NAME = "geofence_prefs"
         private const val KEY_LOCATION_IDS = "current_location_ids"
     }
