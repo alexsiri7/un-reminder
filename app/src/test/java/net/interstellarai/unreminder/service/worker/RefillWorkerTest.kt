@@ -137,35 +137,41 @@ class RefillWorkerTest {
     @Test
     fun `doWork returns retry on UnknownHostException without reporting to Sentry`() = runTest {
         mockkStatic(Sentry::class)
-        every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
+        try {
+            every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
 
-        val habit = HabitEntity(id = 1L, name = "Meditate")
-        coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
-        coEvery {
-            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any())
-        } throws UnknownHostException("un-reminder-worker.alexsiri7.workers.dev")
+            val habit = HabitEntity(id = 1L, name = "Meditate")
+            coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
+            coEvery {
+                mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any())
+            } throws UnknownHostException("un-reminder-worker.alexsiri7.workers.dev")
 
-        val worker = createWorker()
-        assertEquals(Result.retry(), worker.doWork())
-        verify(exactly = 0) { Sentry.captureException(any(), any<ScopeCallback>()) }
-        unmockkStatic(Sentry::class)
+            val worker = createWorker()
+            assertEquals(Result.retry(), worker.doWork())
+            verify(exactly = 0) { Sentry.captureException(any(), any<ScopeCallback>()) }
+        } finally {
+            unmockkStatic(Sentry::class)
+        }
     }
 
     @Test
     fun `doWork returns retry on ConnectException without reporting to Sentry`() = runTest {
         mockkStatic(Sentry::class)
-        every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
+        try {
+            every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
 
-        val habit = HabitEntity(id = 1L, name = "Meditate")
-        coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
-        coEvery {
-            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any())
-        } throws ConnectException("Failed to connect to un-reminder-worker.alexsiri7.workers.dev/104.21.91.247:443")
+            val habit = HabitEntity(id = 1L, name = "Meditate")
+            coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
+            coEvery {
+                mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any())
+            } throws ConnectException("Failed to connect to un-reminder-worker.alexsiri7.workers.dev/104.21.91.247:443")
 
-        val worker = createWorker()
-        assertEquals(Result.retry(), worker.doWork())
-        verify(exactly = 0) { Sentry.captureException(any(), any<ScopeCallback>()) }
-        unmockkStatic(Sentry::class)
+            val worker = createWorker()
+            assertEquals(Result.retry(), worker.doWork())
+            verify(exactly = 0) { Sentry.captureException(any(), any<ScopeCallback>()) }
+        } finally {
+            unmockkStatic(Sentry::class)
+        }
     }
 
     @Test
@@ -219,17 +225,20 @@ class RefillWorkerTest {
     @Test
     fun `doWork returns failure and reports to Sentry on unexpected exception`() = runTest {
         mockkStatic(Sentry::class)
-        every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
+        try {
+            every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
 
-        val habit = HabitEntity(id = 1L, name = "Meditate")
-        coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
-        coEvery {
-            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any())
-        } throws RuntimeException("unexpected failure")
+            val habit = HabitEntity(id = 1L, name = "Meditate")
+            coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
+            coEvery {
+                mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any())
+            } throws RuntimeException("unexpected failure")
 
-        val worker = createWorker()
-        assertEquals(Result.failure(), worker.doWork())
-        verify(exactly = 1) { Sentry.captureException(any(), any<ScopeCallback>()) }
-        unmockkStatic(Sentry::class)
+            val worker = createWorker()
+            assertEquals(Result.failure(), worker.doWork())
+            verify(exactly = 1) { Sentry.captureException(any(), any<ScopeCallback>()) }
+        } finally {
+            unmockkStatic(Sentry::class)
+        }
     }
 }
