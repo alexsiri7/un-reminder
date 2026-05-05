@@ -44,13 +44,17 @@ class GeofenceManager @Inject constructor(
     }
 
     fun addLocationId(id: Long) = synchronized(locationIdLock) {
-        val updated = _currentLocationIds.value + id
+        val current = _currentLocationIds.value
+        if (id in current) return@synchronized
+        val updated = current + id
         _currentLocationIds.value = updated
         persistLocationIds(updated)
     }
 
     fun removeLocationId(id: Long) = synchronized(locationIdLock) {
-        val updated = _currentLocationIds.value - id
+        val current = _currentLocationIds.value
+        if (id !in current) return@synchronized
+        val updated = current - id
         _currentLocationIds.value = updated
         persistLocationIds(updated)
     }
