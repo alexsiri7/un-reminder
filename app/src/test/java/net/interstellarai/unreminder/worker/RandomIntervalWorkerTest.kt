@@ -17,6 +17,8 @@ import io.sentry.Sentry
 import io.sentry.ScopeCallback
 import io.sentry.protocol.SentryId
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.test.runTest
 import net.interstellarai.unreminder.data.db.TriggerEntity
 import net.interstellarai.unreminder.data.db.WindowEntity
@@ -46,6 +48,7 @@ class RandomIntervalWorkerTest {
 
     @Before
     fun setup() {
+        every { mockGeofenceManager.currentLocationIds } returns MutableStateFlow<Set<Long>>(emptySet()).asStateFlow()
         worker = RandomIntervalWorker(
             mockContext,
             mockWorkerParams,

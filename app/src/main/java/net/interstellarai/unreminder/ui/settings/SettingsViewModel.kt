@@ -78,7 +78,7 @@ class SettingsViewModel @Inject constructor(
 
     fun testTriggerNow() {
         viewModelScope.launch {
-            val locationIds = geofenceManager.currentLocationIds
+            val locationIds = geofenceManager.currentLocationIds.value
             val eligible = habitRepository.getEligibleHabits(locationIds)
             if (eligible.isEmpty()) {
                 _uiState.value = _uiState.value.copy(testTriggeredEmpty = true)

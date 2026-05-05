@@ -33,6 +33,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collect
 import java.io.IOException
 import java.time.Instant
 import java.time.LocalDate
@@ -117,6 +118,31 @@ class HabitEditViewModel @Inject constructor(
 
     private var existingHabit: HabitEntity? = null
 
+    // Holds the most-recently-loaded habit data for reactive availability recomputation.
+    private data class LoadedHabitData(
+        val habit: HabitEntity,
+        val locationIds: Set<Long>,
+        val windowIds: Set<Long>,
+    )
+    private val _loadedHabit = MutableStateFlow<LoadedHabitData?>(null)
+
+    init {
+        // Reactively recompute availability whenever the loaded habit OR the current geofence set changes.
+        viewModelScope.launch {
+            geofenceManager.currentLocationIds.collect { _ ->
+                val loaded = _loadedHabit.value ?: return@collect
+                val availability = try {
+                    computeAvailability(loaded.habit, loaded.locationIds, loaded.windowIds)
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    Log.w(TAG, "reactive availability recompute failed for habit ${loaded.habit.id} — hiding badge", e)
+                    AvailabilityStatus.NewHabit
+                }
+                _uiState.value = _uiState.value.copy(availabilityStatus = availability)
+            }
+        }
+    }
+
     fun loadHabit(id: Long) {
         viewModelScope.launch {
             _habitId.value = id
@@ -150,6 +176,8 @@ class HabitEditViewModel @Inject constructor(
                     active = habit.active,
                     availabilityStatus = availability
                 )
+                // Publish loaded data so the reactive collector can recompute on location changes.
+                _loadedHabit.value = LoadedHabitData(habit, locationIds, windowIds)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "loadHabit: failed to load habit $id", e)
@@ -364,7 +392,7 @@ class HabitEditViewModel @Inject constructor(
         // --- Location ---
         // Habit has location restrictions AND current location not in them.
         if (locationIds.isNotEmpty()) {
-            val currentIds = geofenceManager.currentLocationIds
+            val currentIds = geofenceManager.currentLocationIds.value
             if (currentIds.none { it in locationIds }) {
                 reasons += UnavailableReason.LOCATION
             }
