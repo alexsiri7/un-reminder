@@ -14,6 +14,7 @@ import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
 import io.sentry.Sentry
 import java.io.IOException
+import java.net.ConnectException
 import java.net.UnknownHostException
 import java.time.Instant
 import org.json.JSONException
@@ -98,6 +99,12 @@ class RefillWorker @AssistedInject constructor(
             // Transient DNS failure (offline, Doze wake-up race, captive portal).
             // Not actionable for the developer — WorkManager retries with backoff.
             Log.w(TAG, "DNS lookup failed for habit $habitId, will retry", e)
+            Result.retry()
+        } catch (e: ConnectException) {
+            // Transient TCP-connect failure (network unreachable, captive portal,
+            // mobile handoff). Worker is on Cloudflare — a real server-side connect
+            // refusal is vanishingly improbable, so treat as offline-class noise.
+            Log.w(TAG, "Connect failed for habit $habitId, will retry", e)
             Result.retry()
         } catch (e: IOException) {
             Log.w(TAG, "IO error for habit $habitId, will retry", e)
