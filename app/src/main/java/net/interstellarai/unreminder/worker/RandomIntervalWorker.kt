@@ -93,7 +93,7 @@ class RandomIntervalWorker @AssistedInject constructor(
             }
 
             step = "habitQuery"
-            val eligibleHabits = habitRepository.getEligibleHabits(geofenceManager.currentLocationIds)
+            val eligibleHabits = habitRepository.getEligibleHabits(geofenceManager.currentLocationIds.value)
             if (eligibleHabits.isEmpty()) {
                 Log.d(TAG, "No eligible habits, skipping")
                 scheduleNext()

@@ -14,6 +14,8 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -37,6 +39,7 @@ class SettingsViewModelTest {
     private lateinit var viewModel: SettingsViewModel
 
     private val testDispatcher = StandardTestDispatcher()
+    private val currentLocationIdsFlow = MutableStateFlow<Set<Long>>(emptySet())
 
     @Before
     fun setup() {
@@ -47,8 +50,9 @@ class SettingsViewModelTest {
         geofenceManager = mockk(relaxed = true)
         context = mockk(relaxed = true)
         every { context.getSystemService(Context.ALARM_SERVICE) } returns mockk<AlarmManager>(relaxed = true)
+        currentLocationIdsFlow.value = emptySet()
         // Default: at least one eligible habit so the pre-existing tests still exercise the pipeline path.
-        every { geofenceManager.currentLocationIds } returns emptySet()
+        every { geofenceManager.currentLocationIds } returns currentLocationIdsFlow.asStateFlow()
         coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(
             HabitEntity(id = 1L, name = "habit")
         )
@@ -98,7 +102,7 @@ class SettingsViewModelTest {
 
     @Test
     fun `testTriggerNow sets testTriggeredEmpty and skips pipeline when no eligible habits`() = runTest {
-        every { geofenceManager.currentLocationIds } returns emptySet()
+        currentLocationIdsFlow.value = emptySet()
         coEvery { habitRepository.getEligibleHabits(any()) } returns emptyList()
 
         viewModel.testTriggerNow()
@@ -112,7 +116,7 @@ class SettingsViewModelTest {
 
     @Test
     fun `testTriggerNow fires pipeline when at least one eligible habit`() = runTest {
-        every { geofenceManager.currentLocationIds } returns setOf(7L)
+        currentLocationIdsFlow.value = setOf(7L)
         coEvery { habitRepository.getEligibleHabits(setOf(7L)) } returns listOf(
             HabitEntity(id = 1L, name = "habit")
         )
@@ -139,7 +143,7 @@ class SettingsViewModelTest {
 
     @Test
     fun `clearTestTriggeredEmpty resets testTriggeredEmpty to false`() = runTest {
-        every { geofenceManager.currentLocationIds } returns emptySet()
+        currentLocationIdsFlow.value = emptySet()
         coEvery { habitRepository.getEligibleHabits(any()) } returns emptyList()
         viewModel.testTriggerNow()
         advanceUntilIdle()

@@ -28,6 +28,8 @@ import io.sentry.ScopeCallback
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -60,6 +62,9 @@ class HabitEditViewModelTest {
     private val mockTriggerRepository: TriggerRepository = mockk(relaxed = true)
     private lateinit var viewModel: HabitEditViewModel
 
+    // Backing flow for geofenceManager.currentLocationIds — tests mutate this directly.
+    private val currentLocationIdsFlow = MutableStateFlow<Set<Long>>(emptySet())
+
     private val testLadder = listOf("3 deep breaths", "", "", "20-minute guided meditation", "", "")
 
     private val testHabit = HabitEntity(
@@ -73,10 +78,11 @@ class HabitEditViewModelTest {
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
+        currentLocationIdsFlow.value = emptySet()
         every { mockLocationRepository.getAll() } returns flowOf(emptyList())
         every { mockWindowRepository.getAll() } returns flowOf(emptyList())
         every { mockPromptGenerator.aiStatus } returns MutableStateFlow<AiStatus>(AiStatus.Ready)
-        every { mockGeofenceManager.currentLocationIds } returns emptySet()
+        every { mockGeofenceManager.currentLocationIds } returns currentLocationIdsFlow.asStateFlow()
         coEvery { mockTriggerRepository.countCompletedSince(any(), any()) } returns 0
         coEvery { mockTriggerRepository.countNonScheduledSince(any(), any()) } returns 0
         coEvery { mockTriggerRepository.getLastFiredOrDismissedForHabit(any()) } returns null
@@ -600,7 +606,7 @@ class HabitEditViewModelTest {
         coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit)
         coEvery { mockHabitRepository.getLocationIds(testHabit.id) } returns listOf(1L, 2L)
         coEvery { mockHabitRepository.getWindowIds(testHabit.id) } returns emptyList()
-        every { mockGeofenceManager.currentLocationIds } returns setOf(99L)
+        currentLocationIdsFlow.value = setOf(99L)
 
         viewModel.loadHabit(testHabit.id)
         advanceUntilIdle()
@@ -614,9 +620,30 @@ class HabitEditViewModelTest {
         coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit)
         coEvery { mockHabitRepository.getLocationIds(testHabit.id) } returns listOf(1L, 2L)
         coEvery { mockHabitRepository.getWindowIds(testHabit.id) } returns emptyList()
-        every { mockGeofenceManager.currentLocationIds } returns setOf(2L, 99L)
+        currentLocationIdsFlow.value = setOf(2L, 99L)
 
         viewModel.loadHabit(testHabit.id)
+        advanceUntilIdle()
+
+        assertEquals(AvailabilityStatus.Available, viewModel.uiState.value.availabilityStatus)
+    }
+
+    @Test
+    fun `availability updates reactively when geofence location changes after habit is loaded`() = runTest(testDispatcher) {
+        coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit)
+        coEvery { mockHabitRepository.getLocationIds(testHabit.id) } returns listOf(1L, 2L)
+        coEvery { mockHabitRepository.getWindowIds(testHabit.id) } returns emptyList()
+        // Start with wrong location — badge shows LOCATION
+        currentLocationIdsFlow.value = setOf(99L)
+
+        viewModel.loadHabit(testHabit.id)
+        advanceUntilIdle()
+
+        val before = viewModel.uiState.value.availabilityStatus as AvailabilityStatus.Unavailable
+        assertTrue(UnavailableReason.LOCATION in before.reasons)
+
+        // Simulate INITIAL_TRIGGER_ENTER firing — now at a matching location
+        currentLocationIdsFlow.value = setOf(2L)
         advanceUntilIdle()
 
         assertEquals(AvailabilityStatus.Available, viewModel.uiState.value.availabilityStatus)

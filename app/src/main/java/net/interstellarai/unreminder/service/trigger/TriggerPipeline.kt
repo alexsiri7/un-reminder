@@ -64,7 +64,7 @@ class TriggerPipeline @Inject constructor(
         }
         if (trigger.status != TriggerStatus.SCHEDULED) return
 
-        val locationIds = geofenceManager.currentLocationIds
+        val locationIds = geofenceManager.currentLocationIds.value
 
         try {
             val eligibleHabits = habitRepository.getEligibleHabits(locationIds)

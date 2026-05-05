@@ -23,6 +23,8 @@ import io.mockk.verify
 import io.sentry.Sentry
 import io.sentry.ScopeCallback
 import io.sentry.protocol.SentryId
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -79,7 +81,7 @@ class TriggerPipelineTest {
             levelDescriptionRepository = levelDescriptionRepository,
         )
 
-        every { geofenceManager.currentLocationIds } returns setOf(1L)
+        every { geofenceManager.currentLocationIds } returns MutableStateFlow(setOf(1L)).asStateFlow()
         coEvery { locationRepository.getByIds(any()) } returns emptyList()
         coEvery { triggerRepository.getLastFiredForHabit(any()) } returns null
     }
