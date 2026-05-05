@@ -102,11 +102,7 @@ class SettingsViewModelTest {
 
     @Test
     fun `testTriggerNow sets testTriggeredEmpty and skips pipeline when no eligible habits`() = runTest {
-<<<<<<< HEAD
         currentLocationIdsFlow.value = emptySet()
-=======
-        every { geofenceManager.currentLocationIds } returns MutableStateFlow<Set<Long>>(emptySet()).asStateFlow()
->>>>>>> ff24e5a (Fix: persist geofence location state and reactively update habit availability badge (#245))
         coEvery { habitRepository.getEligibleHabits(any()) } returns emptyList()
 
         viewModel.testTriggerNow()
@@ -120,11 +116,7 @@ class SettingsViewModelTest {
 
     @Test
     fun `testTriggerNow fires pipeline when at least one eligible habit`() = runTest {
-<<<<<<< HEAD
         currentLocationIdsFlow.value = setOf(7L)
-=======
-        every { geofenceManager.currentLocationIds } returns MutableStateFlow<Set<Long>>(setOf(7L)).asStateFlow()
->>>>>>> ff24e5a (Fix: persist geofence location state and reactively update habit availability badge (#245))
         coEvery { habitRepository.getEligibleHabits(setOf(7L)) } returns listOf(
             HabitEntity(id = 1L, name = "habit")
         )
@@ -151,11 +143,7 @@ class SettingsViewModelTest {
 
     @Test
     fun `clearTestTriggeredEmpty resets testTriggeredEmpty to false`() = runTest {
-<<<<<<< HEAD
         currentLocationIdsFlow.value = emptySet()
-=======
-        every { geofenceManager.currentLocationIds } returns MutableStateFlow<Set<Long>>(emptySet()).asStateFlow()
->>>>>>> ff24e5a (Fix: persist geofence location state and reactively update habit availability badge (#245))
         coEvery { habitRepository.getEligibleHabits(any()) } returns emptyList()
         viewModel.testTriggerNow()
         advanceUntilIdle()

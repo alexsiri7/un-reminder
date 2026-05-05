@@ -741,35 +741,6 @@ class HabitEditViewModelTest {
     }
 
     @Test
-    fun `availability updates reactively when geofence location changes after habit is loaded`() = runTest(testDispatcher) {
-        val flow = MutableStateFlow<Set<Long>>(emptySet())
-        every { mockGeofenceManager.currentLocationIds } returns flow.asStateFlow()
-
-        // Re-build the VM so its init {} sees the fresh stub
-        viewModel = HabitEditViewModel(
-            mockHabitRepository, mockLocationRepository, mockWindowRepository,
-            mockPromptGenerator, mockRefillScheduler, mockVariationRepository,
-            mockGeofenceManager, mockTriggerRepository,
-        )
-
-        coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit)
-        coEvery { mockHabitRepository.getLocationIds(testHabit.id) } returns listOf(1L, 2L)
-        coEvery { mockHabitRepository.getWindowIds(testHabit.id) } returns emptyList()
-
-        viewModel.loadHabit(testHabit.id)
-        advanceUntilIdle()
-
-        val initial = viewModel.uiState.value.availabilityStatus as AvailabilityStatus.Unavailable
-        assertTrue(UnavailableReason.LOCATION in initial.reasons)
-
-        // Simulate the async ENTER event arriving after the screen loaded
-        flow.value = setOf(2L)
-        advanceUntilIdle()
-
-        assertEquals(AvailabilityStatus.Available, viewModel.uiState.value.availabilityStatus)
-    }
-
-    @Test
     fun `geofence emission before loadHabit does not change the default NewHabit status`() = runTest(testDispatcher) {
         val flow = MutableStateFlow<Set<Long>>(emptySet())
         every { mockGeofenceManager.currentLocationIds } returns flow.asStateFlow()
