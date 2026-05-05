@@ -11,6 +11,8 @@ import com.google.common.util.concurrent.Futures
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import io.mockk.verify
 import io.sentry.Sentry
 import io.sentry.ScopeCallback
