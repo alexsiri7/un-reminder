@@ -111,13 +111,6 @@ class HabitEditViewModel @Inject constructor(
         .flatMapLatest { variationRepository.countTotalFlow(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
-    companion object {
-        private const val TAG = "HabitEditViewModel"
-        private const val RECENTLY_USED_LIMIT = 10
-    }
-
-    private var existingHabit: HabitEntity? = null
-
     // Holds the most-recently-loaded habit data for reactive availability recomputation.
     private data class LoadedHabitData(
         val habit: HabitEntity,
@@ -142,6 +135,13 @@ class HabitEditViewModel @Inject constructor(
             }
         }
     }
+
+    companion object {
+        private const val TAG = "HabitEditViewModel"
+        private const val RECENTLY_USED_LIMIT = 10
+    }
+
+    private var existingHabit: HabitEntity? = null
 
     fun loadHabit(id: Long) {
         viewModelScope.launch {
@@ -176,7 +176,8 @@ class HabitEditViewModel @Inject constructor(
                     active = habit.active,
                     availabilityStatus = availability
                 )
-                // Publish loaded data so the reactive collector can recompute on location changes.
+                // Publish to the reactive collector AFTER state is settled so a mid-load
+                // geofence emission cannot be clobbered by this assignment.
                 _loadedHabit.value = LoadedHabitData(habit, locationIds, windowIds)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
@@ -289,7 +290,7 @@ class HabitEditViewModel @Inject constructor(
             try {
                 block()
             } catch (e: WorkerAuthException) {
-                _uiState.value = _uiState.value.copy(errorMessage = "Wrong worker secret \u2014 check Settings.")
+                _uiState.value = _uiState.value.copy(errorMessage = "Wrong worker secret — check Settings.")
             } catch (e: SpendCapExceededException) {
                 // showSpendCapLink snackbar carries the message+action; errorMessage intentionally not set
                 _uiState.value = _uiState.value.copy(showSpendCapLink = true)

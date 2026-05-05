@@ -82,6 +82,9 @@ class GeofenceManager @Inject constructor(
 
     fun removeGeofence(id: Long) {
         geofencingClient.removeGeofences(listOf(id.toString()))
+        // Keep persisted/in-memory set in sync; Android may not deliver an EXIT for an
+        // unregistered fence, leaving stragglers that drift monotonically over time.
+        removeLocationId(id)
     }
 
     suspend fun registerAllFromDb() {
