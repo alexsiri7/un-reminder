@@ -73,6 +73,7 @@ class NotificationHelper @Inject constructor(
             .addAction(0, "Did it", completedIntent)
             .addAction(0, "Dismiss", dismissIntent)
 
+        // Only open https:// URLs — blocks intent://, file://, and other dangerous schemes.
         if (actionUrl != null && actionUrl.startsWith("https://")) {
             val watchIntent = PendingIntent.getActivity(
                 context,

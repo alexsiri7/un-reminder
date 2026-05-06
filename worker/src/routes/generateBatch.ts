@@ -72,6 +72,7 @@ export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promi
   const prompt = buildPrompt(...args)
   const strictPrompt = buildPrompt(...args, true)
 
+  // 100 tokens/variant: ~80 for text + ~20 for object wrapper / optional actionUrl.
   const maxTokens = Math.min(n * 100, 4096)
 
   const result = await callRequestyWithSchemaRetry(

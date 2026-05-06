@@ -74,7 +74,7 @@ class RequestyProxyClient @Inject constructor(
                 val obj = arr.getJSONObject(i)
                 NotificationVariant(
                     text = obj.getString("text"),
-                    actionUrl = obj.optString("actionUrl").takeIf { it.isNotEmpty() }
+                    actionUrl = obj.opt("actionUrl") as? String
                 )
             }
         }

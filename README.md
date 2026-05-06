@@ -212,6 +212,7 @@ updated by geofence `ENTER`/`EXIT` callbacks. Empty set means no known location.
 6. Record the trigger row with the generated prompt and the outcome when the user responds.
    - **Did it (COMPLETED):** the habit is excluded from the rest of today's triggers (step 2 above). When `auto_adjust_level` is true, consecutive completions promote `dedication_level` (up to max 5).
    - **Dismiss (DISMISSED):** a per-habit cooldown (default 3 h, configurable via `cooldownMinutes` in the Habit editor — presets 1h · 2h · 3h · 6h · 12h · None, where None=`0` disables the cooldown) applies before this habit is eligible again. When `auto_adjust_level` is true: 3 consecutive `DISMISSED` triggers demote `dedication_level` by 1; at level 0, 3 consecutive dismissals auto-pause the habit (`active = false`). The user can re-activate via the habit editor.
+   - **Watch (no status change):** opens `actionUrl` in the browser. The trigger remains in `FIRED` state; the user must still tap **Did it** or **Dismiss** to record an outcome.
 
 ### Variation pool (cloud-generated)
 
