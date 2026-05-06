@@ -127,6 +127,7 @@ fun WindowListScreen(
                 ) {
                     items(windows, key = { it.id }) { window ->
                         WindowRow(
+                            name = window.name,
                             timeText = "${window.startTime} \u2013 ${window.endTime}",
                             frequency = window.frequencyPerDay,
                             daysBitmask = window.daysOfWeekBitmask,
@@ -173,6 +174,7 @@ private fun WindowListHeader(onNavigateToFeedback: () -> Unit) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun WindowRow(
+    name: String,
     timeText: String,
     frequency: Int,
     daysBitmask: Int,
@@ -201,6 +203,14 @@ private fun WindowRow(
         }
         Spacer(Modifier.size(Dimens.md + 2.dp))
         Column(modifier = Modifier.weight(1f)) {
+            if (name.isNotBlank()) {
+                Text(
+                    text = name,
+                    style = MonoLabel,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = alpha),
+                )
+                Spacer(Modifier.height(Dimens.xs))
+            }
             Text(
                 text = timeText,
                 style = DisplaySmall.copy(

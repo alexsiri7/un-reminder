@@ -952,4 +952,5 @@ private fun AvailabilityStatusRow(
 }
 
 private fun WindowEntity.label(): String =
-    "${startTime.format(DateTimeFormatter.ofPattern("HH:mm"))}\u2013${endTime.format(DateTimeFormatter.ofPattern("HH:mm"))}"
+    if (name.isNotBlank()) name
+    else "${startTime.format(DateTimeFormatter.ofPattern("HH:mm"))}\u2013${endTime.format(DateTimeFormatter.ofPattern("HH:mm"))}"

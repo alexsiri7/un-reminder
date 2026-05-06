@@ -9,6 +9,7 @@ import java.time.LocalTime
 data class WindowEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
+    val name: String = "",
     @ColumnInfo(name = "start_time")
     val startTime: LocalTime,
     @ColumnInfo(name = "end_time")
