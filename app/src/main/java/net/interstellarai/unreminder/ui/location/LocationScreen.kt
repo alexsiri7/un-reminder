@@ -4,8 +4,10 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -29,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import net.interstellarai.unreminder.ui.theme.Dimens
 import net.interstellarai.unreminder.ui.theme.MonoLabelTiny
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -92,17 +95,16 @@ fun LocationScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            if (isCurrent) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(loc.name, style = MaterialTheme.typography.titleMedium)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(loc.name, style = MaterialTheme.typography.titleMedium)
+                                if (isCurrent) {
+                                    Spacer(Modifier.width(Dimens.sm))
                                     Text(
-                                        "  · current",
+                                        "· current",
                                         style = MonoLabelTiny,
-                                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f),
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.45f),
                                     )
                                 }
-                            } else {
-                                Text(loc.name, style = MaterialTheme.typography.titleMedium)
                             }
                             Text(
                                 "%.4f, %.4f — radius ${loc.radiusM.toInt()} m".format(loc.lat, loc.lng),
