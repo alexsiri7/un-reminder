@@ -77,7 +77,7 @@ interface HabitDao {
             WHERE habit_id = h.id
             AND fired_at IS NOT NULL
             AND fired_at >= :startOfDayCutoff
-            AND (status = 'COMPLETED' OR status = 'DISMISSED' OR status = 'FIRED')
+            AND (status = 'COMPLETED' OR status = 'COMPLETED_FULL' OR status = 'COMPLETED_LOW_FLOOR')
         ) < h.daily_limit
     """)
     suspend fun getEligibleHabits(

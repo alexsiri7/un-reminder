@@ -111,7 +111,30 @@ class HabitDaoEligibleTest {
     }
 
     @Test
-    fun `dailyLimit 2 with two FIRED triggers today is excluded`() = runTest {
+    fun `dailyLimit 1 with one DISMISSED trigger and cooldown 0 is eligible`() = runTest {
+        // This is the primary regression test for the bug: a single dismissal must not
+        // exhaust a dailyLimit=1 habit for the rest of the day.
+        val id = insertHabit("hDismissed1", dailyLimit = 1, cooldownMinutes = 0)
+        insertTrigger(id, TriggerStatus.DISMISSED, Instant.ofEpochMilli(midnightMillis))
+
+        val eligible = queryEligible()
+
+        assertTrue(eligible.any { it.id == id })
+    }
+
+    @Test
+    fun `dailyLimit 1 with one FIRED trigger and cooldown 0 is eligible`() = runTest {
+        // FIRED (notification timed out) must not count toward daily limit, same as DISMISSED.
+        val id = insertHabit("hFired1", dailyLimit = 1, cooldownMinutes = 0)
+        insertTrigger(id, TriggerStatus.FIRED, Instant.ofEpochMilli(midnightMillis))
+
+        val eligible = queryEligible()
+
+        assertTrue(eligible.any { it.id == id })
+    }
+
+    @Test
+    fun `two FIRED triggers within cooldown window are excluded`() = runTest {
         val id = insertHabit("h4", dailyLimit = 2)
         insertTrigger(id, TriggerStatus.FIRED, Instant.ofEpochMilli(midnightMillis))
         insertTrigger(id, TriggerStatus.FIRED, Instant.ofEpochMilli(midnightMillis + 1))
