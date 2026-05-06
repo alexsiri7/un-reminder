@@ -86,7 +86,7 @@ Generates notification text variants. Requires `X-UR-Secret` header.
 {
   "variants": [
     { "text": "Time to stretch! 🧘" },
-    { "text": "Sing the C major scale 3 times", "actionUrl": "https://www.youtube.com/results?search_query=C+major+vocal+scale" },
+    { "text": "Hold a downward dog for 60 seconds", "actionUrl": "https://www.youtube.com/results?search_query=downward+dog+yoga+form" },
     { "text": "Let's move!" }
   ]
 }

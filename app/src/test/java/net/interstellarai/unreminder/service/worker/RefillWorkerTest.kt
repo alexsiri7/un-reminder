@@ -22,6 +22,7 @@ import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.PersonalContextRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
+import net.interstellarai.unreminder.domain.model.NotificationVariant
 import org.json.JSONException
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -72,7 +73,10 @@ class RefillWorkerTest {
     fun `doWork inserts variants and returns success on happy path`() = runTest {
         val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
-        val variants = (1..20).map { "variant $it" }
+        val variants = listOf(
+            NotificationVariant(text = "variant 1", actionUrl = null),
+            NotificationVariant(text = "variant 2", actionUrl = "https://youtube.com/results?search_query=test"),
+        )
         coEvery {
             mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any())
         } returns variants
@@ -82,7 +86,11 @@ class RefillWorkerTest {
 
         assertEquals(Result.success(), result)
         coVerify(exactly = 1) {
-            mockVariationRepository.insertAll(match<List<VariationEntity>> { it.size == 20 })
+            mockVariationRepository.insertAll(match<List<VariationEntity>> { entities ->
+                entities.size == 2
+                    && entities[0].text == "variant 1" && entities[0].actionUrl == null
+                    && entities[1].text == "variant 2" && entities[1].actionUrl == "https://youtube.com/results?search_query=test"
+            })
         }
     }
 
@@ -90,7 +98,10 @@ class RefillWorkerTest {
     fun `doWork prunes consumed variations before inserting new ones`() = runTest {
         val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
-        val variants = (1..20).map { "variant $it" }
+        val variants = listOf(
+            NotificationVariant(text = "variant 1", actionUrl = null),
+            NotificationVariant(text = "variant 2", actionUrl = null),
+        )
         coEvery {
             mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any())
         } returns variants

@@ -51,6 +51,13 @@ describe('validateVariants', () => {
     expect(validateVariants([{ text: 'Do it', actionUrl: null }])).toBeNull()
   })
 
+  it('returns null if actionUrl does not start with https://', () => {
+    expect(validateVariants([{ text: 'Do it', actionUrl: 'http://youtube.com/results' }])).toBeNull()
+    expect(validateVariants([{ text: 'Do it', actionUrl: 'youtube.com/results' }])).toBeNull()
+    expect(validateVariants([{ text: 'Do it', actionUrl: 'intent://evil' }])).toBeNull()
+    expect(validateVariants([{ text: 'Do it', actionUrl: 'file:///etc/passwd' }])).toBeNull()
+  })
+
   it('returns null for empty array', () => {
     expect(validateVariants([])).toBeNull()
   })

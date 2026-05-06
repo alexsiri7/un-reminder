@@ -82,4 +82,23 @@ class Migration9To10Test {
 
         db.close()
     }
+
+    @Test
+    fun `MIGRATION_9_10 allows inserting non-null action_url after migration`() {
+        val db = createV9Database()
+        MIGRATION_9_10.migrate(db)
+
+        val url = "https://www.youtube.com/results?search_query=C+major+scale"
+        db.execSQL(
+            "INSERT INTO variations (habit_id, text, prompt_fingerprint, generated_at, action_url) " +
+            "VALUES (1, 'Sing the scale', 'fp', 0, '$url')"
+        )
+
+        val cursor = db.query("SELECT action_url FROM variations WHERE text = 'Sing the scale'")
+        cursor.moveToFirst()
+        assert(cursor.getString(0) == url)
+        cursor.close()
+
+        db.close()
+    }
 }

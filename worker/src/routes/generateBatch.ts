@@ -2,6 +2,7 @@ import type { Context } from 'hono'
 import type { Env, GenerateBatchRequest, GenerateBatchResponse, NotificationVariant } from '../types'
 import { addSpend } from '../lib/spend'
 import { callRequestyWithSchemaRetry, COST_PER_OUTPUT_TOKEN, COST_PER_INPUT_TOKEN } from '../lib/requesty'
+import * as Sentry from '@sentry/cloudflare'
 
 function buildPrompt(habitTitle: string, habitTags: string[], locationName: string, timeOfDay: string, personalContext: string, n: number, strict = false): string {
   const outputInstruction = strict
@@ -45,7 +46,9 @@ export function validateVariants(parsed: unknown): NotificationVariant[] | null 
     if (typeof item !== 'object' || item === null) return null
     const { text, actionUrl } = item as Record<string, unknown>
     if (typeof text !== 'string' || text.trim() === '') return null
-    if (actionUrl !== undefined && typeof actionUrl !== 'string') return null
+    if (actionUrl !== undefined) {
+      if (typeof actionUrl !== 'string' || !actionUrl.startsWith('https://')) return null
+    }
     result.push({ text, actionUrl: typeof actionUrl === 'string' ? actionUrl : undefined })
   }
   return result
@@ -91,9 +94,13 @@ export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promi
   const spendDollars =
     result.outputTokens * COST_PER_OUTPUT_TOKEN + result.inputTokens * COST_PER_INPUT_TOKEN
   c.executionCtx.waitUntil(
-    addSpend(c.env.UR_SPEND, spendDollars).catch((err) =>
-      console.error('[generateBatch] addSpend failed:', err, { spendDollars }),
-    ),
+    addSpend(c.env.UR_SPEND, spendDollars).catch((err) => {
+      console.error('[generateBatch] addSpend failed:', err, { spendDollars })
+      Sentry.captureException(err instanceof Error ? err : new Error(String(err)), {
+        tags: { component: 'generate-batch', failure: 'add-spend' },
+        contexts: { spend: { spendDollars } },
+      })
+    }),
   )
 
   const response: GenerateBatchResponse = { variants: result.data }

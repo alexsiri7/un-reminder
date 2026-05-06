@@ -67,7 +67,9 @@ class RequestyProxyClient @Inject constructor(
             put("n", n)
         }
         return withContext(Dispatchers.IO) {
-            val arr = post("v1/generate/batch", payload, workerUrl, workerSecret).getJSONArray("variants")
+            val arr = post("v1/generate/batch", payload, workerUrl, workerSecret)
+                .optJSONArray("variants")
+                ?: throw WorkerError(200, "Missing 'variants' array in response")
             (0 until arr.length()).map { i ->
                 val obj = arr.getJSONObject(i)
                 NotificationVariant(

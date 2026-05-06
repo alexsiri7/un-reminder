@@ -73,7 +73,7 @@ class NotificationHelper @Inject constructor(
             .addAction(0, "Did it", completedIntent)
             .addAction(0, "Dismiss", dismissIntent)
 
-        if (actionUrl != null) {
+        if (actionUrl != null && actionUrl.startsWith("https://")) {
             val watchIntent = PendingIntent.getActivity(
                 context,
                 (triggerId * 3 + 2).toRequestCode(),
@@ -104,7 +104,7 @@ class NotificationHelper @Inject constructor(
         }
         return PendingIntent.getBroadcast(
             context,
-            (triggerId * 3 + requestCodeOffset).toRequestCode(), // * 3 = slots per notification: 0 = COMPLETED, 1 = DISMISSED, 2 = WATCH
+            (triggerId * 3 + requestCodeOffset).toRequestCode(), // * 3 = slots per trigger: 0=COMPLETED, 1=DISMISSED; slot 2=WATCH uses getActivity (see postTriggerNotification)
             intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )

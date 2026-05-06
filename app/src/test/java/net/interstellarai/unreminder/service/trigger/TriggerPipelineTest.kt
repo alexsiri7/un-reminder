@@ -185,6 +185,31 @@ class TriggerPipelineTest {
     }
 
     @Test
+    fun `pool has variant with actionUrl - threads actionUrl to notification`() = runTest {
+        val url = "https://www.youtube.com/results?search_query=C+major+vocal+scale"
+        val variation = VariationEntity(
+            id = 7L, habitId = 1L, text = "Sing the C major scale",
+            promptFingerprint = "fp", generatedAt = Instant.now(), consumedAt = null,
+            actionUrl = url
+        )
+        coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
+        coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(testHabit)
+        coEvery { variationRepository.pickRandomUnused(1L) } returns variation
+        coEvery { variationRepository.needsRefill(1L) } returns false
+
+        pipeline.execute(42L)
+
+        coVerify {
+            notificationHelper.postTriggerNotification(
+                triggerId = 42L,
+                promptText = "Sing the C major scale",
+                habitName = "meditation",
+                actionUrl = url
+            )
+        }
+    }
+
+    @Test
     fun `pool has variants and needsRefill true - enqueues refill`() = runTest {
         val variation = VariationEntity(
             id = 7L, habitId = 1L, text = "Cloud notification body",
