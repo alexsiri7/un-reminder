@@ -112,7 +112,6 @@
 <ul>
   <li><code>POST_NOTIFICATIONS</code> — to display habit prompts.</li>
   <li><code>ACCESS_FINE_LOCATION</code>, <code>ACCESS_BACKGROUND_LOCATION</code> — to detect arrival at locations you configure.</li>
-  <li><code>SCHEDULE_EXACT_ALARM</code> — to fire stochastic triggers at their scheduled times.</li>
   <li><code>INTERNET</code> — five purposes: (1) to download map tiles from OpenStreetMap when you use the location picker (no personal data sent); (2) when you explicitly submit in-app feedback, to upload your annotated screenshot and description to the app's GitHub repository as a GitHub issue (always user-initiated; nothing is sent automatically); (3) to send crash reports to Sentry (no personal information, habit content, or location data included); (4) to download the on-device LLM model file (Gemma 3 1B, ~700 MB) on first launch from the app's CDN — this occurs automatically and contains no personal data; and (5) when optional cloud text generation is enabled, to send habit metadata to the Cloudflare Worker backend (see "Optional cloud text generation" above).</li>
 </ul>
 

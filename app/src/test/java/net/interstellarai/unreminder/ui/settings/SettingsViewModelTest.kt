@@ -1,6 +1,9 @@
 package net.interstellarai.unreminder.ui.settings
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
@@ -11,6 +14,8 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -149,5 +154,47 @@ class SettingsViewModelTest {
 
         viewModel.clearTestTriggeredEmpty()
         assertFalse(viewModel.uiState.value.testTriggeredEmpty)
+    }
+
+    @Test
+    fun `refreshPermissions sets each permission flag from ContextCompat result`() {
+        mockkStatic(ContextCompat::class)
+        try {
+            every {
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+            } returns PackageManager.PERMISSION_GRANTED
+            every {
+                ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
+            } returns PackageManager.PERMISSION_DENIED
+            every {
+                ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            } returns PackageManager.PERMISSION_DENIED
+
+            viewModel.refreshPermissions()
+
+            assertTrue(viewModel.uiState.value.hasNotificationPermission)
+            assertFalse(viewModel.uiState.value.hasFineLocationPermission)
+            assertFalse(viewModel.uiState.value.hasBackgroundLocationPermission)
+        } finally {
+            unmockkStatic(ContextCompat::class)
+        }
+    }
+
+    @Test
+    fun `refreshPermissions sets all flags granted when all permissions granted`() {
+        mockkStatic(ContextCompat::class)
+        try {
+            every {
+                ContextCompat.checkSelfPermission(context, any())
+            } returns PackageManager.PERMISSION_GRANTED
+
+            viewModel.refreshPermissions()
+
+            assertTrue(viewModel.uiState.value.hasNotificationPermission)
+            assertTrue(viewModel.uiState.value.hasFineLocationPermission)
+            assertTrue(viewModel.uiState.value.hasBackgroundLocationPermission)
+        } finally {
+            unmockkStatic(ContextCompat::class)
+        }
     }
 }
