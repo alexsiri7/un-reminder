@@ -85,7 +85,15 @@ fun NavGraph(
         feedbackScreenshot = null  // clear stale state before capture
         try {
             val bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
-            view.draw(Canvas(bitmap))
+            val canvas = Canvas(bitmap)
+            // Pre-fill with theme background so transparent regions (system bar
+            // insets under edge-to-edge rendering) don't leak through as black /
+            // checkerboard in the captured screenshot.
+            val isNight = (activity.resources.configuration.uiMode and
+                android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
+                android.content.res.Configuration.UI_MODE_NIGHT_YES
+            canvas.drawColor(if (isNight) 0xFF171C14.toInt() else 0xFFE8EBD9.toInt())
+            view.draw(canvas)
             feedbackScreenshot = bitmap
         } catch (_: Exception) {
             // capture failed, navigate with null screenshot

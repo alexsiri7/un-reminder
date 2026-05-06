@@ -122,131 +122,148 @@ fun FeedbackScreen(
             modifier = Modifier
                 .padding(padding)
                 .imePadding()
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // Image + annotation toolbar live outside verticalScroll so the
+            // annotation Canvas's drag gestures cannot starve a parent scroll
+            // (#114).
             if (screenshotBitmap != null) {
-                val aspectRatio = screenshotBitmap.width.toFloat() / screenshotBitmap.height.toFloat()
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 300.dp)
-                        .aspectRatio(aspectRatio)
-                        .clipToBounds()
-                        .onSizeChanged { canvasSize = it }
+                Column(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Image(
-                        bitmap = screenshotBitmap.asImageBitmap(),
-                        contentDescription = "Screenshot",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Fit
-                    )
-                    Canvas(
+                    val aspectRatio = screenshotBitmap.width.toFloat() / screenshotBitmap.height.toFloat()
+                    Box(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .pointerInput(Unit) {
-                                detectDragGestures(
-                                    onDragStart = { offset ->
-                                        currentPath = Path().apply { moveTo(offset.x, offset.y) }
-                                    },
-                                    onDrag = { change, _ ->
-                                        change.consume()
-                                        currentPath?.lineTo(change.position.x, change.position.y)
-                                        // Create a new Path instance to trigger Compose recomposition —
-                                        // Path has no structural equality, so mutating in place is
-                                        // invisible to state tracking and the canvas would not redraw.
-                                        currentPath = currentPath?.let { Path().apply { addPath(it) } }
-                                    },
-                                    onDragEnd = {
-                                        currentPath?.let { strokes.add(StrokePath(it, currentColor)) }
-                                        currentPath = null
-                                    }
-                                )
-                            }
+                            .fillMaxWidth()
+                            .heightIn(max = 300.dp)
+                            .aspectRatio(aspectRatio)
+                            .clipToBounds()
+                            .onSizeChanged { canvasSize = it }
                     ) {
-                        for (stroke in strokes) {
-                            drawPath(stroke.path, stroke.color, style = Stroke(width = 6f))
-                        }
-                        currentPath?.let {
-                            drawPath(it, currentColor, style = Stroke(width = 6f))
-                        }
-                    }
-                }
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    listOf(AnnotationRed, AnnotationYellow, AnnotationGreen).forEach { color ->
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(color)
-                                .then(
-                                    if (currentColor == color)
-                                        Modifier
-                                            .border(3.dp, Color.Black, CircleShape)
-                                            .padding(2.dp)
-                                            .border(3.dp, Color.White, CircleShape)
-                                    else Modifier
-                                )
-                                .clickable { currentColor = color }
+                        Image(
+                            bitmap = screenshotBitmap.asImageBitmap(),
+                            contentDescription = "Screenshot",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Fit
                         )
+                        Canvas(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .pointerInput(Unit) {
+                                    detectDragGestures(
+                                        onDragStart = { offset ->
+                                            currentPath = Path().apply { moveTo(offset.x, offset.y) }
+                                        },
+                                        onDrag = { change, _ ->
+                                            change.consume()
+                                            currentPath?.lineTo(change.position.x, change.position.y)
+                                            // Create a new Path instance to trigger Compose recomposition —
+                                            // Path has no structural equality, so mutating in place is
+                                            // invisible to state tracking and the canvas would not redraw.
+                                            currentPath = currentPath?.let { Path().apply { addPath(it) } }
+                                        },
+                                        onDragEnd = {
+                                            currentPath?.let { strokes.add(StrokePath(it, currentColor)) }
+                                            currentPath = null
+                                        }
+                                    )
+                                }
+                        ) {
+                            for (stroke in strokes) {
+                                drawPath(stroke.path, stroke.color, style = Stroke(width = 6f))
+                            }
+                            currentPath?.let {
+                                drawPath(it, currentColor, style = Stroke(width = 6f))
+                            }
+                        }
                     }
 
-                    Spacer(Modifier.weight(1f))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        listOf(AnnotationRed, AnnotationYellow, AnnotationGreen).forEach { color ->
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(color)
+                                    .then(
+                                        if (currentColor == color)
+                                            Modifier
+                                                .border(3.dp, Color.Black, CircleShape)
+                                                .padding(2.dp)
+                                                .border(3.dp, Color.White, CircleShape)
+                                        else Modifier
+                                    )
+                                    .clickable { currentColor = color }
+                            )
+                        }
 
-                    TextButton(onClick = { strokes.clear() }) {
-                        Text("Clear All")
+                        Spacer(Modifier.weight(1f))
+
+                        TextButton(onClick = { strokes.clear() }) {
+                            Text("Clear All")
+                        }
                     }
                 }
             }
 
-            OutlinedTextField(
-                value = uiState.description,
-                onValueChange = { viewModel.updateDescription(it) },
-                label = { Text("What happened?") },
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 3
-            )
-
-            Button(
-                onClick = {
-                    val bmpSnapshot = screenshotBitmap
-                    val strokesSnapshot = strokes.toList()
-                    val canvasSizeSnapshot = canvasSize
-                    coroutineScope.launch(Dispatchers.Default) {
-                        val annotationBitmap = if (bmpSnapshot != null && canvasSizeSnapshot.width > 0) {
-                            val annBitmap = Bitmap.createBitmap(bmpSnapshot.width, bmpSnapshot.height, Bitmap.Config.ARGB_8888)
-                            val canvas = android.graphics.Canvas(annBitmap)
-                            val scaleX = bmpSnapshot.width.toFloat() / canvasSizeSnapshot.width
-                            val scaleY = bmpSnapshot.height.toFloat() / canvasSizeSnapshot.height
-                            canvas.scale(scaleX, scaleY)
-                            val paint = android.graphics.Paint().apply {
-                                style = android.graphics.Paint.Style.STROKE
-                                strokeWidth = 6f
-                                isAntiAlias = true
-                            }
-                            for (stroke in strokesSnapshot) {
-                                paint.color = stroke.color.toArgb()
-                                canvas.drawPath(stroke.path.asAndroidPath(), paint)
-                            }
-                            annBitmap
-                        } else {
-                            Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
-                        }
-                        viewModel.submit(annotationBitmap)
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !uiState.isSubmitting
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp)
+                    .padding(
+                        top = if (screenshotBitmap == null) 12.dp else 0.dp,
+                        bottom = 16.dp
+                    ),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                if (uiState.isSubmitting) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                } else {
-                    Text("Send")
+                OutlinedTextField(
+                    value = uiState.description,
+                    onValueChange = { viewModel.updateDescription(it) },
+                    label = { Text("What happened?") },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 3
+                )
+
+                Button(
+                    onClick = {
+                        val bmpSnapshot = screenshotBitmap
+                        val strokesSnapshot = strokes.toList()
+                        val canvasSizeSnapshot = canvasSize
+                        coroutineScope.launch(Dispatchers.Default) {
+                            val annotationBitmap = if (bmpSnapshot != null && canvasSizeSnapshot.width > 0) {
+                                val annBitmap = Bitmap.createBitmap(bmpSnapshot.width, bmpSnapshot.height, Bitmap.Config.ARGB_8888)
+                                val canvas = android.graphics.Canvas(annBitmap)
+                                val scaleX = bmpSnapshot.width.toFloat() / canvasSizeSnapshot.width
+                                val scaleY = bmpSnapshot.height.toFloat() / canvasSizeSnapshot.height
+                                canvas.scale(scaleX, scaleY)
+                                val paint = android.graphics.Paint().apply {
+                                    style = android.graphics.Paint.Style.STROKE
+                                    strokeWidth = 6f
+                                    isAntiAlias = true
+                                }
+                                for (stroke in strokesSnapshot) {
+                                    paint.color = stroke.color.toArgb()
+                                    canvas.drawPath(stroke.path.asAndroidPath(), paint)
+                                }
+                                annBitmap
+                            } else {
+                                Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+                            }
+                            viewModel.submit(annotationBitmap)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !uiState.isSubmitting
+                ) {
+                    if (uiState.isSubmitting) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Send")
+                    }
                 }
             }
         }
