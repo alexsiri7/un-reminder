@@ -76,9 +76,12 @@ Generates notification text variants. Requires `X-UR-Secret` header.
   "habitTags": ["fitness", "morning"],
   "locationName": "Home",
   "timeOfDay": "morning",
+  "personalContext": "use words of encouragement",
   "n": 3
 }
 ```
+
+> `personalContext` is optional. When provided, it is appended to the LLM prompt as a `Style:` line to influence notification tone.
 
 **Response:**
 

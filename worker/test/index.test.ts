@@ -93,8 +93,9 @@ describe('un-reminder-worker', () => {
       for (const key of keys.keys) {
         await e.UR_SPEND.delete(key.name)
       }
-    } catch {
+    } catch (err) {
       // Miniflare KV is in-memory; a workerd restart clears it automatically
+      console.warn('[test beforeEach] KV cleanup skipped:', err)
     }
   })
 

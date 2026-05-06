@@ -7,6 +7,7 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -117,6 +118,31 @@ class RequestyProxyClientTest {
         assertEquals("POST", recorded.method)
         assertEquals("/v1/generate/batch", recorded.path)
         assertEquals("secret", recorded.getHeader("X-UR-Secret"))
+    }
+
+    @Test
+    fun `generateBatch includes personalContext in request body`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"variants":["v1"]}""")
+                .addHeader("Content-Type", "application/json")
+        )
+
+        proxyClient.generateBatch(
+            habitTitle = "Meditate",
+            habitTags = emptyList(),
+            locationName = "",
+            timeOfDay = "",
+            personalContext = "use metrics",
+            n = 1,
+            workerUrl = baseUrl(),
+            workerSecret = "secret",
+        )
+
+        val recorded = server.takeRequest()
+        val body = recorded.body.readUtf8()
+        assertTrue(body.contains(""""personalContext":"use metrics""""))
     }
 
     @Test

@@ -17,8 +17,6 @@ import javax.inject.Singleton
 class PersonalContextRepository @Inject constructor(
     private val dataStore: DataStore<Preferences>
 ) {
-    private val personalContextKey = stringPreferencesKey("personal_context")
-
     /** Flow that emits the user's personal context string. Defaults to empty on clean install. */
     val personalContext: Flow<String> = dataStore.data
         .catch { e ->
@@ -38,5 +36,6 @@ class PersonalContextRepository @Inject constructor(
 
     companion object {
         private const val TAG = "PersonalContextRepository"
+        private val personalContextKey = stringPreferencesKey("personal_context")
     }
 }

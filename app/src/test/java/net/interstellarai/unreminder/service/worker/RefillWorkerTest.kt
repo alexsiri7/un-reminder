@@ -229,6 +229,28 @@ class RefillWorkerTest {
     }
 
     @Test
+    fun `doWork passes personalContext to generateBatch`() = runTest {
+        val habit = HabitEntity(id = 1L, name = "Meditate")
+        coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
+        every { mockPersonalContextRepository.personalContext } returns flowOf("use metrics")
+        coEvery {
+            mockProxyClient.generateBatch(
+                habitTitle = any(),
+                habitTags = any(),
+                locationName = any(),
+                timeOfDay = any(),
+                personalContext = "use metrics",
+                n = any(),
+                workerUrl = any(),
+                workerSecret = any(),
+            )
+        } returns listOf("Go meditate!")
+
+        val worker = createWorker()
+        assertEquals(Result.success(), worker.doWork())
+    }
+
+    @Test
     fun `doWork returns failure and reports to Sentry on unexpected exception`() = runTest {
         mockkStatic(Sentry::class)
         try {

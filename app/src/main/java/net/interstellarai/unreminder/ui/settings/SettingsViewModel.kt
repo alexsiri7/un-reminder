@@ -60,6 +60,7 @@ class SettingsViewModel @Inject constructor(
 
     fun setPersonalContext(value: String) {
         viewModelScope.launch {
+            // Backstop: UI also enforces 500, but guard here for programmatic callers
             personalContextRepository.setPersonalContext(value.take(500))
         }
     }

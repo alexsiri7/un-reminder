@@ -235,4 +235,28 @@ class SettingsViewModelTest {
         advanceUntilIdle()
         coVerify { personalContextRepository.setPersonalContext("x".repeat(500)) }
     }
+
+    @Test
+    fun `refreshPermissions preserves personalContext`() = runTest {
+        every { personalContextRepository.personalContext } returns flowOf("use metrics")
+        val vm = SettingsViewModel(
+            context = context,
+            triggerPipeline = triggerPipeline,
+            triggerRepository = triggerRepository,
+            habitRepository = habitRepository,
+            geofenceManager = geofenceManager,
+            personalContextRepository = personalContextRepository,
+        )
+        advanceUntilIdle()
+
+        mockkStatic(ContextCompat::class)
+        try {
+            every { ContextCompat.checkSelfPermission(context, any()) } returns PackageManager.PERMISSION_DENIED
+            vm.refreshPermissions()
+        } finally {
+            unmockkStatic(ContextCompat::class)
+        }
+
+        assertEquals("use metrics", vm.uiState.value.personalContext)
+    }
 }

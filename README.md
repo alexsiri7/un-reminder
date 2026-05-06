@@ -56,7 +56,7 @@ Runs as a Cloudflare Worker (Hono framework). Exposes these routes:
 | Route | Auth | Description |
 |---|---|---|
 | `GET /v1/health` | Public | Returns `{ status, spendUsedToday, spendUsedMonth, capDaily, capMonthly }` |
-| `POST /v1/generate/batch` | `X-UR-Secret` header | Accepts `{ habitTitle, habitTags, locationName, timeOfDay, n }`, returns `{ variants: string[] }` via Requesty |
+| `POST /v1/generate/batch` | `X-UR-Secret` header | Accepts `{ habitTitle, habitTags, locationName, timeOfDay, personalContext?, n }`, returns `{ variants: string[] }` via Requesty |
 | `POST /v1/habit-fields` | `X-UR-Secret` header | Accepts `{ title }`, returns `{ descriptionLadder: string[] }` (6 elements, one per dedication level) via Requesty |
 
 **Local dev:**
@@ -219,7 +219,7 @@ Notification texts are pre-generated in batches by the Cloudflare Worker (`/v1/g
 **Pool lifecycle:**
 - **Initial fill:** saving a new habit immediately enqueues `RefillWorker`, which calls `/v1/generate/batch` with `n = POOL_SIZE` (50) and stores the results. The pool starts at up to 50 unused variations.
 - **Refill:** when the unused count drops below `REFILL_THRESHOLD` (20 — a 40% buffer over `POOL_SIZE = 50`, sized to outlast multiple WorkManager backoff cycles when refills fail), `TriggerPipeline` enqueues another `RefillWorker` run after each notification fire. Consumed variations are pruned before each batch is inserted, so the pool stays near the 50-variation target.
-- **Prompt change:** if a habit's name or description ladder changes on save, the entire pool is cleared and a fresh 50-variation refill is enqueued.
+- **Prompt change:** if a habit's name or description ladder changes on save, the entire pool is cleared and a fresh 50-variation refill is enqueued. The prompt fingerprint also includes the global `personalContext` setting, so future refills after a context change will generate variations that reflect the new tone without requiring a manual pool clear.
 
 ### Fallback
 If the variation pool is empty at fire time, the notification uses the `HabitLevelDescriptionEntity`
@@ -265,7 +265,7 @@ from the pool, not from a fresh generation.
    Location is stored as lat/lng + radius; osmdroid caches tiles automatically (no offline pre-caching UI).
    Habits link to zero or more locations via the `habit_location` junction table; no selection means "Anywhere".
 6. **Recent triggers screen** — last 20 fired triggers with their generated prompts and outcomes. Read-only. A small status row under the heading shows the next scheduled trigger time (`next: 14:35`, `next: tomorrow 09:30`, or `not scheduled`), reading reactively from `WorkManager.getWorkInfosForUniqueWorkFlow(RandomIntervalWorker.WORK_NAME)`. Includes a "Send Feedback" button in the top bar.
-7. **Settings screen** — notification permission status, background location permission status, a manual "Test trigger now" button, a button to regenerate tomorrow's scheduled triggers, a link to Cloud AI settings, and a "Send Feedback" button.
+7. **Settings screen** — notification permission status, background location permission status, a manual "Test trigger now" button, a button to regenerate tomorrow's scheduled triggers, a **personal context** text field (global tone hint for AI-generated notifications; max 500 chars), a link to Cloud AI settings, and a "Send Feedback" button.
 7a. **Cloud AI settings screen** — worker URL and shared secret for cloud generation, and a "regenerate all variants" button that clears the variation pool and re-queues a refill job for every active habit.
 8. **Onboarding screen** — shown once on first launch. Walks the user through three collapsible steps: (1) granting Notifications and Location permissions, (2) creating a first habit with name/descriptions and weekday schedule, (3) creating a first time window. Includes a "Skip" action in the top bar. Completion (or skip) is persisted via DataStore (`onboarding_done` key) and never shown again. Bottom navigation bar is hidden while onboarding is active.
 9. **Feedback screen** — annotated screenshot tool. Captures the current screen, lets the user draw annotations (red/yellow/green strokes), type a description, and submit as a GitHub issue. Falls back to an offline queue (WorkManager) when connectivity is unavailable.
