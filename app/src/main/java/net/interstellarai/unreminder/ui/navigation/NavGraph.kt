@@ -1,5 +1,6 @@
 package net.interstellarai.unreminder.ui.navigation
 
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.net.Uri
@@ -92,9 +93,8 @@ fun NavGraph(
             // Pre-fill with theme background so transparent regions (system bar
             // insets under edge-to-edge rendering) don't leak through as black /
             // checkerboard in the captured screenshot.
-            val isNight = (activity.resources.configuration.uiMode and
-                android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
-                android.content.res.Configuration.UI_MODE_NIGHT_YES
+            val isNight = (activity.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+                Configuration.UI_MODE_NIGHT_YES
             canvas.drawColor(if (isNight) SageBgDark.toArgb() else SageBg.toArgb())
             view.draw(canvas)
             feedbackScreenshot = bitmap

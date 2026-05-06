@@ -92,9 +92,9 @@ fun FeedbackScreen(
     FeedbackContent(
         uiState = uiState,
         screenshotBitmap = screenshotBitmap,
-        onDescriptionChange = { viewModel.updateDescription(it) },
-        onSubmit = { viewModel.submit(it) },
-        onClearError = { viewModel.clearError() },
+        onDescriptionChange = viewModel::updateDescription,
+        onSubmit = viewModel::submit,
+        onClearError = viewModel::clearError,
         onNavigateBack = onNavigateBack,
     )
 }
