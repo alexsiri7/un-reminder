@@ -24,5 +24,9 @@ data class WindowEntity(
 ) {
     fun label(): String =
         if (name.isNotBlank()) name
-        else "${startTime.format(DateTimeFormatter.ofPattern("HH:mm"))}–${endTime.format(DateTimeFormatter.ofPattern("HH:mm"))}"
+        else "${startTime.format(TIME_FMT)}–${endTime.format(TIME_FMT)}"
+
+    companion object {
+        private val TIME_FMT = DateTimeFormatter.ofPattern("HH:mm")
+    }
 }
