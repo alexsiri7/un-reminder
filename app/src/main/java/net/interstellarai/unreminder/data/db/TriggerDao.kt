@@ -74,15 +74,16 @@ interface TriggerDao {
     suspend fun countCompletedSince(habitId: Long, sinceMillis: Long): Int
 
     /**
-     * Counts non-SCHEDULED triggers (COMPLETED, DISMISSED, FIRED) since a cutoff (used for the
-     * per-habit daily-limit check; mirrors the `< h.daily_limit` clause in HabitDao.getEligibleHabits).
+     * Counts COMPLETED triggers (including legacy variants) since a cutoff for the per-habit
+     * daily-limit check; mirrors the `< h.daily_limit` clause in HabitDao.getEligibleHabits.
+     * Only completed actions count toward the daily limit; dismissed or expired notifications do not.
      */
     @Query("""
         SELECT COUNT(*) FROM triggers
         WHERE habit_id = :habitId
           AND fired_at IS NOT NULL
           AND fired_at >= :sinceMillis
-          AND (status = 'COMPLETED' OR status = 'DISMISSED' OR status = 'FIRED')
+          AND (status = 'COMPLETED' OR status = 'COMPLETED_FULL' OR status = 'COMPLETED_LOW_FLOOR')
     """)
-    suspend fun countNonScheduledSince(habitId: Long, sinceMillis: Long): Int
+    suspend fun countDailyCompletionsSince(habitId: Long, sinceMillis: Long): Int
 }

@@ -111,8 +111,29 @@ class HabitDaoEligibleTest {
     }
 
     @Test
-    fun `dailyLimit 2 with two FIRED triggers today is excluded`() = runTest {
-        val id = insertHabit("h4", dailyLimit = 2)
+    fun `dailyLimit 1 with one DISMISSED trigger and cooldown 0 is eligible`() = runTest {
+        val id = insertHabit("hDismissed1", dailyLimit = 1, cooldownMinutes = 0)
+        insertTrigger(id, TriggerStatus.DISMISSED, Instant.ofEpochMilli(midnightMillis))
+
+        val eligible = queryEligible()
+
+        assertTrue(eligible.any { it.id == id })
+    }
+
+    @Test
+    fun `dailyLimit 1 with one FIRED trigger and cooldown 0 is eligible`() = runTest {
+        // FIRED (notification timed out) must not count toward daily limit, same as DISMISSED.
+        val id = insertHabit("hFired1", dailyLimit = 1, cooldownMinutes = 0)
+        insertTrigger(id, TriggerStatus.FIRED, Instant.ofEpochMilli(midnightMillis))
+
+        val eligible = queryEligible()
+
+        assertTrue(eligible.any { it.id == id })
+    }
+
+    @Test
+    fun `two FIRED triggers within cooldown window are excluded`() = runTest {
+        val id = insertHabit("h4", dailyLimit = 999)  // high cap; cooldown is the active guard
         insertTrigger(id, TriggerStatus.FIRED, Instant.ofEpochMilli(midnightMillis))
         insertTrigger(id, TriggerStatus.FIRED, Instant.ofEpochMilli(midnightMillis + 1))
 
@@ -215,5 +236,43 @@ class HabitDaoEligibleTest {
         val eligible = queryEligibleAt(now)
 
         assertTrue(eligible.any { it.id == id })
+    }
+
+    @Test
+    fun `dailyLimit 2 with two COMPLETED triggers today is excluded`() = runTest {
+        val id = insertHabit("hLimit2Completed", dailyLimit = 2, cooldownMinutes = 0)
+        insertTrigger(id, TriggerStatus.COMPLETED, Instant.ofEpochMilli(midnightMillis))
+        insertTrigger(id, TriggerStatus.COMPLETED, Instant.ofEpochMilli(midnightMillis + 1))
+
+        val eligible = queryEligible()
+
+        assertTrue(eligible.none { it.id == id })
+    }
+
+    @Test
+    fun `countDailyCompletionsSince mirrors getEligibleHabits daily-limit predicate`() = runTest {
+        val id = insertHabit("hParity", dailyLimit = 1, cooldownMinutes = 0)
+        insertTrigger(id, TriggerStatus.DISMISSED, Instant.ofEpochMilli(midnightMillis))
+        insertTrigger(id, TriggerStatus.FIRED, Instant.ofEpochMilli(midnightMillis + 1))
+        insertTrigger(id, TriggerStatus.COMPLETED, Instant.ofEpochMilli(midnightMillis + 2))
+
+        val count = triggerDao.countDailyCompletionsSince(id, midnightMillis)
+
+        // Only COMPLETED counts; DISMISSED and FIRED must not.
+        assertEquals(1, count)
+    }
+
+    @Test
+    fun `dailyLimit 1 with one COMPLETED_FULL legacy trigger today is excluded`() = runTest {
+        val id = insertHabit("hLegacy", dailyLimit = 1, cooldownMinutes = 0)
+        // Raw insert because COMPLETED_FULL is not in the TriggerStatus enum (legacy DB value).
+        db.openHelper.writableDatabase.execSQL(
+            "INSERT INTO triggers (habit_id, scheduled_at, fired_at, status) VALUES (?, ?, ?, ?)",
+            arrayOf<Any>(id, midnightMillis, midnightMillis, "COMPLETED_FULL")
+        )
+
+        val eligible = queryEligible()
+
+        assertTrue(eligible.none { it.id == id })
     }
 }

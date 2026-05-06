@@ -436,8 +436,8 @@ class HabitEditViewModel @Inject constructor(
         }
 
         // --- Daily limit --- (mirrors `COUNT(...) < h.daily_limit` in HabitDao.getEligibleHabits;
-        // SQL counts COMPLETED|DISMISSED|FIRED since start-of-day, same epoch as completedCutoff.)
-        val dailyTotal = triggerRepository.countNonScheduledSince(habit.id, completedCutoff)
+        // counts only COMPLETED actions since start-of-day; dismissed/fired do not count.)
+        val dailyTotal = triggerRepository.countDailyCompletionsSince(habit.id, completedCutoff)
         if (dailyTotal >= habit.dailyLimit) reasons += UnavailableReason.DAILY_LIMIT
 
         return if (reasons.isEmpty()) AvailabilityStatus.Available

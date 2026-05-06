@@ -93,7 +93,7 @@ class GeofenceManagerTest {
 
     companion object {
         // Mirror of GeofenceManager's private prefs schema; renaming there must rename here
-        // or older installs silently fail to rehydrate (the bug from issue #245).
+        // or older installs silently lose persisted state on rehydration.
         private const val PREFS_NAME = "geofence_prefs"
         private const val KEY_LOCATION_IDS = "current_location_ids"
     }

@@ -84,7 +84,7 @@ class HabitEditViewModelTest {
         every { mockPromptGenerator.aiStatus } returns MutableStateFlow<AiStatus>(AiStatus.Ready)
         every { mockGeofenceManager.currentLocationIds } returns currentLocationIdsFlow.asStateFlow()
         coEvery { mockTriggerRepository.countCompletedSince(any(), any()) } returns 0
-        coEvery { mockTriggerRepository.countNonScheduledSince(any(), any()) } returns 0
+        coEvery { mockTriggerRepository.countDailyCompletionsSince(any(), any()) } returns 0
         coEvery { mockTriggerRepository.getLastFiredOrDismissedForHabit(any()) } returns null
         viewModel = HabitEditViewModel(
             mockHabitRepository,
@@ -714,7 +714,7 @@ class HabitEditViewModelTest {
         coEvery { mockHabitRepository.getById(limit2.id) } returns flowOf(limit2)
         coEvery { mockHabitRepository.getLocationIds(limit2.id) } returns emptyList()
         coEvery { mockHabitRepository.getWindowIds(limit2.id) } returns emptyList()
-        coEvery { mockTriggerRepository.countNonScheduledSince(limit2.id, any()) } returns 2
+        coEvery { mockTriggerRepository.countDailyCompletionsSince(limit2.id, any()) } returns 2
 
         viewModel.loadHabit(limit2.id)
         advanceUntilIdle()
@@ -732,7 +732,7 @@ class HabitEditViewModelTest {
         coEvery { mockHabitRepository.getById(limit3.id) } returns flowOf(limit3)
         coEvery { mockHabitRepository.getLocationIds(limit3.id) } returns emptyList()
         coEvery { mockHabitRepository.getWindowIds(limit3.id) } returns emptyList()
-        coEvery { mockTriggerRepository.countNonScheduledSince(limit3.id, any()) } returns 1
+        coEvery { mockTriggerRepository.countDailyCompletionsSince(limit3.id, any()) } returns 1
 
         viewModel.loadHabit(limit3.id)
         advanceUntilIdle()
