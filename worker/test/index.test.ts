@@ -86,11 +86,15 @@ describe('un-reminder-worker', () => {
       })
     }) as typeof fetch
 
-    // Clean KV state between tests
-    const e = testEnv()
-    const keys = await e.UR_SPEND.list()
-    for (const key of keys.keys) {
-      await e.UR_SPEND.delete(key.name)
+    // Clean KV state between tests (best-effort: workerd WebSocket may have restarted, leaving KV already empty)
+    try {
+      const e = testEnv()
+      const keys = await e.UR_SPEND.list()
+      for (const key of keys.keys) {
+        await e.UR_SPEND.delete(key.name)
+      }
+    } catch {
+      // Miniflare KV is in-memory; a workerd restart clears it automatically
     }
   })
 
