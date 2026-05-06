@@ -9,9 +9,15 @@ import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+data class LocationRow(
+    val location: LocationEntity,
+    val isCurrent: Boolean
+)
 
 @HiltViewModel
 class LocationViewModel @Inject constructor(
@@ -23,8 +29,12 @@ class LocationViewModel @Inject constructor(
         private const val TAG = "LocationViewModel"
     }
 
-    val locations: StateFlow<List<LocationEntity>> = locationRepository.getAll()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val locations: StateFlow<List<LocationRow>> = combine(
+        locationRepository.getAll(),
+        geofenceManager.currentLocationIds
+    ) { locations, currentIds ->
+        locations.map { LocationRow(it, it.id in currentIds) }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun deleteLocation(location: LocationEntity) {
         viewModelScope.launch {
