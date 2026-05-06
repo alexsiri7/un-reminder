@@ -56,6 +56,6 @@ class TriggerRepository @Inject constructor(
     suspend fun countCompletedSince(habitId: Long, sinceMillis: Long): Int =
         triggerDao.countCompletedSince(habitId, sinceMillis)
 
-    suspend fun countNonScheduledSince(habitId: Long, sinceMillis: Long): Int =
-        triggerDao.countNonScheduledSince(habitId, sinceMillis)
+    suspend fun countDailyCompletionsSince(habitId: Long, sinceMillis: Long): Int =
+        triggerDao.countDailyCompletionsSince(habitId, sinceMillis)
 }

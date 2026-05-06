@@ -83,5 +83,5 @@ interface TriggerDao {
           AND fired_at >= :sinceMillis
           AND (status = 'COMPLETED' OR status = 'COMPLETED_FULL' OR status = 'COMPLETED_LOW_FLOOR')
     """)
-    suspend fun countNonScheduledSince(habitId: Long, sinceMillis: Long): Int
+    suspend fun countDailyCompletionsSince(habitId: Long, sinceMillis: Long): Int
 }
