@@ -7,6 +7,7 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -93,11 +94,11 @@ class RequestyProxyClientTest {
     // --- generateBatch ---
 
     @Test
-    fun `generateBatch returns list of strings on 200`() = runTest {
+    fun `generateBatch returns list of NotificationVariants on 200`() = runTest {
         server.enqueue(
             MockResponse()
                 .setResponseCode(200)
-                .setBody("""{"variants":["v1","v2","v3"]}""")
+                .setBody("""{"variants":[{"text":"v1"},{"text":"v2","actionUrl":"https://youtube.com/results?search_query=test"},{"text":"v3"}]}""")
                 .addHeader("Content-Type", "application/json")
         )
 
@@ -111,7 +112,13 @@ class RequestyProxyClientTest {
             workerUrl = baseUrl(),
             workerSecret = "secret",
         )
-        assertEquals(listOf("v1", "v2", "v3"), result)
+        assertEquals(3, result.size)
+        assertEquals("v1", result[0].text)
+        assertNull(result[0].actionUrl)
+        assertEquals("v2", result[1].text)
+        assertEquals("https://youtube.com/results?search_query=test", result[1].actionUrl)
+        assertEquals("v3", result[2].text)
+        assertNull(result[2].actionUrl)
 
         val recorded = server.takeRequest()
         assertEquals("POST", recorded.method)

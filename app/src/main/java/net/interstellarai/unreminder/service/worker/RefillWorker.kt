@@ -58,7 +58,7 @@ class RefillWorker @AssistedInject constructor(
             "${habit.name}|${habit.descriptionLadder.joinToString("|")}|$personalContext"
 
         return try {
-            val texts = requestyProxyClient.generateBatch(
+            val variants = requestyProxyClient.generateBatch(
                 habitTitle = habit.name,
                 habitTags = emptyList(),
                 locationName = "",
@@ -69,12 +69,13 @@ class RefillWorker @AssistedInject constructor(
                 workerSecret = secret,
             )
             val now = Instant.now()
-            val entities = texts.map { text ->
+            val entities = variants.map { variant ->
                 VariationEntity(
                     habitId = habitId,
-                    text = text,
+                    text = variant.text,
                     promptFingerprint = promptFingerprint,
                     generatedAt = now,
+                    actionUrl = variant.actionUrl,
                 )
             }
             variationRepository.deleteConsumedForHabit(habitId)

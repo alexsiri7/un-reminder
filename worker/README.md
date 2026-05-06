@@ -84,6 +84,12 @@ Generates notification text variants. Requires `X-UR-Secret` header.
 
 ```json
 {
-  "variants": ["Time to stretch! 🧘", "Your body called", "Let's move!"]
+  "variants": [
+    { "text": "Time to stretch! 🧘" },
+    { "text": "Sing the C major scale 3 times", "actionUrl": "https://www.youtube.com/results?search_query=C+major+vocal+scale" },
+    { "text": "Let's move!" }
+  ]
 }
 ```
+
+Each variant has a `text` field and an optional `actionUrl` field. When `actionUrl` is present, the Android client renders a "Watch" action button on the notification that opens the URL.

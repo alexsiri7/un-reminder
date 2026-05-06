@@ -92,7 +92,7 @@ class TriggerPipelineTest {
 
         pipeline.execute(99L)
 
-        coVerify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any()) }
+        coVerify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any(), any()) }
     }
 
     @Test
@@ -103,7 +103,7 @@ class TriggerPipelineTest {
         pipeline.execute(42L)
 
         coVerify(exactly = 0) { habitRepository.getEligibleHabits(any()) }
-        coVerify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any()) }
+        coVerify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any(), any()) }
     }
 
     @Test
@@ -114,7 +114,7 @@ class TriggerPipelineTest {
         pipeline.execute(42L)
 
         coVerify { triggerRepository.updateOutcome(42L, TriggerStatus.DISMISSED) }
-        coVerify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any()) }
+        coVerify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any(), any()) }
     }
 
     @Test
@@ -135,7 +135,8 @@ class TriggerPipelineTest {
             notificationHelper.postTriggerNotification(
                 triggerId = 42L,
                 promptText = "Cloud notification body",
-                habitName = "meditation"
+                habitName = "meditation",
+                actionUrl = null
             )
         }
         coVerify(exactly = 0) { refillScheduler.enqueueForHabit(any()) }
@@ -155,7 +156,8 @@ class TriggerPipelineTest {
             notificationHelper.postTriggerNotification(
                 triggerId = 42L,
                 promptText = "meditation",
-                habitName = "meditation"
+                habitName = "meditation",
+                actionUrl = null
             )
         }
         coVerify { refillScheduler.enqueueForHabit(1L) }
@@ -176,7 +178,8 @@ class TriggerPipelineTest {
             notificationHelper.postTriggerNotification(
                 triggerId = 42L,
                 promptText = "Take three deep breaths",
-                habitName = "meditation"
+                habitName = "meditation",
+                actionUrl = null
             )
         }
     }

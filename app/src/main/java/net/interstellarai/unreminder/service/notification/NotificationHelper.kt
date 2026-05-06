@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import androidx.core.app.NotificationCompat
 import net.interstellarai.unreminder.R
 import javax.inject.Inject
@@ -52,12 +53,17 @@ class NotificationHelper @Inject constructor(
         notificationManager.createNotificationChannel(systemChannel)
     }
 
-    fun postTriggerNotification(triggerId: Long, promptText: String, habitName: String) {
+    fun postTriggerNotification(
+        triggerId: Long,
+        promptText: String,
+        habitName: String,
+        actionUrl: String? = null,
+    ) {
         val emoji = emojiRotator.pick(triggerId)
         val completedIntent = createActionIntent(triggerId, ACTION_COMPLETED, 0)
         val dismissIntent = createActionIntent(triggerId, ACTION_DISMISSED, 1)
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle("$emoji $habitName")
             .setContentText(promptText)
@@ -66,9 +72,18 @@ class NotificationHelper @Inject constructor(
             .setAutoCancel(true)
             .addAction(0, "Did it", completedIntent)
             .addAction(0, "Dismiss", dismissIntent)
-            .build()
 
-        notificationManager.notify(triggerId.toRequestCode(), notification)
+        if (actionUrl != null) {
+            val watchIntent = PendingIntent.getActivity(
+                context,
+                (triggerId * 3 + 2).toRequestCode(),
+                Intent(Intent.ACTION_VIEW, Uri.parse(actionUrl)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+            builder.addAction(0, "Watch", watchIntent)
+        }
+
+        notificationManager.notify(triggerId.toRequestCode(), builder.build())
     }
 
     fun postHabitPausedNotification(habitId: Long, habitName: String) {
@@ -89,7 +104,7 @@ class NotificationHelper @Inject constructor(
         }
         return PendingIntent.getBroadcast(
             context,
-            (triggerId * 2 + requestCodeOffset).toRequestCode(), // * 2 = slots per notification: offset 0 = COMPLETED, offset 1 = DISMISSED
+            (triggerId * 3 + requestCodeOffset).toRequestCode(), // * 3 = slots per notification: 0 = COMPLETED, 1 = DISMISSED, 2 = WATCH
             intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )

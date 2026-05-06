@@ -262,7 +262,11 @@ describe('un-reminder-worker', () => {
   // ---- Success test ----
 
   it('returns 200 with N variants on success', async () => {
-    const variants = ['Stretch time!', 'Your body needs a break', "Let's move!"]
+    const variants = [
+      { text: 'Stretch time!' },
+      { text: 'Your body needs a break', actionUrl: 'https://www.youtube.com/results?search_query=stretching' },
+      { text: "Let's move!" },
+    ]
     mockRequestySuccess(variants)
 
     const req = makeRequest('/v1/generate/batch', {
@@ -277,8 +281,14 @@ describe('un-reminder-worker', () => {
     const res = await app.fetch(req, testEnv(), ctx)
     await waitOnExecutionContext(ctx)
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { variants: string[] }
-    expect(body.variants).toEqual(variants)
+    const body = (await res.json()) as { variants: Array<{ text: string; actionUrl?: string }> }
+    expect(body.variants).toHaveLength(3)
+    expect(body.variants[0]).toEqual({ text: 'Stretch time!' })
+    expect(body.variants[1]).toEqual({
+      text: 'Your body needs a break',
+      actionUrl: 'https://www.youtube.com/results?search_query=stretching',
+    })
+    expect(body.variants[2]).toEqual({ text: "Let's move!" })
   })
 
   // ---- personalContext tests ----
@@ -356,8 +366,8 @@ describe('un-reminder-worker', () => {
   // ---- Empty-string rejection test ----
 
   it('returns 502 when LLM returns empty strings in variants array', async () => {
-    mockRequestySuccess(['', '', ''])
-    mockRequestySuccess(['', '', ''])
+    mockRequestySuccess([{ text: '' }, { text: '' }, { text: '' }])
+    mockRequestySuccess([{ text: '' }, { text: '' }, { text: '' }])
 
     const req = makeRequest('/v1/generate/batch', {
       method: 'POST',
@@ -376,7 +386,7 @@ describe('un-reminder-worker', () => {
   // ---- Retry-then-succeed test ----
 
   it('returns 200 when first call is malformed but retry succeeds', async () => {
-    const variants = ['Stretch!', 'Move it!', 'Time to go!']
+    const variants = [{ text: 'Stretch!' }, { text: 'Move it!' }, { text: 'Time to go!' }]
     mockRequestyMalformed()
     mockRequestySuccess(variants)
 
@@ -392,8 +402,12 @@ describe('un-reminder-worker', () => {
     const res = await app.fetch(req, testEnv(), ctx)
     await waitOnExecutionContext(ctx)
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { variants: string[] }
-    expect(body.variants).toEqual(variants)
+    const body = (await res.json()) as { variants: Array<{ text: string; actionUrl?: string }> }
+    expect(body.variants).toEqual([
+      { text: 'Stretch!' },
+      { text: 'Move it!' },
+      { text: 'Time to go!' },
+    ])
   })
 
   // ---- Upstream error test ----
@@ -419,7 +433,7 @@ describe('un-reminder-worker', () => {
   // ---- Spend counter increment test ----
 
   it('increments spend counter after successful call', async () => {
-    const variants = ['Go stretch!']
+    const variants = [{ text: 'Go stretch!' }]
     mockRequestySuccess(variants)
 
     const e = testEnv()
