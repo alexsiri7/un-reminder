@@ -82,7 +82,6 @@ class GeofenceManagerTest {
 
     @Test
     fun `loadPersisted ignores malformed entries instead of crashing`() {
-        // Pre-seed prefs with a mix of valid and garbage data
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
             .putStringSet(KEY_LOCATION_IDS, setOf("7", "not-a-number", "42"))

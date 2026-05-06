@@ -35,7 +35,7 @@ Solo user (the author). Single-device, single-user. Personal productivity / well
 | Language | **Kotlin** | |
 | UI | **Jetpack Compose** + Material 3 | |
 | Local storage | **Room** (SQLite) + **DataStore Preferences** | Room for structured data (habits, triggers, locations). DataStore for simple key/value app preferences (e.g. onboarding state). |
-| Scheduling | **WorkManager** + **AlarmManager** (exact alarms) | Stochastic trigger firing inside windows. |
+| Scheduling | **WorkManager** (random-interval one-shot workers) | Stochastic trigger firing inside windows. |
 | Geofencing | **Android `GeofencingClient`** (Google Play Services Location API) | Background location; requires `ACCESS_BACKGROUND_LOCATION`. |
 | Map UI | **osmdroid** | OpenStreetMap-based map picker for location selection; tiles cached automatically on-device. |
 | Notifications | **NotificationManager** (Android 13+ runtime permission) | Native. |
@@ -182,10 +182,10 @@ updated by geofence `ENTER`/`EXIT` callbacks. Empty set means no known location.
 
 ### Two kinds of triggers
 
-**(A) Window triggers — stochastic, scheduled daily.**
-- Every night at 00:05 local time, a daily job runs and, for each active window, picks `frequency_per_day` random timestamps uniformly distributed within `[start_time, end_time]` on eligible days.
-- Each timestamp is registered as an exact `AlarmManager` alarm.
-- When the alarm fires, the fire-time pipeline runs (see below).
+**(A) Window triggers — stochastic, WorkManager-driven.**
+- A one-shot WorkManager worker fires at a random delay of 1–3 hours, re-enqueuing itself after each run.
+- On each run the worker checks whether the current time falls inside an active window; if so, and there are eligible habits, it executes the fire-time pipeline (see below).
+- A periodic watchdog worker detects and restarts any dead chain.
 
 **(B) Arrival triggers — event-driven.**
 - Android geofence callbacks fire on `ENTER` / `EXIT` events for registered locations (`HOME`, `WORK`).
@@ -277,7 +277,6 @@ from the pool, not from a fresh generation.
 - `POST_NOTIFICATIONS` (Android 13+)
 - `ACCESS_FINE_LOCATION`
 - `ACCESS_BACKGROUND_LOCATION` (requested separately after fine location grant, with clear in-app explanation of why)
-- `SCHEDULE_EXACT_ALARM` (Android 12+)
 - `FOREGROUND_SERVICE` for the geofence service if needed.
 - `INTERNET` — three purposes: (1) map tile downloads for the location picker (OpenStreetMap; no personal data transmitted); (2) optional in-app feedback upload to GitHub (user-initiated; sends annotated screenshot and description); and (3) crash report uploads to Sentry (no personal information, habit content, or location data included).
 
@@ -336,5 +335,5 @@ Tracked manually by glancing at the Recent triggers screen. Not a feature.
 ## 12. Risks & Open Questions
 
 - **Background location reliability** — Android is aggressive about killing background geofence receivers on some OEMs. Pixel stock ROM is the friendliest; still needs a foreground service fallback if misses are frequent.
-- **Exact alarms under Doze** — `setExactAndAllowWhileIdle` should be reliable for our use case; verify during dev.
+- **Worker availability under Doze** — WorkManager uses `setAndAllowWhileIdle` constraints internally; verify wake-up reliability on low-power devices during dev.
 - **Worker availability** — if the Cloudflare Worker is down or the spend cap is exceeded, AI features degrade gracefully (pool fallback to `habit.name`, UI shows spend-cap snackbar).

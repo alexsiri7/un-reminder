@@ -171,15 +171,6 @@ fun SettingsScreen(
                         )
                     },
                 )
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    thickness = Dimens.hairline,
-                )
-                PermissionRow(
-                    title = "Exact alarms",
-                    granted = uiState.hasExactAlarmPermission,
-                    onRequest = { /* must open system settings */ },
-                )
             }
 
             Spacer(Modifier.height(Dimens.xxl))
