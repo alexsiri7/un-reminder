@@ -1,9 +1,12 @@
 package net.interstellarai.unreminder.screenshot
 
+import android.graphics.Bitmap
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
 import com.android.resources.Density
 import net.interstellarai.unreminder.service.llm.AiStatus
+import net.interstellarai.unreminder.ui.feedback.FeedbackContent
+import net.interstellarai.unreminder.ui.feedback.FeedbackUiState
 import net.interstellarai.unreminder.ui.habit.HabitListContent
 import net.interstellarai.unreminder.ui.onboarding.OnboardingContent
 import net.interstellarai.unreminder.ui.onboarding.OnboardingUiState
@@ -76,6 +79,39 @@ class Tablet10ScreenshotTest {
                     onPickWindowStart = {},
                     onPickWindowEnd = {},
                     onComplete = {},
+                )
+            }
+        }
+    }
+
+    @Test
+    fun tablet10_feedback_no_screenshot() {
+        paparazzi.snapshot {
+            UnReminderTheme {
+                FeedbackContent(
+                    uiState = FeedbackUiState(),
+                    screenshotBitmap = null,
+                    onDescriptionChange = {},
+                    onSubmit = {},
+                    onClearError = {},
+                    onNavigateBack = {},
+                )
+            }
+        }
+    }
+
+    @Test
+    fun tablet10_feedback_with_screenshot() {
+        val fakeBitmap = Bitmap.createBitmap(16, 9, Bitmap.Config.ARGB_8888)
+        paparazzi.snapshot {
+            UnReminderTheme {
+                FeedbackContent(
+                    uiState = FeedbackUiState(),
+                    screenshotBitmap = fakeBitmap,
+                    onDescriptionChange = {},
+                    onSubmit = {},
+                    onClearError = {},
+                    onNavigateBack = {},
                 )
             }
         }

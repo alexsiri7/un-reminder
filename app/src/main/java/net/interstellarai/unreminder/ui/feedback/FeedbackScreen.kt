@@ -30,7 +30,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -74,7 +73,6 @@ private val AnnotationGreen = Color(0xFF43A047)
 
 data class StrokePath(val path: Path, val color: Color)
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FeedbackScreen(
     screenshotBitmap: Bitmap?,
@@ -82,7 +80,6 @@ fun FeedbackScreen(
     viewModel: FeedbackViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(screenshotBitmap) {
         screenshotBitmap?.let { viewModel.setScreenshot(it) }
@@ -92,10 +89,32 @@ fun FeedbackScreen(
         if (uiState.submitted) onNavigateBack()
     }
 
+    FeedbackContent(
+        uiState = uiState,
+        screenshotBitmap = screenshotBitmap,
+        onDescriptionChange = { viewModel.updateDescription(it) },
+        onSubmit = { viewModel.submit(it) },
+        onClearError = { viewModel.clearError() },
+        onNavigateBack = onNavigateBack,
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun FeedbackContent(
+    uiState: FeedbackUiState,
+    screenshotBitmap: Bitmap?,
+    onDescriptionChange: (String) -> Unit,
+    onSubmit: (Bitmap) -> Unit,
+    onClearError: () -> Unit,
+    onNavigateBack: () -> Unit,
+) {
+    val snackbarHostState = remember { SnackbarHostState() }
+
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let {
             snackbarHostState.showSnackbar(it)
-            viewModel.clearError()
+            onClearError()
         }
     }
 
@@ -222,7 +241,7 @@ fun FeedbackScreen(
             ) {
                 OutlinedTextField(
                     value = uiState.description,
-                    onValueChange = { viewModel.updateDescription(it) },
+                    onValueChange = onDescriptionChange,
                     label = { Text("What happened?") },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3
@@ -253,7 +272,7 @@ fun FeedbackScreen(
                             } else {
                                 Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
                             }
-                            viewModel.submit(annotationBitmap)
+                            onSubmit(annotationBitmap)
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
