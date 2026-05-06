@@ -52,6 +52,7 @@ class RequestyProxyClient @Inject constructor(
         habitTags: List<String>,
         locationName: String,
         timeOfDay: String,
+        personalContext: String,
         n: Int,
         workerUrl: String,
         workerSecret: String,
@@ -61,6 +62,7 @@ class RequestyProxyClient @Inject constructor(
             put("habitTags", JSONArray(habitTags))
             put("locationName", locationName)
             put("timeOfDay", timeOfDay)
+            put("personalContext", personalContext)
             put("n", n)
         }
         return withContext(Dispatchers.IO) {

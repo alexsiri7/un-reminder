@@ -8,9 +8,11 @@ import androidx.work.WorkerParameters
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
 import net.interstellarai.unreminder.BuildConfig
 import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
+import net.interstellarai.unreminder.data.repository.PersonalContextRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
 import io.sentry.Sentry
 import java.io.IOException
@@ -26,6 +28,7 @@ class RefillWorker @AssistedInject constructor(
     private val habitRepository: HabitRepository,
     private val variationRepository: VariationRepository,
     private val requestyProxyClient: RequestyProxyClient,
+    private val personalContextRepository: PersonalContextRepository,
 ) : CoroutineWorker(appContext, workerParams) {
 
     companion object {
@@ -50,7 +53,9 @@ class RefillWorker @AssistedInject constructor(
             return Result.failure()
         }
 
-        val promptFingerprint = "${habit.name}|${habit.descriptionLadder.joinToString("|")}"
+        val personalContext = personalContextRepository.personalContext.first()
+        val promptFingerprint =
+            "${habit.name}|${habit.descriptionLadder.joinToString("|")}|$personalContext"
 
         return try {
             val texts = requestyProxyClient.generateBatch(
@@ -58,6 +63,7 @@ class RefillWorker @AssistedInject constructor(
                 habitTags = emptyList(),
                 locationName = "",
                 timeOfDay = "",
+                personalContext = personalContext,
                 n = VariationRepository.POOL_SIZE,
                 workerUrl = url,
                 workerSecret = secret,

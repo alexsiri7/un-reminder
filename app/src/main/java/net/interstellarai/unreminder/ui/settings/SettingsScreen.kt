@@ -23,6 +23,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -118,6 +120,48 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.onBackground,
                 )
             }
+
+            SettingsSection(
+                label = "personal context",
+                modifier = Modifier.padding(horizontal = Dimens.xxl),
+            ) {
+                TextField(
+                    value = uiState.personalContext,
+                    onValueChange = {
+                        if (it.length <= 500) viewModel.setPersonalContext(it)
+                    },
+                    placeholder = {
+                        Text(
+                            "e.g., use words of encouragement",
+                            style = MonoLabel,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        )
+                    },
+                    singleLine = false,
+                    maxLines = 5,
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        cursorColor = MaterialTheme.colorScheme.primary,
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Dimens.lg, vertical = Dimens.md),
+                )
+                Text(
+                    "affects future AI-generated notifications",
+                    style = MonoLabelTiny,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.padding(
+                        horizontal = Dimens.lg,
+                        vertical = Dimens.md,
+                    ),
+                )
+            }
+
+            Spacer(Modifier.height(Dimens.xxl))
 
             SettingsSection(
                 label = "cloud ai (optional)",

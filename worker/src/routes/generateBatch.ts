@@ -3,7 +3,7 @@ import type { Env, GenerateBatchRequest, GenerateBatchResponse } from '../types'
 import { addSpend } from '../lib/spend'
 import { callRequestyWithSchemaRetry, COST_PER_OUTPUT_TOKEN, COST_PER_INPUT_TOKEN } from '../lib/requesty'
 
-function buildPrompt(habitTitle: string, habitTags: string[], locationName: string, timeOfDay: string, n: number, strict = false): string {
+function buildPrompt(habitTitle: string, habitTags: string[], locationName: string, timeOfDay: string, personalContext: string, n: number, strict = false): string {
   const outputInstruction = strict
     ? `Output ONLY a raw JSON array of ${n} strings. No markdown, no commentary, no code blocks.`
     : `Output a JSON array of ${n} strings. No markdown, no commentary.`
@@ -12,6 +12,7 @@ function buildPrompt(habitTitle: string, habitTags: string[], locationName: stri
   if (habitTags.length > 0) contextLines.push(`Tags: ${habitTags.join(', ')}`)
   if (locationName) contextLines.push(`Location: "${locationName}"`)
   if (timeOfDay) contextLines.push(`Time of day: "${timeOfDay}"`)
+  if (personalContext) contextLines.push(`Style: "${personalContext}"`)
   const contextBlock = contextLines.length > 0 ? contextLines.join('\n') + '\n' : ''
 
   return (
@@ -43,7 +44,7 @@ export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promi
     return c.json({ error: 'Invalid JSON body' }, 400)
   }
 
-  const { habitTitle, habitTags, locationName, timeOfDay, n } = body
+  const { habitTitle, habitTags, locationName, timeOfDay, n, personalContext } = body
   if (!habitTitle || typeof habitTitle !== 'string') {
     return c.json({ error: 'habitTitle must be a non-empty string' }, 400)
   }
@@ -52,7 +53,7 @@ export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promi
   }
 
   const tags = Array.isArray(habitTags) ? habitTags : []
-  const args = [habitTitle, tags, locationName ?? '', timeOfDay ?? '', n] as const
+  const args = [habitTitle, tags, locationName ?? '', timeOfDay ?? '', personalContext ?? '', n] as const
   const prompt = buildPrompt(...args)
   const strictPrompt = buildPrompt(...args, true)
 

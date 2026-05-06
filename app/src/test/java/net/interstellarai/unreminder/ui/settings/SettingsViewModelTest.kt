@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
+import net.interstellarai.unreminder.data.repository.PersonalContextRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
@@ -20,12 +21,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -39,6 +42,7 @@ class SettingsViewModelTest {
     private lateinit var triggerPipeline: TriggerPipeline
     private lateinit var habitRepository: HabitRepository
     private lateinit var geofenceManager: GeofenceManager
+    private lateinit var personalContextRepository: PersonalContextRepository
     private lateinit var context: Context
     private lateinit var viewModel: SettingsViewModel
 
@@ -52,6 +56,8 @@ class SettingsViewModelTest {
         triggerPipeline = mockk(relaxUnitFun = true)
         habitRepository = mockk(relaxUnitFun = true)
         geofenceManager = mockk(relaxed = true)
+        personalContextRepository = mockk(relaxUnitFun = true)
+        every { personalContextRepository.personalContext } returns flowOf("")
         context = mockk(relaxed = true)
         currentLocationIdsFlow.value = emptySet()
         // Default: at least one eligible habit so the pre-existing tests still exercise the pipeline path.
@@ -66,6 +72,7 @@ class SettingsViewModelTest {
             triggerRepository = triggerRepository,
             habitRepository = habitRepository,
             geofenceManager = geofenceManager,
+            personalContextRepository = personalContextRepository,
         )
     }
 
@@ -196,5 +203,36 @@ class SettingsViewModelTest {
         } finally {
             unmockkStatic(ContextCompat::class)
         }
+    }
+
+    // --- personalContext ---
+
+    @Test
+    fun `personalContext initializes from repository`() = runTest {
+        every { personalContextRepository.personalContext } returns flowOf("encouragement")
+        val vm = SettingsViewModel(
+            context = context,
+            triggerPipeline = triggerPipeline,
+            triggerRepository = triggerRepository,
+            habitRepository = habitRepository,
+            geofenceManager = geofenceManager,
+            personalContextRepository = personalContextRepository,
+        )
+        advanceUntilIdle()
+        assertEquals("encouragement", vm.uiState.value.personalContext)
+    }
+
+    @Test
+    fun `setPersonalContext persists to repository`() = runTest {
+        viewModel.setPersonalContext("give metrics")
+        advanceUntilIdle()
+        coVerify { personalContextRepository.setPersonalContext("give metrics") }
+    }
+
+    @Test
+    fun `setPersonalContext truncates at 500 chars`() = runTest {
+        viewModel.setPersonalContext("x".repeat(600))
+        advanceUntilIdle()
+        coVerify { personalContextRepository.setPersonalContext("x".repeat(500)) }
     }
 }

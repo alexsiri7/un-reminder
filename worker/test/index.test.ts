@@ -277,6 +277,58 @@ describe('un-reminder-worker', () => {
     expect(body.variants).toEqual(variants)
   })
 
+  // ---- personalContext tests ----
+
+  it('injects personalContext into prompt as Style line', async () => {
+    const variants = ['Stretch!', 'Move!', 'Go!']
+    mockRequestySuccess(variants)
+
+    const req = makeRequest('/v1/generate/batch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-UR-Secret': SECRET,
+      },
+      body: { ...validBody(), personalContext: 'use words of encouragement' },
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, testEnv(), ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(200)
+
+    const fetchMock = globalThis.fetch as unknown as { mock: { calls: unknown[][] } }
+    const requestInit = fetchMock.mock.calls[0][1] as RequestInit
+    const upstreamBody = JSON.parse(requestInit.body as string) as {
+      messages: { content: string }[]
+    }
+    expect(upstreamBody.messages[0].content).toContain('Style: "use words of encouragement"')
+  })
+
+  it('omits Style line when personalContext absent', async () => {
+    const variants = ['Stretch!', 'Move!', 'Go!']
+    mockRequestySuccess(variants)
+
+    const req = makeRequest('/v1/generate/batch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-UR-Secret': SECRET,
+      },
+      body: validBody(),
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, testEnv(), ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(200)
+
+    const fetchMock = globalThis.fetch as unknown as { mock: { calls: unknown[][] } }
+    const requestInit = fetchMock.mock.calls[0][1] as RequestInit
+    const upstreamBody = JSON.parse(requestInit.body as string) as {
+      messages: { content: string }[]
+    }
+    expect(upstreamBody.messages[0].content).not.toContain('Style:')
+  })
+
   // ---- Retry + 502 test ----
 
   it('returns 502 after retries on malformed response', async () => {

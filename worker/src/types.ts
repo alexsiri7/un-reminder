@@ -20,6 +20,8 @@ export interface GenerateBatchRequest {
   timeOfDay: string
   /** Number of notification variants to generate (1–50). */
   n: number
+  /** Optional user-defined communication style hint (e.g. "use words of encouragement"). */
+  personalContext?: string
 }
 
 export interface GenerateBatchResponse {
