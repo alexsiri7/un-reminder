@@ -751,7 +751,6 @@ class HabitEditViewModelTest {
             mockGeofenceManager, mockTriggerRepository,
         )
 
-        // Emission before any loadHabit — collector should be a no-op
         flow.value = setOf(1L, 2L, 3L)
         advanceUntilIdle()
 
@@ -781,7 +780,6 @@ class HabitEditViewModelTest {
         // Sanity: load succeeded, badge is set to something (Unavailable due to LOCATION mismatch).
         assertTrue(viewModel.uiState.value.availabilityStatus is AvailabilityStatus.Unavailable)
 
-        // Force computeAvailability to throw on the next reactive recompute
         coEvery { mockTriggerRepository.countCompletedSince(any(), any()) } throws RuntimeException("db blip")
         flow.value = setOf(2L)
         advanceUntilIdle()
