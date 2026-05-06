@@ -92,7 +92,7 @@ class TriggerPipelineTest {
 
         pipeline.execute(99L)
 
-        coVerify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any()) }
+        coVerify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any(), any()) }
     }
 
     @Test
@@ -103,7 +103,7 @@ class TriggerPipelineTest {
         pipeline.execute(42L)
 
         coVerify(exactly = 0) { habitRepository.getEligibleHabits(any()) }
-        coVerify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any()) }
+        coVerify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any(), any()) }
     }
 
     @Test
@@ -114,7 +114,7 @@ class TriggerPipelineTest {
         pipeline.execute(42L)
 
         coVerify { triggerRepository.updateOutcome(42L, TriggerStatus.DISMISSED) }
-        coVerify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any()) }
+        coVerify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any(), any()) }
     }
 
     @Test
@@ -135,7 +135,8 @@ class TriggerPipelineTest {
             notificationHelper.postTriggerNotification(
                 triggerId = 42L,
                 promptText = "Cloud notification body",
-                habitName = "meditation"
+                habitName = "meditation",
+                actionUrl = null
             )
         }
         coVerify(exactly = 0) { refillScheduler.enqueueForHabit(any()) }
@@ -155,7 +156,8 @@ class TriggerPipelineTest {
             notificationHelper.postTriggerNotification(
                 triggerId = 42L,
                 promptText = "meditation",
-                habitName = "meditation"
+                habitName = "meditation",
+                actionUrl = null
             )
         }
         coVerify { refillScheduler.enqueueForHabit(1L) }
@@ -176,7 +178,33 @@ class TriggerPipelineTest {
             notificationHelper.postTriggerNotification(
                 triggerId = 42L,
                 promptText = "Take three deep breaths",
-                habitName = "meditation"
+                habitName = "meditation",
+                actionUrl = null
+            )
+        }
+    }
+
+    @Test
+    fun `pool has variant with actionUrl - threads actionUrl to notification`() = runTest {
+        val url = "https://www.youtube.com/results?search_query=C+major+vocal+scale"
+        val variation = VariationEntity(
+            id = 7L, habitId = 1L, text = "Sing the C major scale",
+            promptFingerprint = "fp", generatedAt = Instant.now(), consumedAt = null,
+            actionUrl = url
+        )
+        coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
+        coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(testHabit)
+        coEvery { variationRepository.pickRandomUnused(1L) } returns variation
+        coEvery { variationRepository.needsRefill(1L) } returns false
+
+        pipeline.execute(42L)
+
+        coVerify {
+            notificationHelper.postTriggerNotification(
+                triggerId = 42L,
+                promptText = "Sing the C major scale",
+                habitName = "meditation",
+                actionUrl = url
             )
         }
     }

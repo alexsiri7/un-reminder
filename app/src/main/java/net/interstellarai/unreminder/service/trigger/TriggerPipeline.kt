@@ -7,6 +7,7 @@ import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
+import net.interstellarai.unreminder.domain.model.NotificationVariant
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.notification.NotificationHelper
@@ -81,18 +82,19 @@ class TriggerPipeline @Inject constructor(
             val habit = pickWeighted(eligibleHabits, lastFiredMap, nowMillis)
             val timeOfDay = resolveTimeOfDay()
             val locationName = resolveLocationName(locationIds)
-            val prompt = resolvePrompt(habit, locationName, timeOfDay)
+            val resolvedPrompt = resolvePrompt(habit, locationName, timeOfDay)
 
             triggerRepository.updateFired(
                 id = triggerId,
                 habitId = habit.id,
-                prompt = prompt
+                prompt = resolvedPrompt.text
             )
 
             notificationHelper.postTriggerNotification(
                 triggerId = triggerId,
-                promptText = prompt,
-                habitName = habit.name
+                promptText = resolvedPrompt.text,
+                habitName = habit.name,
+                actionUrl = resolvedPrompt.actionUrl,
             )
         } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -105,7 +107,7 @@ class TriggerPipeline @Inject constructor(
         }
     }
 
-    private suspend fun resolvePrompt(habit: HabitEntity, locationName: String, timeOfDay: String): String {
+    private suspend fun resolvePrompt(habit: HabitEntity, locationName: String, timeOfDay: String): NotificationVariant {
         val variation = try {
             variationRepository.pickRandomUnused(habit.id)
         } catch (e: Exception) {
@@ -123,7 +125,7 @@ class TriggerPipeline @Inject constructor(
                 if (e is CancellationException) throw e
                 Log.w(TAG, "needsRefill/enqueue failed — non-fatal, continuing", e)
             }
-            return variation.text
+            return NotificationVariant(text = variation.text, actionUrl = variation.actionUrl)
         }
 
         Log.w(TAG, "pool empty for habit ${habit.id} — falling back to level description")
@@ -143,7 +145,8 @@ class TriggerPipeline @Inject constructor(
             Log.w(TAG, "level description fetch failed for habit=${habit.id} — non-fatal", e)
             null
         }
-        return levelDesc?.takeIf { it.isNotBlank() } ?: habit.name
+        val text = levelDesc?.takeIf { it.isNotBlank() } ?: habit.name
+        return NotificationVariant(text = text, actionUrl = null)
     }
 
     private suspend fun resolveLocationName(locationIds: Set<Long>): String {

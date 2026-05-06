@@ -24,8 +24,13 @@ export interface GenerateBatchRequest {
   personalContext?: string
 }
 
+export interface NotificationVariant {
+  text: string
+  actionUrl?: string
+}
+
 export interface GenerateBatchResponse {
-  variants: string[]
+  variants: NotificationVariant[]
 }
 
 export interface HealthResponse {

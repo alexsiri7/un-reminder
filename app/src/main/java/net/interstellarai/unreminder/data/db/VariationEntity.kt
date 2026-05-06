@@ -33,5 +33,7 @@ data class VariationEntity(
     @ColumnInfo(name = "generated_at")
     val generatedAt: Instant,
     @ColumnInfo(name = "consumed_at")
-    val consumedAt: Instant? = null
+    val consumedAt: Instant? = null,
+    @ColumnInfo(name = "action_url")
+    val actionUrl: String? = null
 )

@@ -1,12 +1,16 @@
 import type { Context } from 'hono'
-import type { Env, GenerateBatchRequest, GenerateBatchResponse } from '../types'
+import type { Env, GenerateBatchRequest, GenerateBatchResponse, NotificationVariant } from '../types'
 import { addSpend } from '../lib/spend'
 import { callRequestyWithSchemaRetry, COST_PER_OUTPUT_TOKEN, COST_PER_INPUT_TOKEN } from '../lib/requesty'
+import * as Sentry from '@sentry/cloudflare'
 
 function buildPrompt(habitTitle: string, habitTags: string[], locationName: string, timeOfDay: string, personalContext: string, n: number, strict = false): string {
+  const schema =
+    `- "text": string (max 80 chars, the notification message)\n` +
+    `- "actionUrl": optional string (YouTube search URL when habit benefits from technique demonstration; omit for simple habits)`
   const outputInstruction = strict
-    ? `Output ONLY a raw JSON array of ${n} strings. No markdown, no commentary, no code blocks.`
-    : `Output a JSON array of ${n} strings. No markdown, no commentary.`
+    ? `Output ONLY a raw JSON array of ${n} objects. Each object must have:\n${schema}\nNo markdown, no commentary, no code blocks.`
+    : `Output a JSON array of ${n} objects. Each object must have:\n${schema}\nNo markdown, no commentary.`
 
   const contextLines: string[] = []
   if (habitTags.length > 0) contextLines.push(`Tags: ${habitTags.join(', ')}`)
@@ -26,14 +30,25 @@ function buildPrompt(habitTitle: string, habitTags: string[], locationName: stri
     `4. When location or time of day is relevant, weave it into the message naturally.\n` +
     `5. Never use vague phrases like "do a set", "get started", or "work on your habit".\n` +
     `6. Vary tone, structure, and the specific goal across all ${n} messages.\n` +
+    `7. Include "actionUrl" only when the habit genuinely benefits from technique demonstration (exercise form, musical scales, guided practice). For simple habits ("drink water", "jumping jacks") omit it entirely. When included, use a YouTube search URL of the form https://www.youtube.com/results?search_query=<encoded+query>.\n` +
     outputInstruction
   )
 }
 
-function validateVariants(parsed: unknown): string[] | null {
+export function validateVariants(parsed: unknown): NotificationVariant[] | null {
   if (!Array.isArray(parsed)) return null
-  if (!parsed.every((s) => typeof s === 'string' && s.trim() !== '')) return null
-  return parsed as string[]
+  if (parsed.length === 0) return null
+  const result: NotificationVariant[] = []
+  for (const item of parsed) {
+    if (typeof item !== 'object' || item === null) return null
+    const { text, actionUrl } = item as Record<string, unknown>
+    if (typeof text !== 'string' || text.trim() === '') return null
+    if (actionUrl !== undefined) {
+      if (typeof actionUrl !== 'string' || !actionUrl.startsWith('https://')) return null
+    }
+    result.push({ text, actionUrl: typeof actionUrl === 'string' ? actionUrl : undefined })
+  }
+  return result
 }
 
 export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promise<Response> {
@@ -57,7 +72,7 @@ export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promi
   const prompt = buildPrompt(...args)
   const strictPrompt = buildPrompt(...args, true)
 
-  const maxTokens = Math.min(n * 60, 4096)
+  const maxTokens = Math.min(n * 100, 4096)
 
   const result = await callRequestyWithSchemaRetry(
     c.env.UR_REQUESTY_KEY,
@@ -76,9 +91,13 @@ export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promi
   const spendDollars =
     result.outputTokens * COST_PER_OUTPUT_TOKEN + result.inputTokens * COST_PER_INPUT_TOKEN
   c.executionCtx.waitUntil(
-    addSpend(c.env.UR_SPEND, spendDollars).catch((err) =>
-      console.error('[generateBatch] addSpend failed:', err, { spendDollars }),
-    ),
+    addSpend(c.env.UR_SPEND, spendDollars).catch((err) => {
+      console.error('[generateBatch] addSpend failed:', err, { spendDollars })
+      Sentry.captureException(err instanceof Error ? err : new Error(String(err)), {
+        tags: { component: 'generate-batch', failure: 'add-spend' },
+        contexts: { spend: { spendDollars } },
+      })
+    }),
   )
 
   const response: GenerateBatchResponse = { variants: result.data }

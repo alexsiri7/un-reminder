@@ -385,7 +385,7 @@
       },
       {
         "tableName": "variations",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `habit_id` INTEGER NOT NULL, `text` TEXT NOT NULL, `prompt_fingerprint` TEXT NOT NULL, `generated_at` INTEGER NOT NULL, `consumed_at` INTEGER, FOREIGN KEY(`habit_id`) REFERENCES `habits`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `habit_id` INTEGER NOT NULL, `text` TEXT NOT NULL, `prompt_fingerprint` TEXT NOT NULL, `generated_at` INTEGER NOT NULL, `consumed_at` INTEGER, `action_url` TEXT, FOREIGN KEY(`habit_id`) REFERENCES `habits`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "id",
@@ -421,6 +421,11 @@
             "fieldPath": "consumedAt",
             "columnName": "consumed_at",
             "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "actionUrl",
+            "columnName": "action_url",
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {

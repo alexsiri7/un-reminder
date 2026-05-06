@@ -55,16 +55,19 @@ class RequestCodeTest {
     @Test
     fun `action request codes are distinct for same triggerId`() {
         val triggerId = 42L
-        val completedCode = (triggerId * 2 + 0).toRequestCode()
-        val dismissedCode = (triggerId * 2 + 1).toRequestCode()
+        val completedCode = (triggerId * 3 + 0).toRequestCode()
+        val dismissedCode = (triggerId * 3 + 1).toRequestCode()
+        val watchCode = (triggerId * 3 + 2).toRequestCode()
         assertNotEquals(completedCode, dismissedCode)
+        assertNotEquals(completedCode, watchCode)
+        assertNotEquals(dismissedCode, watchCode)
     }
 
     @Test
     fun `action request codes are distinct across trigger IDs`() {
         val id1 = 1L
         val id2 = 2L
-        assertNotEquals((id1 * 2 + 0).toRequestCode(), (id2 * 2 + 0).toRequestCode())
+        assertNotEquals((id1 * 3 + 0).toRequestCode(), (id2 * 3 + 0).toRequestCode())
     }
 
     @Test

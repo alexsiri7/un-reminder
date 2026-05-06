@@ -56,7 +56,7 @@ Runs as a Cloudflare Worker (Hono framework). Exposes these routes:
 | Route | Auth | Description |
 |---|---|---|
 | `GET /v1/health` | Public | Returns `{ status, spendUsedToday, spendUsedMonth, capDaily, capMonthly }` |
-| `POST /v1/generate/batch` | `X-UR-Secret` header | Accepts `{ habitTitle, habitTags, locationName, timeOfDay, n }`, returns `{ variants: string[] }` via Requesty |
+| `POST /v1/generate/batch` | `X-UR-Secret` header | Accepts `{ habitTitle, habitTags, locationName, timeOfDay, n }`, returns `{ variants: Array<{ text: string, actionUrl?: string }> }` via Requesty |
 | `POST /v1/habit-fields` | `X-UR-Secret` header | Accepts `{ title }`, returns `{ descriptionLadder: string[] }` (6 elements, one per dedication level) via Requesty |
 
 **Local dev:**
@@ -171,6 +171,7 @@ A pre-generated prompt text for a habit, stored in a local pool to avoid LLM lat
 - `prompt_fingerprint` — hash of the LLM prompt that produced this variation; part of the `(habit_id, prompt_fingerprint, text)` composite unique constraint that prevents duplicates.
 - `generated_at` — when the variation was generated.
 - `consumed_at` — nullable; set when the variation is picked for a notification. Unconsumed variations form the available pool.
+- `action_url` — nullable; optional URL returned by the worker. When non-null, the notification includes a **Watch** action button that opens this URL.
 
 ### Location state
 In-memory set of `location_id` values for the geofences the user is currently inside,
@@ -207,7 +208,7 @@ updated by geofence `ENTER`/`EXIT` callbacks. Empty set means no known location.
    `minutesSince` is minutes since the habit was last fired (cap: 1440 min = 24 h). A habit
    never fired receives the maximum weight (~13×). If the eligible set is empty, skip silently.
 4. Pick an unused variation from the cloud-generated pool (see Variation entity). If the pool is empty, use the level description fallback (see Fallback below).
-5. Post the notification with the generated text. Action buttons: **Did it**, **Dismiss**.
+5. Post the notification with the generated text. Action buttons: **Did it**, **Dismiss**. When the variation includes an `actionUrl`, a third **Watch** button is added that opens the URL in a browser.
 6. Record the trigger row with the generated prompt and the outcome when the user responds.
    - **Did it (COMPLETED):** the habit is excluded from the rest of today's triggers (step 2 above). When `auto_adjust_level` is true, consecutive completions promote `dedication_level` (up to max 5).
    - **Dismiss (DISMISSED):** a per-habit cooldown (default 3 h, configurable via `cooldownMinutes` in the Habit editor — presets 1h · 2h · 3h · 6h · 12h · None, where None=`0` disables the cooldown) applies before this habit is eligible again. When `auto_adjust_level` is true: 3 consecutive `DISMISSED` triggers demote `dedication_level` by 1; at level 0, 3 consecutive dismissals auto-pause the habit (`active = false`). The user can re-activate via the habit editor.
@@ -285,7 +286,7 @@ from the pool, not from a fresh generation.
 ## 8. Database Schema (Room)
 
 ```kotlin
-// DB version 9
+// DB version 10
 @Entity Habit(id, name, dedication_level/*Int 0-5*/, auto_adjust_level/*Boolean*/, daily_limit/*Int, default 1*/, cooldown_minutes/*Int, default 180*/, active, created_at, updated_at)
 @Entity HabitLevelDescriptionEntity(habit_id → Habit.id CASCADE, level/*0-5*/, description)  // per-level text
 @Entity Window(id, start_time, end_time, days_of_week_bitmask, frequency_per_day, active)
@@ -293,7 +294,7 @@ from the pool, not from a fresh generation.
 @Entity HabitLocationCrossRef(habit_id → Habit.id CASCADE, location_id → Location.id CASCADE)  // junction
 @Entity Trigger(id, window_id?, habit_id?, scheduled_at, fired_at?, status, generated_prompt?)
 @Entity PendingFeedback(id, screenshot_path? /* nullable */, description, queued_at)  // offline upload queue
-@Entity Variation(id, habit_id → Habit.id CASCADE, text, prompt_fingerprint, generated_at, consumed_at?)  // variation pool
+@Entity Variation(id, habit_id → Habit.id CASCADE, text, prompt_fingerprint, generated_at, consumed_at?, action_url?)  // variation pool
 ```
 
 ---

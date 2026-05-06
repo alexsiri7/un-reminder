@@ -3,6 +3,7 @@ package net.interstellarai.unreminder.service.worker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.interstellarai.unreminder.domain.model.AiHabitFields
+import net.interstellarai.unreminder.domain.model.NotificationVariant
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -56,7 +57,7 @@ class RequestyProxyClient @Inject constructor(
         n: Int,
         workerUrl: String,
         workerSecret: String,
-    ): List<String> {
+    ): List<NotificationVariant> {
         val payload = JSONObject().apply {
             put("habitTitle", habitTitle)
             put("habitTags", JSONArray(habitTags))
@@ -66,8 +67,16 @@ class RequestyProxyClient @Inject constructor(
             put("n", n)
         }
         return withContext(Dispatchers.IO) {
-            val arr = post("v1/generate/batch", payload, workerUrl, workerSecret).getJSONArray("variants")
-            (0 until arr.length()).map { arr.getString(it) }
+            val arr = post("v1/generate/batch", payload, workerUrl, workerSecret)
+                .optJSONArray("variants")
+                ?: throw WorkerError(200, "Missing 'variants' array in response")
+            (0 until arr.length()).map { i ->
+                val obj = arr.getJSONObject(i)
+                NotificationVariant(
+                    text = obj.getString("text"),
+                    actionUrl = obj.optString("actionUrl").takeIf { it.isNotEmpty() }
+                )
+            }
         }
     }
 }
