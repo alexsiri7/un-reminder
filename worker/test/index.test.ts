@@ -60,6 +60,13 @@ function mockRequestyMalformed() {
   )
 }
 
+function getUpstreamPromptContent(): string {
+  const fetchMock = globalThis.fetch as unknown as { mock: { calls: unknown[][] } }
+  const requestInit = fetchMock.mock.calls[0][1] as RequestInit
+  const body = JSON.parse(requestInit.body as string) as { messages: { content: string }[] }
+  return body.messages[0].content
+}
+
 function testEnv() {
   return {
     ...env,
@@ -300,13 +307,7 @@ describe('un-reminder-worker', () => {
     const res = await app.fetch(req, testEnv(), ctx)
     await waitOnExecutionContext(ctx)
     expect(res.status).toBe(200)
-
-    const fetchMock = globalThis.fetch as unknown as { mock: { calls: unknown[][] } }
-    const requestInit = fetchMock.mock.calls[0][1] as RequestInit
-    const upstreamBody = JSON.parse(requestInit.body as string) as {
-      messages: { content: string }[]
-    }
-    expect(upstreamBody.messages[0].content).toContain('Style: "use words of encouragement"')
+    expect(getUpstreamPromptContent()).toContain('Style: "use words of encouragement"')
   })
 
   it('omits Style line when personalContext absent', async () => {
@@ -325,13 +326,7 @@ describe('un-reminder-worker', () => {
     const res = await app.fetch(req, testEnv(), ctx)
     await waitOnExecutionContext(ctx)
     expect(res.status).toBe(200)
-
-    const fetchMock = globalThis.fetch as unknown as { mock: { calls: unknown[][] } }
-    const requestInit = fetchMock.mock.calls[0][1] as RequestInit
-    const upstreamBody = JSON.parse(requestInit.body as string) as {
-      messages: { content: string }[]
-    }
-    expect(upstreamBody.messages[0].content).not.toContain('Style:')
+    expect(getUpstreamPromptContent()).not.toContain('Style:')
   })
 
   // ---- Retry + 502 test ----
