@@ -106,6 +106,7 @@ class RequestyProxyClientTest {
             habitTags = emptyList(),
             locationName = "",
             timeOfDay = "",
+            personalContext = "",
             n = 3,
             workerUrl = baseUrl(),
             workerSecret = "secret",
@@ -123,7 +124,7 @@ class RequestyProxyClientTest {
         server.enqueue(MockResponse().setResponseCode(401).setBody("Unauthorized"))
 
         assertFailsWith<WorkerAuthException> {
-            proxyClient.generateBatch("Meditate", emptyList(), "", "", 1, baseUrl(), "bad")
+            proxyClient.generateBatch("Meditate", emptyList(), "", "", "", 1, baseUrl(), "bad")
         }
     }
 
@@ -132,7 +133,7 @@ class RequestyProxyClientTest {
         server.enqueue(MockResponse().setResponseCode(402).setBody("""{"error":"cap"}"""))
 
         assertFailsWith<SpendCapExceededException> {
-            proxyClient.generateBatch("Meditate", emptyList(), "", "", 1, baseUrl(), "secret")
+            proxyClient.generateBatch("Meditate", emptyList(), "", "", "", 1, baseUrl(), "secret")
         }
     }
 
@@ -141,7 +142,7 @@ class RequestyProxyClientTest {
         server.enqueue(MockResponse().setResponseCode(500).setBody("Internal Server Error"))
 
         val ex = assertFailsWith<WorkerError> {
-            proxyClient.generateBatch("Meditate", emptyList(), "", "", 1, baseUrl(), "secret")
+            proxyClient.generateBatch("Meditate", emptyList(), "", "", "", 1, baseUrl(), "secret")
         }
         assertEquals(500, ex.code)
     }
@@ -151,7 +152,7 @@ class RequestyProxyClientTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(""))
 
         assertFailsWith<Exception> {
-            proxyClient.generateBatch("Meditate", emptyList(), "", "", 1, baseUrl(), "secret")
+            proxyClient.generateBatch("Meditate", emptyList(), "", "", "", 1, baseUrl(), "secret")
         }
     }
 }

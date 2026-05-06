@@ -15,10 +15,12 @@ import io.mockk.verify
 import io.sentry.Sentry
 import io.sentry.ScopeCallback
 import io.sentry.protocol.SentryId
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
+import net.interstellarai.unreminder.data.repository.PersonalContextRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
 import org.json.JSONException
 import org.junit.Assert.assertEquals
@@ -34,6 +36,9 @@ class RefillWorkerTest {
     private val mockHabitRepository: HabitRepository = mockk()
     private val mockVariationRepository: VariationRepository = mockk(relaxUnitFun = true)
     private val mockProxyClient: RequestyProxyClient = mockk()
+    private val mockPersonalContextRepository: PersonalContextRepository = mockk {
+        every { personalContext } returns flowOf("")
+    }
 
     private fun createWorker(habitId: Long = 1L): RefillWorker {
         val inputData = Data.Builder()
@@ -46,6 +51,7 @@ class RefillWorkerTest {
             mockHabitRepository,
             mockVariationRepository,
             mockProxyClient,
+            mockPersonalContextRepository,
         )
     }
 
@@ -68,7 +74,7 @@ class RefillWorkerTest {
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
         val variants = (1..20).map { "variant $it" }
         coEvery {
-            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any())
+            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any())
         } returns variants
 
         val worker = createWorker()
@@ -86,7 +92,7 @@ class RefillWorkerTest {
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
         val variants = (1..20).map { "variant $it" }
         coEvery {
-            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any())
+            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any())
         } returns variants
 
         val worker = createWorker()
@@ -103,7 +109,7 @@ class RefillWorkerTest {
         val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
         coEvery {
-            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any())
+            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any())
         } throws SpendCapExceededException()
 
         val worker = createWorker()
@@ -115,7 +121,7 @@ class RefillWorkerTest {
         val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
         coEvery {
-            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any())
+            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any())
         } throws WorkerAuthException()
 
         val worker = createWorker()
@@ -127,7 +133,7 @@ class RefillWorkerTest {
         val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
         coEvery {
-            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any())
+            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any())
         } throws IOException("network error")
 
         val worker = createWorker()
@@ -143,7 +149,7 @@ class RefillWorkerTest {
             val habit = HabitEntity(id = 1L, name = "Meditate")
             coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
             coEvery {
-                mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any())
+                mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any())
             } throws UnknownHostException("un-reminder-worker.alexsiri7.workers.dev")
 
             val worker = createWorker()
@@ -163,7 +169,7 @@ class RefillWorkerTest {
             val habit = HabitEntity(id = 1L, name = "Meditate")
             coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
             coEvery {
-                mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any())
+                mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any())
             } throws ConnectException("Failed to connect to un-reminder-worker.alexsiri7.workers.dev/104.21.91.247:443")
 
             val worker = createWorker()
@@ -179,7 +185,7 @@ class RefillWorkerTest {
         val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
         coEvery {
-            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any())
+            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any())
         } throws WorkerError(500, "Internal Server Error")
 
         val worker = createWorker()
@@ -191,7 +197,7 @@ class RefillWorkerTest {
         val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
         coEvery {
-            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any())
+            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any())
         } throws WorkerError(400, "Bad Request")
 
         val worker = createWorker()
@@ -203,7 +209,7 @@ class RefillWorkerTest {
         val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
         coEvery {
-            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any())
+            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any())
         } throws JSONException("Value at 0 is null")
 
         val worker = createWorker()
@@ -215,7 +221,7 @@ class RefillWorkerTest {
         val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
         coEvery {
-            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any())
+            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any())
         } throws RuntimeException("json error", JSONException("Unexpected token"))
 
         val worker = createWorker()
@@ -231,7 +237,7 @@ class RefillWorkerTest {
             val habit = HabitEntity(id = 1L, name = "Meditate")
             coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
             coEvery {
-                mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any())
+                mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any())
             } throws RuntimeException("unexpected failure")
 
             val worker = createWorker()
