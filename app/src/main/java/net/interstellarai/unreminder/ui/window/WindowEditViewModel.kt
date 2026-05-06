@@ -21,6 +21,7 @@ data class WindowEditUiState(
     val daysOfWeekBitmask: Int = 0b1111111, // all days
     val frequencyPerDay: Int = 1,
     val active: Boolean = true,
+    val name: String = "",
     val isSaved: Boolean = false
 )
 
@@ -46,7 +47,8 @@ class WindowEditViewModel @Inject constructor(
                     endMinute = window.endTime.minute,
                     daysOfWeekBitmask = window.daysOfWeekBitmask,
                     frequencyPerDay = window.frequencyPerDay,
-                    active = window.active
+                    active = window.active,
+                    name = window.name
                 )
             }
         }
@@ -74,6 +76,10 @@ class WindowEditViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(active = active)
     }
 
+    fun updateName(name: String) {
+        _uiState.value = _uiState.value.copy(name = name)
+    }
+
     fun save() {
         viewModelScope.launch {
             val state = _uiState.value
@@ -88,7 +94,8 @@ class WindowEditViewModel @Inject constructor(
                         endTime = endTime,
                         daysOfWeekBitmask = state.daysOfWeekBitmask,
                         frequencyPerDay = state.frequencyPerDay,
-                        active = state.active
+                        active = state.active,
+                        name = state.name
                     )
                 )
             } else {
@@ -98,7 +105,8 @@ class WindowEditViewModel @Inject constructor(
                         endTime = endTime,
                         daysOfWeekBitmask = state.daysOfWeekBitmask,
                         frequencyPerDay = state.frequencyPerDay,
-                        active = state.active
+                        active = state.active,
+                        name = state.name
                     )
                 )
             }
