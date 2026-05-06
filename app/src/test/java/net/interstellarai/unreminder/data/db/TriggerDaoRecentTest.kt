@@ -93,5 +93,9 @@ class TriggerDaoRecentTest {
 
         assertEquals(3, results.size)
         assertTrue(results.none { it.status == TriggerStatus.SCHEDULED })
+        // Verify ORDER BY scheduled_at DESC: DISMISSED (now-10s) → COMPLETED (now-20s) → FIRED (now-30s)
+        assertEquals(TriggerStatus.DISMISSED, results[0].status)
+        assertEquals(TriggerStatus.COMPLETED, results[1].status)
+        assertEquals(TriggerStatus.FIRED, results[2].status)
     }
 }
