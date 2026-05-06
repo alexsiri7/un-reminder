@@ -1,10 +1,13 @@
 package net.interstellarai.unreminder.ui.location
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -12,6 +15,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -27,6 +31,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import net.interstellarai.unreminder.ui.theme.Dimens
+import net.interstellarai.unreminder.ui.theme.MonoLabelTiny
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,17 +71,43 @@ fun LocationScreen(
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
-            items(locations) { loc ->
-                Card(modifier = Modifier.fillMaxWidth()) {
+            items(locations) { row ->
+                val loc = row.location
+                val isCurrent = row.isCurrent
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = if (isCurrent) {
+                        CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        )
+                    } else {
+                        CardDefaults.cardColors()
+                    },
+                    border = if (isCurrent) {
+                        BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
+                    } else {
+                        null
+                    },
+                ) {
                     Row(
                         modifier = Modifier.padding(16.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(loc.name, style = MaterialTheme.typography.titleMedium)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(loc.name, style = MaterialTheme.typography.titleMedium)
+                                if (isCurrent) {
+                                    Spacer(Modifier.width(Dimens.sm))
+                                    Text(
+                                        "· current",
+                                        style = MonoLabelTiny,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.45f),
+                                    )
+                                }
+                            }
                             Text(
-                                "%.4f, %.4f \u2014 radius ${loc.radiusM.toInt()} m".format(loc.lat, loc.lng),
+                                "%.4f, %.4f — radius ${loc.radiusM.toInt()} m".format(loc.lat, loc.lng),
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
