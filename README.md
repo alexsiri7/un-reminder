@@ -140,6 +140,7 @@ Composite primary key `(habit_id, location_id)`.
 ### Window
 A user-defined time range during which stochastic triggers may fire. Each window has:
 - `id`
+- `name` — optional user-defined label (e.g. "Morning focus", "Evening wind-down"); defaults to blank. Shown above the time range in the window list when non-blank.
 - `start_time` — local time-of-day (e.g. 18:00).
 - `end_time` — local time-of-day (e.g. 21:00).
 - `days_of_week` — subset of Mon–Sun.
@@ -258,7 +259,7 @@ from the pool, not from a fresh generation.
    variants via `RefillWorker` — these are the texts that fire as actual notifications. The autofill button
    fills descriptions only; the pool is built on save.
 3. **Windows screen** — list of windows. FAB → add window. Tap → edit. BugReport icon in header → Feedback screen.
-4. **Window editor** — start/end time pickers, days-of-week chips, frequency slider (1–3), active toggle.
+4. **Window editor** — optional name field, start/end time pickers, days-of-week chips, frequency slider (1–3), active toggle.
 5. **Locations screen** — dynamic list of named locations (any label, not restricted to HOME/WORK).
    FAB opens the map picker; each list item has an Edit button. Map picker shows a full-screen
    osmdroid map with a draggable pin and a bottom sheet for name, radius (50–500 m), and Save.
@@ -286,10 +287,10 @@ from the pool, not from a fresh generation.
 ## 8. Database Schema (Room)
 
 ```kotlin
-// DB version 9
+// DB version 10
 @Entity Habit(id, name, dedication_level/*Int 0-5*/, auto_adjust_level/*Boolean*/, daily_limit/*Int, default 1*/, cooldown_minutes/*Int, default 180*/, active, created_at, updated_at)
 @Entity HabitLevelDescriptionEntity(habit_id → Habit.id CASCADE, level/*0-5*/, description)  // per-level text
-@Entity Window(id, start_time, end_time, days_of_week_bitmask, frequency_per_day, active)
+@Entity Window(id, name/*optional label, default ''*/, start_time, end_time, days_of_week_bitmask, frequency_per_day, active)
 @Entity Location(id, name /* user-defined, e.g. "Home", "Gym", "Office" */, lat, lng, radius_m)
 @Entity HabitLocationCrossRef(habit_id → Habit.id CASCADE, location_id → Location.id CASCADE)  // junction
 @Entity Trigger(id, window_id?, habit_id?, scheduled_at, fired_at?, status, generated_prompt?)

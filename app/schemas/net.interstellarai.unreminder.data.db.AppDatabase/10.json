@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 10,
-    "identityHash": "e53747c58b47a8ed7617e0f45ae43dd9",
+    "identityHash": "3a4e7eb7d8016d13f1e63cb67a20d6a0",
     "entities": [
       {
         "tableName": "habits",
@@ -79,7 +79,7 @@
       },
       {
         "tableName": "windows",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `start_time` INTEGER NOT NULL, `end_time` INTEGER NOT NULL, `days_of_week_bitmask` INTEGER NOT NULL, `frequency_per_day` INTEGER NOT NULL, `active` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL DEFAULT '', `start_time` INTEGER NOT NULL, `end_time` INTEGER NOT NULL, `days_of_week_bitmask` INTEGER NOT NULL, `frequency_per_day` INTEGER NOT NULL, `active` INTEGER NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -91,7 +91,8 @@
             "fieldPath": "name",
             "columnName": "name",
             "affinity": "TEXT",
-            "notNull": true
+            "notNull": true,
+            "defaultValue": "''"
           },
           {
             "fieldPath": "startTime",
@@ -523,7 +524,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'e53747c58b47a8ed7617e0f45ae43dd9')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '3a4e7eb7d8016d13f1e63cb67a20d6a0')"
     ]
   }
 }

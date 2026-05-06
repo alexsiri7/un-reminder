@@ -4,11 +4,13 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 
 @Entity(tableName = "windows")
 data class WindowEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
+    @ColumnInfo(defaultValue = "")
     val name: String = "",
     @ColumnInfo(name = "start_time")
     val startTime: LocalTime,
@@ -19,4 +21,8 @@ data class WindowEntity(
     @ColumnInfo(name = "frequency_per_day")
     val frequencyPerDay: Int = 1,
     val active: Boolean = true
-)
+) {
+    fun label(): String =
+        if (name.isNotBlank()) name
+        else "${startTime.format(DateTimeFormatter.ofPattern("HH:mm"))}–${endTime.format(DateTimeFormatter.ofPattern("HH:mm"))}"
+}
