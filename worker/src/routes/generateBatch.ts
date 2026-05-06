@@ -5,15 +5,12 @@ import { callRequestyWithSchemaRetry, COST_PER_OUTPUT_TOKEN, COST_PER_INPUT_TOKE
 import * as Sentry from '@sentry/cloudflare'
 
 function buildPrompt(habitTitle: string, habitTags: string[], locationName: string, timeOfDay: string, personalContext: string, n: number, strict = false): string {
+  const schema =
+    `- "text": string (max 80 chars, the notification message)\n` +
+    `- "actionUrl": optional string (YouTube search URL when habit benefits from technique demonstration; omit for simple habits)`
   const outputInstruction = strict
-    ? `Output ONLY a raw JSON array of ${n} objects. Each object must have:\n` +
-      `- "text": string (max 80 chars, the notification message)\n` +
-      `- "actionUrl": optional string (YouTube search URL when habit benefits from technique demonstration; omit for simple habits)\n` +
-      `No markdown, no commentary, no code blocks.`
-    : `Output a JSON array of ${n} objects. Each object must have:\n` +
-      `- "text": string (max 80 chars, the notification message)\n` +
-      `- "actionUrl": optional string (YouTube search URL when habit benefits from technique demonstration; omit for simple habits)\n` +
-      `No markdown, no commentary.`
+    ? `Output ONLY a raw JSON array of ${n} objects. Each object must have:\n${schema}\nNo markdown, no commentary, no code blocks.`
+    : `Output a JSON array of ${n} objects. Each object must have:\n${schema}\nNo markdown, no commentary.`
 
   const contextLines: string[] = []
   if (habitTags.length > 0) contextLines.push(`Tags: ${habitTags.join(', ')}`)

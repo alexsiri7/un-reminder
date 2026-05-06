@@ -282,13 +282,7 @@ describe('un-reminder-worker', () => {
     await waitOnExecutionContext(ctx)
     expect(res.status).toBe(200)
     const body = (await res.json()) as { variants: Array<{ text: string; actionUrl?: string }> }
-    expect(body.variants).toHaveLength(3)
-    expect(body.variants[0]).toEqual({ text: 'Stretch time!' })
-    expect(body.variants[1]).toEqual({
-      text: 'Your body needs a break',
-      actionUrl: 'https://www.youtube.com/results?search_query=stretching',
-    })
-    expect(body.variants[2]).toEqual({ text: "Let's move!" })
+    expect(body.variants).toEqual(variants)
   })
 
   // ---- personalContext tests ----
@@ -403,11 +397,7 @@ describe('un-reminder-worker', () => {
     await waitOnExecutionContext(ctx)
     expect(res.status).toBe(200)
     const body = (await res.json()) as { variants: Array<{ text: string; actionUrl?: string }> }
-    expect(body.variants).toEqual([
-      { text: 'Stretch!' },
-      { text: 'Move it!' },
-      { text: 'Time to go!' },
-    ])
+    expect(body.variants).toEqual(variants)
   })
 
   // ---- Upstream error test ----
