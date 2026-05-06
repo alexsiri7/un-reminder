@@ -15,7 +15,9 @@ interface TriggerDao {
     @Update
     suspend fun update(trigger: TriggerEntity)
 
-    @Query("SELECT * FROM triggers ORDER BY scheduled_at DESC LIMIT :limit")
+    // != 'SCHEDULED' (not IN whitelist) so legacy DB rows with status 'COMPLETED_FULL' or
+    // 'COMPLETED_LOW_FLOOR' (see Converters.toTriggerStatus) also pass through.
+    @Query("SELECT * FROM triggers WHERE status != 'SCHEDULED' ORDER BY scheduled_at DESC LIMIT :limit")
     fun getRecentTriggers(limit: Int = 20): Flow<List<TriggerEntity>>
 
     @Query("SELECT * FROM triggers WHERE status = 'SCHEDULED' AND scheduled_at >= :fromMillis AND scheduled_at < :toMillis")
