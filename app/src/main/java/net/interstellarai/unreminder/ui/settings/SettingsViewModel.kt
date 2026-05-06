@@ -1,7 +1,6 @@
 package net.interstellarai.unreminder.ui.settings
 
 import android.Manifest
-import android.app.AlarmManager
 import android.content.Context
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
@@ -26,7 +25,6 @@ data class SettingsUiState(
     val hasNotificationPermission: Boolean = false,
     val hasFineLocationPermission: Boolean = false,
     val hasBackgroundLocationPermission: Boolean = false,
-    val hasExactAlarmPermission: Boolean = false,
     val testTriggered: Boolean = false,
     val testTriggeredEmpty: Boolean = false,
     val errorMessage: String? = null,
@@ -61,7 +59,6 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun refreshPermissions() {
-        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         _uiState.value = SettingsUiState(
             hasNotificationPermission = ContextCompat.checkSelfPermission(
                 context, Manifest.permission.POST_NOTIFICATIONS
@@ -72,7 +69,6 @@ class SettingsViewModel @Inject constructor(
             hasBackgroundLocationPermission = ContextCompat.checkSelfPermission(
                 context, Manifest.permission.ACCESS_BACKGROUND_LOCATION
             ) == PackageManager.PERMISSION_GRANTED,
-            hasExactAlarmPermission = alarmManager.canScheduleExactAlarms()
         )
     }
 

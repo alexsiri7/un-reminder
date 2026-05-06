@@ -1,6 +1,5 @@
 package net.interstellarai.unreminder.ui.settings
 
-import android.app.AlarmManager
 import android.content.Context
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
@@ -49,7 +48,6 @@ class SettingsViewModelTest {
         habitRepository = mockk(relaxUnitFun = true)
         geofenceManager = mockk(relaxed = true)
         context = mockk(relaxed = true)
-        every { context.getSystemService(Context.ALARM_SERVICE) } returns mockk<AlarmManager>(relaxed = true)
         currentLocationIdsFlow.value = emptySet()
         // Default: at least one eligible habit so the pre-existing tests still exercise the pipeline path.
         every { geofenceManager.currentLocationIds } returns currentLocationIdsFlow.asStateFlow()
