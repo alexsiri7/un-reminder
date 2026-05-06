@@ -742,17 +742,8 @@ class HabitEditViewModelTest {
 
     @Test
     fun `geofence emission before loadHabit does not change the default NewHabit status`() = runTest(testDispatcher) {
-        val flow = MutableStateFlow<Set<Long>>(emptySet())
-        every { mockGeofenceManager.currentLocationIds } returns flow.asStateFlow()
-
-        viewModel = HabitEditViewModel(
-            mockHabitRepository, mockLocationRepository, mockWindowRepository,
-            mockPromptGenerator, mockRefillScheduler, mockVariationRepository,
-            mockGeofenceManager, mockTriggerRepository,
-        )
-
         // Emission before any loadHabit — collector should be a no-op
-        flow.value = setOf(1L, 2L, 3L)
+        currentLocationIdsFlow.value = setOf(1L, 2L, 3L)
         advanceUntilIdle()
 
         assertEquals(AvailabilityStatus.NewHabit, viewModel.uiState.value.availabilityStatus)
@@ -762,15 +753,6 @@ class HabitEditViewModelTest {
     fun `reactive availability hides badge when computeAvailability throws on a geofence emission`() = runTest(testDispatcher) {
         mockkStatic(android.util.Log::class)
         every { android.util.Log.w(any<String>(), any<String>(), any<Throwable>()) } returns 0
-
-        val flow = MutableStateFlow<Set<Long>>(emptySet())
-        every { mockGeofenceManager.currentLocationIds } returns flow.asStateFlow()
-
-        viewModel = HabitEditViewModel(
-            mockHabitRepository, mockLocationRepository, mockWindowRepository,
-            mockPromptGenerator, mockRefillScheduler, mockVariationRepository,
-            mockGeofenceManager, mockTriggerRepository,
-        )
 
         coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit)
         coEvery { mockHabitRepository.getLocationIds(testHabit.id) } returns listOf(1L, 2L)
@@ -783,7 +765,7 @@ class HabitEditViewModelTest {
 
         // Force computeAvailability to throw on the next reactive recompute
         coEvery { mockTriggerRepository.countCompletedSince(any(), any()) } throws RuntimeException("db blip")
-        flow.value = setOf(2L)
+        currentLocationIdsFlow.value = setOf(2L)
         advanceUntilIdle()
 
         // Badge is hidden (NewHabit) — matches loadHabit's hide-on-error fallback.

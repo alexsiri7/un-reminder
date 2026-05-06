@@ -71,9 +71,7 @@ fun LocationScreen(
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
-            items(locations) { row ->
-                val loc = row.location
-                val isCurrent = row.isCurrent
+            items(locations) { (loc, isCurrent) ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = if (isCurrent) {
