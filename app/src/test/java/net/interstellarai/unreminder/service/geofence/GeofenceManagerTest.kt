@@ -82,7 +82,6 @@ class GeofenceManagerTest {
 
     @Test
     fun `loadPersisted ignores malformed entries instead of crashing`() {
-        // Pre-seed prefs with a mix of valid and garbage data
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
             .putStringSet(KEY_LOCATION_IDS, setOf("7", "not-a-number", "42"))
@@ -94,7 +93,7 @@ class GeofenceManagerTest {
 
     companion object {
         // Mirror of GeofenceManager's private prefs schema; renaming there must rename here
-        // or older installs silently fail to rehydrate (the bug from issue #245).
+        // or older installs silently lose persisted state on rehydration.
         private const val PREFS_NAME = "geofence_prefs"
         private const val KEY_LOCATION_IDS = "current_location_ids"
     }

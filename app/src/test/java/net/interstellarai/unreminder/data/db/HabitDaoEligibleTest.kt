@@ -112,8 +112,6 @@ class HabitDaoEligibleTest {
 
     @Test
     fun `dailyLimit 1 with one DISMISSED trigger and cooldown 0 is eligible`() = runTest {
-        // This is the primary regression test for the bug: a single dismissal must not
-        // exhaust a dailyLimit=1 habit for the rest of the day.
         val id = insertHabit("hDismissed1", dailyLimit = 1, cooldownMinutes = 0)
         insertTrigger(id, TriggerStatus.DISMISSED, Instant.ofEpochMilli(midnightMillis))
 
