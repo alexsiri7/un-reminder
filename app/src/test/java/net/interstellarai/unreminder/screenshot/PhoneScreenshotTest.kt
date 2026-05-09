@@ -33,6 +33,7 @@ class PhoneScreenshotTest {
                 HabitListContent(
                     habits = fakeHabits,
                     aiStatus = AiStatus.Ready,
+                    habitAvailability = emptyMap(),
                     onAddHabit = {},
                     onEditHabit = {},
                     onNavigateToFeedback = {},

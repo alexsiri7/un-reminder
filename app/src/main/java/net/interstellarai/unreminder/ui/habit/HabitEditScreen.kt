@@ -56,6 +56,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.data.db.WindowEntity
+import net.interstellarai.unreminder.domain.AvailabilityStatus
+import net.interstellarai.unreminder.domain.UnavailableReason
 import net.interstellarai.unreminder.service.llm.AiStatus
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
