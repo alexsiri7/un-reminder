@@ -166,7 +166,7 @@ describe('callRequestyWithSchemaRetry', () => {
   })
 
   it('returns null on HTTP error after retrying both attempts', async () => {
-    const sentryCapture = vi.spyOn(Sentry, 'captureException').mockImplementation(() => ({} as ReturnType<typeof Sentry.captureException>))
+    const sentryCapture = vi.spyOn(Sentry, 'captureException').mockReturnValue({} as ReturnType<typeof Sentry.captureException>)
 
     mockFetchResponses(
       { status: 500, body: 'Internal Server Error' },
