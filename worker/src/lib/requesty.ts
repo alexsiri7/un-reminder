@@ -76,15 +76,19 @@ export async function callRequestyWithSchemaRetry<T>(
     try {
       result = await callRequesty(apiKey, model, isRetry ? stricterPrompt : prompt, maxTokens, temperature)
     } catch (err) {
-      // HTTP errors (non-200) are not retryable — upstream is down or rate-limiting.
       const match = err instanceof Error ? err.message.match(/Requesty (\d+)/) : null
       const status = match ? parseInt(match[1], 10) : 0
       console.error('[requesty] callRequesty failed', { isRetry, status, err })
-      Sentry.captureException(toError(err), {
-        tags: { 'requesty.failure': 'http' },
-        contexts: { requesty: { isRetry, status } },
-      })
-      return null
+      if (isRetry) {
+        // Both attempts failed — report to Sentry and give up.
+        Sentry.captureException(toError(err), {
+          tags: { 'requesty.failure': 'http' },
+          contexts: { requesty: { isRetry, status } },
+        })
+        return null
+      }
+      // First attempt failed — let the retry loop continue.
+      continue
     }
 
     totalOutputTokens += result.outputTokens

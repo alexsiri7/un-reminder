@@ -288,7 +288,7 @@ describe('un-reminder-worker', () => {
   // ---- personalContext tests ----
 
   it('injects personalContext into prompt as Style line', async () => {
-    const variants = ['Stretch!', 'Move!', 'Go!']
+    const variants = [{ text: 'Stretch!' }, { text: 'Move!' }, { text: 'Go!' }]
     mockRequestySuccess(variants)
 
     const req = makeRequest('/v1/generate/batch', {
@@ -313,7 +313,7 @@ describe('un-reminder-worker', () => {
   })
 
   it('omits Style line when personalContext absent', async () => {
-    const variants = ['Stretch!', 'Move!', 'Go!']
+    const variants = [{ text: 'Stretch!' }, { text: 'Move!' }, { text: 'Go!' }]
     mockRequestySuccess(variants)
 
     const req = makeRequest('/v1/generate/batch', {
@@ -648,7 +648,7 @@ describe('un-reminder-worker', () => {
   })
 
   it('returns 502 on /v1/habit-fields when upstream throws on both attempts', async () => {
-    // callRequesty throws on non-200 — no schema retry on HTTP errors, one 500 suffices
+    enqueueResponse(500, 'Internal Server Error')
     enqueueResponse(500, 'Internal Server Error')
 
     const req = makeRequest('/v1/habit-fields', {
@@ -660,5 +660,22 @@ describe('un-reminder-worker', () => {
     const res = await app.fetch(req, testEnv(), ctx)
     await waitOnExecutionContext(ctx)
     expect(res.status).toBe(502)
+  })
+
+  it('returns 200 on /v1/habit-fields when first HTTP call fails but retry succeeds', async () => {
+    enqueueResponse(500, 'Internal Server Error')
+    mockRequestySuccess({ descriptionLadder: ['a', 'b', 'c', 'd', 'e', 'f'] })
+
+    const req = makeRequest('/v1/habit-fields', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
+      body: { title: 'Meditate' },
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, testEnv(), ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { descriptionLadder: string[] }
+    expect(body.descriptionLadder).toHaveLength(6)
   })
 })
