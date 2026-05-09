@@ -39,12 +39,26 @@ class RandomIntervalWorker @AssistedInject constructor(
 
     companion object {
         const val WORK_NAME = "random_interval"
-        const val MIN_DELAY_MINUTES = 60L
-        const val MAX_DELAY_MINUTES = 180L
+        const val MIN_DELAY_MINUTES = 15L
+        const val MAX_DELAY_MINUTES = 30L
+        private const val MIN_POST_NOTIF_MINUTES = 60L
+        private const val MAX_POST_NOTIF_MINUTES = 90L
         private const val TAG = "RandomIntervalWorker"
 
         fun enqueueNext(workManager: WorkManager) {
             val delay = Random.nextLong(MIN_DELAY_MINUTES, MAX_DELAY_MINUTES)
+            val request = OneTimeWorkRequestBuilder<RandomIntervalWorker>()
+                .setInitialDelay(delay, TimeUnit.MINUTES)
+                .build()
+            workManager.enqueueUniqueWork(
+                WORK_NAME,
+                ExistingWorkPolicy.REPLACE,
+                request
+            )
+        }
+
+        fun enqueueNextAfterFire(workManager: WorkManager) {
+            val delay = Random.nextLong(MIN_POST_NOTIF_MINUTES, MAX_POST_NOTIF_MINUTES)
             val request = OneTimeWorkRequestBuilder<RandomIntervalWorker>()
                 .setInitialDelay(delay, TimeUnit.MINUTES)
                 .build()
@@ -74,6 +88,7 @@ class RandomIntervalWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         var step = "init"
         var triggerId: Long? = null
+        var fired = false
         try {
             step = "windowQuery"
             val activeWindows = windowRepository.getActiveWindows()
@@ -111,6 +126,7 @@ class RandomIntervalWorker @AssistedInject constructor(
 
             step = "pipeline"
             triggerPipeline.execute(triggerId)
+            fired = triggerRepository.getById(triggerId)?.status == TriggerStatus.FIRED
         } catch (e: CancellationException) {
             // Intentionally not calling scheduleNext here — WorkManager may not be
             // in a safe state to accept new work during coroutine cancellation.
@@ -127,9 +143,11 @@ class RandomIntervalWorker @AssistedInject constructor(
             triggerId?.let { triggerRepository.updateOutcome(it, TriggerStatus.DISMISSED) }
         }
 
-        scheduleNext()
+        scheduleNext(fired)
         return Result.success()
     }
 
-    private fun scheduleNext() = enqueueNext(workManager)
+    private fun scheduleNext(fired: Boolean = false) {
+        if (fired) enqueueNextAfterFire(workManager) else enqueueNext(workManager)
+    }
 }
