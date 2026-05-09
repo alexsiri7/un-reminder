@@ -164,15 +164,18 @@ describe('callRequestyWithSchemaRetry', () => {
     expect(globalThis.fetch).toHaveBeenCalledTimes(2)
   })
 
-  it('returns null immediately on HTTP error without retrying', async () => {
-    mockFetchResponses({ status: 500, body: 'Internal Server Error' })
+  it('returns null on HTTP error after retrying both attempts', async () => {
+    mockFetchResponses(
+      { status: 500, body: 'Internal Server Error' },
+      { status: 500, body: 'Internal Server Error' },
+    )
 
     const result = await callRequestyWithSchemaRetry(
       'key', 'model', 'prompt', 'strict',
       (p) => p,
     )
     expect(result).toBeNull()
-    expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2)
   })
 
   it('accumulates tokens when first attempt has valid JSON but fails validation then retry succeeds', async () => {
