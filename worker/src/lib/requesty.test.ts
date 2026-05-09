@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
+import * as Sentry from '@sentry/cloudflare'
 import { callRequesty, callRequestyWithSchemaRetry } from './requesty'
 
 const originalFetch = globalThis.fetch
@@ -165,6 +166,8 @@ describe('callRequestyWithSchemaRetry', () => {
   })
 
   it('returns null on HTTP error after retrying both attempts', async () => {
+    const sentryCapture = vi.spyOn(Sentry, 'captureException').mockImplementation(() => ({} as ReturnType<typeof Sentry.captureException>))
+
     mockFetchResponses(
       { status: 500, body: 'Internal Server Error' },
       { status: 500, body: 'Internal Server Error' },
@@ -176,6 +179,9 @@ describe('callRequestyWithSchemaRetry', () => {
     )
     expect(result).toBeNull()
     expect(globalThis.fetch).toHaveBeenCalledTimes(2)
+    // Sentry must only fire on the final failure, not the first attempt
+    expect(sentryCapture).toHaveBeenCalledTimes(1)
+    sentryCapture.mockRestore()
   })
 
   it('accumulates tokens when first attempt has valid JSON but fails validation then retry succeeds', async () => {

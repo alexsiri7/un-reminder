@@ -664,22 +664,7 @@ describe('un-reminder-worker', () => {
 
   it('returns 200 on /v1/habit-fields when first HTTP call fails but retry succeeds', async () => {
     enqueueResponse(500, 'Internal Server Error')
-    enqueueResponse(
-      200,
-      JSON.stringify({
-        choices: [
-          {
-            message: {
-              content: JSON.stringify({
-                descriptionLadder: ['a', 'b', 'c', 'd', 'e', 'f'],
-              }),
-            },
-          },
-        ],
-        usage: { prompt_tokens: 10, completion_tokens: 20 },
-      }),
-      { 'Content-Type': 'application/json' },
-    )
+    mockRequestySuccess({ descriptionLadder: ['a', 'b', 'c', 'd', 'e', 'f'] })
 
     const req = makeRequest('/v1/habit-fields', {
       method: 'POST',

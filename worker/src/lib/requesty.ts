@@ -87,7 +87,7 @@ export async function callRequestyWithSchemaRetry<T>(
         })
         return null
       }
-      // First attempt failed with an HTTP error — let the retry loop continue.
+      // First attempt failed — let the retry loop continue.
       continue
     }
 
