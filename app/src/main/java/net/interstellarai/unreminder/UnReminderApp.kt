@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import androidx.work.WorkManager
+import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.notification.NotificationHelper
 import net.interstellarai.unreminder.service.sentry.applyOptions
 import net.interstellarai.unreminder.service.sentry.shouldInitSentry
@@ -12,6 +13,10 @@ import net.interstellarai.unreminder.worker.RandomIntervalWorker
 import net.interstellarai.unreminder.worker.TriggerWatchdogWorker
 import dagger.hilt.android.HiltAndroidApp
 import io.sentry.android.core.SentryAndroid
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltAndroidApp
@@ -22,6 +27,9 @@ class UnReminderApp : Application(), Configuration.Provider {
 
     @Inject
     lateinit var notificationHelper: NotificationHelper
+
+    @Inject
+    lateinit var geofenceManager: GeofenceManager
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
@@ -39,6 +47,12 @@ class UnReminderApp : Application(), Configuration.Provider {
         // Self-heal (KEEP, 24h periodic): re-enqueues the chain if it ever falls into a
         // terminal state, and reaps stale SCHEDULED rows.
         TriggerWatchdogWorker.enqueue(this)
+        // Re-register all geofences on every launch. Android clears geofences on app update,
+        // force-stop, or data clear; re-registering with INITIAL_TRIGGER_ENTER ensures
+        // currentLocationIds is accurate even without a device reboot.
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            geofenceManager.registerAllFromDb()
+        }
     }
 
     private fun initSentry() {
