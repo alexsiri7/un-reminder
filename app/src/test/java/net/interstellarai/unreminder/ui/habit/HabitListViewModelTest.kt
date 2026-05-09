@@ -1,8 +1,11 @@
 package net.interstellarai.unreminder.ui.habit
 
 import net.interstellarai.unreminder.data.repository.HabitRepository
+import net.interstellarai.unreminder.domain.HabitAvailabilityService
+import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.service.llm.PromptGenerator
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
@@ -24,12 +27,16 @@ class HabitListViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private val mockPromptGenerator: PromptGenerator = mockk()
     private val mockHabitRepository: HabitRepository = mockk()
+    private val mockAvailabilityService: HabitAvailabilityService = mockk()
+    private val mockGeofenceManager: GeofenceManager = mockk()
 
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
         every { mockHabitRepository.getAll() } returns flowOf(emptyList())
         every { mockPromptGenerator.aiStatus } returns MutableStateFlow(AiStatus.Ready)
+        every { mockGeofenceManager.currentLocationIds } returns MutableStateFlow(emptySet())
+        coEvery { mockAvailabilityService.computeForAll(any()) } returns emptyMap()
     }
 
     @After
@@ -37,7 +44,12 @@ class HabitListViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun buildViewModel() = HabitListViewModel(mockHabitRepository, mockPromptGenerator)
+    private fun buildViewModel() = HabitListViewModel(
+        mockHabitRepository,
+        mockPromptGenerator,
+        mockAvailabilityService,
+        mockGeofenceManager,
+    )
 
     @Test
     fun `aiStatus delegates directly to promptGenerator aiStatus`() = runTest(testDispatcher) {

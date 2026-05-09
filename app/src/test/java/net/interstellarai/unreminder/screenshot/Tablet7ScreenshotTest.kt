@@ -31,6 +31,7 @@ class Tablet7ScreenshotTest {
                 HabitListContent(
                     habits = fakeHabits,
                     aiStatus = AiStatus.Ready,
+                    habitAvailability = emptyMap(),
                     onAddHabit = {},
                     onEditHabit = {},
                     onNavigateToFeedback = {},

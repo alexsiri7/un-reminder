@@ -12,6 +12,8 @@ import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.data.repository.WindowRepository
+import net.interstellarai.unreminder.domain.AvailabilityStatus
+import net.interstellarai.unreminder.domain.HabitAvailabilityService
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.service.llm.LlmUnavailableException
@@ -36,18 +38,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collect
 import java.io.IOException
 import java.time.Instant
-import java.time.LocalDate
-import java.time.LocalTime
-import java.time.ZoneId
 import javax.inject.Inject
-
-sealed class AvailabilityStatus {
-    object Available : AvailabilityStatus()
-    object NewHabit : AvailabilityStatus()
-    data class Unavailable(val reasons: List<UnavailableReason>) : AvailabilityStatus()
-}
-
-enum class UnavailableReason { INACTIVE, LOCATION, TIME_WINDOW, COMPLETED, COOLDOWN, DAILY_LIMIT }
 
 data class HabitEditUiState(
     val name: String = "",
@@ -81,6 +72,7 @@ class HabitEditViewModel @Inject constructor(
     private val variationRepository: VariationRepository,
     private val geofenceManager: GeofenceManager,
     private val triggerRepository: TriggerRepository,
+    private val availabilityService: HabitAvailabilityService,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HabitEditUiState())
@@ -111,24 +103,19 @@ class HabitEditViewModel @Inject constructor(
         .flatMapLatest { variationRepository.countTotalFlow(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
-    // Holds the most-recently-loaded habit data for reactive availability recomputation.
-    private data class LoadedHabitData(
-        val habit: HabitEntity,
-        val locationIds: Set<Long>,
-        val windowIds: Set<Long>,
-    )
-    private val _loadedHabit = MutableStateFlow<LoadedHabitData?>(null)
+    // Holds the most-recently-loaded habit for reactive availability recomputation.
+    private val _loadedHabit = MutableStateFlow<HabitEntity?>(null)
 
     init {
         // Reactively recompute availability whenever the loaded habit OR the current geofence set changes.
         viewModelScope.launch {
             geofenceManager.currentLocationIds.collect { _ ->
-                val loaded = _loadedHabit.value ?: return@collect
+                val habit = _loadedHabit.value ?: return@collect
                 val availability = try {
-                    computeAvailability(loaded.habit, loaded.locationIds, loaded.windowIds)
+                    availabilityService.computeAvailability(habit)
                 } catch (e: Exception) {
                     if (e is CancellationException) throw e
-                    Log.w(TAG, "reactive availability recompute failed for habit ${loaded.habit.id} — hiding badge", e)
+                    Log.w(TAG, "reactive availability recompute failed for habit ${habit.id} — hiding badge", e)
                     AvailabilityStatus.NewHabit
                 }
                 _uiState.value = _uiState.value.copy(availabilityStatus = availability)
@@ -158,7 +145,7 @@ class HabitEditViewModel @Inject constructor(
                 existingHabit = habit
                 // Availability is informational; don't let its failure block the edit screen.
                 val availability = try {
-                    computeAvailability(habit, locationIds, windowIds)
+                    availabilityService.computeAvailability(habit, locationIds, windowIds)
                 } catch (e: Exception) {
                     if (e is CancellationException) throw e
                     Log.w(TAG, "loadHabit: availability computation failed for habit $id — hiding badge", e)
@@ -178,7 +165,7 @@ class HabitEditViewModel @Inject constructor(
                 )
                 // Publish to the reactive collector AFTER state is settled so a mid-load
                 // geofence emission cannot be clobbered by this assignment.
-                _loadedHabit.value = LoadedHabitData(habit, locationIds, windowIds)
+                _loadedHabit.value = habit
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "loadHabit: failed to load habit $id", e)
@@ -374,73 +361,5 @@ class HabitEditViewModel @Inject constructor(
                 Log.w(TAG, "deleteVariation: failed to delete variation $id", e)
             }
         }
-    }
-
-    /**
-     * Computes the current availability status for an existing habit, checking each
-     * ineligibility reason independently (mirroring the SQL in HabitDao.getEligibleHabits).
-     */
-    private suspend fun computeAvailability(
-        habit: HabitEntity,
-        locationIds: Set<Long>,
-        windowIds: Set<Long>,
-    ): AvailabilityStatus {
-        val reasons = mutableListOf<UnavailableReason>()
-
-        // --- Active --- (mirrors `h.active = 1` in HabitDao.getEligibleHabits)
-        if (!habit.active) reasons += UnavailableReason.INACTIVE
-
-        // --- Location ---
-        // Habit has location restrictions AND current location not in them.
-        if (locationIds.isNotEmpty()) {
-            val currentIds = geofenceManager.currentLocationIds.value
-            if (currentIds.none { it in locationIds }) {
-                reasons += UnavailableReason.LOCATION
-            }
-        }
-
-        // --- Time window ---
-        // Habit has windows AND current time not in any active window for today.
-        if (windowIds.isNotEmpty()) {
-            val now = LocalTime.now()
-            val currentSecondOfDay = now.toSecondOfDay()
-            val dayOfWeekBit = 1 shl (LocalDate.now().dayOfWeek.value - 1)
-            val activeWindows = windowRepository.getActiveWindows()
-                .filter { it.id in windowIds }
-            val inWindow = activeWindows.any { w ->
-                w.startTime.toSecondOfDay() <= currentSecondOfDay &&
-                    w.endTime.toSecondOfDay() >= currentSecondOfDay &&
-                    (w.daysOfWeekBitmask and dayOfWeekBit) != 0
-            }
-            if (!inWindow) reasons += UnavailableReason.TIME_WINDOW
-        }
-
-        // --- Completed today ---
-        // status = 'COMPLETED' (exact, matching the SQL) since start of today.
-        val completedCutoff = LocalDate.now()
-            .atStartOfDay(ZoneId.systemDefault())
-            .toInstant()
-            .toEpochMilli()
-        val completedCount = triggerRepository.countCompletedSince(habit.id, completedCutoff)
-        if (completedCount > 0) reasons += UnavailableReason.COMPLETED
-
-        // --- Cooldown ---
-        // DISMISSED or FIRED within cooldown_minutes (mirrors SQL; 0 cooldown = no restriction).
-        if (habit.cooldownMinutes > 0) {
-            val nowEpochMillis = Instant.now().toEpochMilli()
-            val cooldownCutoff = nowEpochMillis - habit.cooldownMinutes * 60 * 1000L
-            val lastFiredOrDismissed = triggerRepository.getLastFiredOrDismissedForHabit(habit.id)
-            if (lastFiredOrDismissed != null && lastFiredOrDismissed > cooldownCutoff) {
-                reasons += UnavailableReason.COOLDOWN
-            }
-        }
-
-        // --- Daily limit --- (mirrors `COUNT(...) < h.daily_limit` in HabitDao.getEligibleHabits;
-        // counts only COMPLETED actions since start-of-day; dismissed/fired do not count.)
-        val dailyTotal = triggerRepository.countDailyCompletionsSince(habit.id, completedCutoff)
-        if (dailyTotal >= habit.dailyLimit) reasons += UnavailableReason.DAILY_LIMIT
-
-        return if (reasons.isEmpty()) AvailabilityStatus.Available
-        else AvailabilityStatus.Unavailable(reasons)
     }
 }

@@ -20,6 +20,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.EventBusy
+import androidx.compose.material.icons.filled.LocationOff
+import androidx.compose.material.icons.filled.PauseCircle
+import androidx.compose.material.icons.outlined.HourglassEmpty
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -38,6 +44,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import net.interstellarai.unreminder.data.db.HabitEntity
+import net.interstellarai.unreminder.domain.AvailabilityStatus
+import net.interstellarai.unreminder.domain.UnavailableReason
 import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.ui.theme.Dimens
 import net.interstellarai.unreminder.ui.theme.DisplayHuge
@@ -59,8 +67,7 @@ import java.util.Locale
 //   - Context strip (date · time-of-day)
 //   - Big italic serif "un-reminder" header
 //   - List of habits with a circular glyph bubble, name, low-floor text,
-//     and a "location" tag on the right.
-// The ViewModel and data contracts are untouched — this is purely layout.
+//     and an availability indicator on the right.
 // ─────────────────────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -73,9 +80,11 @@ fun HabitListScreen(
 ) {
     val habits by viewModel.habits.collectAsStateWithLifecycle()
     val aiStatus by viewModel.aiStatus.collectAsStateWithLifecycle()
+    val habitAvailability by viewModel.habitAvailability.collectAsStateWithLifecycle()
     HabitListContent(
         habits = habits,
         aiStatus = aiStatus,
+        habitAvailability = habitAvailability,
         onAddHabit = onAddHabit,
         onEditHabit = onEditHabit,
         onNavigateToFeedback = onNavigateToFeedback,
@@ -87,6 +96,7 @@ fun HabitListScreen(
 internal fun HabitListContent(
     habits: List<HabitEntity>,
     aiStatus: AiStatus,
+    habitAvailability: Map<Long, AvailabilityStatus>,
     onAddHabit: () -> Unit,
     onEditHabit: (Long) -> Unit,
     onNavigateToFeedback: () -> Unit,
@@ -157,6 +167,7 @@ internal fun HabitListContent(
                             name = habit.name,
                             active = habit.active,
                             dedicationLevel = habit.dedicationLevel,
+                            availability = habitAvailability[habit.id],
                             onClick = { onEditHabit(habit.id) },
                         )
                         HorizontalDivider(
@@ -237,6 +248,7 @@ private fun HabitRow(
     name: String,
     active: Boolean,
     dedicationLevel: Int,
+    availability: AvailabilityStatus?,
     onClick: () -> Unit,
 ) {
     val alpha = if (active) 1f else 0.35f
@@ -279,20 +291,52 @@ private fun HabitRow(
             }
         }
         Spacer(Modifier.width(Dimens.sm))
-        Box(
-            modifier = Modifier
-                .border(
-                    width = Dimens.hairline,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f),
-                    shape = UnReminderShapes.small,
-                )
-                .padding(horizontal = Dimens.sm - 2.dp, vertical = 3.dp),
-        ) {
-            Text(
-                text = "anywhere",
-                style = MonoLabelTiny,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f * alpha),
+        AvailabilityIndicator(availability = availability, alpha = alpha)
+    }
+}
+
+/**
+ * Availability indicator shown at the trailing edge of each habit row.
+ *
+ * - Available (or null / not yet computed): a small green dot
+ * - Unavailable: small icons for each reason, dimmed to blend with the row
+ */
+@Composable
+private fun AvailabilityIndicator(
+    availability: AvailabilityStatus?,
+    alpha: Float,
+) {
+    val iconTint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f * alpha)
+    when (availability) {
+        null, is AvailabilityStatus.Available, is AvailabilityStatus.NewHabit -> {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .background(
+                        color = androidx.compose.ui.graphics.Color(0xFF4CAF50).copy(alpha = 0.7f * alpha),
+                        shape = CircleShape,
+                    )
             )
+        }
+        is AvailabilityStatus.Unavailable -> {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                availability.reasons.forEach { reason ->
+                    val icon = when (reason) {
+                        UnavailableReason.LOCATION -> Icons.Default.LocationOff
+                        UnavailableReason.COMPLETED -> Icons.Default.CheckCircle
+                        UnavailableReason.TIME_WINDOW -> Icons.Outlined.Schedule
+                        UnavailableReason.COOLDOWN -> Icons.Outlined.HourglassEmpty
+                        UnavailableReason.INACTIVE -> Icons.Default.PauseCircle
+                        UnavailableReason.DAILY_LIMIT -> Icons.Default.EventBusy
+                    }
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = reason.name,
+                        modifier = Modifier.size(14.dp),
+                        tint = iconTint,
+                    )
+                }
+            }
         }
     }
 }
