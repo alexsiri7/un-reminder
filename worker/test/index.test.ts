@@ -288,7 +288,7 @@ describe('un-reminder-worker', () => {
   // ---- personalContext tests ----
 
   it('injects personalContext into prompt as Style line', async () => {
-    const variants = ['Stretch!', 'Move!', 'Go!']
+    const variants = [{ text: 'Stretch!' }, { text: 'Move!' }, { text: 'Go!' }]
     mockRequestySuccess(variants)
 
     const req = makeRequest('/v1/generate/batch', {
@@ -313,7 +313,7 @@ describe('un-reminder-worker', () => {
   })
 
   it('omits Style line when personalContext absent', async () => {
-    const variants = ['Stretch!', 'Move!', 'Go!']
+    const variants = [{ text: 'Stretch!' }, { text: 'Move!' }, { text: 'Go!' }]
     mockRequestySuccess(variants)
 
     const req = makeRequest('/v1/generate/batch', {
