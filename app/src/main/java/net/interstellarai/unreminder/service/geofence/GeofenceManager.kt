@@ -62,8 +62,10 @@ class GeofenceManager @Inject constructor(
     fun registerGeofence(id: Long, name: String, lat: Double, lng: Double, radiusM: Float) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
             != PackageManager.PERMISSION_GRANTED
+            || ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            != PackageManager.PERMISSION_GRANTED
         ) {
-            Log.w(TAG, "Missing location permission, cannot register geofence")
+            Log.w(TAG, "Missing required location permissions, cannot register geofence")
             return
         }
 
