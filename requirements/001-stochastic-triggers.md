@@ -11,4 +11,7 @@ Fixed-time reminders (7:00 PM every day) suffer from notification blindness — 
 
 ## What
 
-WorkManager one-shot workers that fire at a random 1–3 hour delay, self-re-enqueuing after each run. Each worker checks whether the current time is inside an active window before executing the fire-time pipeline. A watchdog worker detects and restarts dead chains.
+WorkManager one-shot workers that self-re-enqueue after each run using an adaptive delay:
+15–30 minutes in normal conditions; 60–90 minutes immediately after a notification fires.
+Each worker checks whether the current time is inside an active window before executing the
+fire-time pipeline. A watchdog worker detects and restarts dead chains.

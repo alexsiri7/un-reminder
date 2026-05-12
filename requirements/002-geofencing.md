@@ -11,4 +11,8 @@ Some habits only make sense in specific contexts (e.g. gym exercises at the gym)
 
 ## What
 
-Android `GeofencingClient` geofence registration for any named user-defined location. On `ENTER`, one notification is scheduled 5 minutes later (settle-in delay). Debounced: at most one arrival trigger per location per 30 minutes.
+Android `GeofencingClient` geofence registration for any named user-defined location. On
+`ENTER`, the location is added to the active-location state set; on `EXIT` it is removed.
+The stochastic WorkManager pipeline reads this state on each check cycle and restricts
+eligible habits to those associated with the current location(s). A habit's per-habit
+cooldown prevents back-to-back triggers regardless of geofence transitions.
