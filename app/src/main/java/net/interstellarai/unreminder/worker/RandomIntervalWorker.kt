@@ -45,43 +45,24 @@ class RandomIntervalWorker @AssistedInject constructor(
         private const val MAX_POST_NOTIF_MINUTES = 90L
         private const val TAG = "RandomIntervalWorker"
 
-        fun enqueueNext(workManager: WorkManager) {
-            val delay = Random.nextLong(MIN_DELAY_MINUTES, MAX_DELAY_MINUTES)
-            val request = OneTimeWorkRequestBuilder<RandomIntervalWorker>()
-                .setInitialDelay(delay, TimeUnit.MINUTES)
-                .build()
-            workManager.enqueueUniqueWork(
-                WORK_NAME,
-                ExistingWorkPolicy.REPLACE,
-                request
-            )
-        }
+        fun enqueueNext(workManager: WorkManager) =
+            enqueue(workManager, MIN_DELAY_MINUTES, MAX_DELAY_MINUTES, ExistingWorkPolicy.REPLACE)
 
-        fun enqueueNextAfterFire(workManager: WorkManager) {
-            val delay = Random.nextLong(MIN_POST_NOTIF_MINUTES, MAX_POST_NOTIF_MINUTES)
-            val request = OneTimeWorkRequestBuilder<RandomIntervalWorker>()
-                .setInitialDelay(delay, TimeUnit.MINUTES)
-                .build()
-            workManager.enqueueUniqueWork(
-                WORK_NAME,
-                ExistingWorkPolicy.REPLACE,
-                request
-            )
-        }
+        fun enqueueNextAfterFire(workManager: WorkManager) =
+            enqueue(workManager, MIN_POST_NOTIF_MINUTES, MAX_POST_NOTIF_MINUTES, ExistingWorkPolicy.REPLACE)
 
         // Bootstrap entrypoint for app start / boot. Uses KEEP so an already-alive
         // chain is not disturbed; enqueues a fresh first tick when nothing is scheduled.
         // Recovery from a dead/terminal chain remains the watchdog's job (REPLACE).
-        fun enqueueInitial(workManager: WorkManager) {
-            val delay = Random.nextLong(MIN_DELAY_MINUTES, MAX_DELAY_MINUTES)
+        fun enqueueInitial(workManager: WorkManager) =
+            enqueue(workManager, MIN_DELAY_MINUTES, MAX_DELAY_MINUTES, ExistingWorkPolicy.KEEP)
+
+        private fun enqueue(workManager: WorkManager, minMinutes: Long, maxMinutes: Long, policy: ExistingWorkPolicy) {
+            val delay = Random.nextLong(minMinutes, maxMinutes)
             val request = OneTimeWorkRequestBuilder<RandomIntervalWorker>()
                 .setInitialDelay(delay, TimeUnit.MINUTES)
                 .build()
-            workManager.enqueueUniqueWork(
-                WORK_NAME,
-                ExistingWorkPolicy.KEEP,
-                request
-            )
+            workManager.enqueueUniqueWork(WORK_NAME, policy, request)
         }
     }
 
