@@ -217,12 +217,10 @@ describe('callRequestyWithSchemaRetry', () => {
   it('uses original prompt (not stricterPrompt) on HTTP error retry', async () => {
     globalThis.setTimeout = ((fn: () => void) => originalSetTimeout(fn, 0)) as typeof setTimeout
     const prompts: string[] = []
-    let callCount = 0
     globalThis.fetch = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
       const body = JSON.parse(init?.body as string)
       prompts.push(body.messages[0].content)
-      callCount++
-      if (callCount === 1) {
+      if (prompts.length === 1) {
         return new Response(JSON.stringify('Bad Gateway'), { status: 502 })
       }
       return new Response(
@@ -246,12 +244,10 @@ describe('callRequestyWithSchemaRetry', () => {
   it('uses stricterPrompt on retry when attempt 1 had malformed JSON and attempt 2 has HTTP error', async () => {
     globalThis.setTimeout = ((fn: () => void) => originalSetTimeout(fn, 0)) as typeof setTimeout
     const prompts: string[] = []
-    let callCount = 0
     globalThis.fetch = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
       const body = JSON.parse(init?.body as string)
       prompts.push(body.messages[0].content)
-      callCount++
-      if (callCount === 1) {
+      if (prompts.length === 1) {
         // Attempt 1: 200 but unparseable JSON
         return new Response(
           JSON.stringify({ choices: [{ message: { content: 'not valid json {' } }], usage: { prompt_tokens: 1, completion_tokens: 1 } }),
