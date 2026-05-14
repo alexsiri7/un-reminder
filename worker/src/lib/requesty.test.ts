@@ -299,4 +299,61 @@ describe('callRequestyWithSchemaRetry', () => {
     expect(result!.inputTokens).toBe(30) // 15 + 15
     expect(result!.outputTokens).toBe(20) // 10 + 10
   })
+
+  it('retries with stricterPrompt when first attempt returns empty text', async () => {
+    const prompts: string[] = []
+    globalThis.fetch = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(init?.body as string)
+      prompts.push(body.messages[0].content)
+      if (prompts.length === 1) {
+        // First attempt: empty content
+        return new Response(
+          JSON.stringify({ choices: [{ message: { content: '' } }], usage: { prompt_tokens: 5, completion_tokens: 0 } }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        )
+      }
+      // Retry: valid JSON
+      return new Response(
+        JSON.stringify({
+          choices: [{ message: { content: '{"ok":true}' } }],
+          usage: { prompt_tokens: 5, completion_tokens: 3 },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      )
+    }) as typeof fetch
+
+    const result = await callRequestyWithSchemaRetry(
+      'key', 'model', 'normal', 'strict',
+      (p) => (p as { ok: boolean }).ok ? p : null,
+    )
+    expect(result).not.toBeNull()
+    expect(result!.data).toEqual({ ok: true })
+    // Must use stricterPrompt on retry (empty text is a JSON/schema failure, not HTTP)
+    expect(prompts).toEqual(['normal', 'strict'])
+  })
+
+  it('returns null and reports warning (not exception) when both attempts return empty text', async () => {
+    const sentryCapture = vi.spyOn(Sentry, 'captureException').mockReturnValue({} as ReturnType<typeof Sentry.captureException>)
+    const sentryMessage = vi.spyOn(Sentry, 'captureMessage').mockReturnValue({} as ReturnType<typeof Sentry.captureMessage>)
+
+    mockFetchResponses(
+      {
+        status: 200,
+        body: { choices: [{ message: { content: '' } }], usage: { prompt_tokens: 5, completion_tokens: 0 } },
+      },
+      {
+        status: 200,
+        body: { choices: [{ message: { content: '' } }], usage: { prompt_tokens: 5, completion_tokens: 0 } },
+      },
+    )
+
+    const result = await callRequestyWithSchemaRetry('key', 'model', 'prompt', 'strict', () => null)
+    expect(result).toBeNull()
+    // Should NOT throw SyntaxError or call captureException
+    expect(sentryCapture).not.toHaveBeenCalled()
+    // Should report as a warning message on final retry
+    expect(sentryMessage).toHaveBeenCalledWith('Requesty returned empty response text', expect.any(Object))
+    sentryCapture.mockRestore()
+    sentryMessage.mockRestore()
+  })
 })
