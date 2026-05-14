@@ -3,9 +3,11 @@ import * as Sentry from '@sentry/cloudflare'
 import { callRequesty, callRequestyWithSchemaRetry } from './requesty'
 
 const originalFetch = globalThis.fetch
+const originalSetTimeout = globalThis.setTimeout
 
 afterEach(() => {
   globalThis.fetch = originalFetch
+  globalThis.setTimeout = originalSetTimeout
 })
 
 function mockFetchResponses(
@@ -166,9 +168,8 @@ describe('callRequestyWithSchemaRetry', () => {
   })
 
   it('returns null on HTTP error after retrying both attempts', async () => {
-    const delays: number[] = []
-    const origSetTimeout = globalThis.setTimeout
-    globalThis.setTimeout = ((fn: () => void, ms: number) => { delays.push(ms); return origSetTimeout(fn, 0) }) as typeof setTimeout
+    // Mock setTimeout to skip the real 1 s delay
+    globalThis.setTimeout = ((fn: () => void) => originalSetTimeout(fn, 0)) as typeof setTimeout
     const sentryCapture = vi.spyOn(Sentry, 'captureException').mockReturnValue({} as ReturnType<typeof Sentry.captureException>)
 
     mockFetchResponses(
@@ -185,13 +186,11 @@ describe('callRequestyWithSchemaRetry', () => {
     // Sentry must only fire on the final failure, not the first attempt
     expect(sentryCapture).toHaveBeenCalledTimes(1)
     sentryCapture.mockRestore()
-    globalThis.setTimeout = origSetTimeout
   })
 
   it('adds a delay before retry when first attempt fails with HTTP error', async () => {
     const delays: number[] = []
-    const origSetTimeout = globalThis.setTimeout
-    globalThis.setTimeout = ((fn: () => void, ms: number) => { delays.push(ms); return origSetTimeout(fn, 0) }) as typeof setTimeout
+    globalThis.setTimeout = ((fn: () => void, ms: number) => { delays.push(ms); return originalSetTimeout(fn, 0) }) as typeof setTimeout
 
     mockFetchResponses(
       { status: 502, body: 'Bad Gateway' },
@@ -211,14 +210,12 @@ describe('callRequestyWithSchemaRetry', () => {
 
     expect(result).not.toBeNull()
     expect(result!.data).toEqual({ ok: true })
-    // Delay must have been scheduled for HTTP error retry
-    expect(delays).toContain(1000)
-    globalThis.setTimeout = origSetTimeout
+    // Exactly one delay must have been scheduled for HTTP error retry
+    expect(delays).toEqual([1000])
   })
 
   it('uses original prompt (not stricterPrompt) on HTTP error retry', async () => {
-    const origSetTimeout = globalThis.setTimeout
-    globalThis.setTimeout = ((fn: () => void, ms: number) => origSetTimeout(fn, 0)) as typeof setTimeout
+    globalThis.setTimeout = ((fn: () => void) => originalSetTimeout(fn, 0)) as typeof setTimeout
     const prompts: string[] = []
     let callCount = 0
     globalThis.fetch = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
@@ -244,7 +241,39 @@ describe('callRequestyWithSchemaRetry', () => {
 
     // HTTP error retry should use 'normal' prompt, not 'strict'
     expect(prompts).toEqual(['normal', 'normal'])
-    globalThis.setTimeout = origSetTimeout
+  })
+
+  it('uses stricterPrompt on retry when attempt 1 had malformed JSON and attempt 2 has HTTP error', async () => {
+    globalThis.setTimeout = ((fn: () => void) => originalSetTimeout(fn, 0)) as typeof setTimeout
+    const prompts: string[] = []
+    let callCount = 0
+    globalThis.fetch = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(init?.body as string)
+      prompts.push(body.messages[0].content)
+      callCount++
+      if (callCount === 1) {
+        // Attempt 1: 200 but unparseable JSON
+        return new Response(
+          JSON.stringify({ choices: [{ message: { content: 'not valid json {' } }], usage: { prompt_tokens: 1, completion_tokens: 1 } }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        )
+      }
+      // Attempt 2 (retry): HTTP error
+      return new Response('Bad Gateway', { status: 502 })
+    }) as typeof fetch
+
+    const sentryCapture = vi.spyOn(Sentry, 'captureException').mockReturnValue({} as ReturnType<typeof Sentry.captureException>)
+
+    const result = await callRequestyWithSchemaRetry(
+      'key', 'model', 'normal', 'strict',
+      (p) => (p as { ok: boolean }).ok ? p : null,
+    )
+
+    // JSON error on attempt 1 → stricterPrompt used on retry, even though retry fails with HTTP error
+    expect(prompts).toEqual(['normal', 'strict'])
+    expect(result).toBeNull()
+    expect(sentryCapture).toHaveBeenCalledTimes(1)
+    sentryCapture.mockRestore()
   })
 
   it('accumulates tokens when first attempt has valid JSON but fails validation then retry succeeds', async () => {

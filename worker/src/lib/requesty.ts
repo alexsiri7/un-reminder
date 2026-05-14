@@ -55,8 +55,13 @@ export async function callRequesty(
 }
 
 /**
- * Call Requesty expecting JSON matching schema T. On malformed response:
- * retries once with stricterPrompt. Returns null if both attempts fail (caller should 502).
+ * Call Requesty expecting JSON matching schema T.
+ *
+ * Retry behaviour (one retry maximum):
+ * - HTTP error (non-200): retries after a 1 s delay using the original `prompt`.
+ * - JSON parse / schema validation failure: retries immediately with `stricterPrompt`.
+ *
+ * Returns null if both attempts fail (caller should 502).
  * Accumulated tokens include both attempts.
  */
 export async function callRequestyWithSchemaRetry<T>(
