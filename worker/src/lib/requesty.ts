@@ -55,8 +55,13 @@ export async function callRequesty(
 }
 
 /**
- * Call Requesty expecting JSON matching schema T. On malformed response:
- * retries once with stricterPrompt. Returns null if both attempts fail (caller should 502).
+ * Call Requesty expecting JSON matching schema T.
+ *
+ * Retry behaviour (one retry maximum):
+ * - HTTP error (non-200): retries after a 1 s delay using the original `prompt`.
+ * - JSON parse / schema validation failure: retries immediately with `stricterPrompt`.
+ *
+ * Returns null if both attempts fail (caller should 502).
  * Accumulated tokens include both attempts.
  */
 export async function callRequestyWithSchemaRetry<T>(
@@ -70,11 +75,20 @@ export async function callRequestyWithSchemaRetry<T>(
 ): Promise<{ data: T; outputTokens: number; inputTokens: number } | null> {
   let totalOutputTokens = 0
   let totalInputTokens = 0
+  let httpErrorOnFirstAttempt = false
 
   for (const isRetry of [false, true]) {
+    // For HTTP error retries, wait 1s to let the upstream recover before retrying.
+    if (isRetry && httpErrorOnFirstAttempt) {
+      await new Promise((r) => setTimeout(r, 1000))
+    }
+
+    // Use stricterPrompt only for JSON/schema retries, not HTTP error retries.
+    const promptToUse = isRetry && !httpErrorOnFirstAttempt ? stricterPrompt : prompt
+
     let result: RequestyResult
     try {
-      result = await callRequesty(apiKey, model, isRetry ? stricterPrompt : prompt, maxTokens, temperature)
+      result = await callRequesty(apiKey, model, promptToUse, maxTokens, temperature)
     } catch (err) {
       const match = err instanceof Error ? err.message.match(/Requesty (\d+)/) : null
       const status = match ? parseInt(match[1], 10) : 0
@@ -87,7 +101,8 @@ export async function callRequestyWithSchemaRetry<T>(
         })
         return null
       }
-      // First attempt failed — let the retry loop continue.
+      // First attempt failed with HTTP error — mark reason and let retry loop continue.
+      httpErrorOnFirstAttempt = true
       continue
     }
 
