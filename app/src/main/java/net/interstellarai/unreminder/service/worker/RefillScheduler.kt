@@ -2,7 +2,9 @@ package net.interstellarai.unreminder.service.worker
 
 import android.content.Context
 import androidx.work.BackoffPolicy
+import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkRequest
@@ -17,8 +19,12 @@ class RefillScheduler @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
     fun enqueueForHabit(habitId: Long) {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
         val request = OneTimeWorkRequestBuilder<RefillWorker>()
             .setInputData(workDataOf(RefillWorker.KEY_HABIT_ID to habitId))
+            .setConstraints(constraints)
             .setBackoffCriteria(
                 BackoffPolicy.EXPONENTIAL,
                 WorkRequest.MIN_BACKOFF_MILLIS,

@@ -103,8 +103,8 @@ class RefillWorker @AssistedInject constructor(
                 Result.failure()
             }
         } catch (e: UnknownHostException) {
-            // Transient DNS failure (offline, Doze wake-up race, captive portal).
-            // Not actionable for the developer — WorkManager retries with backoff.
+            // Safety net: NetworkType.CONNECTED constraint prevents most cases,
+            // but network can drop mid-request (handoff, captive portal redirect).
             Log.w(TAG, "DNS lookup failed for habit $habitId, will retry", e)
             Result.retry()
         } catch (e: ConnectException) {
