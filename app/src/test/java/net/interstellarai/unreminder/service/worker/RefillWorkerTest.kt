@@ -28,6 +28,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.io.IOException
 import java.net.ConnectException
+import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 
 class RefillWorkerTest {
@@ -182,6 +183,26 @@ class RefillWorkerTest {
             coEvery {
                 mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any())
             } throws ConnectException("Failed to connect to un-reminder-worker.alexsiri7.workers.dev/104.21.91.247:443")
+
+            val worker = createWorker()
+            assertEquals(Result.retry(), worker.doWork())
+            verify(exactly = 0) { Sentry.captureException(any(), any<ScopeCallback>()) }
+        } finally {
+            unmockkStatic(Sentry::class)
+        }
+    }
+
+    @Test
+    fun `doWork returns retry on SocketTimeoutException without reporting to Sentry`() = runTest {
+        mockkStatic(Sentry::class)
+        try {
+            every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
+
+            val habit = HabitEntity(id = 1L, name = "Meditate")
+            coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
+            coEvery {
+                mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any())
+            } throws SocketTimeoutException("connect timed out")
 
             val worker = createWorker()
             assertEquals(Result.retry(), worker.doWork())

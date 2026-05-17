@@ -17,6 +17,7 @@ import net.interstellarai.unreminder.data.repository.VariationRepository
 import io.sentry.Sentry
 import java.io.IOException
 import java.net.ConnectException
+import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.time.Instant
 import org.json.JSONException
@@ -112,6 +113,12 @@ class RefillWorker @AssistedInject constructor(
             // mobile handoff). Worker is on Cloudflare — a real server-side connect
             // refusal is vanishingly improbable, so treat as offline-class noise.
             Log.w(TAG, "Connect failed for habit $habitId, will retry", e)
+            Result.retry()
+        } catch (e: SocketTimeoutException) {
+            // Transient socket timeout (slow LTE handoff, Requesty/Cloudflare high load,
+            // Doze network throttling). Same class of offline noise as UnknownHostException
+            // and ConnectException — not actionable for the developer.
+            Log.w(TAG, "Socket timeout for habit $habitId, will retry", e)
             Result.retry()
         } catch (e: IOException) {
             Log.w(TAG, "IO error for habit $habitId, will retry", e)
