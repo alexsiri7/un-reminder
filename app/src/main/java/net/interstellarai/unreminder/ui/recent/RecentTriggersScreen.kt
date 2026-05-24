@@ -1,6 +1,7 @@
 package net.interstellarai.unreminder.ui.recent
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -58,6 +59,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun RecentTriggersScreen(
     onNavigateToFeedback: () -> Unit = {},
+    onNavigateToDetail: (Long) -> Unit = {},
     viewModel: RecentTriggersViewModel = hiltViewModel(),
 ) {
     val triggers by viewModel.triggers.collectAsStateWithLifecycle()
@@ -136,6 +138,7 @@ fun RecentTriggersScreen(
                             scheduledText = item.trigger.scheduledAt
                                 .atZone(ZoneId.systemDefault())
                                 .format(formatter),
+                            onClick = { onNavigateToDetail(item.trigger.id) },
                         )
                         HorizontalDivider(
                             color = MaterialTheme.colorScheme.surfaceVariant,
@@ -156,10 +159,12 @@ private fun TriggerRow(
     prompt: String?,
     status: TriggerStatus,
     scheduledText: String,
+    onClick: () -> Unit,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(onClick = onClick)
             .padding(horizontal = Dimens.lg, vertical = Dimens.md + 2.dp),
         verticalAlignment = Alignment.Top,
     ) {

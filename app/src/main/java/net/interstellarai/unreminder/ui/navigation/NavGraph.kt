@@ -17,6 +17,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,6 +43,7 @@ import net.interstellarai.unreminder.ui.location.MapPickerScreen
 import net.interstellarai.unreminder.ui.onboarding.OnboardingScreen
 import net.interstellarai.unreminder.ui.feedback.FeedbackScreen
 import net.interstellarai.unreminder.ui.recent.RecentTriggersScreen
+import net.interstellarai.unreminder.ui.reminder.ReminderDetailScreen
 import net.interstellarai.unreminder.ui.settings.CloudSettingsScreen
 import net.interstellarai.unreminder.ui.settings.SettingsScreen
 import net.interstellarai.unreminder.ui.timer.TimerScreen
@@ -76,7 +78,7 @@ fun NavGraph(
 
     val navController = rememberNavController()
 
-    androidx.compose.runtime.LaunchedEffect(pendingTimerTriggerId) {
+    LaunchedEffect(pendingTimerTriggerId) {
         val id = pendingTimerTriggerId ?: return@LaunchedEffect
         navController.navigate("timer/$id")
         onTimerNavigated()
@@ -113,6 +115,7 @@ fun NavGraph(
 
     val showBottomBar = currentDestination?.route != "onboarding"
         && currentDestination?.route?.startsWith("timer/") != true
+        && currentDestination?.route?.startsWith("reminder_detail/") != true
 
     Scaffold(
         containerColor = androidx.compose.material3.MaterialTheme.colorScheme.background,
@@ -237,7 +240,8 @@ fun NavGraph(
             }
             composable(Screen.Recent.route) {
                 RecentTriggersScreen(
-                    onNavigateToFeedback = { captureAndNavigate("feedback") }
+                    onNavigateToFeedback = { captureAndNavigate("feedback") },
+                    onNavigateToDetail = { id -> navController.navigate("reminder_detail/$id") },
                 )
             }
             composable(Screen.Settings.route) {
@@ -264,6 +268,16 @@ fun NavGraph(
             ) { backStackEntry ->
                 val triggerId = backStackEntry.arguments?.getLong("triggerId") ?: -1L
                 TimerScreen(
+                    triggerId = triggerId,
+                    onNavigateBack = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = "reminder_detail/{triggerId}",
+                arguments = listOf(navArgument("triggerId") { type = NavType.LongType })
+            ) { backStackEntry ->
+                val triggerId = backStackEntry.arguments?.getLong("triggerId") ?: -1L
+                ReminderDetailScreen(
                     triggerId = triggerId,
                     onNavigateBack = { navController.popBackStack() },
                 )

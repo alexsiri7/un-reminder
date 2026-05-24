@@ -1,4 +1,4 @@
-package net.interstellarai.unreminder.ui.timer
+package net.interstellarai.unreminder.ui.reminder
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -21,48 +21,37 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import net.interstellarai.unreminder.ui.habit.DedicationProgressBar
 import net.interstellarai.unreminder.ui.theme.Dimens
+import net.interstellarai.unreminder.ui.theme.DisplaySmall
 import net.interstellarai.unreminder.ui.theme.MonoLabel
 import net.interstellarai.unreminder.ui.theme.MonoSectionLabel
+import net.interstellarai.unreminder.ui.theme.NavPill
 import net.interstellarai.unreminder.ui.theme.SansBody
 import net.interstellarai.unreminder.ui.theme.SansBodyStrong
 import net.interstellarai.unreminder.ui.theme.UnReminderShapes
 
 @Composable
-fun TimerScreen(
+fun ReminderDetailScreen(
     triggerId: Long,
     onNavigateBack: () -> Unit,
-    viewModel: TimerViewModel = hiltViewModel(),
+    viewModel: ReminderDetailViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     LaunchedEffect(triggerId) { viewModel.init(triggerId) }
     LaunchedEffect(uiState.isDone) { if (uiState.isDone) onNavigateBack() }
 
-    val view = LocalView.current
-    DisposableEffect(uiState.isRunning) {
-        view.keepScreenOn = uiState.isRunning
-        onDispose { view.keepScreenOn = false }
-    }
-
     if (uiState.isLoading) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center,
-        ) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(
                 modifier = Modifier.size(32.dp),
                 strokeWidth = 3.dp,
@@ -87,7 +76,6 @@ fun TimerScreen(
 
         Spacer(Modifier.height(Dimens.lg))
 
-        // Prompt section
         MonoSectionLabel("reminder")
         HorizontalDivider(
             thickness = Dimens.hairline,
@@ -102,62 +90,41 @@ fun TimerScreen(
 
         Spacer(Modifier.height(Dimens.xl))
 
-        // Timer section — only when duration found
-        if (uiState.totalSeconds != null) {
-            MonoSectionLabel("timer")
+        if (uiState.habitName.isNotBlank()) {
+            MonoSectionLabel("habit")
             HorizontalDivider(
                 thickness = Dimens.hairline,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.15f),
             )
-            Spacer(Modifier.height(Dimens.lg))
-
-            val display = formatCountdown(uiState.remainingSeconds ?: uiState.totalSeconds!!)
+            Spacer(Modifier.height(Dimens.sm))
             Text(
-                display,
-                style = MonoLabel.copy(fontSize = 48.sp, fontWeight = FontWeight.Bold),
-                textAlign = TextAlign.Center,
+                uiState.habitName,
+                style = DisplaySmall,
                 color = MaterialTheme.colorScheme.onBackground,
+            )
+            Spacer(Modifier.height(Dimens.md))
+            DedicationProgressBar(
+                level = uiState.dedicationLevel,
                 modifier = Modifier.fillMaxWidth(),
             )
-
-            Spacer(Modifier.height(Dimens.lg))
-
-            // Timer controls
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Dimens.md, Alignment.CenterHorizontally),
-            ) {
-                // Start / Pause button
-                if (uiState.isRunning) {
-                    TimerActionChip(label = "Pause", filled = true, onClick = { viewModel.pause() })
-                } else {
-                    val canStart = (uiState.remainingSeconds ?: 0) > 0
-                    TimerActionChip(
-                        label = "Start",
-                        filled = true,
-                        onClick = { viewModel.start() },
-                        enabled = canStart,
-                    )
-                }
-                TimerActionChip(label = "Reset", filled = false, onClick = { viewModel.reset() })
-            }
-
             Spacer(Modifier.height(Dimens.xl))
         }
 
-        // Outcome buttons
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(Dimens.md, Alignment.CenterHorizontally),
         ) {
-            TimerActionChip(label = "Did it", filled = true, onClick = { viewModel.markCompleted() })
-            TimerActionChip(label = "Dismiss", filled = false, onClick = { viewModel.markDismissed() })
+            ReminderActionChip(label = "Did it", filled = true, onClick = { viewModel.markCompleted() })
+            ReminderActionChip(label = "Dismiss", filled = false, onClick = { viewModel.markDismissed() })
         }
+
+        Spacer(Modifier.height(Dimens.lg))
+        NavPill()
     }
 }
 
 @Composable
-private fun TimerActionChip(
+private fun ReminderActionChip(
     label: String,
     filled: Boolean,
     onClick: () -> Unit,
@@ -181,16 +148,6 @@ private fun TimerActionChip(
             .let { if (enabled) it.clickable(onClick = onClick) else it }
             .padding(horizontal = Dimens.md + 2.dp, vertical = Dimens.sm),
     ) {
-        Text(
-            text = label,
-            style = SansBodyStrong,
-            color = fg.copy(alpha = alpha),
-        )
+        Text(text = label, style = SansBodyStrong, color = fg.copy(alpha = alpha))
     }
-}
-
-private fun formatCountdown(totalSeconds: Int): String {
-    val m = totalSeconds / 60
-    val s = totalSeconds % 60
-    return "%02d:%02d".format(m, s)
 }
