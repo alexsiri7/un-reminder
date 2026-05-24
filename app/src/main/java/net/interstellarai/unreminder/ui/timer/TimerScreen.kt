@@ -78,7 +78,6 @@ fun TimerScreen(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = Dimens.xxl, vertical = Dimens.xl),
     ) {
-        // Back link
         Text(
             "\u2190 back",
             style = MonoLabel,
@@ -112,7 +111,6 @@ fun TimerScreen(
             )
             Spacer(Modifier.height(Dimens.lg))
 
-            // Countdown display
             val display = formatCountdown(uiState.remainingSeconds ?: uiState.totalSeconds!!)
             Text(
                 display,
@@ -141,7 +139,6 @@ fun TimerScreen(
                         enabled = canStart,
                     )
                 }
-                // Reset button
                 TimerActionChip(label = "Reset", filled = false, onClick = { viewModel.reset() })
             }
 

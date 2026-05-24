@@ -17,6 +17,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -77,7 +78,7 @@ fun NavGraph(
 
     val navController = rememberNavController()
 
-    androidx.compose.runtime.LaunchedEffect(pendingTimerTriggerId) {
+    LaunchedEffect(pendingTimerTriggerId) {
         val id = pendingTimerTriggerId ?: return@LaunchedEffect
         navController.navigate("timer/$id")
         onTimerNavigated()
