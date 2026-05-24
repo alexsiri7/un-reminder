@@ -1,6 +1,7 @@
 package net.interstellarai.unreminder.service.worker
 
 import android.content.Context
+import android.util.Log
 import androidx.work.Data
 import androidx.work.ListenableWorker.Result
 import androidx.work.WorkerParameters
@@ -24,7 +25,9 @@ import net.interstellarai.unreminder.data.repository.PersonalContextRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.domain.model.NotificationVariant
 import org.json.JSONException
+import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Before
 import org.junit.Test
 import java.io.IOException
 import java.net.ConnectException
@@ -34,6 +37,19 @@ import java.net.UnknownHostException
 class RefillWorkerTest {
 
     private val mockContext: Context = mockk(relaxed = true)
+
+    @Before
+    fun setup() {
+        mockkStatic(Log::class)
+        every { Log.w(any(), any<String>()) } returns 0
+        every { Log.w(any(), any<String>(), any()) } returns 0
+        every { Log.e(any(), any<String>(), any()) } returns 0
+    }
+
+    @After
+    fun tearDown() {
+        unmockkStatic(Log::class)
+    }
     private val mockWorkerParams: WorkerParameters = mockk(relaxed = true)
     private val mockHabitRepository: HabitRepository = mockk()
     private val mockVariationRepository: VariationRepository = mockk(relaxUnitFun = true)

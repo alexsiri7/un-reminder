@@ -44,6 +44,7 @@ import net.interstellarai.unreminder.ui.feedback.FeedbackScreen
 import net.interstellarai.unreminder.ui.recent.RecentTriggersScreen
 import net.interstellarai.unreminder.ui.settings.CloudSettingsScreen
 import net.interstellarai.unreminder.ui.settings.SettingsScreen
+import net.interstellarai.unreminder.ui.timer.TimerScreen
 import net.interstellarai.unreminder.ui.window.WindowEditScreen
 import net.interstellarai.unreminder.ui.window.WindowListScreen
 
@@ -60,6 +61,8 @@ val bottomNavItems = listOf(Screen.Habits, Screen.Windows, Screen.Recent, Screen
 fun NavGraph(
     navViewModel: NavViewModel = hiltViewModel(),
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
+    pendingTimerTriggerId: Long? = null,
+    onTimerNavigated: () -> Unit = {},
 ) {
     val isOnboarded by navViewModel.isOnboarded.collectAsStateWithLifecycle()
 
@@ -72,6 +75,13 @@ fun NavGraph(
     val resolvedStart = startDestination.value ?: return
 
     val navController = rememberNavController()
+
+    androidx.compose.runtime.LaunchedEffect(pendingTimerTriggerId) {
+        val id = pendingTimerTriggerId ?: return@LaunchedEffect
+        navController.navigate("timer/$id")
+        onTimerNavigated()
+    }
+
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
@@ -102,6 +112,7 @@ fun NavGraph(
     }
 
     val showBottomBar = currentDestination?.route != "onboarding"
+        && currentDestination?.route?.startsWith("timer/") != true
 
     Scaffold(
         containerColor = androidx.compose.material3.MaterialTheme.colorScheme.background,
@@ -245,6 +256,16 @@ fun NavGraph(
                 FeedbackScreen(
                     screenshotBitmap = feedbackScreenshot,
                     onNavigateBack = { navController.popBackStack() }
+                )
+            }
+            composable(
+                route = "timer/{triggerId}",
+                arguments = listOf(navArgument("triggerId") { type = NavType.LongType })
+            ) { backStackEntry ->
+                val triggerId = backStackEntry.arguments?.getLong("triggerId") ?: -1L
+                TimerScreen(
+                    triggerId = triggerId,
+                    onNavigateBack = { navController.popBackStack() },
                 )
             }
             composable("onboarding") {

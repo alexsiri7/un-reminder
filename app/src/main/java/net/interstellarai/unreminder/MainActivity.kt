@@ -13,10 +13,13 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.android.play.core.install.model.ActivityResult as PlayActivityResult
 import dagger.hilt.android.AndroidEntryPoint
+import net.interstellarai.unreminder.service.notification.NotificationHelper
 import net.interstellarai.unreminder.service.update.InAppUpdateManager
 import net.interstellarai.unreminder.ui.navigation.NavGraph
 import net.interstellarai.unreminder.ui.theme.UnReminderTheme
@@ -32,10 +35,12 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var inAppUpdateManager: InAppUpdateManager
 
     private lateinit var updateLauncher: ActivityResultLauncher<IntentSenderRequest>
+    private var pendingTimerTriggerId by mutableStateOf<Long?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        handleTimerIntent(intent)
 
         updateLauncher = registerForActivityResult(
             ActivityResultContracts.StartIntentSenderForResult()
@@ -65,8 +70,24 @@ class MainActivity : ComponentActivity() {
             }
 
             UnReminderTheme {
-                NavGraph(snackbarHostState = snackbarHostState)
+                NavGraph(
+                    snackbarHostState = snackbarHostState,
+                    pendingTimerTriggerId = pendingTimerTriggerId,
+                    onTimerNavigated = { pendingTimerTriggerId = null },
+                )
             }
+        }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        handleTimerIntent(intent)
+    }
+
+    private fun handleTimerIntent(intent: android.content.Intent?) {
+        if (intent?.getBooleanExtra(NotificationHelper.EXTRA_OPEN_TIMER, false) == true) {
+            val id = intent.getLongExtra(NotificationHelper.EXTRA_TRIGGER_ID, -1L)
+            if (id != -1L) pendingTimerTriggerId = id
         }
     }
 
