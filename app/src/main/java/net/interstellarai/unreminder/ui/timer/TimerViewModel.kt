@@ -3,6 +3,7 @@ package net.interstellarai.unreminder.ui.timer
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -11,6 +12,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import net.interstellarai.unreminder.data.repository.TriggerRepository
+import net.interstellarai.unreminder.di.IoDispatcher
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.notification.DurationParser
 import net.interstellarai.unreminder.service.notification.NotificationHelper
@@ -33,6 +35,7 @@ class TimerViewModel @Inject constructor(
     private val triggerRepository: TriggerRepository,
     private val dismissalTracker: DismissalTracker,
     private val notificationHelper: NotificationHelper,
+    @IoDispatcher private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TimerUiState())
@@ -41,7 +44,7 @@ class TimerViewModel @Inject constructor(
     private var timerJob: Job? = null
 
     fun init(triggerId: Long) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             val trigger = triggerRepository.getById(triggerId)
             val prompt = trigger?.generatedPrompt ?: ""
             val seconds = DurationParser.parseTotalSeconds(prompt)
@@ -91,7 +94,7 @@ class TimerViewModel @Inject constructor(
 
     private fun recordOutcome(status: TriggerStatus) {
         val triggerId = _uiState.value.triggerId
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             triggerRepository.updateOutcome(triggerId, status)
             when (status) {
                 TriggerStatus.COMPLETED -> dismissalTracker.onCompleted(triggerId)

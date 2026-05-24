@@ -5,6 +5,7 @@ import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.notification.NotificationHelper
 import net.interstellarai.unreminder.service.trigger.DismissalTracker
+import java.time.Instant
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -40,7 +41,7 @@ class TimerViewModelTest {
         triggerRepository = mockk(relaxUnitFun = true)
         dismissalTracker = mockk(relaxUnitFun = true)
         notificationHelper = mockk(relaxUnitFun = true)
-        viewModel = TimerViewModel(triggerRepository, dismissalTracker, notificationHelper)
+        viewModel = TimerViewModel(triggerRepository, dismissalTracker, notificationHelper, testDispatcher)
     }
 
     @After
@@ -51,6 +52,7 @@ class TimerViewModelTest {
     private fun makeTrigger(prompt: String) = TriggerEntity(
         id = 42L,
         habitId = 1L,
+        scheduledAt = Instant.EPOCH,
         status = TriggerStatus.SCHEDULED,
         generatedPrompt = prompt,
     )
