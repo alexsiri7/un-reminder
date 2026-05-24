@@ -265,11 +265,21 @@ from the pool, not from a fresh generation.
    osmdroid map with a draggable pin and a bottom sheet for name, radius (50–500 m), and Save.
    Location is stored as lat/lng + radius; osmdroid caches tiles automatically (no offline pre-caching UI).
    Habits link to zero or more locations via the `habit_location` junction table; no selection means "Anywhere".
-6. **Recent triggers screen** — last 20 fired triggers with their generated prompts and outcomes. Read-only. A small status row under the heading shows the next scheduled trigger time (`next: 14:35`, `next: tomorrow 09:30`, or `not scheduled`), reading reactively from `WorkManager.getWorkInfosForUniqueWorkFlow(RandomIntervalWorker.WORK_NAME)`. Includes a "Send Feedback" button in the top bar.
+6. **Recent triggers screen** — last 20 fired triggers with their generated prompts and outcomes.
+   Tap any row to open the Reminder Detail screen (see #10). A small status row under the heading shows
+   the next scheduled trigger time (`next: 14:35`, `next: tomorrow 09:30`, or `not scheduled`),
+   reading reactively from `WorkManager.getWorkInfosForUniqueWorkFlow(RandomIntervalWorker.WORK_NAME)`.
+   Includes a "Send Feedback" button in the top bar.
 7. **Settings screen** — notification permission status, background location permission status, a manual "Test trigger now" button, a button to regenerate tomorrow's scheduled triggers, a link to Cloud AI settings, and a "Send Feedback" button.
 7a. **Cloud AI settings screen** — worker URL and shared secret for cloud generation, and a "regenerate all variants" button that clears the variation pool and re-queues a refill job for every active habit.
 8. **Onboarding screen** — shown once on first launch. Walks the user through three collapsible steps: (1) granting Notifications and Location permissions, (2) creating a first habit with name/descriptions and weekday schedule, (3) creating a first time window. Includes a "Skip" action in the top bar. Completion (or skip) is persisted via DataStore (`onboarding_done` key) and never shown again. Bottom navigation bar is hidden while onboarding is active.
 9. **Feedback screen** — annotated screenshot tool. Captures the current screen, lets the user draw annotations (red/yellow/green strokes), type a description, and submit as a GitHub issue. Falls back to an offline queue (WorkManager) when connectivity is unavailable.
+10. **Reminder detail screen** — read/act view for a single past or recent trigger, accessible by tapping
+    any row in the Recent Triggers screen. Shows the AI-generated prompt text ("reminder" section) and,
+    if the trigger has an associated habit, the habit name and current dedication progress bar ("habit" section).
+    Two action chips: **Did it** (records `COMPLETED`, dismisses the notification, navigates back) and
+    **Dismiss** (records `DISMISSED`, dismisses the notification, navigates back). No bottom navigation bar
+    (excluded from `showBottomBar` logic in `NavGraph`). Back navigation via "← back" text link or system back.
 
 ---
 

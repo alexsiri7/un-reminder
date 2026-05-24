@@ -42,9 +42,9 @@ import net.interstellarai.unreminder.ui.location.MapPickerScreen
 import net.interstellarai.unreminder.ui.onboarding.OnboardingScreen
 import net.interstellarai.unreminder.ui.feedback.FeedbackScreen
 import net.interstellarai.unreminder.ui.recent.RecentTriggersScreen
+import net.interstellarai.unreminder.ui.reminder.ReminderDetailScreen
 import net.interstellarai.unreminder.ui.settings.CloudSettingsScreen
 import net.interstellarai.unreminder.ui.settings.SettingsScreen
-import net.interstellarai.unreminder.ui.reminder.ReminderDetailScreen
 import net.interstellarai.unreminder.ui.timer.TimerScreen
 import net.interstellarai.unreminder.ui.window.WindowEditScreen
 import net.interstellarai.unreminder.ui.window.WindowListScreen

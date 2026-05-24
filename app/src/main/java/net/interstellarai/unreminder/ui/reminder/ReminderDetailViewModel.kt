@@ -1,8 +1,10 @@
 package net.interstellarai.unreminder.ui.reminder
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +26,7 @@ data class ReminderDetailUiState(
     val triggerId: Long = -1L,
     val isLoading: Boolean = true,
     val isDone: Boolean = false,
+    val isProcessing: Boolean = false,
 )
 
 @HiltViewModel
@@ -40,15 +43,21 @@ class ReminderDetailViewModel @Inject constructor(
 
     fun init(triggerId: Long) {
         viewModelScope.launch(ioDispatcher) {
-            val trigger = triggerRepository.getById(triggerId)
-            val habit = trigger?.habitId?.let { habitRepository.getByIdOnce(it) }
-            _uiState.value = ReminderDetailUiState(
-                triggerId = triggerId,
-                promptText = trigger?.generatedPrompt ?: "",
-                habitName = habit?.name ?: "",
-                dedicationLevel = habit?.dedicationLevel ?: 0,
-                isLoading = false,
-            )
+            try {
+                val trigger = triggerRepository.getById(triggerId)
+                val habit = trigger?.habitId?.let { habitRepository.getByIdOnce(it) }
+                _uiState.value = ReminderDetailUiState(
+                    triggerId = triggerId,
+                    promptText = trigger?.generatedPrompt ?: "",
+                    habitName = habit?.name ?: "",
+                    dedicationLevel = habit?.dedicationLevel ?: 0,
+                    isLoading = false,
+                )
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                Log.e(TAG, "Failed to load trigger $triggerId", e)
+                _uiState.value = _uiState.value.copy(isLoading = false)
+            }
         }
     }
 
@@ -57,15 +66,28 @@ class ReminderDetailViewModel @Inject constructor(
 
     private fun recordOutcome(status: TriggerStatus) {
         val triggerId = _uiState.value.triggerId
+        if (triggerId == -1L) return
+        if (_uiState.value.isProcessing) return
+        _uiState.value = _uiState.value.copy(isProcessing = true)
         viewModelScope.launch(ioDispatcher) {
-            triggerRepository.updateOutcome(triggerId, status)
-            when (status) {
-                TriggerStatus.COMPLETED -> dismissalTracker.onCompleted(triggerId)
-                TriggerStatus.DISMISSED -> dismissalTracker.onDismissed(triggerId)
-                else -> {}
+            try {
+                triggerRepository.updateOutcome(triggerId, status)
+                when (status) {
+                    TriggerStatus.COMPLETED -> dismissalTracker.onCompleted(triggerId)
+                    TriggerStatus.DISMISSED -> dismissalTracker.onDismissed(triggerId)
+                    else -> {}
+                }
+                notificationHelper.cancelNotification(triggerId)
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                Log.e(TAG, "Failed to record outcome $status for trigger $triggerId", e)
+            } finally {
+                _uiState.value = _uiState.value.copy(isDone = true, isProcessing = false)
             }
-            notificationHelper.cancelNotification(triggerId)
-            _uiState.value = _uiState.value.copy(isDone = true)
         }
+    }
+
+    private companion object {
+        private const val TAG = "ReminderDetailVM"
     }
 }
