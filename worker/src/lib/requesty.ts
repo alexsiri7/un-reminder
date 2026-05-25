@@ -15,6 +15,7 @@ export interface RequestyResult {
   text: string
   outputTokens: number
   inputTokens: number
+  finishReason?: string
 }
 
 /** Single Requesty chat completion call. Throws on non-200. */
@@ -45,13 +46,14 @@ export async function callRequesty(
   }
 
   const json = (await resp.json()) as {
-    choices: { message: { content: string } }[]
+    choices: { message: { content: string }; finish_reason?: string }[]
     usage?: { completion_tokens?: number; prompt_tokens?: number }
   }
   const text = json.choices?.[0]?.message?.content?.trim() ?? ''
+  const finishReason = json.choices?.[0]?.finish_reason ?? undefined
   const outputTokens = json.usage?.completion_tokens ?? 0
   const inputTokens = json.usage?.prompt_tokens ?? 0
-  return { text, outputTokens, inputTokens }
+  return { text, outputTokens, inputTokens, finishReason }
 }
 
 /**
@@ -112,11 +114,11 @@ export async function callRequestyWithSchemaRetry<T>(
     const sample = result.text.slice(0, 200)
 
     if (!result.text) {
-      console.warn('[requesty] empty response text', { isRetry })
+      console.warn('[requesty] empty response text', { isRetry, finishReason: result.finishReason })
       if (isRetry) {
         Sentry.captureMessage('Requesty returned empty response text', {
           level: 'warning',
-          contexts: { requesty: { isRetry } },
+          contexts: { requesty: { isRetry, finishReason: result.finishReason } },
         })
       }
     } else {
