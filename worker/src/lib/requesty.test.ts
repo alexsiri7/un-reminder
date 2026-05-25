@@ -29,7 +29,7 @@ describe('callRequesty', () => {
     mockFetchResponses({
       status: 200,
       body: {
-        choices: [{ message: { content: 'hello world' } }],
+        choices: [{ message: { content: 'hello world' }, finish_reason: 'stop' }],
         usage: { prompt_tokens: 10, completion_tokens: 5 },
       },
     })
@@ -38,6 +38,20 @@ describe('callRequesty', () => {
     expect(result.text).toBe('hello world')
     expect(result.inputTokens).toBe(10)
     expect(result.outputTokens).toBe(5)
+    expect(result.finishReason).toBe('stop')
+  })
+
+  it('returns undefined finishReason when finish_reason is absent', async () => {
+    mockFetchResponses({
+      status: 200,
+      body: {
+        choices: [{ message: { content: 'hi' } }],
+        usage: { prompt_tokens: 1, completion_tokens: 1 },
+      },
+    })
+
+    const result = await callRequesty('key', 'model', 'prompt')
+    expect(result.finishReason).toBeUndefined()
   })
 
   it('throws on non-200 response', async () => {
@@ -339,11 +353,11 @@ describe('callRequestyWithSchemaRetry', () => {
     mockFetchResponses(
       {
         status: 200,
-        body: { choices: [{ message: { content: '' } }], usage: { prompt_tokens: 5, completion_tokens: 0 } },
+        body: { choices: [{ message: { content: '' }, finish_reason: 'length' }], usage: { prompt_tokens: 5, completion_tokens: 0 } },
       },
       {
         status: 200,
-        body: { choices: [{ message: { content: '' } }], usage: { prompt_tokens: 5, completion_tokens: 0 } },
+        body: { choices: [{ message: { content: '' }, finish_reason: 'length' }], usage: { prompt_tokens: 5, completion_tokens: 0 } },
       },
     )
 
@@ -351,8 +365,16 @@ describe('callRequestyWithSchemaRetry', () => {
     expect(result).toBeNull()
     // Should NOT throw SyntaxError or call captureException
     expect(sentryCapture).not.toHaveBeenCalled()
-    // Should report as a warning message on final retry
-    expect(sentryMessage).toHaveBeenCalledWith('Requesty returned empty response text', expect.any(Object))
+    // Should report as a warning message on final retry, with finishReason in context
+    expect(sentryMessage).toHaveBeenCalledWith(
+      'Requesty returned empty response text',
+      expect.objectContaining({
+        level: 'warning',
+        contexts: expect.objectContaining({
+          requesty: expect.objectContaining({ isRetry: true, finishReason: 'length' }),
+        }),
+      }),
+    )
     sentryCapture.mockRestore()
     sentryMessage.mockRestore()
   })
