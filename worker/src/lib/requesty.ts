@@ -61,6 +61,7 @@ export async function callRequesty(
  *
  * Retry behaviour (one retry maximum):
  * - HTTP error (non-200): retries after a 1 s delay using the original `prompt`.
+ * - Empty response text: retries immediately with `stricterPrompt`.
  * - JSON parse / schema validation failure: retries immediately with `stricterPrompt`.
  *
  * Returns null if both attempts fail (caller should 502).
@@ -85,7 +86,7 @@ export async function callRequestyWithSchemaRetry<T>(
       await new Promise((r) => setTimeout(r, 1000))
     }
 
-    // Use stricterPrompt only for JSON/schema retries, not HTTP error retries.
+    // Use stricterPrompt only for non-HTTP-error retries (empty-text and JSON/schema failures).
     const promptToUse = isRetry && !httpErrorOnFirstAttempt ? stricterPrompt : prompt
 
     let result: RequestyResult
@@ -120,31 +121,33 @@ export async function callRequestyWithSchemaRetry<T>(
           level: 'warning',
           contexts: { requesty: { isRetry, finishReason: result.finishReason } },
         })
+        return null
       }
-    } else {
-      try {
-        const parsed = JSON.parse(result.text)
-        const validated = validate(parsed)
-        if (validated !== null) {
-          return { data: validated, outputTokens: totalOutputTokens, inputTokens: totalInputTokens }
-        }
-        console.warn('[requesty] schema validation failed', { isRetry, text: sample })
-        // Only report to Sentry on final failure; first-attempt misses are expected
-        // and recovered via stricterPrompt retry.
-        if (isRetry) {
-          Sentry.captureMessage('Requesty schema validation failed', {
-            level: 'warning',
-            contexts: { requesty: { text: sample } },
-          })
-        }
-      } catch (err) {
-        console.warn('[requesty] JSON.parse failed', { isRetry, err, text: sample })
-        if (isRetry) {
-          Sentry.captureException(toError(err), {
-            tags: { 'requesty.failure': 'json-parse' },
-            contexts: { requesty: { text: sample } },
-          })
-        }
+      continue
+    }
+
+    try {
+      const parsed = JSON.parse(result.text)
+      const validated = validate(parsed)
+      if (validated !== null) {
+        return { data: validated, outputTokens: totalOutputTokens, inputTokens: totalInputTokens }
+      }
+      console.warn('[requesty] schema validation failed', { isRetry, text: sample })
+      // Only report to Sentry on final failure; first-attempt misses are expected
+      // and recovered via stricterPrompt retry.
+      if (isRetry) {
+        Sentry.captureMessage('Requesty schema validation failed', {
+          level: 'warning',
+          contexts: { requesty: { text: sample } },
+        })
+      }
+    } catch (err) {
+      console.warn('[requesty] JSON.parse failed', { isRetry, err, text: sample })
+      if (isRetry) {
+        Sentry.captureException(toError(err), {
+          tags: { 'requesty.failure': 'json-parse' },
+          contexts: { requesty: { text: sample } },
+        })
       }
     }
 

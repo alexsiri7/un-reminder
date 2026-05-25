@@ -1,8 +1,5 @@
 package net.interstellarai.unreminder.ui.timer
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,7 +23,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -34,12 +30,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import net.interstellarai.unreminder.ui.theme.ActionChip
 import net.interstellarai.unreminder.ui.theme.Dimens
 import net.interstellarai.unreminder.ui.theme.MonoLabel
 import net.interstellarai.unreminder.ui.theme.MonoSectionLabel
 import net.interstellarai.unreminder.ui.theme.SansBody
-import net.interstellarai.unreminder.ui.theme.SansBodyStrong
-import net.interstellarai.unreminder.ui.theme.UnReminderShapes
 
 @Composable
 fun TimerScreen(
@@ -129,17 +124,17 @@ fun TimerScreen(
             ) {
                 // Start / Pause button
                 if (uiState.isRunning) {
-                    TimerActionChip(label = "Pause", filled = true, onClick = { viewModel.pause() })
+                    ActionChip(label = "Pause", filled = true, onClick = { viewModel.pause() })
                 } else {
                     val canStart = (uiState.remainingSeconds ?: 0) > 0
-                    TimerActionChip(
+                    ActionChip(
                         label = "Start",
                         filled = true,
                         onClick = { viewModel.start() },
                         enabled = canStart,
                     )
                 }
-                TimerActionChip(label = "Reset", filled = false, onClick = { viewModel.reset() })
+                ActionChip(label = "Reset", filled = false, onClick = { viewModel.reset() })
             }
 
             Spacer(Modifier.height(Dimens.xl))
@@ -150,42 +145,9 @@ fun TimerScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(Dimens.md, Alignment.CenterHorizontally),
         ) {
-            TimerActionChip(label = "Did it", filled = true, onClick = { viewModel.markCompleted() })
-            TimerActionChip(label = "Dismiss", filled = false, onClick = { viewModel.markDismissed() })
+            ActionChip(label = "Did it", filled = true, onClick = { viewModel.markCompleted() })
+            ActionChip(label = "Dismiss", filled = false, onClick = { viewModel.markDismissed() })
         }
-    }
-}
-
-@Composable
-private fun TimerActionChip(
-    label: String,
-    filled: Boolean,
-    onClick: () -> Unit,
-    enabled: Boolean = true,
-) {
-    val alpha = if (enabled) 1f else 0.4f
-    val (bg, fg) = if (filled) {
-        MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
-    } else {
-        Color.Transparent to MaterialTheme.colorScheme.onBackground
-    }
-    val borderColor = if (filled) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f)
-    }
-    Box(
-        modifier = Modifier
-            .background(bg.copy(alpha = alpha), UnReminderShapes.small)
-            .border(BorderStroke(1.5.dp, borderColor.copy(alpha = alpha)), UnReminderShapes.small)
-            .let { if (enabled) it.clickable(onClick = onClick) else it }
-            .padding(horizontal = Dimens.md + 2.dp, vertical = Dimens.sm),
-    ) {
-        Text(
-            text = label,
-            style = SansBodyStrong,
-            color = fg.copy(alpha = alpha),
-        )
     }
 }
 
