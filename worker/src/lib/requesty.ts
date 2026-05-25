@@ -50,7 +50,7 @@ export async function callRequesty(
     usage?: { completion_tokens?: number; prompt_tokens?: number }
   }
   const text = json.choices?.[0]?.message?.content?.trim() ?? ''
-  const finishReason = json.choices?.[0]?.finish_reason ?? undefined
+  const finishReason = json.choices?.[0]?.finish_reason
   const outputTokens = json.usage?.completion_tokens ?? 0
   const inputTokens = json.usage?.prompt_tokens ?? 0
   return { text, outputTokens, inputTokens, finishReason }
