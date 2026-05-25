@@ -1,6 +1,9 @@
 package net.interstellarai.unreminder.ui.theme
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -16,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import java.util.Locale
 
@@ -132,6 +136,38 @@ fun FeedbackIconButton(
             contentDescription = "Send Feedback",
             tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
         )
+    }
+}
+
+/**
+ * Filled or outlined action chip used on detail and timer screens.
+ */
+@Composable
+fun ActionChip(
+    label: String,
+    filled: Boolean,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+) {
+    val alpha = if (enabled) 1f else 0.4f
+    val (bg, fg) = if (filled) {
+        MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
+    } else {
+        Color.Transparent to MaterialTheme.colorScheme.onBackground
+    }
+    val borderColor = if (filled) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f)
+    }
+    Box(
+        modifier = Modifier
+            .background(bg.copy(alpha = alpha), UnReminderShapes.small)
+            .border(BorderStroke(1.5.dp, borderColor.copy(alpha = alpha)), UnReminderShapes.small)
+            .let { if (enabled) it.clickable(onClick = onClick) else it }
+            .padding(horizontal = Dimens.md + 2.dp, vertical = Dimens.sm),
+    ) {
+        Text(text = label, style = SansBodyStrong, color = fg.copy(alpha = alpha))
     }
 }
 
