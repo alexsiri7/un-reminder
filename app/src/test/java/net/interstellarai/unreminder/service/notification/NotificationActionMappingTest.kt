@@ -77,3 +77,39 @@ class RequestCodeTest {
         assertEquals(0, 0x0000_0001_0000_0001L.toRequestCode())
     }
 }
+
+class NotificationRequestCodeCollisionTest {
+
+    @Test
+    fun `NOTIFICATION_DETAIL_BASE is distinct from NOTIFICATION_CONTENT_BASE`() {
+        assertNotEquals(
+            NotificationHelper.NOTIFICATION_DETAIL_BASE,
+            NotificationHelper.NOTIFICATION_CONTENT_BASE
+        )
+    }
+
+    @Test
+    fun `detail request code does not collide with content request code for same triggerId`() {
+        val triggerId = 42L
+        val detailCode = (NotificationHelper.NOTIFICATION_DETAIL_BASE + triggerId).toRequestCode()
+        val contentCode = (NotificationHelper.NOTIFICATION_CONTENT_BASE + triggerId).toRequestCode()
+        assertNotEquals(detailCode, contentCode)
+    }
+
+    @Test
+    fun `detail request code does not collide with action codes for same triggerId`() {
+        val triggerId = 42L
+        val detailCode = (NotificationHelper.NOTIFICATION_DETAIL_BASE + triggerId).toRequestCode()
+        assertNotEquals(detailCode, (triggerId * 3 + 0).toRequestCode())
+        assertNotEquals(detailCode, (triggerId * 3 + 1).toRequestCode())
+        assertNotEquals(detailCode, (triggerId * 3 + 2).toRequestCode())
+    }
+
+    @Test
+    fun `detail request code does not collide with paused-habit notification code`() {
+        val id = 1L
+        val detailCode = (NotificationHelper.NOTIFICATION_DETAIL_BASE + id).toRequestCode()
+        val pausedCode = (NotificationHelper.NOTIFICATION_ID_PAUSED_BASE + id).toRequestCode()
+        assertNotEquals(detailCode, pausedCode)
+    }
+}

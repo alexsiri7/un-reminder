@@ -99,7 +99,11 @@ class MainActivity : ComponentActivity() {
     private fun handleDetailIntent(intent: android.content.Intent?) {
         if (intent?.getBooleanExtra(NotificationHelper.EXTRA_OPEN_DETAIL, false) == true) {
             val id = intent.getLongExtra(NotificationHelper.EXTRA_TRIGGER_ID, -1L)
-            if (id != -1L) pendingDetailTriggerId = id
+            if (id != -1L) {
+                pendingDetailTriggerId = id
+            } else {
+                Log.w(TAG, "handleDetailIntent: EXTRA_OPEN_DETAIL set but EXTRA_TRIGGER_ID missing")
+            }
         }
     }
 
