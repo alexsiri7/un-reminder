@@ -82,7 +82,6 @@ fun TimerScreen(
 
         Spacer(Modifier.height(Dimens.lg))
 
-        // Prompt section
         MonoSectionLabel("reminder")
         HorizontalDivider(
             thickness = Dimens.hairline,
@@ -97,7 +96,6 @@ fun TimerScreen(
 
         Spacer(Modifier.height(Dimens.xl))
 
-        // Timer section — only when duration found
         if (uiState.totalSeconds != null) {
             MonoSectionLabel("timer")
             HorizontalDivider(
@@ -117,12 +115,10 @@ fun TimerScreen(
 
             Spacer(Modifier.height(Dimens.lg))
 
-            // Timer controls
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(Dimens.md, Alignment.CenterHorizontally),
             ) {
-                // Start / Pause button
                 if (uiState.isRunning) {
                     ActionChip(label = "Pause", filled = true, onClick = { viewModel.pause() })
                 } else {
@@ -140,7 +136,6 @@ fun TimerScreen(
             Spacer(Modifier.height(Dimens.xl))
         }
 
-        // Outcome buttons
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(Dimens.md, Alignment.CenterHorizontally),

@@ -208,7 +208,7 @@ updated by geofence `ENTER`/`EXIT` callbacks. Empty set means no known location.
    `minutesSince` is minutes since the habit was last fired (cap: 1440 min = 24 h). A habit
    never fired receives the maximum weight (~13×). If the eligible set is empty, skip silently.
 4. Pick an unused variation from the cloud-generated pool (see Variation entity). If the pool is empty, use the level description fallback (see Fallback below).
-5. Post the notification with the generated text. Action buttons: **Did it**, **Dismiss**. When the variation includes an `actionUrl`, a third **Watch** button is added that opens the URL in a browser.
+5. Post the notification with the generated text. Action buttons: **Did it**, **Dismiss**. When the variation includes an `actionUrl`, a third **Watch** button is added that opens the URL in a browser. Tapping the notification body opens the **Reminder Detail screen** for that trigger.
 6. Record the trigger row with the generated prompt and the outcome when the user responds.
    - **Did it (COMPLETED):** the habit is excluded from the rest of today's triggers (step 2 above). When `auto_adjust_level` is true, consecutive completions promote `dedication_level` (up to max 5).
    - **Dismiss (DISMISSED):** a per-habit cooldown (default 3 h, configurable via `cooldownMinutes` in the Habit editor — presets 1h · 2h · 3h · 6h · 12h · None, where None=`0` disables the cooldown) applies before this habit is eligible again. When `auto_adjust_level` is true: 3 consecutive `DISMISSED` triggers demote `dedication_level` by 1; at level 0, 3 consecutive dismissals auto-pause the habit (`active = false`). The user can re-activate via the habit editor.
@@ -275,8 +275,9 @@ from the pool, not from a fresh generation.
 8. **Onboarding screen** — shown once on first launch. Walks the user through three collapsible steps: (1) granting Notifications and Location permissions, (2) creating a first habit with name/descriptions and weekday schedule, (3) creating a first time window. Includes a "Skip" action in the top bar. Completion (or skip) is persisted via DataStore (`onboarding_done` key) and never shown again. Bottom navigation bar is hidden while onboarding is active.
 9. **Feedback screen** — annotated screenshot tool. Captures the current screen, lets the user draw annotations (red/yellow/green strokes), type a description, and submit as a GitHub issue. Falls back to an offline queue (WorkManager) when connectivity is unavailable.
 10. **Reminder detail screen** — read/act view for a single past or recent trigger, accessible by tapping
-    any row in the Recent Triggers screen. Shows the AI-generated prompt text ("reminder" section) and,
-    if the trigger has an associated habit, the habit name and current dedication progress bar ("habit" section).
+    any row in the Recent Triggers screen or by tapping a live notification body. Shows the AI-generated
+    prompt text ("reminder" section) and, if the trigger has an associated habit, the habit name and
+    current dedication progress bar ("habit" section).
     Two action chips: **Did it** (records `COMPLETED`, dismisses the notification, navigates back) and
     **Dismiss** (records `DISMISSED`, dismisses the notification, navigates back). No bottom navigation bar
     (excluded from `showBottomBar` logic in `NavGraph`). Back navigation via "← back" text link or system back.

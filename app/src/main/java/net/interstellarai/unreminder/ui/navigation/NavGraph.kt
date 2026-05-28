@@ -65,6 +65,8 @@ fun NavGraph(
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
     pendingTimerTriggerId: Long? = null,
     onTimerNavigated: () -> Unit = {},
+    pendingDetailTriggerId: Long? = null,
+    onDetailNavigated: () -> Unit = {},
 ) {
     val isOnboarded by navViewModel.isOnboarded.collectAsStateWithLifecycle()
 
@@ -82,6 +84,12 @@ fun NavGraph(
         val id = pendingTimerTriggerId ?: return@LaunchedEffect
         navController.navigate("timer/$id")
         onTimerNavigated()
+    }
+
+    LaunchedEffect(pendingDetailTriggerId) {
+        val id = pendingDetailTriggerId ?: return@LaunchedEffect
+        navController.navigate("reminder_detail/$id")
+        onDetailNavigated()
     }
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
