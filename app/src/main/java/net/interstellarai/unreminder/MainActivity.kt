@@ -36,11 +36,13 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var updateLauncher: ActivityResultLauncher<IntentSenderRequest>
     private var pendingTimerTriggerId by mutableStateOf<Long?>(null)
+    private var pendingDetailTriggerId by mutableStateOf<Long?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         handleTimerIntent(intent)
+        handleDetailIntent(intent)
 
         updateLauncher = registerForActivityResult(
             ActivityResultContracts.StartIntentSenderForResult()
@@ -74,6 +76,8 @@ class MainActivity : ComponentActivity() {
                     snackbarHostState = snackbarHostState,
                     pendingTimerTriggerId = pendingTimerTriggerId,
                     onTimerNavigated = { pendingTimerTriggerId = null },
+                    pendingDetailTriggerId = pendingDetailTriggerId,
+                    onDetailNavigated = { pendingDetailTriggerId = null },
                 )
             }
         }
@@ -82,12 +86,20 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         handleTimerIntent(intent)
+        handleDetailIntent(intent)
     }
 
     private fun handleTimerIntent(intent: android.content.Intent?) {
         if (intent?.getBooleanExtra(NotificationHelper.EXTRA_OPEN_TIMER, false) == true) {
             val id = intent.getLongExtra(NotificationHelper.EXTRA_TRIGGER_ID, -1L)
             if (id != -1L) pendingTimerTriggerId = id
+        }
+    }
+
+    private fun handleDetailIntent(intent: android.content.Intent?) {
+        if (intent?.getBooleanExtra(NotificationHelper.EXTRA_OPEN_DETAIL, false) == true) {
+            val id = intent.getLongExtra(NotificationHelper.EXTRA_TRIGGER_ID, -1L)
+            if (id != -1L) pendingDetailTriggerId = id
         }
     }
 

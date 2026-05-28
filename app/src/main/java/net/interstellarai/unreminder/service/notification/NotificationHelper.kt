@@ -27,11 +27,13 @@ class NotificationHelper @Inject constructor(
         const val CHANNEL_ID_SYSTEM = "un_reminder_system"
         const val CHANNEL_NAME_SYSTEM = "Habit Status"
         const val EXTRA_OPEN_TIMER = "open_timer"
+        const val EXTRA_OPEN_DETAIL = "open_detail"
         // Paused-habit notifications use habitId as offset.
         // Base chosen well above realistic trigger ID values to avoid collisions.
         const val NOTIFICATION_ID_PAUSED_BASE = 900_000L
         // Content intent base — above the * 3 action-intent range and PAUSED_BASE.
         const val NOTIFICATION_CONTENT_BASE = 2_000_000L
+        const val NOTIFICATION_DETAIL_BASE = 3_000_000L
     }
 
     fun createNotificationChannel() {
@@ -86,19 +88,19 @@ class NotificationHelper @Inject constructor(
             builder.addAction(0, "Watch", watchIntent)
         }
 
-        // Content intent: opens TimerScreen when user taps notification body
-        val timerIntent = Intent(context, net.interstellarai.unreminder.MainActivity::class.java).apply {
+        // Content intent: opens ReminderDetailScreen when user taps notification body
+        val detailIntent = Intent(context, net.interstellarai.unreminder.MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(EXTRA_TRIGGER_ID, triggerId)
-            putExtra(EXTRA_OPEN_TIMER, true)
+            putExtra(EXTRA_OPEN_DETAIL, true)
         }
-        val timerPendingIntent = PendingIntent.getActivity(
+        val detailPendingIntent = PendingIntent.getActivity(
             context,
-            (NOTIFICATION_CONTENT_BASE + triggerId).toRequestCode(),
-            timerIntent,
+            (NOTIFICATION_DETAIL_BASE + triggerId).toRequestCode(),
+            detailIntent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
-        builder.setContentIntent(timerPendingIntent)
+        builder.setContentIntent(detailPendingIntent)
 
         notificationManager.notify(triggerId.toRequestCode(), builder.build())
     }
