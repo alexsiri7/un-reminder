@@ -90,21 +90,16 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleTimerIntent(intent: android.content.Intent?) {
-        if (intent?.getBooleanExtra(NotificationHelper.EXTRA_OPEN_TIMER, false) == true) {
-            val id = intent.getLongExtra(NotificationHelper.EXTRA_TRIGGER_ID, -1L)
-            if (id != -1L) pendingTimerTriggerId = id
-        }
+        if (intent?.getBooleanExtra(NotificationHelper.EXTRA_OPEN_TIMER, false) != true) return
+        val id = intent.getLongExtra(NotificationHelper.EXTRA_TRIGGER_ID, -1L)
+        if (id != -1L) pendingTimerTriggerId = id
     }
 
     private fun handleDetailIntent(intent: android.content.Intent?) {
-        if (intent?.getBooleanExtra(NotificationHelper.EXTRA_OPEN_DETAIL, false) == true) {
-            val id = intent.getLongExtra(NotificationHelper.EXTRA_TRIGGER_ID, -1L)
-            if (id != -1L) {
-                pendingDetailTriggerId = id
-            } else {
-                Log.w(TAG, "handleDetailIntent: EXTRA_OPEN_DETAIL set but EXTRA_TRIGGER_ID missing")
-            }
-        }
+        if (intent?.getBooleanExtra(NotificationHelper.EXTRA_OPEN_DETAIL, false) != true) return
+        val id = intent.getLongExtra(NotificationHelper.EXTRA_TRIGGER_ID, -1L)
+        if (id != -1L) pendingDetailTriggerId = id
+        else Log.w(TAG, "handleDetailIntent: EXTRA_OPEN_DETAIL set but EXTRA_TRIGGER_ID missing")
     }
 
     override fun onResume() {
