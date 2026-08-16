@@ -15,6 +15,7 @@ import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.PersonalContextRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
 import io.sentry.Sentry
+import java.io.InterruptedIOException
 import java.io.IOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
@@ -119,6 +120,12 @@ class RefillWorker @AssistedInject constructor(
             // Doze network throttling). Same class of offline noise as UnknownHostException
             // and ConnectException — not actionable for the developer.
             Log.w(TAG, "Socket timeout for habit $habitId, will retry", e)
+            Result.retry()
+        } catch (e: InterruptedIOException) {
+            // OkHttp callTimeout (90s) expired — same transient class as SocketTimeoutException.
+            // InterruptedIOException is the parent of SocketTimeoutException; OkHttp uses it
+            // specifically for the overall call deadline, not per-operation timeouts.
+            Log.w(TAG, "Call timeout for habit $habitId, will retry", e)
             Result.retry()
         } catch (e: IOException) {
             Log.w(TAG, "IO error for habit $habitId, will retry", e)
