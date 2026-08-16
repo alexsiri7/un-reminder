@@ -112,8 +112,6 @@ export async function callRequestyWithSchemaRetry<T>(
     totalOutputTokens += result.outputTokens
     totalInputTokens += result.inputTokens
 
-    const sample = result.text.slice(0, 200)
-
     if (!result.text) {
       console.warn('[requesty] empty response text', { isRetry, finishReason: result.finishReason })
       if (isRetry) {
@@ -126,6 +124,7 @@ export async function callRequestyWithSchemaRetry<T>(
       continue
     }
 
+    const sample = result.text.slice(0, 200)
     try {
       const parsed = JSON.parse(result.text)
       const validated = validate(parsed)

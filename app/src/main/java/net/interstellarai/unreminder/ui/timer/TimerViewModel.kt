@@ -96,10 +96,10 @@ class TimerViewModel @Inject constructor(
         val triggerId = _uiState.value.triggerId
         viewModelScope.launch(ioDispatcher) {
             triggerRepository.updateOutcome(triggerId, status)
-            when (status) {
-                TriggerStatus.COMPLETED -> dismissalTracker.onCompleted(triggerId)
-                TriggerStatus.DISMISSED -> dismissalTracker.onDismissed(triggerId)
-                else -> {}
+            if (status == TriggerStatus.COMPLETED) {
+                dismissalTracker.onCompleted(triggerId)
+            } else {
+                dismissalTracker.onDismissed(triggerId)
             }
             notificationHelper.cancelNotification(triggerId)
             _uiState.value = _uiState.value.copy(isDone = true)
