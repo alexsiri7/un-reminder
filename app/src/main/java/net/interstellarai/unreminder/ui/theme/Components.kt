@@ -102,11 +102,7 @@ private fun ContextStripSlot(
     value: String,
     alignEnd: Boolean,
 ) {
-    val horizontalAlignment = if (alignEnd) {
-        androidx.compose.ui.Alignment.End
-    } else {
-        androidx.compose.ui.Alignment.Start
-    }
+    val horizontalAlignment = if (alignEnd) androidx.compose.ui.Alignment.End else androidx.compose.ui.Alignment.Start
     androidx.compose.foundation.layout.Column(horizontalAlignment = horizontalAlignment) {
         MonoSectionLabel(label)
         Spacer(Modifier.width(Dimens.xs))

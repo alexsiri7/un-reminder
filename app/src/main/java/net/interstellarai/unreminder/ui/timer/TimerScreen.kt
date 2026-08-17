@@ -104,9 +104,8 @@ fun TimerScreen(
             )
             Spacer(Modifier.height(Dimens.lg))
 
-            val display = formatCountdown(uiState.remainingSeconds ?: uiState.totalSeconds!!)
             Text(
-                display,
+                formatCountdown(uiState.remainingSeconds ?: uiState.totalSeconds!!),
                 style = MonoLabel.copy(fontSize = 48.sp, fontWeight = FontWeight.Bold),
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onBackground,
@@ -122,12 +121,11 @@ fun TimerScreen(
                 if (uiState.isRunning) {
                     ActionChip(label = "Pause", filled = true, onClick = { viewModel.pause() })
                 } else {
-                    val canStart = (uiState.remainingSeconds ?: 0) > 0
                     ActionChip(
                         label = "Start",
                         filled = true,
                         onClick = { viewModel.start() },
-                        enabled = canStart,
+                        enabled = (uiState.remainingSeconds ?: 0) > 0,
                     )
                 }
                 ActionChip(label = "Reset", filled = false, onClick = { viewModel.reset() })
