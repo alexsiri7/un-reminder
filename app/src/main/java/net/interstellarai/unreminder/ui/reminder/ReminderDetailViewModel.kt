@@ -72,10 +72,10 @@ class ReminderDetailViewModel @Inject constructor(
         viewModelScope.launch(ioDispatcher) {
             try {
                 triggerRepository.updateOutcome(triggerId, status)
-                if (status == TriggerStatus.COMPLETED) {
-                    dismissalTracker.onCompleted(triggerId)
-                } else {
-                    dismissalTracker.onDismissed(triggerId)
+                when (status) {
+                    TriggerStatus.COMPLETED -> dismissalTracker.onCompleted(triggerId)
+                    TriggerStatus.DISMISSED -> dismissalTracker.onDismissed(triggerId)
+                    else -> {} // SCHEDULED / FIRED: no dismissal-tracker action needed
                 }
                 notificationHelper.cancelNotification(triggerId)
             } catch (e: Exception) {
