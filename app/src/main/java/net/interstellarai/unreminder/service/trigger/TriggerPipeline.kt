@@ -125,7 +125,11 @@ class TriggerPipeline @Inject constructor(
                 if (e is CancellationException) throw e
                 Log.w(TAG, "needsRefill/enqueue failed — non-fatal, continuing", e)
             }
-            return NotificationVariant(text = variation.text, actionUrl = variation.actionUrl)
+            return NotificationVariant(
+                text = variation.text,
+                actionUrl = variation.actionUrl,
+                spriteTag = variation.spriteTag
+            )
         }
 
         Log.w(TAG, "pool empty for habit ${habit.id} — falling back to level description")

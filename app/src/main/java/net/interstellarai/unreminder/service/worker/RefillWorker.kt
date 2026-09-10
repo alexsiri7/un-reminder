@@ -14,6 +14,7 @@ import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.PersonalContextRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
+import net.interstellarai.unreminder.service.notification.MascotSprites
 import io.sentry.Sentry
 import java.io.IOException
 import java.io.InterruptedIOException
@@ -66,6 +67,7 @@ class RefillWorker @AssistedInject constructor(
                 locationName = "",
                 timeOfDay = "",
                 personalContext = personalContext,
+                sprites = MascotSprites.entries,
                 n = VariationRepository.POOL_SIZE,
                 workerUrl = url,
                 workerSecret = secret,
@@ -78,6 +80,7 @@ class RefillWorker @AssistedInject constructor(
                     promptFingerprint = promptFingerprint,
                     generatedAt = now,
                     actionUrl = variant.actionUrl,
+                    spriteTag = variant.spriteTag,
                 )
             }
             variationRepository.deleteConsumedForHabit(habitId)

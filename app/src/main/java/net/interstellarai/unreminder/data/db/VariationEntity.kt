@@ -35,5 +35,7 @@ data class VariationEntity(
     @ColumnInfo(name = "consumed_at")
     val consumedAt: Instant? = null,
     @ColumnInfo(name = "action_url")
-    val actionUrl: String? = null
+    val actionUrl: String? = null,
+    @ColumnInfo(name = "sprite_tag")
+    val spriteTag: String? = null
 )
