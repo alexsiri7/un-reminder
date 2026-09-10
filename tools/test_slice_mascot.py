@@ -158,6 +158,27 @@ def test_tiles_below_the_minimum_edge_exit_non_zero(tmp_path):
     assert not out.exists()
 
 
+def test_tiles_over_the_maximum_edge_shrink_without_distorting(tmp_path):
+    sheet = make_sheet(tmp_path / "sheet.png", 2, 1, 800, 300)
+    out = tmp_path / "out"
+
+    code = main(
+        [
+            str(sheet),
+            "--cols", "2",
+            "--rows", "1",
+            "--expect-size", "800x300",
+            "--out-dir", str(out),
+            "--catalogue", str(tmp_path / "art" / "mascot-sprites.json"),
+        ]
+    )
+
+    assert code == 0
+    with Image.open(out / "mascot_01.webp") as tile:
+        assert max(tile.size) == 256
+        assert tile.width / tile.height == pytest.approx(400 / 300)
+
+
 def test_grid_and_exclusions_come_from_arguments(tmp_path):
     sheet = make_sheet(tmp_path / "sheet.png", 3, 2, 300, 200)
     out = tmp_path / "out"
