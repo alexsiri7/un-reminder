@@ -53,6 +53,24 @@ class SentryOptionsBuilderTest {
         assertEquals(event, buildOptions().beforeSend!!.execute(event, Hint()))
     }
 
+    @Test fun `beforeSend keeps a NoSuchMethodError naming getStopReason on another class`() {
+        val event = SentryEvent(
+            NoSuchMethodError(
+                "No virtual method getStopReason()I in class Landroid/app/NotificationChannel;"
+            )
+        )
+        assertEquals(event, buildOptions().beforeSend!!.execute(event, Hint()))
+    }
+
+    @Test fun `beforeSend keeps a NoSuchMethodError on JobParameters for another method`() {
+        val event = SentryEvent(
+            NoSuchMethodError(
+                "No virtual method getNetwork()Landroid/net/Network; in class Landroid/app/job/JobParameters;"
+            )
+        )
+        assertEquals(event, buildOptions().beforeSend!!.execute(event, Hint()))
+    }
+
     @Test fun `beforeSend keeps unrelated exceptions`() {
         val event = SentryEvent(RuntimeException("boom"))
         assertEquals(event, buildOptions().beforeSend!!.execute(event, Hint()))
