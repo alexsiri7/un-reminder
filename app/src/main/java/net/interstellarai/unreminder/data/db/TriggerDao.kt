@@ -86,4 +86,42 @@ interface TriggerDao {
           AND (status = 'COMPLETED' OR status = 'COMPLETED_FULL' OR status = 'COMPLETED_LOW_FLOOR')
     """)
     suspend fun countDailyCompletionsSince(habitId: Long, sinceMillis: Long): Int
+
+    /**
+     * Distinct local calendar days on which anything was completed. [offsetMillis] is the caller's
+     * zone offset; a single offset is applied to every row, so history that crosses a DST boundary
+     * can bucket an hour off. Legacy completed-status variants count (see Converters.toTriggerStatus).
+     */
+    @Query("""
+        SELECT COUNT(DISTINCT date((fired_at + :offsetMillis) / 1000, 'unixepoch')) FROM triggers
+        WHERE fired_at IS NOT NULL
+          AND (status = 'COMPLETED' OR status = 'COMPLETED_FULL' OR status = 'COMPLETED_LOW_FLOOR')
+    """)
+    fun daysWithAnyCompletion(offsetMillis: Long): Flow<Int>
+
+    /** Distinct local calendar days on which this habit was completed. */
+    @Query("""
+        SELECT COUNT(DISTINCT date((fired_at + :offsetMillis) / 1000, 'unixepoch')) FROM triggers
+        WHERE habit_id = :habitId
+          AND fired_at IS NOT NULL
+          AND (status = 'COMPLETED' OR status = 'COMPLETED_FULL' OR status = 'COMPLETED_LOW_FLOOR')
+    """)
+    fun daysWithHabitCompletion(habitId: Long, offsetMillis: Long): Flow<Int>
+
+    /** Every completion of this habit, including several on the same day. */
+    @Query("""
+        SELECT COUNT(*) FROM triggers
+        WHERE habit_id = :habitId
+          AND (status = 'COMPLETED' OR status = 'COMPLETED_FULL' OR status = 'COMPLETED_LOW_FLOOR')
+    """)
+    fun totalCompletionsForHabit(habitId: Long): Flow<Int>
+
+    /** Completions of any habit since a cutoff; backs the "completed anything today" flow. */
+    @Query("""
+        SELECT COUNT(*) FROM triggers
+        WHERE fired_at IS NOT NULL
+          AND fired_at >= :sinceMillis
+          AND (status = 'COMPLETED' OR status = 'COMPLETED_FULL' OR status = 'COMPLETED_LOW_FLOOR')
+    """)
+    fun countAnyCompletionsSince(sinceMillis: Long): Flow<Int>
 }

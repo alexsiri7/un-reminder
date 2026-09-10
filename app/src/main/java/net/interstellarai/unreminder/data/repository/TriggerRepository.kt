@@ -4,7 +4,10 @@ import net.interstellarai.unreminder.data.db.TriggerDao
 import net.interstellarai.unreminder.data.db.TriggerEntity
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -58,4 +61,24 @@ class TriggerRepository @Inject constructor(
 
     suspend fun countDailyCompletionsSince(habitId: Long, sinceMillis: Long): Int =
         triggerDao.countDailyCompletionsSince(habitId, sinceMillis)
+
+    // The zone offset and today's boundary below are resolved when the flow is built, so a
+    // collector that outlives midnight or a zone change needs to re-collect.
+    fun daysWithAnyCompletion(): Flow<Int> =
+        triggerDao.daysWithAnyCompletion(currentZoneOffsetMillis())
+
+    fun daysWithHabitCompletion(habitId: Long): Flow<Int> =
+        triggerDao.daysWithHabitCompletion(habitId, currentZoneOffsetMillis())
+
+    fun totalCompletionsForHabit(habitId: Long): Flow<Int> =
+        triggerDao.totalCompletionsForHabit(habitId)
+
+    fun hasCompletedAnythingToday(): Flow<Boolean> =
+        triggerDao.countAnyCompletionsSince(startOfTodayMillis()).map { it > 0 }
+
+    private fun currentZoneOffsetMillis(): Long =
+        ZoneId.systemDefault().rules.getOffset(Instant.now()).totalSeconds * 1000L
+
+    private fun startOfTodayMillis(): Long =
+        LocalDate.now().atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
 }
