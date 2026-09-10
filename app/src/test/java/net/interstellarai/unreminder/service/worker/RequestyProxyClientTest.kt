@@ -1,6 +1,9 @@
 package net.interstellarai.unreminder.service.worker
 
 import kotlinx.coroutines.test.runTest
+import net.interstellarai.unreminder.service.notification.MascotSprite
+import net.interstellarai.unreminder.service.notification.MascotSprites
+import org.json.JSONObject
 import kotlin.test.assertFailsWith
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
@@ -108,6 +111,7 @@ class RequestyProxyClientTest {
             locationName = "",
             timeOfDay = "",
             personalContext = "",
+            sprites = emptyList(),
             n = 3,
             workerUrl = baseUrl(),
             workerSecret = "secret",
@@ -127,11 +131,70 @@ class RequestyProxyClientTest {
     }
 
     @Test
+    fun `generateBatch parses spriteTag and tolerates its absence`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"variants":[{"text":"v1","spriteTag":"astronaut_zero_g"},{"text":"v2"},{"text":"v3","spriteTag":""}]}""")
+                .addHeader("Content-Type", "application/json")
+        )
+
+        val result = proxyClient.generateBatch(
+            habitTitle = "Meditate",
+            habitTags = emptyList(),
+            locationName = "",
+            timeOfDay = "",
+            personalContext = "",
+            sprites = MascotSprites.entries,
+            n = 3,
+            workerUrl = baseUrl(),
+            workerSecret = "secret",
+        )
+
+        assertEquals("astronaut_zero_g", result[0].spriteTag)
+        assertNull(result[1].spriteTag)
+        assertNull(result[2].spriteTag)
+    }
+
+    @Test
+    fun `generateBatch sends the sprite vocabulary in the request body`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"variants":[{"text":"v1"}]}""")
+                .addHeader("Content-Type", "application/json")
+        )
+
+        val sprites = listOf(
+            MascotSprite("astronaut_zero_g", "a cat in an orange spacesuit", 1),
+            MascotSprite("chef_pan_flip", "a cat flipping an egg", 2),
+        )
+        proxyClient.generateBatch(
+            habitTitle = "Meditate",
+            habitTags = emptyList(),
+            locationName = "",
+            timeOfDay = "",
+            personalContext = "",
+            sprites = sprites,
+            n = 1,
+            workerUrl = baseUrl(),
+            workerSecret = "secret",
+        )
+
+        val body = JSONObject(server.takeRequest().body.readUtf8())
+        val sent = body.getJSONArray("sprites")
+        assertEquals(2, sent.length())
+        assertEquals("astronaut_zero_g", sent.getJSONObject(0).getString("tag"))
+        assertEquals("a cat in an orange spacesuit", sent.getJSONObject(0).getString("description"))
+        assertEquals("chef_pan_flip", sent.getJSONObject(1).getString("tag"))
+    }
+
+    @Test
     fun `generateBatch throws WorkerAuthException on 401`() = runTest {
         server.enqueue(MockResponse().setResponseCode(401).setBody("Unauthorized"))
 
         assertFailsWith<WorkerAuthException> {
-            proxyClient.generateBatch("Meditate", emptyList(), "", "", "", 1, baseUrl(), "bad")
+            proxyClient.generateBatch("Meditate", emptyList(), "", "", "", emptyList(), 1, baseUrl(), "bad")
         }
     }
 
@@ -140,7 +203,7 @@ class RequestyProxyClientTest {
         server.enqueue(MockResponse().setResponseCode(402).setBody("""{"error":"cap"}"""))
 
         assertFailsWith<SpendCapExceededException> {
-            proxyClient.generateBatch("Meditate", emptyList(), "", "", "", 1, baseUrl(), "secret")
+            proxyClient.generateBatch("Meditate", emptyList(), "", "", "", emptyList(), 1, baseUrl(), "secret")
         }
     }
 
@@ -149,7 +212,7 @@ class RequestyProxyClientTest {
         server.enqueue(MockResponse().setResponseCode(500).setBody("Internal Server Error"))
 
         val ex = assertFailsWith<WorkerError> {
-            proxyClient.generateBatch("Meditate", emptyList(), "", "", "", 1, baseUrl(), "secret")
+            proxyClient.generateBatch("Meditate", emptyList(), "", "", "", emptyList(), 1, baseUrl(), "secret")
         }
         assertEquals(500, ex.code)
     }
@@ -159,7 +222,7 @@ class RequestyProxyClientTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(""))
 
         assertFailsWith<Exception> {
-            proxyClient.generateBatch("Meditate", emptyList(), "", "", "", 1, baseUrl(), "secret")
+            proxyClient.generateBatch("Meditate", emptyList(), "", "", "", emptyList(), 1, baseUrl(), "secret")
         }
     }
 }

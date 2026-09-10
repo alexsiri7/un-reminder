@@ -61,4 +61,41 @@ describe('validateVariants', () => {
   it('returns null for empty array', () => {
     expect(validateVariants([])).toBeNull()
   })
+
+  it('drops spriteTag when no vocabulary was supplied', () => {
+    const result = validateVariants([{ text: 'Do 10 reps', spriteTag: 'astronaut_zero_g' }])
+    expect(result).toEqual([{ text: 'Do 10 reps', actionUrl: undefined, spriteTag: undefined }])
+  })
+
+  it('keeps a spriteTag drawn from the supplied vocabulary', () => {
+    const allowed = new Set(['astronaut_zero_g', 'chef_pan_flip'])
+    const result = validateVariants([{ text: 'Do 10 reps', spriteTag: 'chef_pan_flip' }], allowed)
+    expect(result![0].spriteTag).toBe('chef_pan_flip')
+  })
+
+  it('drops an out-of-vocabulary spriteTag without failing the batch', () => {
+    const allowed = new Set(['astronaut_zero_g'])
+    const result = validateVariants(
+      [
+        { text: 'Do 10 reps', spriteTag: 'invented_by_the_model' },
+        { text: 'Hold for 30 seconds', spriteTag: 'astronaut_zero_g' },
+      ],
+      allowed,
+    )
+    expect(result).not.toBeNull()
+    expect(result!).toHaveLength(2)
+    expect(result![0].spriteTag).toBeUndefined()
+    expect(result![1].spriteTag).toBe('astronaut_zero_g')
+  })
+
+  it('drops a non-string spriteTag without failing the batch', () => {
+    const allowed = new Set(['astronaut_zero_g'])
+    expect(validateVariants([{ text: 'Do it', spriteTag: 42 }], allowed)![0].spriteTag).toBeUndefined()
+    expect(validateVariants([{ text: 'Do it', spriteTag: null }], allowed)![0].spriteTag).toBeUndefined()
+  })
+
+  it('accepts a variant with no spriteTag when a vocabulary was supplied', () => {
+    const allowed = new Set(['astronaut_zero_g'])
+    expect(validateVariants([{ text: 'Do it' }], allowed)![0].spriteTag).toBeUndefined()
+  })
 })

@@ -13,11 +13,18 @@ export interface Env {
   UR_MODEL: string
 }
 
+export interface SpriteOption {
+  tag: string
+  description: string
+}
+
 export interface GenerateBatchRequest {
   habitTitle: string
   habitTags: string[]
   locationName: string
   timeOfDay: string
+  /** Sprite vocabulary to choose from; absent when an older app build calls. */
+  sprites?: SpriteOption[]
   /** Number of notification variants to generate (1–50). */
   n: number
   /** Optional user-defined communication style hint (e.g. "use words of encouragement"). */
@@ -27,6 +34,8 @@ export interface GenerateBatchRequest {
 export interface NotificationVariant {
   text: string
   actionUrl?: string
+  /** Tag of the sprite to pair with this text; absent when no vocabulary was supplied. */
+  spriteTag?: string
 }
 
 export interface GenerateBatchResponse {

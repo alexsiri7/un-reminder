@@ -4,6 +4,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.interstellarai.unreminder.domain.model.AiHabitFields
 import net.interstellarai.unreminder.domain.model.NotificationVariant
+import net.interstellarai.unreminder.service.notification.MascotSprite
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -54,6 +55,7 @@ class RequestyProxyClient @Inject constructor(
         locationName: String,
         timeOfDay: String,
         personalContext: String,
+        sprites: List<MascotSprite>,
         n: Int,
         workerUrl: String,
         workerSecret: String,
@@ -64,6 +66,12 @@ class RequestyProxyClient @Inject constructor(
             put("locationName", locationName)
             put("timeOfDay", timeOfDay)
             put("personalContext", personalContext)
+            put("sprites", JSONArray(sprites.map { sprite ->
+                JSONObject().apply {
+                    put("tag", sprite.tag)
+                    put("description", sprite.description)
+                }
+            }))
             put("n", n)
         }
         return withContext(Dispatchers.IO) {
@@ -74,7 +82,8 @@ class RequestyProxyClient @Inject constructor(
                 val obj = arr.getJSONObject(i)
                 NotificationVariant(
                     text = obj.getString("text"),
-                    actionUrl = obj.optString("actionUrl").takeIf { it.isNotEmpty() }
+                    actionUrl = obj.optString("actionUrl").takeIf { it.isNotEmpty() },
+                    spriteTag = obj.optString("spriteTag").takeIf { it.isNotEmpty() }
                 )
             }
         }
