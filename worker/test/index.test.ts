@@ -337,6 +337,65 @@ describe('un-reminder-worker', () => {
     expect(upstreamBody.messages[0].content).not.toContain('Style:')
   })
 
+  // ---- Sprite vocabulary tests ----
+
+  it('offers the sprite vocabulary to the model when sprites are supplied', async () => {
+    const variants = [{ text: 'Stretch!' }, { text: 'Move!' }, { text: 'Go!' }]
+    mockRequestySuccess(variants)
+
+    const req = makeRequest('/v1/generate/batch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-UR-Secret': SECRET,
+      },
+      body: { ...validBody(), sprites: [{ tag: 'cape', description: 'mascot in a superhero cape' }] },
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, testEnv(), ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(200)
+
+    const fetchMock = globalThis.fetch as unknown as { mock: { calls: unknown[][] } }
+    const requestInit = fetchMock.mock.calls[0][1] as RequestInit
+    const upstreamBody = JSON.parse(requestInit.body as string) as {
+      messages: { content: string }[]
+    }
+    const prompt = upstreamBody.messages[0].content
+    expect(prompt).toContain('- "spriteTag": string')
+    expect(prompt).toContain('Available sprites')
+    expect(prompt).toContain('cape')
+    expect(prompt).toContain('mascot in a superhero cape')
+    expect(prompt).toContain('8. Pair each message with a "spriteTag"')
+  })
+
+  it('leaves the prompt sprite-free when sprites are absent', async () => {
+    const variants = [{ text: 'Stretch!' }, { text: 'Move!' }, { text: 'Go!' }]
+    mockRequestySuccess(variants)
+
+    const req = makeRequest('/v1/generate/batch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-UR-Secret': SECRET,
+      },
+      body: validBody(),
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, testEnv(), ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(200)
+
+    const fetchMock = globalThis.fetch as unknown as { mock: { calls: unknown[][] } }
+    const requestInit = fetchMock.mock.calls[0][1] as RequestInit
+    const upstreamBody = JSON.parse(requestInit.body as string) as {
+      messages: { content: string }[]
+    }
+    const prompt = upstreamBody.messages[0].content
+    expect(prompt).not.toContain('spriteTag')
+    expect(prompt).not.toContain('Available sprites')
+  })
+
   // ---- Retry + 502 test ----
 
   it('returns 502 after retries on malformed response', async () => {
