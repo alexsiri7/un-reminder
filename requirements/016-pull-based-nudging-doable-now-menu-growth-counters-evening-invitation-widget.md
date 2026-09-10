@@ -1,8 +1,8 @@
 ---
 created: '2026-09-10'
-github_issue: null
+github_issue: 290
 id: '016'
-status: draft
+status: idea
 title: 'Pull-based nudging: doable-now menu, growth counters, evening invitation,
   widget'
 updated: '2026-09-10'
@@ -32,4 +32,9 @@ The app needs surfaces the user can pull from when they have a moment, a win sma
 
 ## Issues
 
-_None yet._
+- #290 — Remove habit auto-pause; delete dead DedicationLevelManager promotion path
+- #291 — Record notification swipe-away as a dismissal
+- #292 — Growth counters: days-with-any-completion, per-habit days, per-habit total
+- #293 — Doable-now menu screen: 3 random eligible habits with load more
+- #294 — Evening invitation notification on days with no completions
+- #295 — Home-screen widget: one doable habit, one action, 30-minute refresh
