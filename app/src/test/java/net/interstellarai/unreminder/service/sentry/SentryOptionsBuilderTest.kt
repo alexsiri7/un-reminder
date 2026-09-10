@@ -1,8 +1,11 @@
 package net.interstellarai.unreminder.service.sentry
 
+import io.sentry.Hint
+import io.sentry.SentryEvent
 import io.sentry.android.core.SentryAndroidOptions
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -29,6 +32,32 @@ class SentryOptionsBuilderTest {
     @Test fun `screenshots not attached`() = assertFalse(buildOptions().isAttachScreenshot)
     @Test fun `view hierarchy not attached`() = assertFalse(buildOptions().isAttachViewHierarchy)
     @Test fun `anr detection disabled`() = assertFalse(buildOptions().isAnrEnabled)
+    @Test fun `beforeSend drops the WorkManager getStopReason NoSuchMethodError`() {
+        val event = SentryEvent(
+            NoSuchMethodError(
+                "No virtual method getStopReason()I in class Landroid/app/job/JobParameters; " +
+                    "or its super classes (declaration of 'android.app.job.JobParameters' " +
+                    "appears in /system/framework/framework.jar)"
+            )
+        )
+        assertNull(buildOptions().beforeSend!!.execute(event, Hint()))
+    }
+
+    @Test fun `beforeSend keeps an unrelated NoSuchMethodError`() {
+        val event = SentryEvent(
+            NoSuchMethodError(
+                "No virtual method permitUnsafeIntentLaunch()Landroid/os/StrictMode\$VmPolicy\$Builder; " +
+                    "in class Landroid/os/StrictMode\$VmPolicy\$Builder;"
+            )
+        )
+        assertEquals(event, buildOptions().beforeSend!!.execute(event, Hint()))
+    }
+
+    @Test fun `beforeSend keeps unrelated exceptions`() {
+        val event = SentryEvent(RuntimeException("boom"))
+        assertEquals(event, buildOptions().beforeSend!!.execute(event, Hint()))
+    }
+
     @Test fun `shouldInitSentry returns false for blank dsn`() = assertFalse(shouldInitSentry(""))
     @Test fun `shouldInitSentry returns false for whitespace dsn`() = assertFalse(shouldInitSentry("   "))
     @Test fun `shouldInitSentry returns true for non-blank dsn`() = assertTrue(shouldInitSentry("https://key@sentry.io/123"))
