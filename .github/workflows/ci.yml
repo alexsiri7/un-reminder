@@ -122,8 +122,8 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  worker-typecheck:
-    name: Worker type-check
+  worker-checks:
+    name: Worker type-check & tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -145,6 +145,9 @@ jobs:
 
       - name: Type-check
         run: npm run typecheck
+
+      - name: Test
+        run: npm run test
 
   tools-tests:
     name: Slicer tests
