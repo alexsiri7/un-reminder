@@ -2,10 +2,12 @@ package net.interstellarai.unreminder.service.notification
 
 import android.app.Notification
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
 import android.graphics.drawable.Icon
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -66,5 +68,20 @@ class TriggerNotificationTest {
         val notification = posted(triggerId = 42L, spriteTag = MascotSprites.entries[0].tag)
 
         assertEquals("${EmojiRotator().pick(42L)} meditation", notification.extras.getString(Notification.EXTRA_TITLE))
+    }
+
+    // Only the geofence intent needs to be mutable (#339); the action receiver's must stay immutable.
+    @Test
+    fun `the Did it and Dismiss action intents stay immutable`() {
+        val notification = posted(triggerId = 42L, spriteTag = null)
+
+        val actionFlags = listOf("Did it", "Dismiss").map { title ->
+            val action = notification.actions.single { it.title == title }
+            shadowOf(action.actionIntent).flags
+        }
+        for (flags in actionFlags) {
+            assertNotEquals(0, flags and PendingIntent.FLAG_IMMUTABLE)
+            assertEquals(0, flags and PendingIntent.FLAG_MUTABLE)
+        }
     }
 }
