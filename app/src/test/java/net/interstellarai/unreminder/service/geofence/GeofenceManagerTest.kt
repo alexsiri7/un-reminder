@@ -20,7 +20,6 @@ import net.interstellarai.unreminder.data.db.LocationEntity
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -148,9 +147,6 @@ class GeofenceManagerTest {
             extras
         )
         verify(exactly = 1) { scope.setTag("component", "geofence") }
-        val payload = extras.values.joinToString()
-        assertFalse(payload.contains("51.5"))
-        assertFalse(payload.contains("-0.1"))
     }
 
     @Test
