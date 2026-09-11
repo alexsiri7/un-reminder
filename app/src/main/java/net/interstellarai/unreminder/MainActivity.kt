@@ -33,6 +33,7 @@ class MainActivity : ComponentActivity() {
     }
 
     @Inject lateinit var inAppUpdateManager: InAppUpdateManager
+    @Inject lateinit var notificationHelper: NotificationHelper
 
     private lateinit var updateLauncher: ActivityResultLauncher<IntentSenderRequest>
     private var pendingTimerTriggerId by mutableStateOf<Long?>(null)
@@ -107,8 +108,11 @@ class MainActivity : ComponentActivity() {
         else Log.w(TAG, "handleDetailIntent: EXTRA_OPEN_DETAIL set but EXTRA_TRIGGER_ID missing")
     }
 
+    // "Show me" is an action, so auto-cancel doesn't clear the invitation; do it here.
     private fun handleNowIntent(intent: android.content.Intent?) {
-        if (intent?.getBooleanExtra(NotificationHelper.EXTRA_OPEN_NOW, false) == true) pendingOpenNow = true
+        if (intent?.getBooleanExtra(NotificationHelper.EXTRA_OPEN_NOW, false) != true) return
+        notificationHelper.cancelEveningInvitation()
+        pendingOpenNow = true
     }
 
     override fun onResume() {

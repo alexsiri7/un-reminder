@@ -78,6 +78,18 @@ class EveningInvitationNotificationTest {
     }
 
     @Test
+    fun `cancelEveningInvitation clears the invitation and nothing else`() {
+        posted()
+        helper.postHabitPausedNotification(habitId = 3L, habitName = "stretch")
+        val pausedId = (NotificationHelper.NOTIFICATION_ID_PAUSED_BASE + 3L).toRequestCode()
+
+        helper.cancelEveningInvitation()
+
+        assertNull(shadowOf(notificationManager).getNotification(id))
+        assertNotNull(shadowOf(notificationManager).getNotification(pausedId))
+    }
+
+    @Test
     fun `dismiss receiver clears the invitation and nothing else`() {
         posted()
         helper.postHabitPausedNotification(habitId = 3L, habitName = "stretch")

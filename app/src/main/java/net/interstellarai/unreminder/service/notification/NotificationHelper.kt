@@ -168,6 +168,10 @@ class NotificationHelper @Inject constructor(
         notificationManager.cancel(triggerId.toRequestCode())
     }
 
+    fun cancelEveningInvitation() {
+        notificationManager.cancel(NOTIFICATION_ID_EVENING_INVITATION.toRequestCode())
+    }
+
     private fun createActionIntent(triggerId: Long, action: String, requestCodeOffset: Int): PendingIntent {
         val intent = Intent(context, NotificationActionReceiver::class.java).apply {
             putExtra(EXTRA_TRIGGER_ID, triggerId)
