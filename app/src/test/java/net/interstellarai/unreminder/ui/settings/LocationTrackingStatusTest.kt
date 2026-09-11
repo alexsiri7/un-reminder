@@ -103,6 +103,35 @@ class LocationTrackingStatusTest {
     }
 
     @Test
+    fun `an inconclusive settings check never reads healthy`() {
+        val unverified = LocationTrackingStatus.LocationSettingsUnverified
+        assertEquals(unverified, statusOf(health(locationSettings = LocationSettingsCheck.TimedOut)))
+        assertEquals(
+            unverified,
+            statusOf(health(locationSettings = LocationSettingsCheck.Failed(IllegalStateException("client gone")))),
+        )
+        assertTrue(unverified.isFault)
+        assertTrue(unverified.advice != LocationTrackingStatus.LocationSettingsOff.advice)
+    }
+
+    @Test
+    fun `confirmed faults are named before an inconclusive settings check`() {
+        assertEquals(
+            LocationTrackingStatus.RegistrationFailed("TIMEOUT"),
+            statusOf(
+                health(
+                    outcomes = listOf(1L to GeofenceRegistration.TimedOut),
+                    locationSettings = LocationSettingsCheck.TimedOut,
+                )
+            ),
+        )
+        assertEquals(
+            LocationTrackingStatus.BatteryRestricted,
+            statusOf(health(locationSettings = LocationSettingsCheck.TimedOut), backgroundRestricted = true),
+        )
+    }
+
+    @Test
     fun `all fences registered with nothing restricted reads healthy`() {
         val status = statusOf(health())
         assertEquals(LocationTrackingStatus.Healthy, status)
@@ -115,6 +144,7 @@ class LocationTrackingStatusTest {
             LocationTrackingStatus.BackgroundLocationMissing,
             LocationTrackingStatus.LocationSettingsOff,
             LocationTrackingStatus.BatteryRestricted,
+            LocationTrackingStatus.LocationSettingsUnverified,
         )
         assertTrue(faults.all { it.isFault })
         assertEquals(faults.size, faults.map { it.label }.toSet().size)

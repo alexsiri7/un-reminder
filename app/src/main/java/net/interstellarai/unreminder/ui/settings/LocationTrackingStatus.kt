@@ -47,6 +47,12 @@ sealed interface LocationTrackingStatus {
         override val advice = "Some geofences did not register ($statusLabel). Reopen the app to retry."
     }
 
+    data object LocationSettingsUnverified : LocationTrackingStatus {
+        override val label = "location settings unverified"
+        override val advice =
+            "Could not confirm Location and Google Location Accuracy are on. Reopen the app to retry."
+    }
+
     companion object {
         fun of(health: RegistrationHealth?, backgroundRestricted: Boolean): LocationTrackingStatus {
             if (health == null) return Checking
@@ -60,7 +66,11 @@ sealed interface LocationTrackingStatus {
             }
             health.lastFailure?.let { return RegistrationFailed(it.statusLabel) }
             if (backgroundRestricted) return BatteryRestricted
-            return Healthy
+            return when (health.locationSettings) {
+                LocationSettingsCheck.Available -> Healthy
+                is LocationSettingsCheck.Unavailable -> LocationSettingsOff
+                LocationSettingsCheck.TimedOut, is LocationSettingsCheck.Failed -> LocationSettingsUnverified
+            }
         }
     }
 }
