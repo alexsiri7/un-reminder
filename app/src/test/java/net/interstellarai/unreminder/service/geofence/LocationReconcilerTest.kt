@@ -26,7 +26,9 @@ import io.sentry.Sentry
 import io.sentry.protocol.SentryId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.db.LocationEntity
@@ -38,6 +40,7 @@ import net.interstellarai.unreminder.domain.AvailabilityStatus
 import net.interstellarai.unreminder.domain.HabitAvailabilityService
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -240,6 +243,28 @@ class LocationReconcilerTest {
 
         verify(exactly = 2) { fusedLocationClient.getCurrentLocation(any<Int>(), any<CancellationToken>()) }
         assertEquals(Reconciliation.Reconciled, forced)
+    }
+
+    @Test
+    fun `a forced reconciliation waits for a run already in flight instead of skipping`() = runTest {
+        val pending = TaskCompletionSource<Location>()
+        every {
+            fusedLocationClient.getCurrentLocation(any<Int>(), any<CancellationToken>())
+        } returns pending.task
+        val reconciler = newReconciler(newGeofenceManager())
+
+        val background = launch { reconciler.reconcile() }
+        runCurrent()
+        val forced = async { reconciler.reconcileNow() }
+        runCurrent()
+
+        assertFalse(forced.isCompleted)
+
+        pending.setResult(fixAt(FIX_LAT, FIX_LNG))
+        background.join()
+
+        assertEquals(Reconciliation.Reconciled, forced.await())
+        verify(exactly = 2) { fusedLocationClient.getCurrentLocation(any<Int>(), any<CancellationToken>()) }
     }
 
     @Test
