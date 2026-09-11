@@ -1,9 +1,19 @@
 package net.interstellarai.unreminder.screenshot
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.Modifier
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
 import com.android.resources.Density
+import com.google.android.gms.location.GeofenceStatusCodes
+import com.google.android.gms.location.LocationSettingsStatusCodes
 import net.interstellarai.unreminder.data.db.HabitEntity
+import net.interstellarai.unreminder.service.geofence.GeofenceRegistration
+import net.interstellarai.unreminder.service.geofence.LocationSettingsCheck
+import net.interstellarai.unreminder.service.geofence.RegistrationHealth
 import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.service.notification.MascotSprites
 import net.interstellarai.unreminder.ui.habit.HabitListContent
@@ -12,12 +22,24 @@ import net.interstellarai.unreminder.ui.now.NowMenuItem
 import net.interstellarai.unreminder.ui.now.NowMenuUiState
 import net.interstellarai.unreminder.ui.onboarding.OnboardingContent
 import net.interstellarai.unreminder.ui.onboarding.OnboardingUiState
+import net.interstellarai.unreminder.ui.settings.LocationTrackingSection
+import net.interstellarai.unreminder.ui.settings.LocationTrackingStatus
+import net.interstellarai.unreminder.ui.theme.Dimens
 import net.interstellarai.unreminder.ui.theme.UnReminderTheme
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import java.time.Instant
 import java.time.LocalTime
+import java.util.TimeZone
 
 class PhoneScreenshotTest {
+
+    // The section prints checkedAt as a clock time; the JVM zone must not vary by machine.
+    @Before
+    fun pinTimeZone() {
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+    }
 
     @get:Rule
     val paparazzi = Paparazzi(
@@ -103,6 +125,23 @@ class PhoneScreenshotTest {
             }
         }
     }
+
+    @Test
+    fun phone_5() {
+        paparazzi.snapshot {
+            UnReminderTheme {
+                LocationTrackingSection(
+                    health = fakeRegistrationHealth,
+                    status = LocationTrackingStatus.of(fakeRegistrationHealth, backgroundRestricted = false),
+                    onNavigateToLocations = {},
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background)
+                        .padding(Dimens.xxl),
+                )
+            }
+        }
+    }
 }
 
 internal val fakeHabits = listOf(
@@ -130,4 +169,16 @@ internal val fakeNowMenu = NowMenuUiState.Menu(
         NowMenuItem(habitId = 3, name = "reading", text = null, variationId = null, spriteRes = MascotSprites.entries[2].drawableRes),
     ),
     canLoadMore = true,
+)
+
+internal val fakeRegistrationHealth = RegistrationHealth(
+    outcomes = listOf(
+        1L to GeofenceRegistration.Registered,
+        2L to GeofenceRegistration.Rejected(GeofenceStatusCodes.GEOFENCE_NOT_AVAILABLE),
+    ),
+    fineLocationGranted = true,
+    backgroundLocationGranted = true,
+    locationEnabled = true,
+    locationSettings = LocationSettingsCheck.Unavailable(LocationSettingsStatusCodes.SETTINGS_CHANGE_UNAVAILABLE),
+    checkedAt = Instant.parse("2026-09-11T09:41:00Z"),
 )
