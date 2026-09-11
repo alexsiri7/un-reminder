@@ -12,6 +12,7 @@ import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.geofence.LocationReconciler
+import net.interstellarai.unreminder.service.geofence.Reconciliation
 import net.interstellarai.unreminder.service.notification.NotificationHelper
 import net.interstellarai.unreminder.service.worker.RefillScheduler
 import net.interstellarai.unreminder.widget.WidgetRefresher
@@ -71,6 +72,7 @@ class TriggerPipelineTest {
         locationRepository = mockk()
         geofenceManager = mockk()
         locationReconciler = mockk(relaxed = true)
+        coEvery { locationReconciler.reconcile() } returns Reconciliation.Reconciled
         notificationHelper = mockk(relaxUnitFun = true)
         variationRepository = mockk()
         refillScheduler = mockk(relaxUnitFun = true)

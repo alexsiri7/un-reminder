@@ -10,6 +10,7 @@ import app.cash.paparazzi.Paparazzi
 import com.android.resources.Density
 import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.ui.habit.HabitListContent
+import net.interstellarai.unreminder.ui.location.LocationContent
 import net.interstellarai.unreminder.ui.now.NowMenuContent
 import net.interstellarai.unreminder.ui.onboarding.OnboardingContent
 import net.interstellarai.unreminder.ui.onboarding.OnboardingUiState
@@ -148,6 +149,22 @@ class Tablet10ScreenshotTest {
                     onLoadMore = {},
                     onAddHabit = {},
                     onNavigateToFeedback = {},
+                )
+            }
+        }
+    }
+
+    @Test
+    fun tablet10_7() {
+        paparazzi.snapshot {
+            UnReminderTheme {
+                LocationContent(
+                    locations = fakeLocationRows,
+                    recalculation = fakeRecalculationFailure,
+                    onRecalculate = {},
+                    onNavigateBack = {},
+                    onAddLocation = {},
+                    onEditLocation = {},
                 )
             }
         }

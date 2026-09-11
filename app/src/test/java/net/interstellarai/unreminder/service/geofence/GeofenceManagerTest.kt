@@ -51,6 +51,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
+import java.time.Instant
 
 @RunWith(RobolectricTestRunner::class)
 class GeofenceManagerTest {
@@ -204,12 +205,12 @@ class GeofenceManagerTest {
     }
 
     @Test
-    fun `replaceLocationIds swaps the whole set in one persisted step`() {
+    fun `recordReconciliation swaps the whole set in one persisted step`() {
         val mgr = newManager()
         mgr.addLocationId(7L, LocationSetChangeCause.ENTER)
         breadcrumbs.clear()
 
-        mgr.replaceLocationIds(setOf(42L, 99L))
+        mgr.recordReconciliation(mapOf(7L to false, 42L to true, 99L to true))
 
         assertEquals(setOf(42L, 99L), mgr.currentLocationIds.value)
         assertEquals(setOf(42L, 99L), newManager().currentLocationIds.value)
@@ -220,15 +221,89 @@ class GeofenceManagerTest {
     }
 
     @Test
-    fun `replaceLocationIds with the set already held changes nothing`() {
+    fun `recordReconciliation on the set already held leaves no breadcrumb but still refreshes the checks`() {
         val mgr = newManager()
         mgr.addLocationId(7L, LocationSetChangeCause.ENTER)
         breadcrumbs.clear()
 
-        mgr.replaceLocationIds(setOf(7L))
+        mgr.recordReconciliation(mapOf(7L to true))
 
         assertEquals(setOf(7L), mgr.currentLocationIds.value)
         assertTrue(breadcrumbs.isEmpty())
+        assertEquals(LocationSetChangeCause.RECONCILE, mgr.locationChecks.value.getValue(7L).via)
+    }
+
+    @Test
+    fun `recordReconciliation stamps every evaluated location and drops the ones it no longer covers`() {
+        val mgr = newManager()
+        mgr.addLocationId(7L, LocationSetChangeCause.ENTER)
+
+        mgr.recordReconciliation(mapOf(42L to true, 99L to false))
+
+        assertEquals(setOf(42L, 99L), mgr.locationChecks.value.keys)
+        assertTrue(mgr.locationChecks.value.getValue(42L).inside)
+        assertFalse(mgr.locationChecks.value.getValue(99L).inside)
+    }
+
+    @Test
+    fun `an arrival stamps only the location it names`() {
+        val mgr = newManager()
+        mgr.addLocationId(7L, LocationSetChangeCause.ENTER)
+
+        assertEquals(setOf(7L), mgr.locationChecks.value.keys)
+        assertTrue(mgr.locationChecks.value.getValue(7L).inside)
+        assertEquals(LocationSetChangeCause.ENTER, mgr.locationChecks.value.getValue(7L).via)
+    }
+
+    @Test
+    fun `a departure for a location already believed outside still records that answer`() {
+        val mgr = newManager()
+
+        mgr.removeLocationId(7L, LocationSetChangeCause.EXIT)
+
+        assertEquals(emptySet<Long>(), mgr.currentLocationIds.value)
+        assertFalse(mgr.locationChecks.value.getValue(7L).inside)
+        assertEquals(LocationSetChangeCause.EXIT, mgr.locationChecks.value.getValue(7L).via)
+    }
+
+    @Test
+    fun `checks survive reconstruction with their original times and causes`() {
+        val first = newManager()
+        first.addLocationId(7L, LocationSetChangeCause.ENTER)
+        first.removeLocationId(42L, LocationSetChangeCause.EXIT)
+
+        val rehydrated = newManager()
+
+        assertEquals(first.locationChecks.value, rehydrated.locationChecks.value)
+        assertEquals(LocationSetChangeCause.ENTER, rehydrated.locationChecks.value.getValue(7L).via)
+        assertEquals(LocationSetChangeCause.EXIT, rehydrated.locationChecks.value.getValue(42L).via)
+    }
+
+    @Test
+    fun `upgrading from prefs that hold only the legacy id set yields no checks`() {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putStringSet(KEY_LOCATION_IDS, setOf("7"))
+            .commit()
+
+        val mgr = newManager()
+
+        assertEquals(setOf(7L), mgr.currentLocationIds.value)
+        assertEquals(emptyMap<Long, LocationCheck>(), mgr.locationChecks.value)
+    }
+
+    @Test
+    fun `on a manager with no legacy state, inside checks and the id set stay identical`() {
+        val mgr = newManager()
+
+        mgr.addLocationId(7L, LocationSetChangeCause.ENTER)
+        assertEquals(mgr.currentLocationIds.value, mgr.locationChecks.value.filterValues { it.inside }.keys)
+
+        mgr.removeLocationId(7L, LocationSetChangeCause.EXIT)
+        assertEquals(mgr.currentLocationIds.value, mgr.locationChecks.value.filterValues { it.inside }.keys)
+
+        mgr.recordReconciliation(mapOf(7L to false, 42L to true))
+        assertEquals(mgr.currentLocationIds.value, mgr.locationChecks.value.filterValues { it.inside }.keys)
     }
 
     @Test
@@ -240,6 +315,26 @@ class GeofenceManagerTest {
 
         val mgr = newManager()
         assertEquals(setOf(7L, 42L), mgr.currentLocationIds.value)
+    }
+
+    @Test
+    fun `malformed persisted checks are dropped instead of crashing`() {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putStringSet(KEY_LOCATION_IDS, setOf("7"))
+            .putStringSet(
+                KEY_LOCATION_CHECKS,
+                setOf("7|1|1757580000000|ENTER", "42|1|ENTER", "43|2|1757580000000|ENTER", "44|1|now|EXIT", "45|0|1757580000000|SOMEDAY"),
+            )
+            .commit()
+
+        val mgr = newManager()
+
+        assertEquals(setOf(7L), mgr.locationChecks.value.keys)
+        assertEquals(
+            LocationCheck(inside = true, at = Instant.ofEpochMilli(1757580000000L), via = LocationSetChangeCause.ENTER),
+            mgr.locationChecks.value.getValue(7L),
+        )
     }
 
     @Test
@@ -734,5 +829,6 @@ class GeofenceManagerTest {
         // or older installs silently lose persisted state on rehydration.
         private const val PREFS_NAME = "geofence_prefs"
         private const val KEY_LOCATION_IDS = "current_location_ids"
+        private const val KEY_LOCATION_CHECKS = "location_checks"
     }
 }
