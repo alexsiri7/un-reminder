@@ -6,6 +6,9 @@ import android.content.Context
 import android.location.Location
 import android.location.LocationManager
 import androidx.test.core.app.ApplicationProvider
+import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.common.api.CommonStatusCodes
+import com.google.android.gms.common.api.Status
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.SettingsClient
@@ -21,12 +24,14 @@ import io.mockk.runs
 import io.mockk.unmockkStatic
 import io.mockk.verify
 import io.sentry.Breadcrumb
+import io.sentry.IScope
 import io.sentry.ScopeCallback
 import io.sentry.Sentry
 import io.sentry.protocol.SentryId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -41,6 +46,8 @@ import net.interstellarai.unreminder.domain.HabitAvailabilityService
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -55,6 +62,13 @@ class LocationReconcilerTest {
     private val locationRepository: LocationRepository = mockk()
     private val fusedLocationClient: FusedLocationProviderClient = mockk()
 
+    private val captured = mutableListOf<ScopeCallback>()
+
+    private class CapturedScope {
+        val tags = mutableMapOf<String, String>()
+        val extras = mutableMapOf<String, String>()
+    }
+
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
@@ -62,7 +76,10 @@ class LocationReconcilerTest {
 
         mockkStatic(Sentry::class)
         every { Sentry.addBreadcrumb(any<Breadcrumb>()) } just runs
-        every { Sentry.captureException(any<Throwable>(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
+        every { Sentry.captureException(any<Throwable>(), any<ScopeCallback>()) } answers {
+            captured += secondArg<ScopeCallback>()
+            SentryId.EMPTY_ID
+        }
 
         every { fusedLocationClient.lastLocation } returns Tasks.forResult<Location>(null)
         coEvery { locationRepository.getAllList() } returns listOf(here, nearby, faraway)
@@ -103,6 +120,27 @@ class LocationReconcilerTest {
         every {
             fusedLocationClient.getCurrentLocation(any<Int>(), any<CancellationToken>())
         } returns Tasks.forException(error)
+    }
+
+    // Stubbing the scope inside the captureException `answers` block makes mockk re-run that
+    // answer intermittently, so callbacks are captured raw and replayed against a recording scope.
+    private fun ScopeCallback.record(): CapturedScope {
+        val recorded = CapturedScope()
+        val scope = mockk<IScope>(relaxed = true)
+        every { scope.setTag(any(), any()) } answers { recorded.tags[firstArg()] = secondArg() }
+        every { scope.setExtra(any(), any()) } answers { recorded.extras[firstArg()] = secondArg() }
+        run(scope)
+        return recorded
+    }
+
+    // Coroutine stack-trace recovery re-creates an exception that has a (String) constructor as it
+    // crosses a suspension point, so the reported cause is an equal copy rather than the instance
+    // the task threw.
+    private fun assertFailedWith(expected: Throwable, outcome: Reconciliation) {
+        assertTrue("expected a failure, got $outcome", outcome is Reconciliation.Failed)
+        val cause = (outcome as Reconciliation.Failed).cause
+        assertEquals(expected::class, cause::class)
+        assertEquals(expected.message, cause.message)
     }
 
     private fun currentLocationNeverSettles() {
@@ -177,13 +215,97 @@ class LocationReconcilerTest {
 
     @Test
     fun `a failed fix leaves the recorded set untouched rather than clearing it`() = runTest {
-        currentLocationFailsWith(IllegalStateException("no provider"))
+        val error = IllegalStateException("no provider")
+        currentLocationFailsWith(error)
         val geofenceManager = newGeofenceManager()
         geofenceManager.addLocationId(faraway.id, LocationSetChangeCause.ENTER)
 
-        newReconciler(geofenceManager).reconcile()
+        val outcome = newReconciler(geofenceManager).reconcile()
 
+        assertFailedWith(error, outcome)
         assertEquals(setOf(faraway.id), geofenceManager.currentLocationIds.value)
+    }
+
+    @Test
+    fun `an error from the current fix with no cached fix is reported as failed, not as no fix`() = runTest {
+        val error = ApiException(Status(CommonStatusCodes.NETWORK_ERROR))
+        currentLocationFailsWith(error)
+
+        val outcome = newReconciler(newGeofenceManager()).reconcile()
+
+        assertFailedWith(error, outcome)
+    }
+
+    @Test
+    fun `an error from the last location lookup is reported as failed`() = runTest {
+        val error = SecurityException("permission revoked mid-call")
+        currentLocationReturns(null)
+        every { fusedLocationClient.lastLocation } returns Tasks.forException(error)
+
+        val outcome = newReconciler(newGeofenceManager()).reconcile()
+
+        assertFailedWith(error, outcome)
+    }
+
+    @Test
+    fun `a recent lastLocation still stands in when the current fix throws`() = runTest {
+        currentLocationFailsWith(ApiException(Status(CommonStatusCodes.NETWORK_ERROR)))
+        every { fusedLocationClient.lastLocation } returns
+            Tasks.forResult(fixAt(FIX_LAT, FIX_LNG, ageMillis = 60 * 1000L))
+        val geofenceManager = newGeofenceManager()
+        val reconciler = newReconciler(geofenceManager)
+
+        val outcome = reconciler.reconcile()
+
+        assertEquals(Reconciliation.Reconciled, outcome)
+        assertEquals(setOf(here.id, nearby.id), geofenceManager.currentLocationIds.value)
+        assertNull(reconciler.reconciliationFailure.value)
+        assertTrue(captured.isEmpty())
+    }
+
+    @Test
+    fun `cancelling the caller cancels the reconciliation instead of reporting a failure`() = runTest {
+        currentLocationNeverSettles()
+        val reconciler = newReconciler(newGeofenceManager())
+
+        val job = launch { reconciler.reconcile() }
+        runCurrent()
+        job.cancelAndJoin()
+
+        assertNull(reconciler.reconciliationFailure.value)
+        assertTrue(captured.isEmpty())
+    }
+
+    @Test
+    fun `a failed reconciliation is reported to Sentry under the geofence component`() = runTest {
+        currentLocationFailsWith(ApiException(Status(CommonStatusCodes.NETWORK_ERROR)))
+
+        newReconciler(newGeofenceManager()).reconcile()
+
+        val scope = captured.single().record()
+        assertEquals("geofence", scope.tags["component"])
+        assertEquals(
+            "ApiException(${CommonStatusCodes.NETWORK_ERROR})",
+            scope.extras["reconciliation_status"],
+        )
+    }
+
+    @Test
+    fun `a failure is exposed until the next successful reconciliation clears it`() = runTest {
+        currentLocationFailsWith(ApiException(Status(CommonStatusCodes.NETWORK_ERROR)))
+        val reconciler = newReconciler(newGeofenceManager())
+
+        reconciler.reconcile()
+
+        assertEquals(
+            "ApiException(${CommonStatusCodes.NETWORK_ERROR})",
+            reconciler.reconciliationFailure.value,
+        )
+
+        currentLocationReturns(fixAt(FIX_LAT, FIX_LNG))
+        reconciler.reconcileNow()
+
+        assertNull(reconciler.reconciliationFailure.value)
     }
 
     @Test
