@@ -100,13 +100,15 @@ class EveningInvitationSchedulerTest {
         verify { workManager.enqueueUniqueWork(any<String>(), any<ExistingWorkPolicy>(), capture(request)) }
         val actual = Duration.ofMillis(request.captured.workSpec.initialDelay)
         // WorkManager stores the delay in whole milliseconds, so the scheduler truncates the
-        // sub-millisecond part of the computed delay. Truncate the lower bound the same way,
+        // sub-millisecond part of the computed delay. Truncate both bounds the same way,
         // otherwise a bound computed a few microseconds after the scheduler's clock read can
         // land above the truncated delay and fail spuriously.
         val earliest = Duration.ofMillis(
             EveningInvitationScheduler.delayUntilNext(after, LocalTime.of(20, 30), 0).toMillis(),
         )
-        val latest = EveningInvitationScheduler.delayUntilNext(before, LocalTime.of(20, 30), EveningInvitationScheduler.MAX_JITTER_MINUTES)
+        val latest = Duration.ofMillis(
+            EveningInvitationScheduler.delayUntilNext(before, LocalTime.of(20, 30), EveningInvitationScheduler.MAX_JITTER_MINUTES).toMillis(),
+        )
         assertTrue("delay $actual not in [$earliest, $latest]", actual >= earliest && actual <= latest)
     }
 
