@@ -33,7 +33,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import net.interstellarai.unreminder.domain.UnavailableReason
+import net.interstellarai.unreminder.domain.DisplayTier
 import net.interstellarai.unreminder.ui.theme.ActionChip
 import net.interstellarai.unreminder.ui.theme.Dimens
 import net.interstellarai.unreminder.ui.theme.DisplayHuge
@@ -50,8 +50,9 @@ import net.interstellarai.unreminder.ui.theme.UnReminderShapes
 // ─────────────────────────────────────────────────────────────────────────
 // Doable-now menu — the pull surface: three things you could do right now,
 // each with a freshly worded ask, its mascot sprite and a single "did it"
-// action. The shuffle and the peeked variants are held by the ViewModel and
-// only redrawn on a fresh entry to the screen.
+// action. Doable habits come first; the rest follow, each saying why it
+// ranks lower. The shuffle and the peeked variants are held by the
+// ViewModel and only redrawn on a fresh entry to the screen.
 // ─────────────────────────────────────────────────────────────────────────
 
 @Composable
@@ -95,13 +96,9 @@ internal fun NowMenuContent(
             when (uiState) {
                 is NowMenuUiState.Loading -> Box(Modifier.fillMaxSize())
                 is NowMenuUiState.NoHabits -> EmptyState(
-                    title = "no habits yet",
+                    title = if (uiState.allPaused) "all your habits are paused" else "no habits yet",
                     hint = "add one to get started",
                     onHintClick = onAddHabit,
-                )
-                is NowMenuUiState.NothingDoable -> EmptyState(
-                    title = "nothing doable right now",
-                    hint = reasonLabel(uiState.reason),
                 )
                 is NowMenuUiState.Menu -> MenuList(uiState, onComplete, onLoadMore)
             }
@@ -182,8 +179,12 @@ private fun MenuList(
     }
 }
 
+// A row ranked below the doable tier is toned down and its chip outlined rather than filled,
+// but nothing about it is disabled: doing a blocked habit anyway is a completion like any other.
 @Composable
 private fun MenuRow(item: NowMenuItem, onComplete: () -> Unit) {
+    val rankedLowerBecause = tierLabel(item.tier)
+    val textAlpha = if (rankedLowerBecause == null) 1f else 0.7f
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -196,19 +197,27 @@ private fun MenuRow(item: NowMenuItem, onComplete: () -> Unit) {
             Text(
                 text = item.name,
                 style = DisplaySmall,
-                color = MaterialTheme.colorScheme.onBackground,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = textAlpha),
             )
             if (item.text != null) {
                 Spacer(Modifier.height(Dimens.xs))
                 Text(
                     text = item.text,
                     style = SansBody,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f * textAlpha),
+                )
+            }
+            if (rankedLowerBecause != null) {
+                Spacer(Modifier.height(Dimens.xs))
+                Text(
+                    text = rankedLowerBecause,
+                    style = MonoLabel,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
                 )
             }
         }
         Spacer(Modifier.width(Dimens.md))
-        ActionChip(label = "did it", filled = true, onClick = onComplete)
+        ActionChip(label = "did it", filled = rankedLowerBecause == null, onClick = onComplete)
     }
 }
 
@@ -254,11 +263,12 @@ private fun EmptyState(
     }
 }
 
-private fun reasonLabel(reason: UnavailableReason): String = when (reason) {
-    UnavailableReason.INACTIVE -> "all your habits are paused"
-    UnavailableReason.LOCATION -> "nothing fits where you are"
-    UnavailableReason.TIME_WINDOW -> "out of hours for all of them"
-    UnavailableReason.COMPLETED -> "already done for today"
-    UnavailableReason.COOLDOWN -> "cooling down — check back later"
-    UnavailableReason.DAILY_LIMIT -> "daily limits reached"
+/** Why a row ranks below the doable tier; null for the doable tier itself. */
+private fun tierLabel(tier: DisplayTier): String? = when (tier) {
+    DisplayTier.DOABLE -> null
+    DisplayTier.RECENTLY_DISMISSED -> "you passed on this earlier"
+    DisplayTier.PACED -> "at the pace you set"
+    DisplayTier.OUT_OF_HOURS -> "outside its hours"
+    DisplayTier.ELSEWHERE -> "not at the right place"
+    DisplayTier.DONE_TODAY -> "already done today"
 }

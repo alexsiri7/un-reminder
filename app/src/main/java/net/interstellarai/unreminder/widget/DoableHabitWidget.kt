@@ -65,9 +65,9 @@ import javax.inject.Inject
 data class DayProgress(val completedToday: Boolean, val daysWithAnyCompletion: Int)
 
 /**
- * Home-screen widget: one doable habit, its peeked variant and sprite, and a "did it" button,
- * or a resting state, plus a one-line day progress indicator. It only renders what
- * [WidgetRefresher] last stored; every recompute goes through the refresher.
+ * Home-screen widget: one habit, its peeked variant and sprite, and a "did it" button — or,
+ * with no active habit to offer, a prompt to add one — plus a one-line day progress indicator.
+ * It only renders what [WidgetRefresher] last stored; every recompute goes through the refresher.
  */
 class DoableHabitWidget : GlanceAppWidget() {
 
@@ -164,7 +164,7 @@ private fun WidgetContent(habit: DoableHabit?, progress: DayProgress?, spriteRes
         contentAlignment = Alignment.CenterStart,
     ) {
         Column {
-            if (habit == null) Resting() else Suggestion(habit, spriteResolver)
+            if (habit == null) NoActiveHabits() else Suggestion(habit, spriteResolver)
             if (progress != null) {
                 Spacer(GlanceModifier.height(6.dp))
                 DayProgressLine(progress)
@@ -225,10 +225,11 @@ private fun Suggestion(habit: DoableHabit, spriteResolver: SpriteResolver) {
     }
 }
 
+// The whole widget already opens the Now page, whose empty state leads to the habit editor.
 @Composable
-private fun Resting() {
+private fun NoActiveHabits() {
     Text(
-        text = "nothing doable right now",
+        text = "no active habits \u00b7 tap to add one",
         style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 16.sp),
     )
 }

@@ -19,10 +19,8 @@ import net.interstellarai.unreminder.data.repository.HabitLevelDescriptionReposi
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
-import net.interstellarai.unreminder.domain.AvailabilityStatus
+import net.interstellarai.unreminder.domain.DisplayTier
 import net.interstellarai.unreminder.domain.HabitAvailabilityService
-import net.interstellarai.unreminder.domain.UnavailableReason
-import net.interstellarai.unreminder.domain.isDoableNow
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.notification.SpriteResolver
 import net.interstellarai.unreminder.service.trigger.DismissalTracker
@@ -33,6 +31,7 @@ import javax.inject.Inject
 /**
  * One row of the menu: a peeked (not consumed) variant and its paired sprite, or — when the
  * habit's pool is empty — the dedication-level description and a sprite rotated by habit id.
+ * The tier is what the row says about why it ranks where it does; every row is completable.
  */
 data class NowMenuItem(
     val habitId: Long,
@@ -40,12 +39,13 @@ data class NowMenuItem(
     val text: String?,
     val variationId: Long?,
     @DrawableRes val spriteRes: Int,
+    val tier: DisplayTier,
 )
 
 sealed interface NowMenuUiState {
     data object Loading : NowMenuUiState
-    data object NoHabits : NowMenuUiState
-    data class NothingDoable(val reason: UnavailableReason) : NowMenuUiState
+    /** No active habit: either none exists yet or the user has paused every one. */
+    data class NoHabits(val allPaused: Boolean) : NowMenuUiState
     data class Menu(val items: List<NowMenuItem>, val canLoadMore: Boolean) : NowMenuUiState
 }
 
@@ -67,8 +67,8 @@ class NowMenuViewModel @Inject constructor(
     val daysWithAnyCompletion: StateFlow<Int> = triggerRepository.daysWithAnyCompletion()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
-    // The eligible set is shuffled and its variants peeked once per refresh and held
-    // here; load more and completion only move the window over it, so neither the
+    // Every active habit is shuffled within its tier and its variant peeked once per refresh
+    // and held here; load more and completion only move the window over it, so neither the
     // order nor a row's words and sprite change underfoot.
     private var held: List<NowMenuItem> = emptyList()
     private var visibleCount = PAGE_SIZE
@@ -125,22 +125,21 @@ class NowMenuViewModel @Inject constructor(
 
     private suspend fun load() {
         val habits = habitRepository.getAll().first()
-        if (habits.isEmpty()) {
-            _uiState.value = NowMenuUiState.NoHabits
+        val tiers = availabilityService.computeDisplayTiers(habits)
+        if (tiers.isEmpty()) {
+            _uiState.value = NowMenuUiState.NoHabits(allPaused = habits.isNotEmpty())
             return
         }
-        val availability = availabilityService.computeForAll(habits)
-        val eligible = habits.filter { availability[it.id]?.isDoableNow == true }
-        if (eligible.isEmpty()) {
-            _uiState.value = NowMenuUiState.NothingDoable(dominantReason(availability.values))
-            return
-        }
-        held = eligible.shuffled().map { menuItem(it) }
+        // A stable sort over a shuffle: random within each tier, tiers in order.
+        held = habits.filter { it.id in tiers }
+            .shuffled()
+            .sortedBy { tiers.getValue(it.id) }
+            .map { menuItem(it, tiers.getValue(it.id)) }
         visibleCount = PAGE_SIZE
         publish()
     }
 
-    private suspend fun menuItem(habit: HabitEntity): NowMenuItem {
+    private suspend fun menuItem(habit: HabitEntity, tier: DisplayTier): NowMenuItem {
         val variation = variationRepository.peekUnusedVariation(habit.id)
         val text = variation?.text
             ?: levelDescriptionRepository.getDescriptionForLevel(habit.id, habit.dedicationLevel)
@@ -150,6 +149,7 @@ class NowMenuViewModel @Inject constructor(
             text = text?.takeIf { it.isNotBlank() },
             variationId = variation?.id,
             spriteRes = spriteResolver.resolve(variation?.spriteTag, rotationSeed = habit.id),
+            tier = tier,
         )
     }
 
@@ -158,22 +158,6 @@ class NowMenuViewModel @Inject constructor(
             items = held.take(visibleCount),
             canLoadMore = held.size > visibleCount,
         )
-    }
-
-    // Paused habits are excluded from the tally unless nothing else is left: "all paused"
-    // is only the honest summary when there is no active habit to explain instead.
-    private fun dominantReason(statuses: Collection<AvailabilityStatus>): UnavailableReason {
-        val activeReasons = statuses
-            .filterIsInstance<AvailabilityStatus.Unavailable>()
-            .map { it.reasons }
-            .filter { UnavailableReason.INACTIVE !in it }
-        if (activeReasons.isEmpty()) return UnavailableReason.INACTIVE
-        return activeReasons.flatten()
-            .groupingBy { it }
-            .eachCount()
-            .entries
-            .minWith(compareByDescending<Map.Entry<UnavailableReason, Int>> { it.value }.thenBy { it.key.ordinal })
-            .key
     }
 
     companion object {

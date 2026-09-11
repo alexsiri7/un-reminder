@@ -28,7 +28,7 @@ class DoableHabitWidgetStateTest {
     }
 
     @Test
-    fun `storing the resting state removes every key of the previous habit`() {
+    fun `storing no habit removes every key of the previous habit`() {
         val prefs = mutablePreferencesOf()
         DoableHabitWidget.store(prefs, habit, progress)
 
@@ -61,7 +61,7 @@ class DoableHabitWidgetStateTest {
     }
 
     @Test
-    fun `empty state reads as resting`() {
+    fun `nothing stored reads as no habit`() {
         assertNull(DoableHabitWidget.stored(mutablePreferencesOf()))
     }
 

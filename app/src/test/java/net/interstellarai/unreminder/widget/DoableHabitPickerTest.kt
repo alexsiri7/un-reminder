@@ -12,13 +12,11 @@ import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.data.repository.HabitLevelDescriptionRepository
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
-import net.interstellarai.unreminder.domain.AvailabilityStatus
+import net.interstellarai.unreminder.domain.DisplayTier
 import net.interstellarai.unreminder.domain.HabitAvailabilityService
-import net.interstellarai.unreminder.domain.UnavailableReason
 import net.interstellarai.unreminder.service.notification.EmojiRotator
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
@@ -50,35 +48,50 @@ class DoableHabitPickerTest {
         generatedAt = Instant.EPOCH, spriteTag = spriteTag,
     )
 
-    private fun givenHabits(habits: List<HabitEntity>, availability: Map<Long, AvailabilityStatus>) {
+    private fun givenHabits(habits: List<HabitEntity>, tiers: Map<Long, DisplayTier>) {
         every { habitRepository.getAll() } returns flowOf(habits)
-        coEvery { availabilityService.computeForAll(habits) } returns availability
+        coEvery { availabilityService.computeDisplayTiers(habits) } returns tiers
     }
 
-    private val unavailable = AvailabilityStatus.Unavailable(listOf(UnavailableReason.COMPLETED))
-
     @Test
-    fun `picks only from eligible habits`() = runTest {
+    fun `picks only from the best tier that has a habit`() = runTest {
         val habits = (1L..4L).map { habit(it) }
         givenHabits(
             habits,
             mapOf(
-                1L to unavailable,
-                2L to AvailabilityStatus.Available,
-                3L to AvailabilityStatus.NewHabit,
-                4L to unavailable,
+                1L to DisplayTier.DONE_TODAY,
+                2L to DisplayTier.DOABLE,
+                3L to DisplayTier.DOABLE,
+                4L to DisplayTier.RECENTLY_DISMISSED,
             ),
         )
 
         val picked = (1..50).map { picker.pick()!!.id }.toSet()
 
-        assertTrue(picked.all { it in setOf(2L, 3L) })
         assertEquals(setOf(2L, 3L), picked)
     }
 
     @Test
+    fun `with every habit blocked it still offers the most actionable ones`() = runTest {
+        val habits = (1L..4L).map { habit(it) }
+        givenHabits(
+            habits,
+            mapOf(
+                1L to DisplayTier.DONE_TODAY,
+                2L to DisplayTier.OUT_OF_HOURS,
+                3L to DisplayTier.ELSEWHERE,
+                4L to DisplayTier.OUT_OF_HOURS,
+            ),
+        )
+
+        val picked = (1..50).map { picker.pick()!!.id }.toSet()
+
+        assertEquals(setOf(2L, 4L), picked)
+    }
+
+    @Test
     fun `carries the habit name, a stable emoji and the peeked variant with its sprite tag`() = runTest {
-        givenHabits(listOf(habit(7L)), mapOf(7L to AvailabilityStatus.Available))
+        givenHabits(listOf(habit(7L)), mapOf(7L to DisplayTier.DOABLE))
         coEvery { variationRepository.peekUnusedVariation(7L) } returns variation(70L, 7L, spriteTag = "chef_pan_flip")
 
         val first = picker.pick()
@@ -100,7 +113,7 @@ class DoableHabitPickerTest {
 
     @Test
     fun `a refresh only peeks and never consumes or refills`() = runTest {
-        givenHabits(listOf(habit(7L)), mapOf(7L to AvailabilityStatus.Available))
+        givenHabits(listOf(habit(7L)), mapOf(7L to DisplayTier.DOABLE))
         coEvery { variationRepository.peekUnusedVariation(7L) } returns variation(70L, 7L)
 
         repeat(3) { picker.pick() }
@@ -111,7 +124,7 @@ class DoableHabitPickerTest {
 
     @Test
     fun `an empty pool falls back to the level description with no variant or tag`() = runTest {
-        givenHabits(listOf(habit(7L)), mapOf(7L to AvailabilityStatus.Available))
+        givenHabits(listOf(habit(7L)), mapOf(7L to DisplayTier.DOABLE))
         coEvery { levelDescriptionRepository.getDescriptionForLevel(7L, 2) } returns "five minutes"
 
         val picked = picker.pick()!!
@@ -123,7 +136,7 @@ class DoableHabitPickerTest {
 
     @Test
     fun `a blank level description leaves the text empty rather than hiding the habit`() = runTest {
-        givenHabits(listOf(habit(7L)), mapOf(7L to AvailabilityStatus.Available))
+        givenHabits(listOf(habit(7L)), mapOf(7L to DisplayTier.DOABLE))
         coEvery { levelDescriptionRepository.getDescriptionForLevel(7L, 2) } returns ""
 
         val picked = picker.pick()!!
@@ -133,17 +146,12 @@ class DoableHabitPickerTest {
     }
 
     @Test
-    fun `rests when nothing is eligible`() = runTest {
-        val habits = listOf(habit(1L), habit(2L))
-        givenHabits(habits, mapOf(1L to unavailable, 2L to unavailable))
-
+    fun `offers nothing only when no habit is active`() = runTest {
+        val paused = listOf(habit(1L), habit(2L))
+        givenHabits(paused, emptyMap())
         assertNull(picker.pick())
-    }
 
-    @Test
-    fun `rests when there are no habits at all`() = runTest {
         givenHabits(emptyList(), emptyMap())
-
         assertNull(picker.pick())
     }
 }

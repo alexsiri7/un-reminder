@@ -1,10 +1,12 @@
 package net.interstellarai.unreminder.domain
 
 import net.interstellarai.unreminder.data.db.HabitEntity
+import net.interstellarai.unreminder.data.db.TriggerEntity
 import net.interstellarai.unreminder.data.db.WindowEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.data.repository.WindowRepository
+import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import io.mockk.coEvery
 import io.mockk.every
@@ -25,6 +27,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -234,5 +237,118 @@ class HabitAvailabilityServiceTest {
         assertEquals(AvailabilityStatus.Available, result[testHabit.id])
         assertEquals(AvailabilityStatus.Available, result[habit2.id])
         unmockkStatic(android.util.Log::class)
+    }
+
+    // --- computeDisplayTiers ---
+
+    private fun givenNoLocationsOrWindows() {
+        coEvery { mockHabitRepository.getLocationIds(any()) } returns emptyList()
+        coEvery { mockHabitRepository.getWindowIds(any()) } returns emptyList()
+    }
+
+    private fun lastTrigger(habitId: Long, status: TriggerStatus) {
+        coEvery { mockTriggerRepository.getLastNForHabit(habitId, 1) } returns listOf(
+            TriggerEntity(id = 500L + habitId, habitId = habitId, scheduledAt = Instant.now(), firedAt = Instant.now(), status = status),
+        )
+    }
+
+    @Test
+    fun `a doable habit with no dismissal on record is the top tier`() = runTest(testDispatcher) {
+        givenNoLocationsOrWindows()
+
+        assertEquals(mapOf(1L to DisplayTier.DOABLE), service.computeDisplayTiers(listOf(testHabit)))
+    }
+
+    @Test
+    fun `a doable habit whose last trigger was completed is still the top tier`() = runTest(testDispatcher) {
+        givenNoLocationsOrWindows()
+        lastTrigger(testHabit.id, TriggerStatus.COMPLETED)
+
+        assertEquals(mapOf(1L to DisplayTier.DOABLE), service.computeDisplayTiers(listOf(testHabit)))
+    }
+
+    @Test
+    fun `a habit whose most recent trigger was dismissed ranks second even while in cooldown`() = runTest(testDispatcher) {
+        val cooldownHabit = testHabit.copy(cooldownMinutes = 60)
+        givenNoLocationsOrWindows()
+        lastTrigger(cooldownHabit.id, TriggerStatus.DISMISSED)
+        coEvery { mockTriggerRepository.getLastFiredOrDismissedForHabit(cooldownHabit.id) } returns Instant.now().toEpochMilli()
+
+        assertEquals(mapOf(1L to DisplayTier.RECENTLY_DISMISSED), service.computeDisplayTiers(listOf(cooldownHabit)))
+    }
+
+    @Test
+    fun `a paused habit gets no tier even when recently dismissed`() = runTest(testDispatcher) {
+        val paused = testHabit.copy(active = false)
+        givenNoLocationsOrWindows()
+        lastTrigger(paused.id, TriggerStatus.DISMISSED)
+
+        assertEquals(emptyMap<Long, DisplayTier>(), service.computeDisplayTiers(listOf(paused)))
+    }
+
+    @Test
+    fun `each block lands in its own tier`() = runTest(testDispatcher) {
+        val cooling = testHabit.copy(id = 1L, cooldownMinutes = 60)
+        val capped = testHabit.copy(id = 2L, dailyLimit = 1)
+        val outOfHours = testHabit.copy(id = 3L)
+        val elsewhere = testHabit.copy(id = 4L)
+        val done = testHabit.copy(id = 5L, dailyLimit = 5)
+        coEvery { mockHabitRepository.getLocationIds(any()) } returns emptyList()
+        coEvery { mockHabitRepository.getLocationIds(4L) } returns listOf(10L)
+        coEvery { mockHabitRepository.getWindowIds(any()) } returns emptyList()
+        coEvery { mockHabitRepository.getWindowIds(3L) } returns listOf(20L)
+        coEvery { mockTriggerRepository.getLastFiredOrDismissedForHabit(1L) } returns Instant.now().toEpochMilli()
+        coEvery { mockTriggerRepository.countDailyCompletionsSince(2L, any()) } returns 1
+        coEvery { mockTriggerRepository.countCompletedSince(5L, any()) } returns 1
+        currentLocationIdsFlow.value = setOf(99L)
+
+        val tiers = service.computeDisplayTiers(listOf(cooling, capped, outOfHours, elsewhere, done))
+
+        assertEquals(
+            mapOf(
+                1L to DisplayTier.PACED,
+                2L to DisplayTier.PACED,
+                3L to DisplayTier.OUT_OF_HOURS,
+                4L to DisplayTier.ELSEWHERE,
+                5L to DisplayTier.DONE_TODAY,
+            ),
+            tiers,
+        )
+    }
+
+    @Test
+    fun `a habit blocked for several reasons takes the least actionable one`() = runTest(testDispatcher) {
+        // dailyLimit defaults to 1, so a single completion trips COMPLETED and DAILY_LIMIT together.
+        givenNoLocationsOrWindows()
+        coEvery { mockTriggerRepository.countCompletedSince(testHabit.id, any()) } returns 1
+        coEvery { mockTriggerRepository.countDailyCompletionsSince(testHabit.id, any()) } returns 1
+
+        val status = service.computeAvailability(testHabit) as AvailabilityStatus.Unavailable
+        assertEquals(listOf(UnavailableReason.COMPLETED, UnavailableReason.DAILY_LIMIT), status.reasons)
+        assertEquals(mapOf(1L to DisplayTier.DONE_TODAY), service.computeDisplayTiers(listOf(testHabit)))
+    }
+
+    @Test
+    fun `the blocked tiers run from most to least actionable with done today last`() {
+        assertEquals(
+            listOf(
+                DisplayTier.DOABLE,
+                DisplayTier.RECENTLY_DISMISSED,
+                DisplayTier.PACED,
+                DisplayTier.OUT_OF_HOURS,
+                DisplayTier.ELSEWHERE,
+                DisplayTier.DONE_TODAY,
+            ),
+            DisplayTier.entries.sorted(),
+        )
+    }
+
+    @Test
+    fun `ranking a blocked habit for display leaves it ineligible to trigger`() = runTest(testDispatcher) {
+        givenNoLocationsOrWindows()
+        coEvery { mockHabitRepository.getWindowIds(testHabit.id) } returns listOf(20L)
+
+        assertEquals(mapOf(1L to DisplayTier.OUT_OF_HOURS), service.computeDisplayTiers(listOf(testHabit)))
+        assertFalse(service.computeAvailability(testHabit).isDoableNow)
     }
 }

@@ -8,6 +8,7 @@ import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.data.repository.WindowRepository
+import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import java.time.Instant
 import java.time.LocalDate
@@ -25,12 +26,24 @@ sealed class AvailabilityStatus {
 
 enum class UnavailableReason { INACTIVE, LOCATION, TIME_WINDOW, COMPLETED, COOLDOWN, DAILY_LIMIT }
 
-/** Whether the Now menu would list a habit with this status. */
+/**
+ * Whether a notification may fire for a habit with this status. This is the trigger gate and
+ * stays strict; what the Now menu and widget offer is decided by [DisplayTier] instead.
+ */
 val AvailabilityStatus.isDoableNow: Boolean
     get() = when (this) {
         is AvailabilityStatus.Available, is AvailabilityStatus.NewHabit -> true
         is AvailabilityStatus.Unavailable -> false
     }
+
+/**
+ * Where a habit sits on the Now menu and the widget, best first. Availability decides whether
+ * to interrupt the user; once they have come looking there is nothing to protect them from, so
+ * an unavailable habit is ranked lower rather than hidden. The last four values are the blocked
+ * tier, ordered by how actionable the block is: pacing the user set themselves, then the wrong
+ * time, then the wrong place, then already done today.
+ */
+enum class DisplayTier { DOABLE, RECENTLY_DISMISSED, PACED, OUT_OF_HOURS, ELSEWHERE, DONE_TODAY }
 
 @Singleton
 class HabitAvailabilityService @Inject constructor(
@@ -75,6 +88,40 @@ class HabitAvailabilityService @Inject constructor(
                 AvailabilityStatus.Available
             }
         }
+    }
+
+    /**
+     * The display tier of every active habit, keyed by id. Paused habits get no entry: switching
+     * a habit off is the user's decision, not a contextual block, so it is never surfaced.
+     *
+     * A habit whose most recent trigger was dismissed ranks as [DisplayTier.RECENTLY_DISMISSED]
+     * whatever else blocks it; the dismissal is the more telling reason. A habit blocked for
+     * several reasons takes the least actionable of them.
+     */
+    suspend fun computeDisplayTiers(habits: List<HabitEntity>): Map<Long, DisplayTier> {
+        val availability = computeForAll(habits)
+        return buildMap {
+            for (habit in habits) {
+                val blockedBy = (availability.getValue(habit.id) as? AvailabilityStatus.Unavailable)?.reasons.orEmpty()
+                if (UnavailableReason.INACTIVE in blockedBy) continue
+                put(
+                    habit.id,
+                    if (lastTriggerWasDismissed(habit.id)) DisplayTier.RECENTLY_DISMISSED
+                    else blockedBy.maxOfOrNull { blockedTier(it) } ?: DisplayTier.DOABLE,
+                )
+            }
+        }
+    }
+
+    private suspend fun lastTriggerWasDismissed(habitId: Long): Boolean =
+        triggerRepository.getLastNForHabit(habitId, 1).firstOrNull()?.status == TriggerStatus.DISMISSED
+
+    private fun blockedTier(reason: UnavailableReason): DisplayTier = when (reason) {
+        UnavailableReason.COOLDOWN, UnavailableReason.DAILY_LIMIT -> DisplayTier.PACED
+        UnavailableReason.TIME_WINDOW -> DisplayTier.OUT_OF_HOURS
+        UnavailableReason.LOCATION -> DisplayTier.ELSEWHERE
+        UnavailableReason.COMPLETED -> DisplayTier.DONE_TODAY
+        UnavailableReason.INACTIVE -> throw IllegalArgumentException("paused habits are never ranked for display")
     }
 
     /**
