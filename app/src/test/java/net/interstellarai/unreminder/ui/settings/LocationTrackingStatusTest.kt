@@ -103,13 +103,24 @@ class LocationTrackingStatusTest {
     }
 
     @Test
-    fun `an inconclusive settings check never reads healthy`() {
-        val unverified = LocationTrackingStatus.LocationSettingsUnverified
-        assertEquals(unverified, statusOf(health(locationSettings = LocationSettingsCheck.TimedOut)))
+    fun `a timed-out settings check never reads healthy`() {
         assertEquals(
-            unverified,
+            LocationTrackingStatus.LocationSettingsUnverified,
+            statusOf(health(locationSettings = LocationSettingsCheck.TimedOut)),
+        )
+    }
+
+    @Test
+    fun `a settings check that threw never reads healthy`() {
+        assertEquals(
+            LocationTrackingStatus.LocationSettingsUnverified,
             statusOf(health(locationSettings = LocationSettingsCheck.Failed(IllegalStateException("client gone")))),
         )
+    }
+
+    @Test
+    fun `an unverified settings check is a fault that does not claim accuracy is off`() {
+        val unverified = LocationTrackingStatus.LocationSettingsUnverified
         assertTrue(unverified.isFault)
         assertTrue(unverified.advice != LocationTrackingStatus.LocationSettingsOff.advice)
     }
