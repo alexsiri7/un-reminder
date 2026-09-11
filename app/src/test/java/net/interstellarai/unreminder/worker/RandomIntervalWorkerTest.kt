@@ -31,6 +31,7 @@ import net.interstellarai.unreminder.service.trigger.TriggerPipeline
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
+import java.time.Instant
 import java.time.LocalTime
 
 class RandomIntervalWorkerTest {
@@ -148,6 +149,29 @@ class RandomIntervalWorkerTest {
         worker.doWork()
 
         verify(exactly = 1) { Sentry.captureException(any(), any<ScopeCallback>()) }
+        unmockkStatic(Sentry::class)
+    }
+
+    @Test
+    fun `doWork reports a failing reschedule to Sentry instead of failing the run`() = runTest {
+        mockkStatic(Sentry::class)
+        every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
+
+        coEvery { mockWindowRepository.getActiveWindows() } returns listOf(windowCoveringAllDay())
+        coEvery { mockHabitRepository.getEligibleHabits(any()) } returns listOf(mockk())
+        coEvery { mockTriggerRepository.insert(any()) } returns 5L
+        coEvery { mockTriggerPipeline.execute(5L) } returns Unit
+        coEvery { mockTriggerRepository.getById(5L) } returns
+            TriggerEntity(id = 5L, scheduledAt = Instant.now(), status = TriggerStatus.FIRED, source = "random_interval")
+        every {
+            mockWorkManager.enqueueUniqueWork(any<String>(), any<ExistingWorkPolicy>(), any<OneTimeWorkRequest>())
+        } throws IllegalStateException("WorkManager db gone")
+
+        val result = worker.doWork()
+
+        assertEquals(Result.success(), result)
+        verify(exactly = 1) { Sentry.captureException(any(), any<ScopeCallback>()) }
+        coVerify(exactly = 0) { mockTriggerRepository.updateOutcome(any(), any()) }
         unmockkStatic(Sentry::class)
     }
 

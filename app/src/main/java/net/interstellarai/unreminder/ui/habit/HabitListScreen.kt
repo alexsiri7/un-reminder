@@ -46,6 +46,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.domain.AvailabilityStatus
 import net.interstellarai.unreminder.domain.UnavailableReason
+import net.interstellarai.unreminder.domain.isDoableNow
 import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.ui.theme.Dimens
 import net.interstellarai.unreminder.ui.theme.DisplayHuge
@@ -298,7 +299,7 @@ private fun HabitRow(
 /**
  * Availability indicator shown at the trailing edge of each habit row.
  *
- * - Available (or null / not yet computed): a small green dot
+ * - Doable now per [isDoableNow] (or null / not yet computed): a small green dot
  * - Unavailable: small icons for each reason, dimmed to blend with the row
  */
 @Composable
@@ -307,8 +308,8 @@ private fun AvailabilityIndicator(
     alpha: Float,
 ) {
     val iconTint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f * alpha)
-    when (availability) {
-        null, is AvailabilityStatus.Available, is AvailabilityStatus.NewHabit -> {
+    when {
+        availability == null || availability.isDoableNow -> {
             Box(
                 modifier = Modifier
                     .size(8.dp)
@@ -318,7 +319,7 @@ private fun AvailabilityIndicator(
                     )
             )
         }
-        is AvailabilityStatus.Unavailable -> {
+        availability is AvailabilityStatus.Unavailable -> {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 availability.reasons.forEach { reason ->
                     val icon = when (reason) {
