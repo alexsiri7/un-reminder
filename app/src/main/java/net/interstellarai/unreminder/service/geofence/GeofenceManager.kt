@@ -58,6 +58,22 @@ sealed interface GeofenceRegistration {
         }
 }
 
+/** Outcome of one `removeGeofences` call; anything but [GeofenceRemoval.Removed] leaves the fence live. */
+sealed interface GeofenceRemoval {
+    data object Removed : GeofenceRemoval
+    data object TimedOut : GeofenceRemoval
+    data class Rejected(val statusCode: Int) : GeofenceRemoval
+    data class Failed(val cause: Throwable) : GeofenceRemoval
+
+    val statusLabel: String
+        get() = when (this) {
+            Removed -> "REMOVED"
+            TimedOut -> "TIMEOUT"
+            is Rejected -> "${GeofenceStatusCodes.getStatusCodeString(statusCode)}($statusCode)"
+            is Failed -> cause.javaClass.simpleName
+        }
+}
+
 /** Result of the balanced-power settings check that accompanies every full registration. */
 sealed interface LocationSettingsCheck {
     data object Available : LocationSettingsCheck
@@ -255,11 +271,36 @@ class GeofenceManager @Inject constructor(
         }
     }
 
-    fun removeGeofence(id: Long) {
-        geofencingClient.removeGeofences(listOf(id.toString()))
-        // Keep persisted/in-memory set in sync; Android may not deliver an EXIT for an
-        // unregistered fence, leaving stragglers that drift monotonically over time.
+    /**
+     * Waits for Play Services to apply the removal before publishing it, so a caller that
+     * re-reads registration health next reports state the platform has actually reached.
+     * The id is dropped from the set either way: its location is already gone, Android may
+     * not deliver an EXIT for a fence it no longer knows, and nothing else would ever clear it.
+     */
+    suspend fun removeGeofence(id: Long) {
+        val outcome = try {
+            val task = geofencingClient.removeGeofences(listOf(id.toString()))
+            withTimeoutOrNull(PLAY_SERVICES_TIMEOUT_MS) { task.await(); GeofenceRemoval.Removed }
+                ?: GeofenceRemoval.TimedOut
+        } catch (e: ApiException) {
+            GeofenceRemoval.Rejected(e.statusCode)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            GeofenceRemoval.Failed(e)
+        }
+        if (outcome != GeofenceRemoval.Removed) reportRemovalFailure(id, outcome)
         removeLocationId(id, LocationSetChangeCause.MANUAL)
+    }
+
+    private fun reportRemovalFailure(id: Long, outcome: GeofenceRemoval) {
+        Log.e(TAG, "Geofence removal failed: id=$id status=${outcome.statusLabel}")
+        Sentry.captureMessage("Geofence removal failed") { scope ->
+            scope.setTag("component", "geofence")
+            scope.setExtra("location_id", id.toString())
+            scope.setExtra("status", outcome.statusLabel)
+            scope.level = SentryLevel.WARNING
+        }
     }
 
     suspend fun registerAllFromDb() {
