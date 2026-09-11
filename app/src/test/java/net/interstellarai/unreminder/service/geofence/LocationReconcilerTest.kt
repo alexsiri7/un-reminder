@@ -285,7 +285,7 @@ class LocationReconcilerTest {
         val scope = captured.single().record()
         assertEquals("geofence", scope.tags["component"])
         assertEquals(
-            "ApiException(${CommonStatusCodes.NETWORK_ERROR})",
+            "NETWORK_ERROR(${CommonStatusCodes.NETWORK_ERROR})",
             scope.extras["reconciliation_status"],
         )
     }
@@ -298,7 +298,7 @@ class LocationReconcilerTest {
         reconciler.reconcile()
 
         assertEquals(
-            "ApiException(${CommonStatusCodes.NETWORK_ERROR})",
+            "NETWORK_ERROR(${CommonStatusCodes.NETWORK_ERROR})",
             reconciler.reconciliationFailure.value,
         )
 

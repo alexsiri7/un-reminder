@@ -168,8 +168,8 @@ class LocationTrackingStatusTest {
 
     @Test
     fun `a reconciliation failure is reported when registration itself is healthy`() {
-        val status = statusOf(health(), reconciliationFailure = "ApiException(7)")
-        assertEquals(LocationTrackingStatus.LocationCheckFailed("ApiException(7)"), status)
+        val status = statusOf(health(), reconciliationFailure = "NETWORK_ERROR(7)")
+        assertEquals(LocationTrackingStatus.LocationCheckFailed("NETWORK_ERROR(7)"), status)
         assertTrue(status.isFault)
     }
 
@@ -177,7 +177,7 @@ class LocationTrackingStatusTest {
     fun `a registration failure outranks a reconciliation failure`() {
         val status = statusOf(
             health(outcomes = listOf(1L to GeofenceRegistration.Rejected(GeofenceStatusCodes.GEOFENCE_TOO_MANY_GEOFENCES))),
-            reconciliationFailure = "ApiException(7)",
+            reconciliationFailure = "NETWORK_ERROR(7)",
         )
         assertTrue(status is LocationTrackingStatus.RegistrationFailed)
     }
@@ -186,8 +186,8 @@ class LocationTrackingStatusTest {
     fun `a reconciliation failure outranks an unverified location settings check`() {
         val status = statusOf(
             health(locationSettings = LocationSettingsCheck.TimedOut),
-            reconciliationFailure = "ApiException(7)",
+            reconciliationFailure = "NETWORK_ERROR(7)",
         )
-        assertEquals(LocationTrackingStatus.LocationCheckFailed("ApiException(7)"), status)
+        assertEquals(LocationTrackingStatus.LocationCheckFailed("NETWORK_ERROR(7)"), status)
     }
 }

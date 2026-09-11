@@ -312,11 +312,11 @@ class SettingsViewModelTest {
     @Test
     fun `a reconciliation failure reaches the location tracking status`() = runTest {
         registrationHealthFlow.value = health(outcomes = listOf(1L to GeofenceRegistration.Registered))
-        reconciliationFailureFlow.value = "ApiException(7)"
+        reconciliationFailureFlow.value = "NETWORK_ERROR(7)"
         advanceUntilIdle()
 
         assertEquals(
-            LocationTrackingStatus.LocationCheckFailed("ApiException(7)"),
+            LocationTrackingStatus.LocationCheckFailed("NETWORK_ERROR(7)"),
             viewModel.uiState.value.locationTracking,
         )
     }

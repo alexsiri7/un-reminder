@@ -8,6 +8,7 @@ import android.location.LocationManager
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.common.api.CommonStatusCodes
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
@@ -188,9 +189,11 @@ class LocationReconciler @Inject constructor(
         return Reconciliation.Failed(e)
     }
 
-    private fun statusLabelOf(cause: Throwable): String {
-        val name = cause::class.simpleName ?: "Exception"
-        return if (cause is ApiException) "$name(${cause.statusCode})" else name
+    // R8 renames ApiException itself, so its status code carries the name that survives the
+    // release build; every other cause here is a platform class, which is never renamed.
+    private fun statusLabelOf(cause: Throwable): String = when (cause) {
+        is ApiException -> "${CommonStatusCodes.getStatusCodeString(cause.statusCode)}(${cause.statusCode})"
+        else -> cause.javaClass.simpleName
     }
 
     // Rows saved before the radius floor existed are only raised to it when registration next
