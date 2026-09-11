@@ -72,7 +72,7 @@ class DoableHabitWidget : GlanceAppWidget() {
             }
         }
 
-        private fun stored(prefs: Preferences): DoableHabit? {
+        internal fun stored(prefs: Preferences): DoableHabit? {
             val id = prefs[HABIT_ID] ?: return null
             val name = prefs[HABIT_NAME] ?: return null
             return DoableHabit(id = id, name = name, emoji = prefs[EMOJI].orEmpty())
