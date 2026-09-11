@@ -37,12 +37,14 @@ class MainActivity : ComponentActivity() {
     private lateinit var updateLauncher: ActivityResultLauncher<IntentSenderRequest>
     private var pendingTimerTriggerId by mutableStateOf<Long?>(null)
     private var pendingDetailTriggerId by mutableStateOf<Long?>(null)
+    private var pendingOpenNow by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         handleTimerIntent(intent)
         handleDetailIntent(intent)
+        handleNowIntent(intent)
 
         updateLauncher = registerForActivityResult(
             ActivityResultContracts.StartIntentSenderForResult()
@@ -78,6 +80,8 @@ class MainActivity : ComponentActivity() {
                     onTimerNavigated = { pendingTimerTriggerId = null },
                     pendingDetailTriggerId = pendingDetailTriggerId,
                     onDetailNavigated = { pendingDetailTriggerId = null },
+                    pendingOpenNow = pendingOpenNow,
+                    onNowNavigated = { pendingOpenNow = false },
                 )
             }
         }
@@ -87,6 +91,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         handleTimerIntent(intent)
         handleDetailIntent(intent)
+        handleNowIntent(intent)
     }
 
     private fun handleTimerIntent(intent: android.content.Intent?) {
@@ -100,6 +105,10 @@ class MainActivity : ComponentActivity() {
         val id = intent.getLongExtra(NotificationHelper.EXTRA_TRIGGER_ID, -1L)
         if (id != -1L) pendingDetailTriggerId = id
         else Log.w(TAG, "handleDetailIntent: EXTRA_OPEN_DETAIL set but EXTRA_TRIGGER_ID missing")
+    }
+
+    private fun handleNowIntent(intent: android.content.Intent?) {
+        if (intent?.getBooleanExtra(NotificationHelper.EXTRA_OPEN_NOW, false) == true) pendingOpenNow = true
     }
 
     override fun onResume() {

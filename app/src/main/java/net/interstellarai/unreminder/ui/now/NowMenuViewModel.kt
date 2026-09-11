@@ -19,6 +19,7 @@ import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.domain.AvailabilityStatus
 import net.interstellarai.unreminder.domain.HabitAvailabilityService
 import net.interstellarai.unreminder.domain.UnavailableReason
+import net.interstellarai.unreminder.domain.isDoableNow
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.trigger.DismissalTracker
 import java.time.Instant
@@ -112,12 +113,7 @@ class NowMenuViewModel @Inject constructor(
             return
         }
         val availability = availabilityService.computeForAll(habits)
-        val eligible = habits.filter { habit ->
-            when (availability[habit.id]) {
-                is AvailabilityStatus.Available, is AvailabilityStatus.NewHabit -> true
-                is AvailabilityStatus.Unavailable, null -> false
-            }
-        }
+        val eligible = habits.filter { availability[it.id]?.isDoableNow == true }
         if (eligible.isEmpty()) {
             _uiState.value = NowMenuUiState.NothingDoable(dominantReason(availability.values))
             return

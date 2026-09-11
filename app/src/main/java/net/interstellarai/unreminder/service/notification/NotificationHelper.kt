@@ -26,14 +26,20 @@ class NotificationHelper @Inject constructor(
         const val ACTION_DISMISSED = "DISMISSED"
         const val CHANNEL_ID_SYSTEM = "un_reminder_system"
         const val CHANNEL_NAME_SYSTEM = "Habit Status"
+        const val CHANNEL_ID_INVITATION = "un_reminder_invitations"
+        const val CHANNEL_NAME_INVITATION = "Evening Invitations"
         const val EXTRA_OPEN_TIMER = "open_timer"
         const val EXTRA_OPEN_DETAIL = "open_detail"
+        const val EXTRA_OPEN_NOW = "open_now"
         // Paused-habit notifications use habitId as offset.
         // Base chosen well above realistic trigger ID values to avoid collisions.
         const val NOTIFICATION_ID_PAUSED_BASE = 900_000L
         // Content intent base — above the * 3 action-intent range and PAUSED_BASE.
         const val NOTIFICATION_CONTENT_BASE = 2_000_000L
         const val NOTIFICATION_DETAIL_BASE = 3_000_000L
+        // Single fixed id: there is at most one evening invitation, and it is never
+        // keyed by a trigger. Kept above DETAIL_BASE so it can't collide with per-trigger codes.
+        const val NOTIFICATION_ID_EVENING_INVITATION = 4_000_000L
     }
 
     fun createNotificationChannel() {
@@ -56,6 +62,15 @@ class NotificationHelper @Inject constructor(
             enableVibration(false)
         }
         notificationManager.createNotificationChannel(systemChannel)
+
+        val invitationChannel = NotificationChannel(
+            CHANNEL_ID_INVITATION,
+            CHANNEL_NAME_INVITATION,
+            NotificationManager.IMPORTANCE_DEFAULT
+        ).apply {
+            description = "An evening nudge on days with nothing done yet"
+        }
+        notificationManager.createNotificationChannel(invitationChannel)
     }
 
     fun postTriggerNotification(
@@ -114,6 +129,39 @@ class NotificationHelper @Inject constructor(
             .setAutoCancel(true)
             .build()
         notificationManager.notify((NOTIFICATION_ID_PAUSED_BASE + habitId).toRequestCode(), notification)
+    }
+
+    fun postEveningInvitation(body: String) {
+        val openNowIntent = Intent(context, net.interstellarai.unreminder.MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(EXTRA_OPEN_NOW, true)
+        }
+        val openNow = PendingIntent.getActivity(
+            context,
+            NOTIFICATION_ID_EVENING_INVITATION.toRequestCode(),
+            openNowIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        val notTonight = PendingIntent.getBroadcast(
+            context,
+            (NOTIFICATION_ID_EVENING_INVITATION + 1).toRequestCode(),
+            Intent(context, EveningInvitationDismissReceiver::class.java),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        // No delete intent: swiping this away must stay a no-op for triggers and habits.
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID_INVITATION)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle(EveningInvitationWording.TITLE)
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+            .setContentIntent(openNow)
+            .addAction(0, "Show me", openNow)
+            .addAction(0, "Not tonight", notTonight)
+            .build()
+        notificationManager.notify(NOTIFICATION_ID_EVENING_INVITATION.toRequestCode(), notification)
     }
 
     fun cancelNotification(triggerId: Long) {

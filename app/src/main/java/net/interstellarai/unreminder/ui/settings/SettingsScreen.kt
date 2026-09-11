@@ -1,6 +1,7 @@
 package net.interstellarai.unreminder.ui.settings
 
 import android.Manifest
+import android.app.TimePickerDialog
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -22,6 +23,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -32,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -48,6 +52,8 @@ import net.interstellarai.unreminder.ui.theme.SansBody
 import net.interstellarai.unreminder.ui.theme.SansBodyStrong
 import net.interstellarai.unreminder.ui.theme.UnReminderShapes
 import net.interstellarai.unreminder.ui.theme.UnReminderTheme
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 
 // ─────────────────────────────────────────────────────────────────────────
 // Settings — no explicit screen in the handoff, but styled to match the rest
@@ -78,6 +84,7 @@ fun SettingsScreen(
     ) { viewModel.refreshPermissions() }
 
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
 
     LaunchedEffect(uiState.errorMessage) {
         val msg = uiState.errorMessage ?: return@LaunchedEffect
@@ -158,6 +165,38 @@ fun SettingsScreen(
                         horizontal = Dimens.lg,
                         vertical = Dimens.md,
                     ),
+                )
+            }
+
+            Spacer(Modifier.height(Dimens.xxl))
+
+            SettingsSection(
+                label = "evening invitation",
+                modifier = Modifier.padding(horizontal = Dimens.xxl),
+            ) {
+                ToggleRow(
+                    title = "Evening invitation",
+                    subtitle = "one nudge on days with nothing done yet",
+                    checked = uiState.eveningInvitationEnabled,
+                    onCheckedChange = viewModel::setEveningInvitationEnabled,
+                )
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    thickness = Dimens.hairline,
+                )
+                TimeRow(
+                    title = "Around",
+                    time = uiState.eveningInvitationTime,
+                    enabled = uiState.eveningInvitationEnabled,
+                    onClick = {
+                        TimePickerDialog(
+                            context,
+                            { _, h, m -> viewModel.setEveningInvitationTime(LocalTime.of(h, m)) },
+                            uiState.eveningInvitationTime.hour,
+                            uiState.eveningInvitationTime.minute,
+                            true,
+                        ).show()
+                    },
                 )
             }
 
@@ -299,6 +338,74 @@ private fun PermissionRow(
                 color = MaterialTheme.colorScheme.primary,
             )
         }
+    }
+}
+
+@Composable
+private fun ToggleRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Dimens.lg, vertical = Dimens.md + 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                title,
+                style = DisplaySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                subtitle,
+                style = MonoLabelTiny,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            )
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = MaterialTheme.colorScheme.background,
+                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                uncheckedThumbColor = MaterialTheme.colorScheme.background,
+                uncheckedTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+            ),
+        )
+    }
+}
+
+@Composable
+private fun TimeRow(
+    title: String,
+    time: LocalTime,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = Dimens.lg, vertical = Dimens.md + 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            title,
+            style = DisplaySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (enabled) 1f else 0.5f),
+        )
+        Text(
+            time.format(DateTimeFormatter.ofPattern("HH:mm")),
+            style = MonoLabel.copy(fontWeight = FontWeight.SemiBold),
+            color = MaterialTheme.colorScheme.primary.copy(alpha = if (enabled) 1f else 0.5f),
+        )
     }
 }
 

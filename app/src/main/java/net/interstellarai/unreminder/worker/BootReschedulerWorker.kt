@@ -12,7 +12,8 @@ import dagger.assisted.AssistedInject
 class BootReschedulerWorker @AssistedInject constructor(
     @Assisted appContext: Context,
     @Assisted workerParams: WorkerParameters,
-    private val geofenceManager: GeofenceManager
+    private val geofenceManager: GeofenceManager,
+    private val eveningInvitationScheduler: EveningInvitationScheduler,
 ) : CoroutineWorker(appContext, workerParams) {
 
     companion object {
@@ -21,6 +22,7 @@ class BootReschedulerWorker @AssistedInject constructor(
 
     override suspend fun doWork(): Result {
         geofenceManager.registerAllFromDb()
+        eveningInvitationScheduler.ensureScheduled()
         return Result.success()
     }
 }
