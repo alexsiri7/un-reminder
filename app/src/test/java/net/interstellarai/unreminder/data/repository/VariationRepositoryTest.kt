@@ -1,13 +1,10 @@
 package net.interstellarai.unreminder.data.repository
 
-import android.util.Log
 import net.interstellarai.unreminder.data.db.VariationDao
 import net.interstellarai.unreminder.data.db.VariationEntity
 import io.mockk.coEvery
 import io.mockk.coVerify
-import io.mockk.every
 import io.mockk.mockk
-import io.mockk.mockkStatic
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -23,8 +20,6 @@ class VariationRepositoryTest {
     private lateinit var repository: VariationRepository
 
     @Before fun setup() {
-        mockkStatic(Log::class)
-        every { Log.w(any(), any<String>()) } returns 0
         repository = VariationRepository(mockDao)
     }
 
