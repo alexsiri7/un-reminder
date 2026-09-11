@@ -8,6 +8,7 @@ import net.interstellarai.unreminder.service.llm.CloudPromptGenerator
 import net.interstellarai.unreminder.service.llm.PromptGenerator
 import net.interstellarai.unreminder.service.notification.EmojiRotator
 import net.interstellarai.unreminder.service.notification.NotificationHelper
+import net.interstellarai.unreminder.service.notification.SpriteResolver
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -32,8 +33,9 @@ object ServiceModule {
     @Singleton
     fun provideNotificationHelper(
         @ApplicationContext context: Context,
-        emojiRotator: EmojiRotator
-    ): NotificationHelper = NotificationHelper(context, emojiRotator)
+        emojiRotator: EmojiRotator,
+        spriteResolver: SpriteResolver,
+    ): NotificationHelper = NotificationHelper(context, emojiRotator, spriteResolver)
 
     @Provides
     @Singleton

@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.graphics.drawable.Icon
 import android.net.Uri
 import androidx.core.app.NotificationCompat
 import net.interstellarai.unreminder.R
@@ -14,7 +15,8 @@ import javax.inject.Singleton
 @Singleton
 class NotificationHelper @Inject constructor(
     private val context: Context,
-    private val emojiRotator: EmojiRotator
+    private val emojiRotator: EmojiRotator,
+    private val spriteResolver: SpriteResolver,
 ) {
     private val notificationManager = context.getSystemService(NotificationManager::class.java)
     companion object {
@@ -80,13 +82,17 @@ class NotificationHelper @Inject constructor(
         promptText: String,
         habitName: String,
         actionUrl: String? = null,
+        spriteTag: String? = null,
     ) {
         val emoji = emojiRotator.pick(triggerId)
         val completedIntent = createActionIntent(triggerId, ACTION_COMPLETED, 0)
         val dismissIntent = createActionIntent(triggerId, ACTION_DISMISSED, 1)
 
+        // The system rounds the large icon's corners itself; the opaque tile goes in as-is.
+        val sprite = Icon.createWithResource(context, spriteResolver.resolve(spriteTag, triggerId))
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setLargeIcon(sprite)
             .setContentTitle("$emoji $habitName")
             .setContentText(promptText)
             .setStyle(NotificationCompat.BigTextStyle().bigText(promptText))

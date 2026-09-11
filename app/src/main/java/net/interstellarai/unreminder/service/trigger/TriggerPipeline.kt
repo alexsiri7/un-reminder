@@ -97,6 +97,7 @@ class TriggerPipeline @Inject constructor(
                 promptText = resolvedPrompt.text,
                 habitName = habit.name,
                 actionUrl = resolvedPrompt.actionUrl,
+                spriteTag = resolvedPrompt.spriteTag,
             )
             widgetRefresher.refresh()
         } catch (e: Exception) {
