@@ -175,7 +175,16 @@ class MarkDoneAction : ActionCallback {
             }
         }
         // Even a failed write must not leave the tapped habit lingering as if it were still on.
-        entryPoint.widgetRefresher().refreshNow()
+        try {
+            entryPoint.widgetRefresher().refreshNow()
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Log.e(TAG, "Failed to refresh the widget after marking habit $habitId done", e)
+            Sentry.captureException(e) { scope ->
+                scope.setTag("component", "widget-done-refresh")
+                habitId?.let { scope.setTag("habit_id", it.toString()) }
+            }
+        }
     }
 }
 
