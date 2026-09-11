@@ -54,8 +54,8 @@ Solo user (the author). Single-device, single-user. Personal productivity / well
 
 Paparazzi goldens live in `app/src/test/snapshots/images/` and are **CI-authoritative**: never record or commit them locally. A local render differs from CI's by a whole-frame anti-aliasing shift (~4.5% on the tablet configs), so a local `verifyPaparazziRelease` reports tablet diffs of that size even when nothing changed. Two GitHub workflows write goldens:
 
-- `ci.yml` — when the unit-test step fails on a pull request, it runs `recordPaparazziRelease`, commits the new PNGs to the PR branch as `chore: update Paparazzi snapshots [skip ci]`, and fails once so the image diff is reviewed before a re-run. That step runs `./gradlew test`, which renders snapshots but only compares them under a `verifyPaparazzi*` invocation, so a golden diff on its own does not currently trip it.
-- `Generate Store Screenshots` (manual `workflow_dispatch`) — records on a runner, copies the renders into `store-listing/screenshots/`, and opens a PR with both. Dispatch it to refresh the goldens today.
+- `ci.yml` — the unit-test step runs `./gradlew test :app:verifyPaparazziRelease`, so a golden diff fails it. On a pull request that failure then runs `recordPaparazziRelease`, commits the new PNGs to the PR branch as `chore: update Paparazzi snapshots [skip ci]`, and fails once more so the image diff is reviewed before a re-run.
+- `Generate Store Screenshots` (manual `workflow_dispatch`) — records on a runner, copies the renders into `store-listing/screenshots/`, and opens a PR with both.
 
 Snapshotted composables take every time, date and locale input as a parameter (`today`, `checkedAt`) and the screenshot test classes pin `Locale.US` and UTC, so a golden does not depend on the day or machine it was rendered on.
 

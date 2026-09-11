@@ -243,7 +243,7 @@ class GeofenceManagerTest {
     }
 
     @Test
-    fun `every currentLocationIds mutation leaves a breadcrumb naming its cause`() {
+    fun `every currentLocationIds mutation leaves a breadcrumb naming its cause`() = runTest {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
             .putStringSet(KEY_LOCATION_IDS, setOf("7"))
@@ -254,7 +254,7 @@ class GeofenceManagerTest {
         mgr.addLocationId(42L, LocationSetChangeCause.ENTER)
         mgr.removeLocationId(7L, LocationSetChangeCause.EXIT)
         mgr.removeLocationId(7L, LocationSetChangeCause.EXIT)
-        mgr.removeGeofence(42L)
+        mgr.removeGeofence(42L, "Home")
 
         assertEquals(
             listOf(
@@ -473,6 +473,72 @@ class GeofenceManagerTest {
     }
 
     @Test
+    fun `removeGeofence keeps the id until the platform removal settles`() = runTest {
+        val pending = TaskCompletionSource<Void>()
+        every { geofencingClient.removeGeofences(any<List<String>>()) } returns pending.task
+        val mgr = newManager()
+        mgr.addLocationId(42L, LocationSetChangeCause.ENTER)
+
+        val job = launch { mgr.removeGeofence(42L, "Home") }
+        runCurrent()
+
+        assertEquals(setOf(42L), mgr.currentLocationIds.value)
+
+        pending.setResult(null)
+        job.join()
+
+        assertEquals(emptySet<Long>(), mgr.currentLocationIds.value)
+        assertTrue(captured.isEmpty())
+    }
+
+    @Test
+    fun `a rejected removeGeofences is reported and still drops the id`() = runTest {
+        every { geofencingClient.removeGeofences(any<List<String>>()) } returns
+            Tasks.forException(ApiException(Status(GeofenceStatusCodes.GEOFENCE_NOT_AVAILABLE)))
+        val mgr = newManager()
+        mgr.addLocationId(42L, LocationSetChangeCause.ENTER)
+
+        mgr.removeGeofence(42L, "Home")
+
+        val failure = captured.single { (message, _) -> message == "Geofence removal failed" }.second.record()
+        assertEquals("geofence", failure.tags["component"])
+        assertEquals("42", failure.extras["location_id"])
+        assertEquals("Home", failure.extras["location_name"])
+        assertEquals("GEOFENCE_NOT_AVAILABLE(1000)", failure.extras["status"])
+        assertEquals(emptySet<Long>(), mgr.currentLocationIds.value)
+    }
+
+    @Test
+    fun `a removeGeofences task that never settles is reported as a timeout instead of hanging`() = runTest {
+        val neverSettled = TaskCompletionSource<Void>()
+        every { geofencingClient.removeGeofences(any<List<String>>()) } returns neverSettled.task
+        val mgr = newManager()
+        mgr.addLocationId(42L, LocationSetChangeCause.ENTER)
+
+        mgr.removeGeofence(42L, "Home")
+
+        val failure = captured.single { (message, _) -> message == "Geofence removal failed" }.second.record()
+        assertEquals("TIMEOUT", failure.extras["status"])
+        assertEquals(emptySet<Long>(), mgr.currentLocationIds.value)
+    }
+
+    @Test
+    fun `cancelling a removal mid-flight ends it cancelled without reporting a failure or dropping the id`() = runTest {
+        val neverSettled = TaskCompletionSource<Void>()
+        every { geofencingClient.removeGeofences(any<List<String>>()) } returns neverSettled.task
+        val mgr = newManager()
+        mgr.addLocationId(42L, LocationSetChangeCause.ENTER)
+
+        val job = launch { mgr.removeGeofence(42L, "Home") }
+        runCurrent()
+        job.cancelAndJoin()
+
+        assertTrue(job.isCancelled)
+        assertTrue(captured.isEmpty())
+        assertEquals(setOf(42L), mgr.currentLocationIds.value)
+    }
+
+    @Test
     fun `a settings check that never settles is reported as a timeout instead of hanging`() = runTest {
         coEvery { locationRepository.getAllList() } returns emptyList()
         stallLocationSettingsCheck()
@@ -602,7 +668,7 @@ class GeofenceManagerTest {
         val mgr = newManager()
         mgr.registerAllFromDb()
         mgr.addLocationId(1L, LocationSetChangeCause.ENTER)
-        mgr.removeGeofence(1L)
+        mgr.removeGeofence(1L, "Home")
 
         val payloadStrings = messages().flatMap { (message, scope) ->
             listOf(message) + scope.tags.entries.map { "${it.key}=${it.value}" } +

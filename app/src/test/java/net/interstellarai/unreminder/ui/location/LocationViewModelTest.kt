@@ -10,6 +10,7 @@ import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -55,13 +56,31 @@ class LocationViewModelTest {
     fun `deleteLocation calls delete on repository and removeGeofence by id, then refreshes registration health`() = runTest(testDispatcher) {
         val location = LocationEntity(id = 42L, name = "Home", lat = 51.5, lng = -0.1, radiusM = 100f)
         coEvery { locationRepository.delete(location) } returns Unit
-        coEvery { geofenceManager.removeGeofence(42L) } returns Unit
+        coEvery { geofenceManager.removeGeofence(42L, "Home") } returns Unit
 
         viewModel.deleteLocation(location)
         advanceUntilIdle()
 
         coVerify { locationRepository.delete(location) }
-        coVerify { geofenceManager.removeGeofence(42L) }
+        coVerify { geofenceManager.removeGeofence(42L, "Home") }
+        verify(exactly = 1) { geofenceManager.refreshRegistration() }
+    }
+
+    @Test
+    fun `deleteLocation refreshes registration health only once the geofence removal has settled`() = runTest(testDispatcher) {
+        val location = LocationEntity(id = 42L, name = "Home", lat = 51.5, lng = -0.1, radiusM = 100f)
+        val removalSettled = CompletableDeferred<Unit>()
+        coEvery { locationRepository.delete(location) } returns Unit
+        coEvery { geofenceManager.removeGeofence(42L, "Home") } coAnswers { removalSettled.await() }
+
+        viewModel.deleteLocation(location)
+        advanceUntilIdle()
+
+        verify(exactly = 0) { geofenceManager.refreshRegistration() }
+
+        removalSettled.complete(Unit)
+        advanceUntilIdle()
+
         verify(exactly = 1) { geofenceManager.refreshRegistration() }
     }
 
@@ -141,7 +160,7 @@ class LocationViewModelTest {
             advanceUntilIdle()
 
             coVerify(exactly = 1) { locationRepository.delete(location) }
-            coVerify(exactly = 0) { geofenceManager.removeGeofence(any()) }
+            coVerify(exactly = 0) { geofenceManager.removeGeofence(any(), any()) }
             verify(exactly = 0) { geofenceManager.refreshRegistration() }
         } finally {
             unmockkStatic(android.util.Log::class)

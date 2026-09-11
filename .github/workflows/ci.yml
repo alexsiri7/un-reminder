@@ -14,6 +14,10 @@ jobs:
     name: Build & test
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    # The default GITHUB_TOKEN is read-only for this repo; the auto-record step below
+    # pushes refreshed Paparazzi goldens to the PR branch and needs write access.
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
@@ -35,7 +39,7 @@ jobs:
 
       - name: Unit tests
         id: unit_tests
-        run: ./gradlew test --stacktrace
+        run: ./gradlew test :app:verifyPaparazziRelease --stacktrace
         continue-on-error: true
 
       - name: Upload Paparazzi diff report
@@ -43,7 +47,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: paparazzi-diff-${{ github.sha }}
-          path: app/build/reports/paparazzi/
+          # verifyPaparazzi* writes delta-*.png (expected | actual | diff) under
+          # build/paparazzi/failures, not under the HTML report directory.
+          path: |
+            app/build/reports/paparazzi/
+            app/build/paparazzi/failures/
           if-no-files-found: ignore
           retention-days: 14
 
