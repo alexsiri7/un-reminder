@@ -1,8 +1,8 @@
 ---
 created: '2026-09-11'
-github_issue: null
+github_issue: 318
 id: '017'
-status: draft
+status: idea
 title: Location eligibility must reflect where the device actually is
 updated: '2026-09-11'
 ---
@@ -31,4 +31,5 @@ The user-facing effect is the worst possible one for this app: the habits tied t
 
 ## Issues
 
-_None yet._
+- #318 — Reconcile location state against an actual position fix instead of trusting geofence events alone
+- #319 — Surface location tracking health and detected locations in Settings
