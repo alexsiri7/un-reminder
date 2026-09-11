@@ -12,6 +12,7 @@ import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.notification.NotificationHelper
 import net.interstellarai.unreminder.service.worker.RefillScheduler
+import net.interstellarai.unreminder.widget.WidgetRefresher
 import io.sentry.Sentry
 import kotlinx.coroutines.CancellationException
 import java.time.LocalTime
@@ -29,6 +30,7 @@ class TriggerPipeline @Inject constructor(
     private val variationRepository: VariationRepository,
     private val refillScheduler: RefillScheduler,
     private val levelDescriptionRepository: HabitLevelDescriptionRepository,
+    private val widgetRefresher: WidgetRefresher,
 ) {
     companion object {
         private const val TAG = "TriggerPipeline"
@@ -96,6 +98,7 @@ class TriggerPipeline @Inject constructor(
                 habitName = habit.name,
                 actionUrl = resolvedPrompt.actionUrl,
             )
+            widgetRefresher.refresh()
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             Log.e(TAG, "Trigger pipeline failed for trigger=$triggerId", e)

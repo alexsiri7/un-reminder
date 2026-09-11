@@ -17,6 +17,7 @@ import net.interstellarai.unreminder.di.IoDispatcher
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.notification.NotificationHelper
 import net.interstellarai.unreminder.service.trigger.DismissalTracker
+import net.interstellarai.unreminder.widget.WidgetRefresher
 import javax.inject.Inject
 
 data class ReminderDetailUiState(
@@ -35,6 +36,7 @@ class ReminderDetailViewModel @Inject constructor(
     private val habitRepository: HabitRepository,
     private val dismissalTracker: DismissalTracker,
     private val notificationHelper: NotificationHelper,
+    private val widgetRefresher: WidgetRefresher,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
@@ -78,6 +80,7 @@ class ReminderDetailViewModel @Inject constructor(
                     dismissalTracker.onDismissed(triggerId)
                 }
                 notificationHelper.cancelNotification(triggerId)
+                widgetRefresher.refresh()
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "Failed to record outcome $status for trigger $triggerId", e)

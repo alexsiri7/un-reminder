@@ -8,6 +8,7 @@ import android.util.Log
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.trigger.DismissalTracker
+import net.interstellarai.unreminder.widget.WidgetRefresher
 import dagger.hilt.android.AndroidEntryPoint
 import io.sentry.Sentry
 import kotlinx.coroutines.CancellationException
@@ -28,6 +29,9 @@ class NotificationActionReceiver : BroadcastReceiver() {
 
     @Inject
     lateinit var dismissalTracker: DismissalTracker
+
+    @Inject
+    lateinit var widgetRefresher: WidgetRefresher
 
     override fun onReceive(context: Context, intent: Intent) {
         val triggerId = intent.getLongExtra(NotificationHelper.EXTRA_TRIGGER_ID, -1)
@@ -52,6 +56,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
                 }
                 val manager = context.getSystemService(NotificationManager::class.java)
                 manager.cancel(triggerId.toRequestCode())
+                widgetRefresher.refresh()
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "onReceive: failed for trigger=$triggerId action=$action", e)

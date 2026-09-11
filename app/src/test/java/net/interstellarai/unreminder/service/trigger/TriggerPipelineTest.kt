@@ -13,6 +13,7 @@ import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.notification.NotificationHelper
 import net.interstellarai.unreminder.service.worker.RefillScheduler
+import net.interstellarai.unreminder.widget.WidgetRefresher
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -44,6 +45,7 @@ class TriggerPipelineTest {
     private lateinit var variationRepository: VariationRepository
     private lateinit var refillScheduler: RefillScheduler
     private lateinit var levelDescriptionRepository: HabitLevelDescriptionRepository
+    private lateinit var widgetRefresher: WidgetRefresher
     private lateinit var pipeline: TriggerPipeline
 
     private val testHabit = HabitEntity(
@@ -69,6 +71,7 @@ class TriggerPipelineTest {
         variationRepository = mockk()
         refillScheduler = mockk(relaxUnitFun = true)
         levelDescriptionRepository = mockk()
+        widgetRefresher = mockk(relaxUnitFun = true)
 
         pipeline = TriggerPipeline(
             habitRepository = habitRepository,
@@ -79,6 +82,7 @@ class TriggerPipelineTest {
             variationRepository = variationRepository,
             refillScheduler = refillScheduler,
             levelDescriptionRepository = levelDescriptionRepository,
+            widgetRefresher = widgetRefresher,
         )
 
         every { geofenceManager.currentLocationIds } returns MutableStateFlow(setOf(1L)).asStateFlow()
@@ -115,6 +119,7 @@ class TriggerPipelineTest {
 
         coVerify { triggerRepository.updateOutcome(42L, TriggerStatus.DISMISSED) }
         coVerify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any(), any()) }
+        verify(exactly = 0) { widgetRefresher.refresh() }
     }
 
     @Test
@@ -140,6 +145,7 @@ class TriggerPipelineTest {
             )
         }
         coVerify(exactly = 0) { refillScheduler.enqueueForHabit(any()) }
+        verify(exactly = 1) { widgetRefresher.refresh() }
     }
 
     @Test

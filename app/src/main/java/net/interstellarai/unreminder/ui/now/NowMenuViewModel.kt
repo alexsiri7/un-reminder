@@ -22,6 +22,7 @@ import net.interstellarai.unreminder.domain.UnavailableReason
 import net.interstellarai.unreminder.domain.isDoableNow
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.trigger.DismissalTracker
+import net.interstellarai.unreminder.widget.WidgetRefresher
 import java.time.Instant
 import javax.inject.Inject
 
@@ -45,6 +46,7 @@ class NowMenuViewModel @Inject constructor(
     private val levelDescriptionRepository: HabitLevelDescriptionRepository,
     private val triggerRepository: TriggerRepository,
     private val dismissalTracker: DismissalTracker,
+    private val widgetRefresher: WidgetRefresher,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<NowMenuUiState>(NowMenuUiState.Loading)
@@ -102,6 +104,7 @@ class NowMenuViewModel @Inject constructor(
                 // invite a second tap and a duplicate trigger.
                 Log.e(TAG, "Failed to run promotion for menu completion $triggerId", e)
             }
+            widgetRefresher.refresh()
             if (held.isEmpty()) load()
         }
     }

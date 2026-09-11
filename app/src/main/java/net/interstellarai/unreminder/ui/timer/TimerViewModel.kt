@@ -17,6 +17,7 @@ import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.notification.DurationParser
 import net.interstellarai.unreminder.service.notification.NotificationHelper
 import net.interstellarai.unreminder.service.trigger.DismissalTracker
+import net.interstellarai.unreminder.widget.WidgetRefresher
 import javax.inject.Inject
 
 data class TimerUiState(
@@ -35,6 +36,7 @@ class TimerViewModel @Inject constructor(
     private val triggerRepository: TriggerRepository,
     private val dismissalTracker: DismissalTracker,
     private val notificationHelper: NotificationHelper,
+    private val widgetRefresher: WidgetRefresher,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
@@ -102,6 +104,7 @@ class TimerViewModel @Inject constructor(
                 dismissalTracker.onDismissed(triggerId)
             }
             notificationHelper.cancelNotification(triggerId)
+            widgetRefresher.refresh()
             _uiState.value = _uiState.value.copy(isDone = true)
         }
     }

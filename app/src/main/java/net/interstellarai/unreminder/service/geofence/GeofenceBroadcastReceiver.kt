@@ -10,6 +10,7 @@ import com.google.android.gms.location.GeofencingEvent
 import dagger.hilt.android.AndroidEntryPoint
 import io.sentry.Sentry
 import io.sentry.SentryLevel
+import net.interstellarai.unreminder.widget.WidgetRefresher
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -32,6 +33,9 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
     @Inject
     lateinit var geofenceManager: GeofenceManager
 
+    @Inject
+    lateinit var widgetRefresher: WidgetRefresher
+
     // No goAsync/DB/network per geofence — ANR-prone in onReceive otherwise (see #137).
     override fun onReceive(context: Context, intent: Intent) {
         val event = GeofencingEvent.fromIntent(intent) ?: return
@@ -48,16 +52,20 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         val transition = event.geofenceTransition
         val triggeringGeofences = event.triggeringGeofences ?: return
 
+        var changed = false
         for (geofence in triggeringGeofences) {
             val locationId = geofence.requestId.toLongOrNull() ?: continue
             when (transition) {
                 Geofence.GEOFENCE_TRANSITION_ENTER -> {
                     geofenceManager.addLocationId(locationId)
+                    changed = true
                 }
                 Geofence.GEOFENCE_TRANSITION_EXIT -> {
                     geofenceManager.removeLocationId(locationId)
+                    changed = true
                 }
             }
         }
+        if (changed) widgetRefresher.refresh()
     }
 }

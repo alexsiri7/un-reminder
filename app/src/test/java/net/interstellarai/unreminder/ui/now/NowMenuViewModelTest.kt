@@ -8,6 +8,7 @@ import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.unmockkStatic
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.collect
@@ -28,6 +29,7 @@ import net.interstellarai.unreminder.domain.HabitAvailabilityService
 import net.interstellarai.unreminder.domain.UnavailableReason
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.trigger.DismissalTracker
+import net.interstellarai.unreminder.widget.WidgetRefresher
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -45,6 +47,7 @@ class NowMenuViewModelTest {
     private val levelDescriptionRepository: HabitLevelDescriptionRepository = mockk()
     private val triggerRepository: TriggerRepository = mockk()
     private val dismissalTracker: DismissalTracker = mockk(relaxUnitFun = true)
+    private val widgetRefresher: WidgetRefresher = mockk(relaxUnitFun = true)
 
     @Before
     fun setup() {
@@ -79,6 +82,7 @@ class NowMenuViewModelTest {
         levelDescriptionRepository,
         triggerRepository,
         dismissalTracker,
+        widgetRefresher,
     )
 
     private fun NowMenuViewModel.menu() = uiState.value as NowMenuUiState.Menu
@@ -194,6 +198,7 @@ class NowMenuViewModelTest {
         assertNotNull(inserted.captured.firedAt)
         assertEquals(inserted.captured.scheduledAt, inserted.captured.firedAt)
         coVerify(exactly = 1) { dismissalTracker.onCompleted(99L) }
+        verify(exactly = 1) { widgetRefresher.refresh() }
     }
 
     @Test
@@ -234,6 +239,7 @@ class NowMenuViewModelTest {
         assertEquals(before, vm.menu().items.map { it.habitId })
         assertTrue(vm.menu().canLoadMore)
         coVerify(exactly = 0) { dismissalTracker.onCompleted(any()) }
+        verify(exactly = 0) { widgetRefresher.refresh() }
     }
 
     @Test

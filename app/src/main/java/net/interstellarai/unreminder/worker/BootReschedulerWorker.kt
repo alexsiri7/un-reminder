@@ -5,6 +5,7 @@ import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
+import net.interstellarai.unreminder.widget.WidgetRefresher
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 
@@ -14,6 +15,7 @@ class BootReschedulerWorker @AssistedInject constructor(
     @Assisted workerParams: WorkerParameters,
     private val geofenceManager: GeofenceManager,
     private val eveningInvitationScheduler: EveningInvitationScheduler,
+    private val widgetRefresher: WidgetRefresher,
 ) : CoroutineWorker(appContext, workerParams) {
 
     companion object {
@@ -23,6 +25,7 @@ class BootReschedulerWorker @AssistedInject constructor(
     override suspend fun doWork(): Result {
         geofenceManager.registerAllFromDb()
         eveningInvitationScheduler.ensureScheduled()
+        widgetRefresher.refresh()
         return Result.success()
     }
 }

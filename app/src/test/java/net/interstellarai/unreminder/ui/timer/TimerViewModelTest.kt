@@ -5,10 +5,12 @@ import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.notification.NotificationHelper
 import net.interstellarai.unreminder.service.trigger.DismissalTracker
+import net.interstellarai.unreminder.widget.WidgetRefresher
 import java.time.Instant
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -31,6 +33,7 @@ class TimerViewModelTest {
     private lateinit var triggerRepository: TriggerRepository
     private lateinit var dismissalTracker: DismissalTracker
     private lateinit var notificationHelper: NotificationHelper
+    private lateinit var widgetRefresher: WidgetRefresher
     private lateinit var viewModel: TimerViewModel
 
     private val testDispatcher = StandardTestDispatcher()
@@ -41,7 +44,8 @@ class TimerViewModelTest {
         triggerRepository = mockk(relaxUnitFun = true)
         dismissalTracker = mockk(relaxUnitFun = true)
         notificationHelper = mockk(relaxUnitFun = true)
-        viewModel = TimerViewModel(triggerRepository, dismissalTracker, notificationHelper, testDispatcher)
+        widgetRefresher = mockk(relaxUnitFun = true)
+        viewModel = TimerViewModel(triggerRepository, dismissalTracker, notificationHelper, widgetRefresher, testDispatcher)
     }
 
     @After
@@ -142,6 +146,7 @@ class TimerViewModelTest {
         advanceUntilIdle()
         coVerify { triggerRepository.updateOutcome(42L, TriggerStatus.COMPLETED) }
         coVerify { dismissalTracker.onCompleted(42L) }
+        verify(exactly = 1) { widgetRefresher.refresh() }
         assertTrue(viewModel.uiState.value.isDone)
     }
 
@@ -154,6 +159,7 @@ class TimerViewModelTest {
         advanceUntilIdle()
         coVerify { triggerRepository.updateOutcome(42L, TriggerStatus.DISMISSED) }
         coVerify { dismissalTracker.onDismissed(42L) }
+        verify(exactly = 1) { widgetRefresher.refresh() }
         assertTrue(viewModel.uiState.value.isDone)
     }
 
