@@ -164,6 +164,9 @@ dependencies {
     // WorkManager
     implementation(libs.work.runtime.ktx)
 
+    // Home-screen widget
+    implementation(libs.glance.appwidget)
+
     // OkHttp
     implementation(libs.okhttp)
 

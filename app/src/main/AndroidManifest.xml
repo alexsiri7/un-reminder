@@ -82,6 +82,18 @@
             android:name=".service.notification.EveningInvitationDismissReceiver"
             android:exported="false" />
 
+        <!-- Exported: APPWIDGET_UPDATE is broadcast by the system, not by this app. -->
+        <receiver
+            android:name=".widget.DoableHabitWidgetReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/doable_habit_widget_info" />
+        </receiver>
+
         <receiver
             android:name=".worker.BootReceiver"
             android:exported="false">

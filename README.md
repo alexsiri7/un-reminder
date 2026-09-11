@@ -39,6 +39,7 @@ Solo user (the author). Single-device, single-user. Personal productivity / well
 | Geofencing | **Android `GeofencingClient`** (Google Play Services Location API) | Background location; requires `ACCESS_BACKGROUND_LOCATION`. |
 | Map UI | **osmdroid** | OpenStreetMap-based map picker for location selection; tiles cached automatically on-device. |
 | Notifications | **NotificationManager** (Android 13+ runtime permission) | Native. |
+| Widget | **Jetpack Glance** (`glance-appwidget`) | Home-screen widget showing one doable habit with a "did it" action; refreshed on eligibility events plus a 30-minute tick. |
 | Crash reporting | **Sentry** (`sentry-android`) | On-device-only gating via blank DSN; no PII, habit content, or location data sent. |
 | LLM | **Gemini Flash** via **Requesty.ai** proxy, deployed as a Cloudflare Worker (`worker/`). Variations pre-generated and stored in Room DB. | Private cloud via personal proxy — no data sent to third parties beyond the proxy owner's account. Low-latency notification delivery from pre-filled pool. |
 | Network | **OkHttp** | HTTP client for worker API calls and GitHub feedback API. |
