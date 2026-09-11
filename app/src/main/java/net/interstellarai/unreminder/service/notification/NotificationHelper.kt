@@ -35,10 +35,7 @@ class NotificationHelper @Inject constructor(
         const val EXTRA_OPEN_NOW = "open_now"
         // The widget also opens the Now menu; only the invitation's own taps may clear it.
         const val EXTRA_FROM_EVENING_INVITATION = "from_evening_invitation"
-        // Paused-habit notifications use habitId as offset.
-        // Base chosen well above realistic trigger ID values to avoid collisions.
-        const val NOTIFICATION_ID_PAUSED_BASE = 900_000L
-        // Content intent base — above the * 3 action-intent range and PAUSED_BASE.
+        // Content intent base — above the * 3 action-intent range.
         const val NOTIFICATION_CONTENT_BASE = 2_000_000L
         const val NOTIFICATION_DETAIL_BASE = 3_000_000L
         // Single fixed id: there is at most one evening invitation, and it is never
@@ -126,17 +123,6 @@ class NotificationHelper @Inject constructor(
         builder.setContentIntent(detailPendingIntent)
 
         notificationManager.notify(triggerId.toRequestCode(), builder.build())
-    }
-
-    fun postHabitPausedNotification(habitId: Long, habitName: String) {
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID_SYSTEM)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("Paused $habitName")
-            .setContentText("Tap to re-activate or lower its dedication level.")
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setAutoCancel(true)
-            .build()
-        notificationManager.notify((NOTIFICATION_ID_PAUSED_BASE + habitId).toRequestCode(), notification)
     }
 
     fun postEveningInvitation(body: String) {

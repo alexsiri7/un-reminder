@@ -4,7 +4,6 @@ import android.util.Log
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
-import net.interstellarai.unreminder.service.notification.NotificationHelper
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -12,7 +11,6 @@ import javax.inject.Singleton
 class DismissalTracker @Inject constructor(
     private val triggerRepository: TriggerRepository,
     private val habitRepository: HabitRepository,
-    private val notificationHelper: NotificationHelper
 ) {
     companion object {
         private const val TAG = "DismissalTracker"
@@ -42,27 +40,25 @@ class DismissalTracker @Inject constructor(
         }
 
         val habit = habitRepository.getByIdOnce(habitId) ?: run {
-            Log.w(TAG, "Habit $habitId not found, cannot deactivate")
+            Log.w(TAG, "Habit $habitId not found, cannot demote")
             return
         }
 
         if (!habit.active) {
-            Log.d(TAG, "Habit $habitId is already paused, skipping")
+            Log.d(TAG, "Habit $habitId is deactivated, skipping")
             return
         }
 
         if (!habit.autoAdjustLevel) {
-            Log.d(TAG, "Habit ${habit.name} autoAdjustLevel disabled — skipping demotion/pause (level=${habit.dedicationLevel})")
+            Log.d(TAG, "Habit ${habit.name} autoAdjustLevel disabled — skipping demotion (level=${habit.dedicationLevel})")
             return
         }
-        if (habit.dedicationLevel > 0) {
-            Log.i(TAG, "Habit ${habit.name} demoted to level ${habit.dedicationLevel - 1}")
-            habitRepository.update(habit.copy(dedicationLevel = habit.dedicationLevel - 1))
-        } else {
-            Log.i(TAG, "Habit ${habit.name} at level 0 with $STREAK_THRESHOLD consecutive DISMISSEDs — pausing")
-            habitRepository.update(habit.copy(active = false))
-            notificationHelper.postHabitPausedNotification(habitId, habit.name)
+        if (habit.dedicationLevel == 0) {
+            Log.d(TAG, "Habit ${habit.name} already at level 0, staying there")
+            return
         }
+        Log.i(TAG, "Habit ${habit.name} demoted to level ${habit.dedicationLevel - 1}")
+        habitRepository.update(habit.copy(dedicationLevel = habit.dedicationLevel - 1))
     }
 
     suspend fun onCompleted(triggerId: Long) {

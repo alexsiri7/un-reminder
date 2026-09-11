@@ -106,20 +106,11 @@ class NotificationRequestCodeCollisionTest {
     }
 
     @Test
-    fun `evening invitation id does not collide with per-trigger or paused-habit codes`() {
+    fun `evening invitation id does not collide with per-trigger codes`() {
         val id = 42L
         val invitationCode = NotificationHelper.NOTIFICATION_ID_EVENING_INVITATION.toRequestCode()
         assertNotEquals(invitationCode, id.toRequestCode())
         assertNotEquals(invitationCode, (NotificationHelper.NOTIFICATION_DETAIL_BASE + id).toRequestCode())
-        assertNotEquals(invitationCode, (NotificationHelper.NOTIFICATION_ID_PAUSED_BASE + id).toRequestCode())
         assertNotEquals(invitationCode, (NotificationHelper.NOTIFICATION_CONTENT_BASE + id).toRequestCode())
-    }
-
-    @Test
-    fun `detail request code does not collide with paused-habit notification code`() {
-        val id = 1L
-        val detailCode = (NotificationHelper.NOTIFICATION_DETAIL_BASE + id).toRequestCode()
-        val pausedCode = (NotificationHelper.NOTIFICATION_ID_PAUSED_BASE + id).toRequestCode()
-        assertNotEquals(detailCode, pausedCode)
     }
 }

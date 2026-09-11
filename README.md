@@ -111,15 +111,14 @@ A repeatable thing the user wants to do. Each habit has:
 - `id`
 - `name` — user-facing, short (e.g. "meditation", "gratefulness", "singing practice").
 - `dedication_level` — integer 0–5. The user's current commitment level for this habit, auto-promoted
-  by `DedicationLevelManager` when completion thresholds are met. Defaults to 0.
-- `auto_adjust_level` — boolean. When `true`, `DedicationLevelManager` will auto-promote `dedication_level`
+  by `DismissalTracker` when completion thresholds are met. Defaults to 0.
+- `auto_adjust_level` — boolean. When `true`, `DismissalTracker` will auto-promote `dedication_level`
   based on recent completions. Defaults to `true`.
 - `locations` — zero or more named `Location` records associated via the `habit_location` junction table. A habit with **no** associated locations is eligible everywhere ("Anywhere" semantics). A habit with one or more locations is only eligible when the user is at one of those locations.
-- `active` — boolean. Inactive habits are never selected. Can be toggled manually in the habit editor.
-  When `auto_adjust_level` is true, 3 consecutive `DISMISSED` triggers demote `dedication_level` by 1.
-  If the habit is already at level 0, 3 consecutive `DISMISSED` triggers set it to `active = false`
-  (auto-paused). The user can re-activate it from the habit editor.
-  (see [Trigger Logic §5](#5-trigger-logic)).
+- `active` — boolean. Inactive habits are never selected. Only the user toggles it, from the habit editor;
+  the app never deactivates a habit on its own.
+  When `auto_adjust_level` is true, 3 consecutive `DISMISSED` triggers demote `dedication_level` by 1,
+  flooring at level 0 (see [Trigger Logic §5](#5-trigger-logic)).
 - `daily_limit` — integer; default 1. Maximum number of `COMPLETED`/`FIRED` triggers per local day before
   the habit is excluded from selection. User-configurable in the Habit editor.
 - `cooldown_minutes` — integer minutes; default 180 (= 3 h). After a `DISMISSED` or unanswered `FIRED`
@@ -212,7 +211,7 @@ updated by geofence `ENTER`/`EXIT` callbacks. Empty set means no known location.
 5. Post the notification with the generated text. Action buttons: **Did it**, **Dismiss**. When the variation includes an `actionUrl`, a third **Watch** button is added that opens the URL in a browser. Tapping the notification body opens the **Reminder Detail screen** for that trigger.
 6. Record the trigger row with the generated prompt and the outcome when the user responds.
    - **Did it (COMPLETED):** the habit is excluded from the rest of today's triggers (step 2 above). When `auto_adjust_level` is true, consecutive completions promote `dedication_level` (up to max 5).
-   - **Dismiss (DISMISSED):** a per-habit cooldown (default 3 h, configurable via `cooldownMinutes` in the Habit editor — presets 1h · 2h · 3h · 6h · 12h · None, where None=`0` disables the cooldown) applies before this habit is eligible again. When `auto_adjust_level` is true: 3 consecutive `DISMISSED` triggers demote `dedication_level` by 1; at level 0, 3 consecutive dismissals auto-pause the habit (`active = false`). The user can re-activate via the habit editor.
+   - **Dismiss (DISMISSED):** a per-habit cooldown (default 3 h, configurable via `cooldownMinutes` in the Habit editor — presets 1h · 2h · 3h · 6h · 12h · None, where None=`0` disables the cooldown) applies before this habit is eligible again. When `auto_adjust_level` is true: 3 consecutive `DISMISSED` triggers demote `dedication_level` by 1, flooring at level 0. The habit is never auto-paused.
 
 ### Variation pool (cloud-generated)
 
