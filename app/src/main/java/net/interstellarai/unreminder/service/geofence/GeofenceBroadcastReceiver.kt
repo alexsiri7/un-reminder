@@ -19,13 +19,15 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
     companion object {
         private const val TAG = "GeofenceBroadcastRcvr"
 
+        // Play Services writes the transition extras onto this intent when a fence fires, so
+        // it must be mutable; addGeofences rejects an immutable one with DEVELOPER_ERROR (#339).
         fun getPendingIntent(context: Context): PendingIntent {
             val intent = Intent(context, GeofenceBroadcastReceiver::class.java)
             return PendingIntent.getBroadcast(
                 context,
                 0,
                 intent,
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             )
         }
     }

@@ -351,6 +351,29 @@ class GeofenceManagerTest {
     }
 
     @Test
+    fun `registrationHealth records every location as Registered when addGeofences accepts them all`() = runTest {
+        grantLocationPermissions()
+        coEvery { locationRepository.getAllList() } returns listOf(
+            LocationEntity(id = 1, name = "Home", lat = 51.5, lng = -0.1, radiusM = 150f),
+            LocationEntity(id = 2, name = "Gym", lat = 48.8, lng = 2.3, radiusM = 150f),
+        )
+        val mgr = newManager()
+
+        mgr.registerAllFromDb()
+
+        val health = mgr.registrationHealth.value!!
+        assertEquals(
+            listOf(1L to GeofenceRegistration.Registered, 2L to GeofenceRegistration.Registered),
+            health.outcomes
+        )
+        assertEquals(2, health.registeredCount)
+        assertNull(health.lastFailure)
+        assertEquals("2", registrationSummary().extras["registered_count"])
+        assertEquals("", registrationSummary().extras["failures"])
+        verify(exactly = 2) { geofencingClient.addGeofences(any<GeofencingRequest>(), any<PendingIntent>()) }
+    }
+
+    @Test
     fun `registrationHealth records missing permissions and when it was checked`() = runTest {
         coEvery { locationRepository.getAllList() } returns listOf(
             LocationEntity(id = 1, name = "Home", lat = 51.5, lng = -0.1, radiusM = 150f),
