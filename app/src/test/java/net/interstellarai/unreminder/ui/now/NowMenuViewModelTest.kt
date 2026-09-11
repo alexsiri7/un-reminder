@@ -2,12 +2,17 @@ package net.interstellarai.unreminder.ui.now
 
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.mockkStatic
 import io.mockk.slot
+import io.mockk.unmockkStatic
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -44,12 +49,15 @@ class NowMenuViewModelTest {
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
+        mockkStatic(android.util.Log::class)
+        every { android.util.Log.e(any<String>(), any<String>(), any<Throwable>()) } returns 0
         every { triggerRepository.daysWithAnyCompletion() } returns flowOf(0)
         coEvery { levelDescriptionRepository.getDescriptionForLevel(any(), any()) } returns null
     }
 
     @After
     fun tearDown() {
+        unmockkStatic(android.util.Log::class)
         Dispatchers.resetMain()
     }
 
@@ -206,6 +214,74 @@ class NowMenuViewModelTest {
         assertFalse(completedId in after)
         assertEquals(before.drop(1), after.take(2))
         assertFalse(vm.menu().canLoadMore)
+    }
+
+    @Test
+    fun `a failed completion write puts the habit back where it was`() = runTest(testDispatcher) {
+        val habits = (1L..4L).map { habit(it) }
+        givenHabits(habits, allAvailable(habits))
+        coEvery { triggerRepository.insert(any()) } throws IllegalStateException("disk full")
+        val vm = buildViewModel()
+        vm.refresh()
+        advanceUntilIdle()
+        val before = vm.menu().items.map { it.habitId }
+        val failedId = before[1]
+
+        vm.complete(failedId)
+        assertFalse(failedId in vm.menu().items.map { it.habitId })
+        advanceUntilIdle()
+
+        assertEquals(before, vm.menu().items.map { it.habitId })
+        assertTrue(vm.menu().canLoadMore)
+        coVerify(exactly = 0) { dismissalTracker.onCompleted(any()) }
+    }
+
+    @Test
+    fun `a failed completion write on the last habit does not leave the screen loading`() = runTest(testDispatcher) {
+        val habits = listOf(habit(1L))
+        givenHabits(habits, allAvailable(habits))
+        coEvery { triggerRepository.insert(any()) } throws IllegalStateException("disk full")
+        val vm = buildViewModel()
+        vm.refresh()
+        advanceUntilIdle()
+
+        vm.complete(1L)
+        assertEquals(NowMenuUiState.Loading, vm.uiState.value)
+        advanceUntilIdle()
+
+        assertEquals(listOf(1L), vm.menu().items.map { it.habitId })
+        coVerify(exactly = 1) { availabilityService.computeForAll(habits) }
+    }
+
+    @Test
+    fun `a failed promotion after the write keeps the habit completed`() = runTest(testDispatcher) {
+        val habits = (1L..4L).map { habit(it) }
+        givenHabits(habits, allAvailable(habits))
+        coEvery { triggerRepository.insert(any()) } returns 99L
+        coEvery { dismissalTracker.onCompleted(99L) } throws IllegalStateException("promotion broke")
+        val vm = buildViewModel()
+        vm.refresh()
+        advanceUntilIdle()
+        val completedId = vm.menu().items.first().habitId
+
+        vm.complete(completedId)
+        advanceUntilIdle()
+
+        assertFalse(completedId in vm.menu().items.map { it.habitId })
+        coVerifyOrder {
+            triggerRepository.insert(any())
+            dismissalTracker.onCompleted(99L)
+        }
+    }
+
+    @Test
+    fun `days with any completion is forwarded from the trigger repository`() = runTest(testDispatcher) {
+        every { triggerRepository.daysWithAnyCompletion() } returns flowOf(7)
+        val vm = buildViewModel()
+        backgroundScope.launch { vm.daysWithAnyCompletion.collect() }
+        advanceUntilIdle()
+
+        assertEquals(7, vm.daysWithAnyCompletion.value)
     }
 
     @Test

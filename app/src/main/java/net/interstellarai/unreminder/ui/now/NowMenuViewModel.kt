@@ -67,13 +67,15 @@ class NowMenuViewModel @Inject constructor(
     }
 
     fun complete(habitId: Long) {
-        val item = held.firstOrNull { it.habitId == habitId } ?: return
-        held = held - item
+        val index = held.indexOfFirst { it.habitId == habitId }
+        if (index < 0) return
+        val item = held[index]
+        held = held.filterIndexed { i, _ -> i != index }
         if (held.isEmpty()) _uiState.value = NowMenuUiState.Loading else publish()
         viewModelScope.launch {
-            try {
-                val now = Instant.now()
-                val triggerId = triggerRepository.insert(
+            val now = Instant.now()
+            val triggerId = try {
+                triggerRepository.insert(
                     TriggerEntity(
                         habitId = habitId,
                         scheduledAt = now,
@@ -82,10 +84,22 @@ class NowMenuViewModel @Inject constructor(
                         source = SOURCE_MENU,
                     )
                 )
-                dismissalTracker.onCompleted(triggerId)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "Failed to record menu completion for habit $habitId", e)
+                // The row vanishing is this screen's only "done" signal, so an
+                // unrecorded completion has to come back where it was.
+                held = held.toMutableList().apply { add(index.coerceAtMost(size), item) }
+                publish()
+                return@launch
+            }
+            try {
+                dismissalTracker.onCompleted(triggerId)
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                // The completion is already on disk; bringing the row back would
+                // invite a second tap and a duplicate trigger.
+                Log.e(TAG, "Failed to run promotion for menu completion $triggerId", e)
             }
             if (held.isEmpty()) load()
         }
