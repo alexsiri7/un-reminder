@@ -1,6 +1,9 @@
 package net.interstellarai.unreminder.domain
 
 import android.util.Log
+import io.sentry.Breadcrumb
+import io.sentry.Sentry
+import io.sentry.SentryLevel
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
@@ -10,6 +13,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
+import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -37,7 +41,13 @@ class HabitAvailabilityService @Inject constructor(
 ) {
     companion object {
         private const val TAG = "HabitAvailabilityService"
+
+        // Availability is recomputed on every menu render and widget refresh; recording
+        // each location denial would push everything else out of the breadcrumb ring.
+        private const val LOCATION_DENIAL_SAMPLE_EVERY = 20L
     }
+
+    private val locationDenials = AtomicLong()
 
     /**
      * Computes the current availability status for an existing habit, checking each
@@ -88,6 +98,7 @@ class HabitAvailabilityService @Inject constructor(
             val currentIds = geofenceManager.currentLocationIds.value
             if (currentIds.none { it in locationIds }) {
                 reasons += UnavailableReason.LOCATION
+                recordLocationDenial(habit.id, currentIds)
             }
         }
 
@@ -134,5 +145,16 @@ class HabitAvailabilityService @Inject constructor(
 
         return if (reasons.isEmpty()) AvailabilityStatus.Available
         else AvailabilityStatus.Unavailable(reasons)
+    }
+
+    private fun recordLocationDenial(habitId: Long, currentIds: Set<Long>) {
+        if (locationDenials.getAndIncrement() % LOCATION_DENIAL_SAMPLE_EVERY != 0L) return
+        Sentry.addBreadcrumb(Breadcrumb().apply {
+            category = "geofence"
+            message = "Habit unavailable: not at a required location"
+            level = SentryLevel.INFO
+            setData("habit_id", habitId.toString())
+            setData("current_ids", currentIds.sorted().toString())
+        })
     }
 }

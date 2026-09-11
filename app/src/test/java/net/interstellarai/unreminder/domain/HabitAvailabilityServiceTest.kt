@@ -8,9 +8,13 @@ import net.interstellarai.unreminder.data.repository.WindowRepository
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import io.mockk.coEvery
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkStatic
+import io.mockk.runs
 import io.mockk.unmockkStatic
+import io.sentry.Breadcrumb
+import io.sentry.Sentry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -92,6 +96,25 @@ class HabitAvailabilityServiceTest {
         val result = service.computeAvailability(testHabit, setOf(1L, 2L), emptySet())
         val status = result as AvailabilityStatus.Unavailable
         assertTrue(UnavailableReason.LOCATION in status.reasons)
+    }
+
+    @Test
+    fun `location denials leave a sampled breadcrumb with the habit id and current set`() = runTest(testDispatcher) {
+        mockkStatic(Sentry::class)
+        try {
+            val breadcrumbs = mutableListOf<Breadcrumb>()
+            every { Sentry.addBreadcrumb(capture(breadcrumbs)) } just runs
+            currentLocationIdsFlow.value = setOf(99L)
+
+            repeat(21) { service.computeAvailability(testHabit, setOf(1L, 2L), emptySet()) }
+
+            assertEquals(2, breadcrumbs.size)
+            assertTrue(breadcrumbs.all { it.category == "geofence" })
+            assertEquals("1", breadcrumbs.first().getData("habit_id"))
+            assertEquals("[99]", breadcrumbs.first().getData("current_ids"))
+        } finally {
+            unmockkStatic(Sentry::class)
+        }
     }
 
     @Test
