@@ -11,13 +11,20 @@ import com.android.resources.Density
 import com.google.android.gms.location.GeofenceStatusCodes
 import com.google.android.gms.location.LocationSettingsStatusCodes
 import net.interstellarai.unreminder.data.db.HabitEntity
+import net.interstellarai.unreminder.data.db.LocationEntity
 import net.interstellarai.unreminder.domain.DisplayTier
 import net.interstellarai.unreminder.service.geofence.GeofenceRegistration
+import net.interstellarai.unreminder.service.geofence.LocationCheck
+import net.interstellarai.unreminder.service.geofence.LocationSetChangeCause
 import net.interstellarai.unreminder.service.geofence.LocationSettingsCheck
+import net.interstellarai.unreminder.service.geofence.Reconciliation
 import net.interstellarai.unreminder.service.geofence.RegistrationHealth
 import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.service.notification.MascotSprites
 import net.interstellarai.unreminder.ui.habit.HabitListContent
+import net.interstellarai.unreminder.ui.location.LocationContent
+import net.interstellarai.unreminder.ui.location.LocationRow
+import net.interstellarai.unreminder.ui.location.RecalculationState
 import net.interstellarai.unreminder.ui.now.NowMenuContent
 import net.interstellarai.unreminder.ui.now.NowMenuItem
 import net.interstellarai.unreminder.ui.now.NowMenuUiState
@@ -167,6 +174,22 @@ class PhoneScreenshotTest {
             }
         }
     }
+
+    @Test
+    fun phone_7() {
+        paparazzi.snapshot {
+            UnReminderTheme {
+                LocationContent(
+                    locations = fakeLocationRows,
+                    recalculation = fakeRecalculationFailure,
+                    onRecalculate = {},
+                    onNavigateBack = {},
+                    onAddLocation = {},
+                    onEditLocation = {},
+                )
+            }
+        }
+    }
 }
 
 internal val fakeHabits = listOf(
@@ -231,3 +254,30 @@ internal val fakeRegistrationHealth = RegistrationHealth(
     locationSettings = LocationSettingsCheck.Unavailable(LocationSettingsStatusCodes.SETTINGS_CHANGE_UNAVAILABLE),
     checkedAt = Instant.parse("2026-09-11T09:41:00Z"),
 )
+
+// One row per presence state — inside, outside and never checked — with fixed stamps, and a
+// failure banner, so one golden pins all four treatments.
+internal val fakeLocationRows = listOf(
+    LocationRow(
+        location = LocationEntity(id = 1, name = "Home", lat = 51.5074, lng = -0.1278, radiusM = 150f),
+        check = LocationCheck(
+            inside = true,
+            at = Instant.parse("2026-09-11T09:41:00Z"),
+            via = LocationSetChangeCause.ENTER,
+        ),
+    ),
+    LocationRow(
+        location = LocationEntity(id = 2, name = "Office", lat = 51.5155, lng = -0.0922, radiusM = 120f),
+        check = LocationCheck(
+            inside = false,
+            at = Instant.parse("2026-09-11T09:40:00Z"),
+            via = LocationSetChangeCause.RECONCILE,
+        ),
+    ),
+    LocationRow(
+        location = LocationEntity(id = 3, name = "Gym", lat = 51.4975, lng = -0.1357, radiusM = 100f),
+        check = null,
+    ),
+)
+
+internal val fakeRecalculationFailure = RecalculationState.of(Reconciliation.NoFix)
