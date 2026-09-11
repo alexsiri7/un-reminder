@@ -147,6 +147,19 @@ class DismissalTrackerTest {
     }
 
     @Test
+    fun `3 consecutive dismissals at level 1 - demotes to level 0 and stays active`() = runTest {
+        val habitAtLevel1 = testHabit.copy(dedicationLevel = 1, autoAdjustLevel = true)
+        coEvery { triggerRepository.getById(triggerId) } returns makeTrigger(TriggerStatus.DISMISSED)
+        coEvery { triggerRepository.getLastNForHabit(habitId, 3) } returns
+            listOf(makeDismissedTrigger(42), makeDismissedTrigger(41), makeDismissedTrigger(40))
+        coEvery { habitRepository.getByIdOnce(habitId) } returns habitAtLevel1
+
+        tracker.onDismissed(triggerId)
+
+        coVerify { habitRepository.update(match { it.dedicationLevel == 0 && it.active }) }
+    }
+
+    @Test
     fun `3 consecutive dismissals at level 1 with autoAdjustLevel false - no action`() = runTest {
         val habitNoAuto = testHabit.copy(dedicationLevel = 1, autoAdjustLevel = false)
         coEvery { triggerRepository.getById(triggerId) } returns makeTrigger(TriggerStatus.DISMISSED)
