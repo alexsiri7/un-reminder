@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.net.Uri
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Settings
@@ -42,6 +43,7 @@ import net.interstellarai.unreminder.ui.location.LocationScreen
 import net.interstellarai.unreminder.ui.location.MapPickerScreen
 import net.interstellarai.unreminder.ui.onboarding.OnboardingScreen
 import net.interstellarai.unreminder.ui.feedback.FeedbackScreen
+import net.interstellarai.unreminder.ui.now.NowMenuScreen
 import net.interstellarai.unreminder.ui.recent.RecentTriggersScreen
 import net.interstellarai.unreminder.ui.reminder.ReminderDetailScreen
 import net.interstellarai.unreminder.ui.settings.CloudSettingsScreen
@@ -51,13 +53,14 @@ import net.interstellarai.unreminder.ui.window.WindowEditScreen
 import net.interstellarai.unreminder.ui.window.WindowListScreen
 
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
+    data object Now : Screen("now", "Now", Icons.Default.Bolt)
     data object Habits : Screen("habits", "Habits", Icons.Default.Repeat)
     data object Windows : Screen("windows", "Windows", Icons.Default.Timer)
     data object Recent : Screen("recent", "Recent", Icons.Default.History)
     data object Settings : Screen("settings", "Settings", Icons.Default.Settings)
 }
 
-val bottomNavItems = listOf(Screen.Habits, Screen.Windows, Screen.Recent, Screen.Settings)
+val bottomNavItems = listOf(Screen.Now, Screen.Habits, Screen.Windows, Screen.Recent, Screen.Settings)
 
 @Composable
 fun NavGraph(
@@ -74,7 +77,7 @@ fun NavGraph(
     // completes and isOnboarded flips from false → true during the same session.
     val startDestination = remember { mutableStateOf<String?>(null) }
     if (startDestination.value == null && isOnboarded != null) {
-        startDestination.value = if (isOnboarded == true) Screen.Habits.route else "onboarding"
+        startDestination.value = if (isOnboarded == true) Screen.Now.route else "onboarding"
     }
     val resolvedStart = startDestination.value ?: return
 
@@ -171,6 +174,12 @@ fun NavGraph(
             startDestination = resolvedStart,
             modifier = Modifier.padding(innerPadding)
         ) {
+            composable(Screen.Now.route) {
+                NowMenuScreen(
+                    onAddHabit = { navController.navigate("habit_add") },
+                    onNavigateToFeedback = { captureAndNavigate("feedback") },
+                )
+            }
             composable(Screen.Habits.route) {
                 HabitListScreen(
                     onAddHabit = { navController.navigate("habit_add") },
@@ -293,7 +302,7 @@ fun NavGraph(
             composable("onboarding") {
                 OnboardingScreen(
                     onFinished = {
-                        navController.navigate(Screen.Habits.route) {
+                        navController.navigate(Screen.Now.route) {
                             popUpTo("onboarding") { inclusive = true }
                         }
                     }

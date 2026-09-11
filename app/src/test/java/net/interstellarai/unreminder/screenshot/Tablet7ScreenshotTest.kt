@@ -5,6 +5,7 @@ import app.cash.paparazzi.Paparazzi
 import com.android.resources.Density
 import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.ui.habit.HabitListContent
+import net.interstellarai.unreminder.ui.now.NowMenuContent
 import net.interstellarai.unreminder.ui.onboarding.OnboardingContent
 import net.interstellarai.unreminder.ui.onboarding.OnboardingUiState
 import net.interstellarai.unreminder.ui.theme.UnReminderTheme
@@ -77,6 +78,22 @@ class Tablet7ScreenshotTest {
                     onPickWindowStart = {},
                     onPickWindowEnd = {},
                     onComplete = {},
+                )
+            }
+        }
+    }
+
+    @Test
+    fun tablet7_4() {
+        paparazzi.snapshot {
+            UnReminderTheme {
+                NowMenuContent(
+                    uiState = fakeNowMenu,
+                    daysWithAnyCompletion = 12,
+                    onComplete = {},
+                    onLoadMore = {},
+                    onAddHabit = {},
+                    onNavigateToFeedback = {},
                 )
             }
         }

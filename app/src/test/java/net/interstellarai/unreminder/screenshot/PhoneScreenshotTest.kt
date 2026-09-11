@@ -6,6 +6,9 @@ import com.android.resources.Density
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.ui.habit.HabitListContent
+import net.interstellarai.unreminder.ui.now.NowMenuContent
+import net.interstellarai.unreminder.ui.now.NowMenuItem
+import net.interstellarai.unreminder.ui.now.NowMenuUiState
 import net.interstellarai.unreminder.ui.onboarding.OnboardingContent
 import net.interstellarai.unreminder.ui.onboarding.OnboardingUiState
 import net.interstellarai.unreminder.ui.theme.UnReminderTheme
@@ -83,10 +86,35 @@ class PhoneScreenshotTest {
             }
         }
     }
+
+    @Test
+    fun phone_4() {
+        paparazzi.snapshot {
+            UnReminderTheme {
+                NowMenuContent(
+                    uiState = fakeNowMenu,
+                    daysWithAnyCompletion = 12,
+                    onComplete = {},
+                    onLoadMore = {},
+                    onAddHabit = {},
+                    onNavigateToFeedback = {},
+                )
+            }
+        }
+    }
 }
 
 internal val fakeHabits = listOf(
     HabitEntity(id = 1, name = "meditation", dedicationLevel = 3, active = true),
     HabitEntity(id = 2, name = "exercise", dedicationLevel = 2, active = true),
     HabitEntity(id = 3, name = "reading", dedicationLevel = 1, active = false),
+)
+
+internal val fakeNowMenu = NowMenuUiState.Menu(
+    items = listOf(
+        NowMenuItem(habitId = 1, name = "meditation", description = "sit for five minutes"),
+        NowMenuItem(habitId = 2, name = "exercise", description = "a short walk around the block"),
+        NowMenuItem(habitId = 3, name = "reading", description = null),
+    ),
+    canLoadMore = true,
 )
