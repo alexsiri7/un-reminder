@@ -9,12 +9,14 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import io.sentry.Sentry
 import kotlinx.coroutines.CancellationException
+import net.interstellarai.unreminder.service.geofence.LocationReconciler
 
 @HiltWorker
 class WidgetRefreshWorker @AssistedInject constructor(
     @Assisted appContext: Context,
     @Assisted workerParams: WorkerParameters,
     private val widgetRefresher: WidgetRefresher,
+    private val locationReconciler: LocationReconciler,
 ) : CoroutineWorker(appContext, workerParams) {
 
     companion object {
@@ -23,6 +25,7 @@ class WidgetRefreshWorker @AssistedInject constructor(
 
     override suspend fun doWork(): Result {
         try {
+            locationReconciler.reconcile()
             widgetRefresher.refreshNow()
         } catch (e: CancellationException) {
             throw e

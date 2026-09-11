@@ -38,7 +38,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /** Why [GeofenceManager.currentLocationIds] changed; recorded on every mutation's breadcrumb. */
-enum class LocationSetChangeCause { ENTER, EXIT, RESTORE, MANUAL }
+enum class LocationSetChangeCause { ENTER, EXIT, RESTORE, MANUAL, RECONCILE }
 
 /** Outcome of one `addGeofences` call, as reported in the per-launch registration summary. */
 sealed interface GeofenceRegistration {
@@ -182,6 +182,19 @@ class GeofenceManager @Inject constructor(
         _currentLocationIds.value = updated
         persistLocationIds(updated)
         recordLocationSetChange(current, updated, cause)
+    }
+
+    /**
+     * Overwrites the whole set from a reconciliation against a real position fix, in one
+     * atomic persist and emission — composing add/remove calls would publish intermediate
+     * sets that were never true of the device's position.
+     */
+    fun replaceLocationIds(ids: Set<Long>) = synchronized(locationIdLock) {
+        val current = _currentLocationIds.value
+        if (ids == current) return@synchronized
+        _currentLocationIds.value = ids
+        persistLocationIds(ids)
+        recordLocationSetChange(current, ids, LocationSetChangeCause.RECONCILE)
     }
 
     private fun hasPermission(permission: String): Boolean =

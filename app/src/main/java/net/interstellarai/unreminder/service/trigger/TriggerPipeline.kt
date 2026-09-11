@@ -10,6 +10,7 @@ import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.domain.model.NotificationVariant
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
+import net.interstellarai.unreminder.service.geofence.LocationReconciler
 import net.interstellarai.unreminder.service.notification.NotificationHelper
 import net.interstellarai.unreminder.service.worker.RefillScheduler
 import net.interstellarai.unreminder.widget.WidgetRefresher
@@ -26,6 +27,7 @@ class TriggerPipeline @Inject constructor(
     private val triggerRepository: TriggerRepository,
     private val locationRepository: LocationRepository,
     private val geofenceManager: GeofenceManager,
+    private val locationReconciler: LocationReconciler,
     private val notificationHelper: NotificationHelper,
     private val variationRepository: VariationRepository,
     private val refillScheduler: RefillScheduler,
@@ -67,6 +69,9 @@ class TriggerPipeline @Inject constructor(
         }
         if (trigger.status != TriggerStatus.SCHEDULED) return
 
+        // Correct the location set before it decides which habits are eligible, so a missed
+        // geofence transition cannot suppress or mis-target this notification.
+        locationReconciler.reconcile()
         val locationIds = geofenceManager.currentLocationIds.value
 
         try {

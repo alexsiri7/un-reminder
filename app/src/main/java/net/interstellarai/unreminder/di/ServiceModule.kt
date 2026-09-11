@@ -1,12 +1,14 @@
 package net.interstellarai.unreminder.di
 
 import android.content.Context
+import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.SettingsClient
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.service.worker.RefillScheduler
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
+import net.interstellarai.unreminder.service.geofence.LocationReconciler
 import net.interstellarai.unreminder.service.llm.CloudPromptGenerator
 import net.interstellarai.unreminder.service.llm.PromptGenerator
 import net.interstellarai.unreminder.service.notification.EmojiRotator
@@ -45,6 +47,20 @@ object ServiceModule {
         settingsClient: SettingsClient,
         @ApplicationScope scope: CoroutineScope,
     ): GeofenceManager = GeofenceManager(context, locationRepository, geofencingClient, settingsClient, scope)
+
+    @Provides
+    @Singleton
+    fun provideFusedLocationProviderClient(@ApplicationContext context: Context): FusedLocationProviderClient =
+        LocationServices.getFusedLocationProviderClient(context)
+
+    @Provides
+    @Singleton
+    fun provideLocationReconciler(
+        @ApplicationContext context: Context,
+        locationRepository: LocationRepository,
+        geofenceManager: GeofenceManager,
+        fusedLocationClient: FusedLocationProviderClient,
+    ): LocationReconciler = LocationReconciler(context, locationRepository, geofenceManager, fusedLocationClient)
 
     @Provides
     @Singleton
