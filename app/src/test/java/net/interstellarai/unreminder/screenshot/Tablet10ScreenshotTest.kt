@@ -20,13 +20,17 @@ import net.interstellarai.unreminder.ui.theme.UnReminderTheme
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import java.util.Locale
 import java.util.TimeZone
 
+// Goldens are CI-authoritative; see PhoneScreenshotTest.
 class Tablet10ScreenshotTest {
 
-    // The section prints checkedAt as a clock time; the JVM zone must not vary by machine.
+    // The header formats the date label with the default locale and the location section
+    // prints checkedAt as a clock time in the default zone; neither may vary by machine.
     @Before
-    fun pinTimeZone() {
+    fun pinLocaleAndTimeZone() {
+        Locale.setDefault(Locale.US)
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
     }
 
@@ -49,6 +53,7 @@ class Tablet10ScreenshotTest {
                     habits = fakeHabits,
                     aiStatus = AiStatus.Ready,
                     habitAvailability = emptyMap(),
+                    today = fakeToday,
                     onAddHabit = {},
                     onEditHabit = {},
                     onNavigateToFeedback = {},

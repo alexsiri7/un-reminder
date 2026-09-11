@@ -31,14 +31,21 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalTime
+import java.util.Locale
 import java.util.TimeZone
 
+// Goldens are CI-authoritative: record them on a GitHub runner (the Generate Store Screenshots
+// workflow), never locally. A local render differs from CI's by a whole-frame anti-aliasing
+// shift (~4.5% on the tablets), so a locally recorded golden must not be committed.
 class PhoneScreenshotTest {
 
-    // The section prints checkedAt as a clock time; the JVM zone must not vary by machine.
+    // The header formats the date label with the default locale and the location section
+    // prints checkedAt as a clock time in the default zone; neither may vary by machine.
     @Before
-    fun pinTimeZone() {
+    fun pinLocaleAndTimeZone() {
+        Locale.setDefault(Locale.US)
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
     }
 
@@ -61,6 +68,7 @@ class PhoneScreenshotTest {
                     habits = fakeHabits,
                     aiStatus = AiStatus.Ready,
                     habitAvailability = emptyMap(),
+                    today = fakeToday,
                     onAddHabit = {},
                     onEditHabit = {},
                     onNavigateToFeedback = {},
@@ -209,6 +217,8 @@ internal val fakeRankedLowerNowMenu = NowMenuUiState.Menu(
     ),
     canLoadMore = false,
 )
+
+internal val fakeToday: LocalDate = LocalDate.of(2026, 9, 11)
 
 internal val fakeRegistrationHealth = RegistrationHealth(
     outcomes = listOf(
