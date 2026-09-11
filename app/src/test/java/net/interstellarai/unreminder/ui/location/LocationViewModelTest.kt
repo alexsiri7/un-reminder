@@ -56,13 +56,13 @@ class LocationViewModelTest {
     fun `deleteLocation calls delete on repository and removeGeofence by id, then refreshes registration health`() = runTest(testDispatcher) {
         val location = LocationEntity(id = 42L, name = "Home", lat = 51.5, lng = -0.1, radiusM = 100f)
         coEvery { locationRepository.delete(location) } returns Unit
-        coEvery { geofenceManager.removeGeofence(42L) } returns Unit
+        coEvery { geofenceManager.removeGeofence(42L, "Home") } returns Unit
 
         viewModel.deleteLocation(location)
         advanceUntilIdle()
 
         coVerify { locationRepository.delete(location) }
-        coVerify { geofenceManager.removeGeofence(42L) }
+        coVerify { geofenceManager.removeGeofence(42L, "Home") }
         verify(exactly = 1) { geofenceManager.refreshRegistration() }
     }
 
@@ -71,7 +71,7 @@ class LocationViewModelTest {
         val location = LocationEntity(id = 42L, name = "Home", lat = 51.5, lng = -0.1, radiusM = 100f)
         val removalSettled = CompletableDeferred<Unit>()
         coEvery { locationRepository.delete(location) } returns Unit
-        coEvery { geofenceManager.removeGeofence(42L) } coAnswers { removalSettled.await() }
+        coEvery { geofenceManager.removeGeofence(42L, "Home") } coAnswers { removalSettled.await() }
 
         viewModel.deleteLocation(location)
         advanceUntilIdle()
@@ -160,7 +160,7 @@ class LocationViewModelTest {
             advanceUntilIdle()
 
             coVerify(exactly = 1) { locationRepository.delete(location) }
-            coVerify(exactly = 0) { geofenceManager.removeGeofence(any()) }
+            coVerify(exactly = 0) { geofenceManager.removeGeofence(any(), any()) }
             verify(exactly = 0) { geofenceManager.refreshRegistration() }
         } finally {
             unmockkStatic(android.util.Log::class)

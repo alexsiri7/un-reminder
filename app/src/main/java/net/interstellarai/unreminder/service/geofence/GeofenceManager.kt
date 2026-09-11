@@ -277,7 +277,7 @@ class GeofenceManager @Inject constructor(
      * The id is dropped from the set either way: its location is already gone, Android may
      * not deliver an EXIT for a fence it no longer knows, and nothing else would ever clear it.
      */
-    suspend fun removeGeofence(id: Long) {
+    suspend fun removeGeofence(id: Long, name: String) {
         val outcome = try {
             val task = geofencingClient.removeGeofences(listOf(id.toString()))
             withTimeoutOrNull(PLAY_SERVICES_TIMEOUT_MS) { task.await(); GeofenceRemoval.Removed }
@@ -289,15 +289,16 @@ class GeofenceManager @Inject constructor(
         } catch (e: Exception) {
             GeofenceRemoval.Failed(e)
         }
-        if (outcome != GeofenceRemoval.Removed) reportRemovalFailure(id, outcome)
+        if (outcome != GeofenceRemoval.Removed) reportRemovalFailure(id, name, outcome)
         removeLocationId(id, LocationSetChangeCause.MANUAL)
     }
 
-    private fun reportRemovalFailure(id: Long, outcome: GeofenceRemoval) {
+    private fun reportRemovalFailure(id: Long, name: String, outcome: GeofenceRemoval) {
         Log.e(TAG, "Geofence removal failed: id=$id status=${outcome.statusLabel}")
         Sentry.captureMessage("Geofence removal failed") { scope ->
             scope.setTag("component", "geofence")
             scope.setExtra("location_id", id.toString())
+            scope.setExtra("location_name", name)
             scope.setExtra("status", outcome.statusLabel)
             scope.level = SentryLevel.WARNING
         }
