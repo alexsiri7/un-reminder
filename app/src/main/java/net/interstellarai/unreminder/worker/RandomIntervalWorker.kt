@@ -116,16 +116,28 @@ class RandomIntervalWorker @AssistedInject constructor(
             triggerId?.let { triggerRepository.updateOutcome(it, TriggerStatus.DISMISSED) }
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Random interval worker failed at step=$step", e)
-            Sentry.captureException(e) { scope ->
-                scope.setTag("component", "random-interval-worker")
-                scope.setTag("step", step)
-            }
+            report("Random interval worker failed at step=$step", step, e)
             triggerId?.let { triggerRepository.updateOutcome(it, TriggerStatus.DISMISSED) }
         }
 
-        scheduleNext(fired)
+        try {
+            scheduleNext(fired)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Let out of doWork() this would only reach Logcat, and the chain stays broken
+            // until enqueueInitial() runs on the next app start or the watchdog replaces it.
+            report("Random interval reschedule failed", "reschedule", e)
+        }
         return Result.success()
+    }
+
+    private fun report(message: String, step: String, e: Exception) {
+        Log.e(TAG, message, e)
+        Sentry.captureException(e) { scope ->
+            scope.setTag("component", "random-interval-worker")
+            scope.setTag("step", step)
+        }
     }
 
     private fun scheduleNext(fired: Boolean = false) {
