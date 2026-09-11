@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
+import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -49,6 +50,53 @@ sealed interface GeofenceRegistration {
             is Rejected -> "${GeofenceStatusCodes.getStatusCodeString(statusCode)}($statusCode)"
             is Failed -> cause.javaClass.simpleName
         }
+}
+
+/** Result of the balanced-power settings check that accompanies every full registration. */
+sealed interface LocationSettingsCheck {
+    data object Available : LocationSettingsCheck
+    data object TimedOut : LocationSettingsCheck
+    data class Unavailable(val statusCode: Int) : LocationSettingsCheck
+    data class Failed(val cause: Throwable) : LocationSettingsCheck
+
+    val statusLabel: String
+        get() = when (this) {
+            Available -> statusLabelFor(LocationSettingsStatusCodes.SUCCESS)
+            TimedOut -> "TIMEOUT"
+            is Unavailable -> statusLabelFor(statusCode)
+            is Failed -> cause.javaClass.simpleName
+        }
+
+    companion object {
+        // LocationSettingsStatusCodes.getStatusCodeString reports 8502 as "unknown status code",
+        // and that is the one code this check exists to detect.
+        private fun statusLabelFor(statusCode: Int): String {
+            val name = when (statusCode) {
+                LocationSettingsStatusCodes.SETTINGS_CHANGE_UNAVAILABLE -> "SETTINGS_CHANGE_UNAVAILABLE"
+                else -> LocationSettingsStatusCodes.getStatusCodeString(statusCode)
+            }
+            return "$name($statusCode)"
+        }
+    }
+}
+
+/**
+ * Outcome of the last [GeofenceManager.registerAllFromDb]. The Sentry summary and the Settings
+ * screen both read this, so neither computes health on its own.
+ */
+data class RegistrationHealth(
+    val outcomes: List<Pair<Long, GeofenceRegistration>>,
+    val fineLocationGranted: Boolean,
+    val backgroundLocationGranted: Boolean,
+    val locationEnabled: Boolean?,
+    val locationSettings: LocationSettingsCheck,
+    val checkedAt: Instant,
+) {
+    val savedCount: Int get() = outcomes.size
+    val failures: List<Pair<Long, GeofenceRegistration>>
+        get() = outcomes.filter { (_, outcome) -> outcome != GeofenceRegistration.Registered }
+    val registeredCount: Int get() = savedCount - failures.size
+    val lastFailure: GeofenceRegistration? get() = failures.lastOrNull()?.second
 }
 
 @Singleton
@@ -78,6 +126,9 @@ class GeofenceManager @Inject constructor(
 
     private val _currentLocationIds = MutableStateFlow<Set<Long>>(restoreLocationIds())
     val currentLocationIds: StateFlow<Set<Long>> = _currentLocationIds.asStateFlow()
+
+    private val _registrationHealth = MutableStateFlow<RegistrationHealth?>(null)
+    val registrationHealth: StateFlow<RegistrationHealth?> = _registrationHealth.asStateFlow()
 
     private fun restoreLocationIds(): Set<Long> {
         val stored = prefs.getStringSet(KEY_LOCATION_IDS, emptySet()) ?: emptySet()
@@ -189,57 +240,55 @@ class GeofenceManager @Inject constructor(
             val loc = raiseToMinimumRadius(stored)
             loc.id to registerGeofence(loc.id, loc.name, loc.lat, loc.lng, loc.radiusM)
         }
-        reportRegistrationSummary(outcomes)
+        val health = RegistrationHealth(
+            outcomes = outcomes,
+            fineLocationGranted = hasPermission(Manifest.permission.ACCESS_FINE_LOCATION),
+            backgroundLocationGranted = hasPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION),
+            locationEnabled = context.getSystemService(LocationManager::class.java)?.isLocationEnabled,
+            locationSettings = checkLocationSettings(),
+            checkedAt = Instant.now(),
+        )
+        _registrationHealth.value = health
+        reportRegistrationSummary(health)
     }
 
-    private suspend fun reportRegistrationSummary(outcomes: List<Pair<Long, GeofenceRegistration>>) {
-        val failures = outcomes.filter { (_, outcome) -> outcome != GeofenceRegistration.Registered }
-        val locationEnabled = context.getSystemService(LocationManager::class.java)?.isLocationEnabled
-        val locationSettings = checkLocationSettings()
+    private fun reportRegistrationSummary(health: RegistrationHealth) {
         Sentry.captureMessage("Geofence registration summary") { scope ->
             scope.setTag("component", "geofence")
-            scope.setExtra("saved_count", outcomes.size.toString())
-            scope.setExtra("registered_count", (outcomes.size - failures.size).toString())
-            scope.setExtra("failed_count", failures.size.toString())
+            scope.setExtra("saved_count", health.savedCount.toString())
+            scope.setExtra("registered_count", health.registeredCount.toString())
+            scope.setExtra("failed_count", health.failures.size.toString())
             scope.setExtra(
                 "failures",
-                failures.joinToString { (id, outcome) -> "id=$id status=${outcome.statusLabel}" }
+                health.failures.joinToString { (id, outcome) -> "id=$id status=${outcome.statusLabel}" }
             )
-            scope.setExtra("fine_location_granted", hasPermission(Manifest.permission.ACCESS_FINE_LOCATION).toString())
-            scope.setExtra("background_location_granted", hasPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION).toString())
-            scope.setExtra("location_enabled", locationEnabled.toString())
-            scope.setExtra("location_settings", locationSettings)
-            scope.level = if (failures.isEmpty()) SentryLevel.INFO else SentryLevel.WARNING
+            scope.setExtra("fine_location_granted", health.fineLocationGranted.toString())
+            scope.setExtra("background_location_granted", health.backgroundLocationGranted.toString())
+            scope.setExtra("location_enabled", health.locationEnabled.toString())
+            scope.setExtra("location_settings", health.locationSettings.statusLabel)
+            scope.level = if (health.failures.isEmpty()) SentryLevel.INFO else SentryLevel.WARNING
         }
     }
 
     // Google Location Accuracy switched off is invisible to the permission checks but makes
     // every registration fail with GEOFENCE_NOT_AVAILABLE; a balanced-power settings check
     // is the one API that reports it.
-    private suspend fun checkLocationSettings(): String {
+    private suspend fun checkLocationSettings(): LocationSettingsCheck {
         val request = LocationSettingsRequest.Builder()
             .addLocationRequest(LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 0L).build())
             .build()
-        val statusCode = try {
+        return try {
             withTimeoutOrNull(PLAY_SERVICES_TIMEOUT_MS) {
                 settingsClient.checkLocationSettings(request).await()
-                LocationSettingsStatusCodes.SUCCESS
-            } ?: return "TIMEOUT"
+                LocationSettingsCheck.Available
+            } ?: LocationSettingsCheck.TimedOut
         } catch (e: ApiException) {
-            e.statusCode
+            LocationSettingsCheck.Unavailable(e.statusCode)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            return e.javaClass.simpleName
+            LocationSettingsCheck.Failed(e)
         }
-        return "${settingsStatusName(statusCode)}($statusCode)"
-    }
-
-    // LocationSettingsStatusCodes.getStatusCodeString reports 8502 as "unknown status code", and
-    // that is the one code this check exists to detect.
-    private fun settingsStatusName(statusCode: Int): String = when (statusCode) {
-        LocationSettingsStatusCodes.SETTINGS_CHANGE_UNAVAILABLE -> "SETTINGS_CHANGE_UNAVAILABLE"
-        else -> LocationSettingsStatusCodes.getStatusCodeString(statusCode)
     }
 
     private suspend fun raiseToMinimumRadius(loc: LocationEntity): LocationEntity {

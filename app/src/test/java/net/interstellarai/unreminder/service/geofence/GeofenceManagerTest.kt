@@ -40,6 +40,8 @@ import net.interstellarai.unreminder.data.repository.LocationRepository
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -302,6 +304,69 @@ class GeofenceManagerTest {
     }
 
     @Test
+    fun `registrationHealth is unknown until the first full registration completes`() = runTest {
+        coEvery { locationRepository.getAllList() } returns emptyList()
+        val mgr = newManager()
+
+        assertNull(mgr.registrationHealth.value)
+        mgr.registerAllFromDb()
+
+        val health = mgr.registrationHealth.value
+        assertNotNull(health)
+        assertEquals(0, health!!.savedCount)
+        assertEquals(0, health.registeredCount)
+        assertNull(health.lastFailure)
+        assertEquals(LocationSettingsCheck.Available, health.locationSettings)
+    }
+
+    @Test
+    fun `registrationHealth carries the same counts, last failure and checks the summary reports`() = runTest {
+        grantLocationPermissions()
+        coEvery { locationRepository.getAllList() } returns listOf(
+            LocationEntity(id = 1, name = "Home", lat = 51.5, lng = -0.1, radiusM = 150f),
+            LocationEntity(id = 2, name = "Gym", lat = 48.8, lng = 2.3, radiusM = 150f),
+            LocationEntity(id = 3, name = "Work", lat = 40.7, lng = -74.0, radiusM = 150f),
+        )
+        rejectRegistrationOf("2", GeofenceStatusCodes.GEOFENCE_TOO_MANY_GEOFENCES)
+        rejectRegistrationOf("3", GeofenceStatusCodes.GEOFENCE_NOT_AVAILABLE)
+        shadowOf(context.getSystemService(LocationManager::class.java)).setLocationEnabled(true)
+        every { settingsClient.checkLocationSettings(any()) } returns
+            Tasks.forException(ApiException(Status(LocationSettingsStatusCodes.SETTINGS_CHANGE_UNAVAILABLE)))
+        val mgr = newManager()
+
+        mgr.registerAllFromDb()
+
+        val health = mgr.registrationHealth.value!!
+        assertEquals(3, health.savedCount)
+        assertEquals(1, health.registeredCount)
+        assertEquals(GeofenceRegistration.Rejected(GeofenceStatusCodes.GEOFENCE_NOT_AVAILABLE), health.lastFailure)
+        assertTrue(health.fineLocationGranted)
+        assertTrue(health.backgroundLocationGranted)
+        assertEquals(true, health.locationEnabled)
+        assertEquals(LocationSettingsCheck.Unavailable(LocationSettingsStatusCodes.SETTINGS_CHANGE_UNAVAILABLE), health.locationSettings)
+        val summary = registrationSummary()
+        assertEquals(health.savedCount.toString(), summary.extras["saved_count"])
+        assertEquals(health.registeredCount.toString(), summary.extras["registered_count"])
+        assertEquals(health.locationSettings.statusLabel, summary.extras["location_settings"])
+    }
+
+    @Test
+    fun `registrationHealth records missing permissions and when it was checked`() = runTest {
+        coEvery { locationRepository.getAllList() } returns listOf(
+            LocationEntity(id = 1, name = "Home", lat = 51.5, lng = -0.1, radiusM = 150f),
+        )
+        val before = java.time.Instant.now()
+        val mgr = newManager()
+
+        mgr.registerAllFromDb()
+
+        val health = mgr.registrationHealth.value!!
+        assertEquals(GeofenceRegistration.PermissionMissing, health.lastFailure)
+        assertFalse(health.backgroundLocationGranted)
+        assertFalse(health.checkedAt.isBefore(before))
+    }
+
+    @Test
     fun `a single registration rejected by the platform is reported to Sentry`() = runTest {
         grantLocationPermissions()
         rejectRegistrationOf("5", GeofenceStatusCodes.GEOFENCE_NOT_AVAILABLE)
@@ -385,6 +450,7 @@ class GeofenceManagerTest {
 
         assertTrue(job.isCancelled)
         assertTrue(captured.none { (message, _) -> message == "Geofence registration summary" })
+        assertNull(mgr.registrationHealth.value)
     }
 
     @Test
