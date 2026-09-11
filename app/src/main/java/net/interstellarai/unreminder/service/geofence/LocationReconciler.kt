@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Location
+import android.location.LocationManager
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.FusedLocationProviderClient
@@ -18,6 +19,16 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
+
+/** Outcome of one reconciliation attempt; anything but [Reconciliation.Reconciled] left the recorded state alone. */
+sealed interface Reconciliation {
+    data object Reconciled : Reconciliation
+    data object Skipped : Reconciliation
+    data object PermissionMissing : Reconciliation
+    data object LocationDisabled : Reconciliation
+    data object NoFix : Reconciliation
+    data class Failed(val cause: Throwable) : Reconciliation
+}
 
 /**
  * Corrects [GeofenceManager.currentLocationIds] against an actual position fix. Geofence
@@ -58,21 +69,37 @@ class LocationReconciler @Inject constructor(
      * clearing it on a momentarily unavailable GPS would turn an intermittent problem into the
      * permanent one this exists to fix.
      */
-    suspend fun reconcile() {
-        if (!hasPermission(Manifest.permission.ACCESS_FINE_LOCATION)) return
-        // A reconciliation already running covers this caller too, so it skips rather than queues.
-        if (!inFlight.tryLock()) return
+    suspend fun reconcile(): Reconciliation = run(force = false)
+
+    /**
+     * Reconciles for a user who asked for it, ignoring the debounce window and waiting for any
+     * run already in flight. App start reconciles too, so a button that respected the window
+     * would do nothing at all for the first five minutes after launch.
+     */
+    suspend fun reconcileNow(): Reconciliation = run(force = true)
+
+    private suspend fun run(force: Boolean): Reconciliation {
+        if (!hasPermission(Manifest.permission.ACCESS_FINE_LOCATION)) return Reconciliation.PermissionMissing
+        if (context.getSystemService(LocationManager::class.java)?.isLocationEnabled == false) {
+            return Reconciliation.LocationDisabled
+        }
+        // A reconciliation already running covers a background caller too, so it skips rather than queues.
+        if (force) inFlight.lock() else if (!inFlight.tryLock()) return Reconciliation.Skipped
         try {
-            if (System.currentTimeMillis() - lastSuccessAtMillis < DEBOUNCE_MS) return
-            val fix = obtainFix() ?: return
+            if (!force && System.currentTimeMillis() - lastSuccessAtMillis < DEBOUNCE_MS) {
+                return Reconciliation.Skipped
+            }
+            val fix = obtainFix() ?: return Reconciliation.NoFix
             val locations = locationRepository.getAllList()
-            geofenceManager.replaceLocationIds(locations.filter { it.contains(fix) }.map { it.id }.toSet())
+            geofenceManager.recordReconciliation(locations.associate { it.id to it.contains(fix) })
             lastSuccessAtMillis = System.currentTimeMillis()
+            return Reconciliation.Reconciled
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Log.e(TAG, "Location reconciliation failed", e)
             Sentry.captureException(e) { scope -> scope.setTag("component", "location-reconciler") }
+            return Reconciliation.Failed(e)
         } finally {
             inFlight.unlock()
         }

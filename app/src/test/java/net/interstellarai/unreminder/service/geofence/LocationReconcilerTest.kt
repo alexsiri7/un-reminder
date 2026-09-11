@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Application
 import android.content.Context
 import android.location.Location
+import android.location.LocationManager
 import androidx.test.core.app.ApplicationProvider
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.GeofencingClient
@@ -63,6 +64,7 @@ class LocationReconcilerTest {
         every { fusedLocationClient.lastLocation } returns Tasks.forResult<Location>(null)
         coEvery { locationRepository.getAllList() } returns listOf(here, nearby, faraway)
         shadowOf(context as Application).grantPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+        shadowOf(context.getSystemService(LocationManager::class.java)).setLocationEnabled(true)
     }
 
     @After
@@ -222,9 +224,72 @@ class LocationReconcilerTest {
         val reconciler = newReconciler(newGeofenceManager())
 
         reconciler.reconcile()
-        reconciler.reconcile()
+        val second = reconciler.reconcile()
 
         verify(exactly = 1) { fusedLocationClient.getCurrentLocation(any<Int>(), any<CancellationToken>()) }
+        assertEquals(Reconciliation.Skipped, second)
+    }
+
+    @Test
+    fun `a forced reconciliation inside the debounce window asks for a fresh fix`() = runTest {
+        currentLocationReturns(fixAt(FIX_LAT, FIX_LNG))
+        val reconciler = newReconciler(newGeofenceManager())
+
+        reconciler.reconcile()
+        val forced = reconciler.reconcileNow()
+
+        verify(exactly = 2) { fusedLocationClient.getCurrentLocation(any<Int>(), any<CancellationToken>()) }
+        assertEquals(Reconciliation.Reconciled, forced)
+    }
+
+    @Test
+    fun `a forced reconciliation refreshes the checks even when the set it finds is unchanged`() = runTest {
+        currentLocationReturns(fixAt(FIX_LAT, FIX_LNG))
+        val geofenceManager = newGeofenceManager()
+        geofenceManager.addLocationId(here.id, LocationSetChangeCause.ENTER)
+        val reconciler = newReconciler(geofenceManager)
+
+        reconciler.reconcileNow()
+
+        assertEquals(
+            LocationSetChangeCause.RECONCILE,
+            geofenceManager.locationChecks.value.getValue(here.id).via,
+        )
+    }
+
+    @Test
+    fun `a successful reconciliation reports every saved location as checked`() = runTest {
+        currentLocationReturns(fixAt(FIX_LAT, FIX_LNG))
+        val geofenceManager = newGeofenceManager()
+
+        val outcome = newReconciler(geofenceManager).reconcile()
+
+        assertEquals(Reconciliation.Reconciled, outcome)
+        assertEquals(setOf(here.id, nearby.id, faraway.id), geofenceManager.locationChecks.value.keys)
+        assertEquals(
+            setOf(here.id, nearby.id),
+            geofenceManager.locationChecks.value.filterValues { it.inside }.keys,
+        )
+    }
+
+    @Test
+    fun `a fix that never arrives is reported as no fix`() = runTest {
+        currentLocationNeverSettles()
+
+        assertEquals(Reconciliation.NoFix, newReconciler(newGeofenceManager()).reconcile())
+    }
+
+    @Test
+    fun `with system location off nothing is requested and the reason says so`() = runTest {
+        shadowOf(context.getSystemService(LocationManager::class.java)).setLocationEnabled(false)
+        val geofenceManager = newGeofenceManager()
+        geofenceManager.addLocationId(faraway.id, LocationSetChangeCause.ENTER)
+
+        val outcome = newReconciler(geofenceManager).reconcile()
+
+        assertEquals(Reconciliation.LocationDisabled, outcome)
+        assertEquals(setOf(faraway.id), geofenceManager.currentLocationIds.value)
+        verify(exactly = 0) { fusedLocationClient.getCurrentLocation(any<Int>(), any<CancellationToken>()) }
     }
 
     @Test
@@ -233,8 +298,9 @@ class LocationReconcilerTest {
         val geofenceManager = newGeofenceManager()
         geofenceManager.addLocationId(faraway.id, LocationSetChangeCause.ENTER)
 
-        newReconciler(geofenceManager).reconcile()
+        val outcome = newReconciler(geofenceManager).reconcile()
 
+        assertEquals(Reconciliation.PermissionMissing, outcome)
         assertEquals(setOf(faraway.id), geofenceManager.currentLocationIds.value)
         verify(exactly = 0) { fusedLocationClient.getCurrentLocation(any<Int>(), any<CancellationToken>()) }
     }

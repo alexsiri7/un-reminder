@@ -33,12 +33,20 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /** Why [GeofenceManager.currentLocationIds] changed; recorded on every mutation's breadcrumb. */
 enum class LocationSetChangeCause { ENTER, EXIT, RESTORE, MANUAL, RECONCILE }
+
+/** When and how a single location's inside/outside answer was last established. */
+data class LocationCheck(
+    val inside: Boolean,
+    val at: Instant,
+    val via: LocationSetChangeCause,
+)
 
 /** Outcome of one `addGeofences` call, as reported in the per-launch registration summary. */
 sealed interface GeofenceRegistration {
@@ -134,6 +142,7 @@ class GeofenceManager @Inject constructor(
         private const val TAG = "GeofenceManager"
         private const val PREFS_NAME = "geofence_prefs"
         private const val KEY_LOCATION_IDS = "current_location_ids"
+        private const val KEY_LOCATION_CHECKS = "location_checks"
 
         // Below ~100 m ordinary GPS drift makes Android either never report an entry or
         // flap enter/exit while the user sits still, so smaller fences look precise but
@@ -148,8 +157,20 @@ class GeofenceManager @Inject constructor(
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val locationIdLock = Any()
 
-    private val _currentLocationIds = MutableStateFlow<Set<Long>>(restoreLocationIds())
+    private val restored = restoreState()
+
+    private val _currentLocationIds = MutableStateFlow(restored.ids)
     val currentLocationIds: StateFlow<Set<Long>> = _currentLocationIds.asStateFlow()
+
+    /**
+     * When and how each location's inside/outside answer was last established. An id absent from
+     * the map has never been established, which the locations screen shows as unknown rather than
+     * as "outside". Every entry with `inside = true` has its id in [currentLocationIds]; an id in
+     * [currentLocationIds] either has such an entry or, on an install upgraded from before checks
+     * were persisted, no entry until the first reconciliation.
+     */
+    private val _locationChecks = MutableStateFlow(restored.checks)
+    val locationChecks: StateFlow<Map<Long, LocationCheck>> = _locationChecks.asStateFlow()
 
     private val _registrationHealth = MutableStateFlow<RegistrationHealth?>(null)
     val registrationHealth: StateFlow<RegistrationHealth?> = _registrationHealth.asStateFlow()
@@ -160,16 +181,54 @@ class GeofenceManager @Inject constructor(
     private val registrationMutex = Mutex()
     private val refreshPending = AtomicBoolean(false)
 
-    private fun restoreLocationIds(): Set<Long> {
-        val stored = prefs.getStringSet(KEY_LOCATION_IDS, emptySet()) ?: emptySet()
-        val restored = stored.mapNotNull { it.toLongOrNull() }.toSet()
-        recordLocationSetChange(emptySet(), restored, LocationSetChangeCause.RESTORE)
-        return restored
+    private class RestoredState(val ids: Set<Long>, val checks: Map<Long, LocationCheck>)
+
+    /**
+     * An install upgraded from before checks were persisted restores its ids with no checks at
+     * all: stamping them as checked now would tell the user their locations were confirmed when
+     * nothing was confirmed. They read as unknown until the first reconciliation.
+     */
+    private fun restoreState(): RestoredState {
+        val storedIds = prefs.getStringSet(KEY_LOCATION_IDS, emptySet()) ?: emptySet()
+        val ids = storedIds.mapNotNull { it.toLongOrNull() }.toSet()
+        val storedChecks = prefs.getStringSet(KEY_LOCATION_CHECKS, emptySet()) ?: emptySet()
+        val checks = storedChecks.mapNotNull { parseCheck(it) }.toMap()
+        recordLocationSetChange(emptySet(), ids, LocationSetChangeCause.RESTORE)
+        return RestoredState(ids, checks)
     }
 
-    private fun persistLocationIds(ids: Set<Long>) {
-        prefs.edit().putStringSet(KEY_LOCATION_IDS, ids.map { it.toString() }.toSet()).apply()
+    private fun parseCheck(entry: String): Pair<Long, LocationCheck>? {
+        val parts = entry.split('|')
+        if (parts.size != 4) return null
+        val id = parts[0].toLongOrNull() ?: return null
+        val inside = when (parts[1]) {
+            "1" -> true
+            "0" -> false
+            else -> return null
+        }
+        val at = parts[2].toLongOrNull()?.let(Instant::ofEpochMilli) ?: return null
+        val via = LocationSetChangeCause.entries.firstOrNull { it.name == parts[3] } ?: return null
+        return id to LocationCheck(inside, at, via)
     }
+
+    /** The only writer of either flow or either key after construction, so the two cannot drift apart. */
+    private fun publish(ids: Set<Long>, checks: Map<Long, LocationCheck>) {
+        _currentLocationIds.value = ids
+        _locationChecks.value = checks
+        prefs.edit()
+            .putStringSet(KEY_LOCATION_IDS, ids.map { it.toString() }.toSet())
+            .putStringSet(
+                KEY_LOCATION_CHECKS,
+                checks.map { (id, check) ->
+                    "$id|${if (check.inside) 1 else 0}|${check.at.toEpochMilli()}|${check.via.name}"
+                }.toSet(),
+            )
+            .apply()
+    }
+
+    // Persisted checks carry milliseconds, so a stamp kept at Instant.now()'s finer precision
+    // would not survive the round trip unchanged.
+    private fun checkedNow(): Instant = Instant.now().truncatedTo(ChronoUnit.MILLIS)
 
     private fun recordLocationSetChange(old: Set<Long>, new: Set<Long>, cause: LocationSetChangeCause) {
         Sentry.addBreadcrumb(Breadcrumb().apply {
@@ -182,35 +241,42 @@ class GeofenceManager @Inject constructor(
         })
     }
 
-    fun addLocationId(id: Long, cause: LocationSetChangeCause) = synchronized(locationIdLock) {
-        val current = _currentLocationIds.value
-        if (id in current) return@synchronized
-        val updated = current + id
-        _currentLocationIds.value = updated
-        persistLocationIds(updated)
-        recordLocationSetChange(current, updated, cause)
-    }
+    fun addLocationId(id: Long, cause: LocationSetChangeCause) =
+        recordTransition(id, inside = true, cause = cause)
 
-    fun removeLocationId(id: Long, cause: LocationSetChangeCause) = synchronized(locationIdLock) {
-        val current = _currentLocationIds.value
-        if (id !in current) return@synchronized
-        val updated = current - id
-        _currentLocationIds.value = updated
-        persistLocationIds(updated)
-        recordLocationSetChange(current, updated, cause)
-    }
+    fun removeLocationId(id: Long, cause: LocationSetChangeCause) =
+        recordTransition(id, inside = false, cause = cause)
+
+    // A repeated ENTER, or an EXIT for a location already believed outside, leaves the set
+    // alone but still establishes that location's answer, so the check is stamped either way
+    // and only the breadcrumb is gated on the set actually changing.
+    private fun recordTransition(id: Long, inside: Boolean, cause: LocationSetChangeCause) =
+        synchronized(locationIdLock) {
+            val current = _currentLocationIds.value
+            val updated = if (inside) current + id else current - id
+            publish(updated, _locationChecks.value + (id to LocationCheck(inside, checkedNow(), cause)))
+            if (updated != current) recordLocationSetChange(current, updated, cause)
+        }
 
     /**
-     * Overwrites the whole set from a reconciliation against a real position fix, in one
-     * atomic persist and emission — composing add/remove calls would publish intermediate
-     * sets that were never true of the device's position.
+     * Records a reconciliation against a real position fix in one atomic persist and emission —
+     * composing add/remove calls would publish intermediate sets that were never true of the
+     * device's position. Every location judged against the fix is stamped, including the ones
+     * found outside, and checks for locations no longer judged are dropped. Taking one map of
+     * every judgement rather than a set of ids plus a set of evaluated ones makes it impossible
+     * to record a location as inside without also recording when that was established.
      */
-    fun replaceLocationIds(ids: Set<Long>) = synchronized(locationIdLock) {
+    fun recordReconciliation(judgements: Map<Long, Boolean>) = synchronized(locationIdLock) {
         val current = _currentLocationIds.value
-        if (ids == current) return@synchronized
-        _currentLocationIds.value = ids
-        persistLocationIds(ids)
-        recordLocationSetChange(current, ids, LocationSetChangeCause.RECONCILE)
+        val checkedAt = checkedNow()
+        val updated = judgements.filterValues { it }.keys
+        publish(
+            updated,
+            judgements.mapValues { (_, inside) ->
+                LocationCheck(inside, checkedAt, LocationSetChangeCause.RECONCILE)
+            },
+        )
+        if (updated != current) recordLocationSetChange(current, updated, LocationSetChangeCause.RECONCILE)
     }
 
     private fun hasPermission(permission: String): Boolean =
