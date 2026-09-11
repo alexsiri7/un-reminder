@@ -41,10 +41,20 @@ class LocationSettingsChangedReceiverTest {
     }
 
     @Test
-    fun `register wires the filter so a system broadcast reaches the manager`() {
+    fun `register wires the filter so a MODE_CHANGED broadcast reaches the manager`() {
         LocationSettingsChangedReceiver.register(context, geofenceManager)
 
         context.sendBroadcast(Intent(LocationManager.MODE_CHANGED_ACTION))
+        shadowOf(Looper.getMainLooper()).idle()
+
+        verify(exactly = 1) { geofenceManager.refreshRegistration() }
+    }
+
+    @Test
+    fun `register wires the filter so a PROVIDERS_CHANGED broadcast reaches the manager`() {
+        LocationSettingsChangedReceiver.register(context, geofenceManager)
+
+        context.sendBroadcast(Intent(LocationManager.PROVIDERS_CHANGED_ACTION))
         shadowOf(Looper.getMainLooper()).idle()
 
         verify(exactly = 1) { geofenceManager.refreshRegistration() }
