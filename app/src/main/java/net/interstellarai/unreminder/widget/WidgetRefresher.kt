@@ -7,6 +7,8 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.first
+import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.data.repository.WindowRepository
 import java.time.Duration
 import java.time.LocalDateTime
@@ -24,6 +26,7 @@ class WidgetRefresher @Inject constructor(
     private val workManager: WorkManager,
     private val picker: DoableHabitPicker,
     private val windowRepository: WindowRepository,
+    private val triggerRepository: TriggerRepository,
 ) {
     companion object {
         const val WORK_NAME = "widget_refresh"
@@ -39,18 +42,29 @@ class WidgetRefresher @Inject constructor(
         )
     }
 
-    /** Re-picks for every placed widget and pushes the result to the launcher. */
+    /**
+     * Re-picks for every placed widget, snapshots today's progress alongside it, and pushes
+     * both to the launcher in one update.
+     */
     suspend fun refreshNow() {
         val ids = GlanceAppWidgetManager(context).getGlanceIds(DoableHabitWidget::class.java)
         if (ids.isEmpty()) return
         val habit = picker.pick()
+        val progress = dayProgress()
         val widget = DoableHabitWidget()
         for (id in ids) {
-            updateAppWidgetState(context, id) { DoableHabitWidget.store(it, habit) }
+            updateAppWidgetState(context, id) { DoableHabitWidget.store(it, habit, progress) }
             widget.update(context, id)
         }
         scheduleRefreshAtNextWindowBoundary()
     }
+
+    // Built fresh on every refresh rather than collected once: the repository resolves "today"
+    // when the flow is created, so this is what makes the tick after midnight read as not yet.
+    internal suspend fun dayProgress(): DayProgress = DayProgress(
+        completedToday = triggerRepository.hasCompletedAnythingToday().first(),
+        daysWithAnyCompletion = triggerRepository.daysWithAnyCompletion().first(),
+    )
 
     // Nothing else in the app fires when a window opens or closes, so each refresh arms a
     // single wake-up at the next boundary instead of polling for it.
