@@ -50,22 +50,37 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         }
 
         val transition = event.geofenceTransition
-        val triggeringGeofences = event.triggeringGeofences ?: return
+        val triggeringIds = event.triggeringGeofences.orEmpty().mapNotNull { it.requestId.toLongOrNull() }
 
         var changed = false
-        for (geofence in triggeringGeofences) {
-            val locationId = geofence.requestId.toLongOrNull() ?: continue
+        for (locationId in triggeringIds) {
             when (transition) {
                 Geofence.GEOFENCE_TRANSITION_ENTER -> {
-                    geofenceManager.addLocationId(locationId)
+                    geofenceManager.addLocationId(locationId, LocationSetChangeCause.ENTER)
                     changed = true
                 }
                 Geofence.GEOFENCE_TRANSITION_EXIT -> {
-                    geofenceManager.removeLocationId(locationId)
+                    geofenceManager.removeLocationId(locationId, LocationSetChangeCause.EXIT)
                     changed = true
                 }
             }
         }
+        // Reported unconditionally: a week with zero of these is the finding that separates
+        // "registered but never fires" from "fires but the state is mishandled".
+        Sentry.captureMessage("Geofence transition") { scope ->
+            scope.setTag("component", "geofence")
+            scope.setTag("transition", transitionName(transition))
+            scope.setExtra("location_ids", triggeringIds.toString())
+            scope.setExtra("resulting_set_size", geofenceManager.currentLocationIds.value.size.toString())
+            scope.level = SentryLevel.INFO
+        }
         if (changed) widgetRefresher.refresh()
+    }
+
+    private fun transitionName(transition: Int): String = when (transition) {
+        Geofence.GEOFENCE_TRANSITION_ENTER -> "ENTER"
+        Geofence.GEOFENCE_TRANSITION_EXIT -> "EXIT"
+        Geofence.GEOFENCE_TRANSITION_DWELL -> "DWELL"
+        else -> "UNKNOWN($transition)"
     }
 }

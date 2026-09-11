@@ -1,6 +1,9 @@
 package net.interstellarai.unreminder.di
 
 import android.content.Context
+import com.google.android.gms.location.GeofencingClient
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.SettingsClient
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.service.worker.RefillScheduler
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
@@ -24,10 +27,22 @@ object ServiceModule {
 
     @Provides
     @Singleton
+    fun provideGeofencingClient(@ApplicationContext context: Context): GeofencingClient =
+        LocationServices.getGeofencingClient(context)
+
+    @Provides
+    @Singleton
+    fun provideSettingsClient(@ApplicationContext context: Context): SettingsClient =
+        LocationServices.getSettingsClient(context)
+
+    @Provides
+    @Singleton
     fun provideGeofenceManager(
         @ApplicationContext context: Context,
-        locationRepository: LocationRepository
-    ): GeofenceManager = GeofenceManager(context, locationRepository)
+        locationRepository: LocationRepository,
+        geofencingClient: GeofencingClient,
+        settingsClient: SettingsClient,
+    ): GeofenceManager = GeofenceManager(context, locationRepository, geofencingClient, settingsClient)
 
     @Provides
     @Singleton

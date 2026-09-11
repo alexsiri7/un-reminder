@@ -4,6 +4,7 @@ import android.content.Context
 import net.interstellarai.unreminder.data.db.LocationEntity
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
+import net.interstellarai.unreminder.service.geofence.GeofenceRegistration
 import net.interstellarai.unreminder.service.geofence.GeofenceManager.Companion.MIN_RADIUS_M
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -35,6 +36,7 @@ class MapPickerViewModelTest {
         Dispatchers.setMain(testDispatcher)
         locationRepository = mockk(relaxUnitFun = true)
         geofenceManager = mockk(relaxUnitFun = true)
+        coEvery { geofenceManager.registerGeofence(any(), any(), any(), any(), any()) } returns GeofenceRegistration.Registered
         val context = mockk<Context>(relaxed = true)
         viewModel = MapPickerViewModel(locationRepository, geofenceManager, context)
     }
@@ -111,7 +113,6 @@ class MapPickerViewModelTest {
     fun `save calls upsertLocation and registerGeofence`() = runTest {
         val savedId = 7L
         coEvery { locationRepository.upsertLocation(any(), any(), any(), any()) } returns savedId
-        coEvery { geofenceManager.registerGeofence(any(), any(), any(), any(), any()) } returns Unit
 
         viewModel.updateName("Home")
         viewModel.updatePin(51.5, -0.1)
