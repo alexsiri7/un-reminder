@@ -35,7 +35,7 @@ jobs:
 
       - name: Unit tests
         id: unit_tests
-        run: ./gradlew test --stacktrace
+        run: ./gradlew test :app:verifyPaparazziRelease --stacktrace
         continue-on-error: true
 
       - name: Upload Paparazzi diff report
