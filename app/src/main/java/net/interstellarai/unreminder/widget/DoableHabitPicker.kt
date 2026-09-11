@@ -5,7 +5,6 @@ import net.interstellarai.unreminder.data.repository.HabitLevelDescriptionReposi
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.domain.HabitAvailabilityService
-import net.interstellarai.unreminder.domain.isDoableNow
 import net.interstellarai.unreminder.service.notification.EmojiRotator
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -24,7 +23,10 @@ data class DoableHabit(
     val spriteTag: String?,
 )
 
-/** Chooses what the home-screen widget shows: one eligible habit, or nothing. */
+/**
+ * Chooses what the home-screen widget shows: one habit from the best display tier that has
+ * any, so a blocked habit still gets offered. Nothing only when there is no active habit.
+ */
 @Singleton
 class DoableHabitPicker @Inject constructor(
     private val habitRepository: HabitRepository,
@@ -35,12 +37,9 @@ class DoableHabitPicker @Inject constructor(
 ) {
     suspend fun pick(): DoableHabit? {
         val habits = habitRepository.getAll().first()
-        if (habits.isEmpty()) return null
-        val availability = availabilityService.computeForAll(habits)
-        val habit = habits
-            .filter { availability[it.id]?.isDoableNow == true }
-            .randomOrNull()
-            ?: return null
+        val tiers = availabilityService.computeDisplayTiers(habits)
+        val bestTier = tiers.values.minOrNull() ?: return null
+        val habit = habits.filter { tiers[it.id] == bestTier }.randomOrNull() ?: return null
         val variation = variationRepository.peekUnusedVariation(habit.id)
         val text = variation?.text
             ?: levelDescriptionRepository.getDescriptionForLevel(habit.id, habit.dedicationLevel)

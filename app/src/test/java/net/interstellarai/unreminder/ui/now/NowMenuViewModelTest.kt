@@ -27,9 +27,8 @@ import net.interstellarai.unreminder.data.repository.HabitLevelDescriptionReposi
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
-import net.interstellarai.unreminder.domain.AvailabilityStatus
+import net.interstellarai.unreminder.domain.DisplayTier
 import net.interstellarai.unreminder.domain.HabitAvailabilityService
-import net.interstellarai.unreminder.domain.UnavailableReason
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.notification.MascotSprites
 import net.interstellarai.unreminder.service.notification.SpriteResolver
@@ -80,13 +79,13 @@ class NowMenuViewModelTest {
 
     private fun givenHabits(
         habits: List<HabitEntity>,
-        availability: Map<Long, AvailabilityStatus>,
+        tiers: Map<Long, DisplayTier>,
     ) {
         every { habitRepository.getAll() } returns flowOf(habits)
-        coEvery { availabilityService.computeForAll(habits) } returns availability
+        coEvery { availabilityService.computeDisplayTiers(habits) } returns tiers
     }
 
-    private fun allAvailable(habits: List<HabitEntity>) = habits.associate { it.id to AvailabilityStatus.Available }
+    private fun allDoable(habits: List<HabitEntity>) = habits.associate { it.id to DisplayTier.DOABLE }
 
     private fun buildViewModel() = NowMenuViewModel(
         habitRepository,
@@ -104,7 +103,7 @@ class NowMenuViewModelTest {
     @Test
     fun `exactly 3 shown when more than 3 are eligible`() = runTest(testDispatcher) {
         val habits = (1L..5L).map { habit(it) }
-        givenHabits(habits, allAvailable(habits))
+        givenHabits(habits, allDoable(habits))
         val vm = buildViewModel()
         vm.refresh()
         advanceUntilIdle()
@@ -116,7 +115,7 @@ class NowMenuViewModelTest {
     @Test
     fun `all shown when fewer than 3 are eligible`() = runTest(testDispatcher) {
         val habits = (1L..2L).map { habit(it) }
-        givenHabits(habits, allAvailable(habits))
+        givenHabits(habits, allDoable(habits))
         val vm = buildViewModel()
         vm.refresh()
         advanceUntilIdle()
@@ -128,7 +127,7 @@ class NowMenuViewModelTest {
     @Test
     fun `load more appends the next 3 without repeating an already shown habit`() = runTest(testDispatcher) {
         val habits = (1L..7L).map { habit(it) }
-        givenHabits(habits, allAvailable(habits))
+        givenHabits(habits, allDoable(habits))
         val vm = buildViewModel()
         vm.refresh()
         advanceUntilIdle()
@@ -146,7 +145,7 @@ class NowMenuViewModelTest {
     @Test
     fun `load more is unavailable once the eligible set is exhausted`() = runTest(testDispatcher) {
         val habits = (1L..4L).map { habit(it) }
-        givenHabits(habits, allAvailable(habits))
+        givenHabits(habits, allDoable(habits))
         val vm = buildViewModel()
         vm.refresh()
         advanceUntilIdle()
@@ -158,17 +157,16 @@ class NowMenuViewModelTest {
     }
 
     @Test
-    fun `ineligible habits never appear`() = runTest(testDispatcher) {
+    fun `paused habits never appear because the service gives them no tier`() = runTest(testDispatcher) {
         val habits = (1L..6L).map { habit(it) }
         givenHabits(
             habits,
             mapOf(
-                1L to AvailabilityStatus.Available,
-                2L to AvailabilityStatus.Unavailable(listOf(UnavailableReason.COMPLETED)),
-                3L to AvailabilityStatus.NewHabit,
-                4L to AvailabilityStatus.Unavailable(listOf(UnavailableReason.TIME_WINDOW)),
-                5L to AvailabilityStatus.Available,
-                6L to AvailabilityStatus.Unavailable(listOf(UnavailableReason.INACTIVE, UnavailableReason.LOCATION)),
+                1L to DisplayTier.DOABLE,
+                2L to DisplayTier.DONE_TODAY,
+                3L to DisplayTier.DOABLE,
+                4L to DisplayTier.OUT_OF_HOURS,
+                5L to DisplayTier.DOABLE,
             ),
         )
         val vm = buildViewModel()
@@ -176,14 +174,118 @@ class NowMenuViewModelTest {
         advanceUntilIdle()
         vm.loadMore()
 
-        assertEquals(setOf(1L, 3L, 5L), vm.menu().items.map { it.habitId }.toSet())
+        assertEquals(setOf(1L, 2L, 3L, 4L, 5L), vm.menu().items.map { it.habitId }.toSet())
         assertFalse(vm.menu().canLoadMore)
+    }
+
+    @Test
+    fun `doable habits fill the first page before anything ranked lower`() = runTest(testDispatcher) {
+        val habits = (1L..6L).map { habit(it) }
+        givenHabits(
+            habits,
+            mapOf(
+                1L to DisplayTier.DONE_TODAY,
+                2L to DisplayTier.DOABLE,
+                3L to DisplayTier.RECENTLY_DISMISSED,
+                4L to DisplayTier.DOABLE,
+                5L to DisplayTier.PACED,
+                6L to DisplayTier.DOABLE,
+            ),
+        )
+        val vm = buildViewModel()
+        vm.refresh()
+        advanceUntilIdle()
+
+        assertEquals(setOf(2L, 4L, 6L), vm.menu().items.map { it.habitId }.toSet())
+        assertTrue(vm.menu().items.all { it.tier == DisplayTier.DOABLE })
+        assertTrue(vm.menu().canLoadMore)
+    }
+
+    @Test
+    fun `with no doable habit the menu tops up from recently dismissed and then blocked`() = runTest(testDispatcher) {
+        val habits = (1L..4L).map { habit(it) }
+        givenHabits(
+            habits,
+            mapOf(
+                1L to DisplayTier.DONE_TODAY,
+                2L to DisplayTier.RECENTLY_DISMISSED,
+                3L to DisplayTier.OUT_OF_HOURS,
+                4L to DisplayTier.PACED,
+            ),
+        )
+        val vm = buildViewModel()
+        vm.refresh()
+        advanceUntilIdle()
+
+        assertEquals(listOf(2L, 4L, 3L), vm.menu().items.map { it.habitId })
+        assertTrue(vm.menu().canLoadMore)
+    }
+
+    @Test
+    fun `with every habit blocked the menu still shows three rows, done today last`() = runTest(testDispatcher) {
+        val habits = (1L..4L).map { habit(it) }
+        givenHabits(
+            habits,
+            mapOf(
+                1L to DisplayTier.DONE_TODAY,
+                2L to DisplayTier.ELSEWHERE,
+                3L to DisplayTier.OUT_OF_HOURS,
+                4L to DisplayTier.PACED,
+            ),
+        )
+        val vm = buildViewModel()
+        vm.refresh()
+        advanceUntilIdle()
+
+        assertEquals(listOf(4L, 3L, 2L), vm.menu().items.map { it.habitId })
+        vm.loadMore()
+        assertEquals(listOf(4L, 3L, 2L, 1L), vm.menu().items.map { it.habitId })
+    }
+
+    @Test
+    fun `order within a tier is held across load more and varies between screen entries`() = runTest(testDispatcher) {
+        val habits = (1L..12L).map { habit(it) }
+        givenHabits(habits, habits.associate { it.id to if (it.id <= 6L) DisplayTier.DOABLE else DisplayTier.DONE_TODAY })
+        val vm = buildViewModel()
+        val doableOrders = mutableSetOf<List<Long>>()
+        val doneOrders = mutableSetOf<List<Long>>()
+        repeat(20) {
+            vm.refresh()
+            advanceUntilIdle()
+            val firstPage = vm.menu().items.map { it.habitId }
+            vm.loadMore()
+            vm.loadMore()
+            vm.loadMore()
+            val full = vm.menu().items.map { it.habitId }
+            assertEquals(firstPage, full.take(3))
+            assertEquals((1L..6L).toSet(), full.take(6).toSet())
+            assertEquals((7L..12L).toSet(), full.drop(6).toSet())
+            doableOrders += full.take(6)
+            doneOrders += full.drop(6)
+        }
+
+        assertTrue("20 entries produced only ${doableOrders.size} doable order(s)", doableOrders.size > 1)
+        assertTrue("20 entries produced only ${doneOrders.size} done-today order(s)", doneOrders.size > 1)
+    }
+
+    @Test
+    fun `every row carries its tier for the screen to explain`() = runTest(testDispatcher) {
+        val habits = (1L..2L).map { habit(it) }
+        givenHabits(habits, mapOf(1L to DisplayTier.DOABLE, 2L to DisplayTier.ELSEWHERE))
+        val vm = buildViewModel()
+        vm.refresh()
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(1L to DisplayTier.DOABLE, 2L to DisplayTier.ELSEWHERE),
+            vm.menu().items.map { it.habitId to it.tier },
+        )
     }
 
     @Test
     fun `rows carry a peeked variant and the sprite its tag names`() = runTest(testDispatcher) {
         val habits = listOf(habit(1L, level = 4))
-        givenHabits(habits, allAvailable(habits))
+        givenHabits(habits, allDoable(habits))
         coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 4) } returns "ten minutes"
         val sprite = MascotSprites.entries[3]
         coEvery { variationRepository.peekUnusedVariation(1L) } returns variation(7L, 1L, "sit like a wizard", sprite.tag)
@@ -200,7 +302,7 @@ class NowMenuViewModelTest {
     @Test
     fun `with an empty pool every doable habit falls back to its level description and a rotation sprite`() = runTest(testDispatcher) {
         val habits = (1L..3L).map { habit(it, level = 4) }
-        givenHabits(habits, allAvailable(habits))
+        givenHabits(habits, allDoable(habits))
         habits.forEach { coEvery { levelDescriptionRepository.getDescriptionForLevel(it.id, 4) } returns "ten minutes for ${it.id}" }
         val vm = buildViewModel()
         vm.refresh()
@@ -218,7 +320,7 @@ class NowMenuViewModelTest {
     @Test
     fun `a blank level description leaves the row with only its name and sprite`() = runTest(testDispatcher) {
         val habits = listOf(habit(1L))
-        givenHabits(habits, allAvailable(habits))
+        givenHabits(habits, allDoable(habits))
         coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 2) } returns " "
         val vm = buildViewModel()
         vm.refresh()
@@ -231,7 +333,7 @@ class NowMenuViewModelTest {
     @Test
     fun `rendering the menu only peeks and never consumes or refills`() = runTest(testDispatcher) {
         val habits = (1L..2L).map { habit(it) }
-        givenHabits(habits, allAvailable(habits))
+        givenHabits(habits, allDoable(habits))
         coEvery { variationRepository.peekUnusedVariation(1L) } returns variation(7L, 1L)
         val vm = buildViewModel()
         vm.refresh()
@@ -247,7 +349,7 @@ class NowMenuViewModelTest {
     @Test
     fun `a row's variant and sprite are held across load more`() = runTest(testDispatcher) {
         val habits = (1L..5L).map { habit(it) }
-        givenHabits(habits, allAvailable(habits))
+        givenHabits(habits, allDoable(habits))
         habits.forEach { h ->
             coEvery { variationRepository.peekUnusedVariation(h.id) } returnsMany listOf(
                 variation(h.id * 10, h.id, spriteTag = MascotSprites.entries[0].tag),
@@ -274,7 +376,7 @@ class NowMenuViewModelTest {
     @Test
     fun `completing marks exactly the displayed variant consumed`() = runTest(testDispatcher) {
         val habits = (1L..3L).map { habit(it) }
-        givenHabits(habits, allAvailable(habits))
+        givenHabits(habits, allDoable(habits))
         habits.forEach { h -> coEvery { variationRepository.peekUnusedVariation(h.id) } returns variation(h.id * 10, h.id) }
         coEvery { triggerRepository.insert(any()) } returns 99L
         val vm = buildViewModel()
@@ -292,7 +394,7 @@ class NowMenuViewModelTest {
     @Test
     fun `a failed consume after the write keeps the habit completed and promoted`() = runTest(testDispatcher) {
         val habits = (1L..3L).map { habit(it) }
-        givenHabits(habits, allAvailable(habits))
+        givenHabits(habits, allDoable(habits))
         habits.forEach { h -> coEvery { variationRepository.peekUnusedVariation(h.id) } returns variation(h.id * 10, h.id) }
         coEvery { triggerRepository.insert(any()) } returns 99L
         coEvery { variationRepository.markConsumed(any()) } throws IllegalStateException("variations table locked")
@@ -316,7 +418,7 @@ class NowMenuViewModelTest {
     @Test
     fun `completing a fallback row consumes nothing`() = runTest(testDispatcher) {
         val habits = (1L..3L).map { habit(it) }
-        givenHabits(habits, allAvailable(habits))
+        givenHabits(habits, allDoable(habits))
         coEvery { triggerRepository.insert(any()) } returns 99L
         val vm = buildViewModel()
         vm.refresh()
@@ -331,7 +433,7 @@ class NowMenuViewModelTest {
     @Test
     fun `a failed completion write consumes nothing`() = runTest(testDispatcher) {
         val habits = (1L..3L).map { habit(it) }
-        givenHabits(habits, allAvailable(habits))
+        givenHabits(habits, allDoable(habits))
         habits.forEach { h -> coEvery { variationRepository.peekUnusedVariation(h.id) } returns variation(h.id * 10, h.id) }
         coEvery { triggerRepository.insert(any()) } throws IllegalStateException("disk full")
         val vm = buildViewModel()
@@ -347,7 +449,7 @@ class NowMenuViewModelTest {
     @Test
     fun `completing inserts a COMPLETED menu trigger and runs promotion`() = runTest(testDispatcher) {
         val habits = (1L..4L).map { habit(it) }
-        givenHabits(habits, allAvailable(habits))
+        givenHabits(habits, allDoable(habits))
         val inserted = slot<TriggerEntity>()
         coEvery { triggerRepository.insert(capture(inserted)) } returns 99L
         val vm = buildViewModel()
@@ -370,7 +472,7 @@ class NowMenuViewModelTest {
     @Test
     fun `completing removes the habit and backfills from the held shuffle`() = runTest(testDispatcher) {
         val habits = (1L..4L).map { habit(it) }
-        givenHabits(habits, allAvailable(habits))
+        givenHabits(habits, allDoable(habits))
         coEvery { triggerRepository.insert(any()) } returns 99L
         val vm = buildViewModel()
         vm.refresh()
@@ -390,7 +492,7 @@ class NowMenuViewModelTest {
     @Test
     fun `a failed completion write puts the habit back where it was`() = runTest(testDispatcher) {
         val habits = (1L..4L).map { habit(it) }
-        givenHabits(habits, allAvailable(habits))
+        givenHabits(habits, allDoable(habits))
         coEvery { triggerRepository.insert(any()) } throws IllegalStateException("disk full")
         val vm = buildViewModel()
         vm.refresh()
@@ -411,7 +513,7 @@ class NowMenuViewModelTest {
     @Test
     fun `a failed completion write on the last habit does not leave the screen loading`() = runTest(testDispatcher) {
         val habits = listOf(habit(1L))
-        givenHabits(habits, allAvailable(habits))
+        givenHabits(habits, allDoable(habits))
         coEvery { triggerRepository.insert(any()) } throws IllegalStateException("disk full")
         val vm = buildViewModel()
         vm.refresh()
@@ -422,13 +524,13 @@ class NowMenuViewModelTest {
         advanceUntilIdle()
 
         assertEquals(listOf(1L), vm.menu().items.map { it.habitId })
-        coVerify(exactly = 1) { availabilityService.computeForAll(habits) }
+        coVerify(exactly = 1) { availabilityService.computeDisplayTiers(habits) }
     }
 
     @Test
     fun `a failed promotion after the write keeps the habit completed`() = runTest(testDispatcher) {
         val habits = (1L..4L).map { habit(it) }
-        givenHabits(habits, allAvailable(habits))
+        givenHabits(habits, allDoable(habits))
         coEvery { triggerRepository.insert(any()) } returns 99L
         coEvery { dismissalTracker.onCompleted(99L) } throws IllegalStateException("promotion broke")
         val vm = buildViewModel()
@@ -449,7 +551,7 @@ class NowMenuViewModelTest {
     @Test
     fun `a failed promotion skips consuming the displayed variant`() = runTest(testDispatcher) {
         val habits = (1L..2L).map { habit(it) }
-        givenHabits(habits, allAvailable(habits))
+        givenHabits(habits, allDoable(habits))
         coEvery { variationRepository.peekUnusedVariation(1L) } returns variation(10L, 1L)
         coEvery { triggerRepository.insert(any()) } returns 99L
         coEvery { dismissalTracker.onCompleted(99L) } throws IllegalStateException("promotion broke")
@@ -477,12 +579,35 @@ class NowMenuViewModelTest {
     }
 
     @Test
-    fun `completing the last eligible habit falls through to the empty state`() = runTest(testDispatcher) {
+    fun `completing a blocked habit is a normal completion`() = runTest(testDispatcher) {
+        val habits = (1L..2L).map { habit(it) }
+        givenHabits(habits, mapOf(1L to DisplayTier.DONE_TODAY, 2L to DisplayTier.OUT_OF_HOURS))
+        coEvery { variationRepository.peekUnusedVariation(1L) } returns variation(10L, 1L)
+        val inserted = slot<TriggerEntity>()
+        coEvery { triggerRepository.insert(capture(inserted)) } returns 99L
+        val vm = buildViewModel()
+        vm.refresh()
+        advanceUntilIdle()
+
+        vm.complete(1L)
+        advanceUntilIdle()
+
+        assertEquals(1L, inserted.captured.habitId)
+        assertEquals(TriggerStatus.COMPLETED, inserted.captured.status)
+        assertEquals("menu", inserted.captured.source)
+        coVerify(exactly = 1) { dismissalTracker.onCompleted(99L) }
+        coVerify(exactly = 1) { variationRepository.markConsumed(10L) }
+        verify(exactly = 1) { widgetRefresher.refresh() }
+        assertEquals(listOf(2L), vm.menu().items.map { it.habitId })
+    }
+
+    @Test
+    fun `completing the last row reloads and the habit comes back ranked as done`() = runTest(testDispatcher) {
         val habits = listOf(habit(1L))
         every { habitRepository.getAll() } returns flowOf(habits)
-        coEvery { availabilityService.computeForAll(habits) } returnsMany listOf(
-            allAvailable(habits),
-            mapOf(1L to AvailabilityStatus.Unavailable(listOf(UnavailableReason.COMPLETED))),
+        coEvery { availabilityService.computeDisplayTiers(habits) } returnsMany listOf(
+            allDoable(habits),
+            mapOf(1L to DisplayTier.DONE_TODAY),
         )
         coEvery { triggerRepository.insert(any()) } returns 99L
         val vm = buildViewModel()
@@ -492,50 +617,18 @@ class NowMenuViewModelTest {
         vm.complete(1L)
         advanceUntilIdle()
 
-        assertEquals(NowMenuUiState.NothingDoable(UnavailableReason.COMPLETED), vm.uiState.value)
+        assertEquals(listOf(1L to DisplayTier.DONE_TODAY), vm.menu().items.map { it.habitId to it.tier })
     }
 
     @Test
-    fun `empty state reports the dominant unavailability reason`() = runTest(testDispatcher) {
+    fun `every habit paused is the only other empty state`() = runTest(testDispatcher) {
         val habits = (1L..3L).map { habit(it) }
-        givenHabits(
-            habits,
-            mapOf(
-                1L to AvailabilityStatus.Unavailable(listOf(UnavailableReason.TIME_WINDOW)),
-                2L to AvailabilityStatus.Unavailable(listOf(UnavailableReason.TIME_WINDOW, UnavailableReason.COOLDOWN)),
-                3L to AvailabilityStatus.Unavailable(listOf(UnavailableReason.LOCATION)),
-            ),
-        )
+        givenHabits(habits, emptyMap())
         val vm = buildViewModel()
         vm.refresh()
         advanceUntilIdle()
 
-        assertEquals(NowMenuUiState.NothingDoable(UnavailableReason.TIME_WINDOW), vm.uiState.value)
-    }
-
-    @Test
-    fun `empty state ignores paused habits unless every habit is paused`() = runTest(testDispatcher) {
-        val habits = (1L..3L).map { habit(it) }
-        givenHabits(
-            habits,
-            mapOf(
-                1L to AvailabilityStatus.Unavailable(listOf(UnavailableReason.INACTIVE, UnavailableReason.LOCATION)),
-                2L to AvailabilityStatus.Unavailable(listOf(UnavailableReason.INACTIVE, UnavailableReason.LOCATION)),
-                3L to AvailabilityStatus.Unavailable(listOf(UnavailableReason.COMPLETED)),
-            ),
-        )
-        val vm = buildViewModel()
-        vm.refresh()
-        advanceUntilIdle()
-        assertEquals(NowMenuUiState.NothingDoable(UnavailableReason.COMPLETED), vm.uiState.value)
-
-        givenHabits(
-            habits,
-            habits.associate { it.id to AvailabilityStatus.Unavailable(listOf(UnavailableReason.INACTIVE)) },
-        )
-        vm.refresh()
-        advanceUntilIdle()
-        assertEquals(NowMenuUiState.NothingDoable(UnavailableReason.INACTIVE), vm.uiState.value)
+        assertEquals(NowMenuUiState.NoHabits(allPaused = true), vm.uiState.value)
     }
 
     @Test
@@ -545,6 +638,6 @@ class NowMenuViewModelTest {
         vm.refresh()
         advanceUntilIdle()
 
-        assertEquals(NowMenuUiState.NoHabits, vm.uiState.value)
+        assertEquals(NowMenuUiState.NoHabits(allPaused = false), vm.uiState.value)
     }
 }

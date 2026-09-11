@@ -11,6 +11,7 @@ import com.android.resources.Density
 import com.google.android.gms.location.GeofenceStatusCodes
 import com.google.android.gms.location.LocationSettingsStatusCodes
 import net.interstellarai.unreminder.data.db.HabitEntity
+import net.interstellarai.unreminder.domain.DisplayTier
 import net.interstellarai.unreminder.service.geofence.GeofenceRegistration
 import net.interstellarai.unreminder.service.geofence.LocationSettingsCheck
 import net.interstellarai.unreminder.service.geofence.RegistrationHealth
@@ -158,6 +159,7 @@ internal val fakeNowMenu = NowMenuUiState.Menu(
             text = "Two minutes of stillness before the next thing — the astronaut kind, drifting.",
             variationId = 11,
             spriteRes = MascotSprites.entries[0].drawableRes,
+            tier = DisplayTier.DOABLE,
         ),
         NowMenuItem(
             habitId = 2,
@@ -165,8 +167,9 @@ internal val fakeNowMenu = NowMenuUiState.Menu(
             text = "A short walk around the block, treasure map optional.",
             variationId = 12,
             spriteRes = MascotSprites.entries[1].drawableRes,
+            tier = DisplayTier.DOABLE,
         ),
-        NowMenuItem(habitId = 3, name = "reading", text = null, variationId = null, spriteRes = MascotSprites.entries[2].drawableRes),
+        NowMenuItem(habitId = 3, name = "reading", text = null, variationId = null, spriteRes = MascotSprites.entries[2].drawableRes, tier = DisplayTier.DOABLE),
     ),
     canLoadMore = true,
 )
