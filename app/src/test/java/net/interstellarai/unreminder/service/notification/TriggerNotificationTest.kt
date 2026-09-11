@@ -8,6 +8,7 @@ import android.graphics.drawable.Icon
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -83,5 +84,31 @@ class TriggerNotificationTest {
             assertNotEquals(0, flags and PendingIntent.FLAG_IMMUTABLE)
             assertEquals(0, flags and PendingIntent.FLAG_MUTABLE)
         }
+    }
+
+    @Test
+    fun `swiping the trigger notification away records a dismissal`() {
+        val notification = posted(triggerId = 42L, spriteTag = null)
+
+        val shadow = shadowOf(requireNotNull(notification.deleteIntent) { "no delete intent" })
+        assertTrue(shadow.isBroadcast)
+        val saved = shadow.savedIntent
+        assertEquals(NotificationActionReceiver::class.java.name, saved.component?.className)
+        assertEquals(
+            NotificationHelper.ACTION_DISMISSED,
+            saved.getStringExtra(NotificationHelper.EXTRA_ACTION)
+        )
+        assertEquals(42L, saved.getLongExtra(NotificationHelper.EXTRA_TRIGGER_ID, -1L))
+    }
+
+    @Test
+    fun `the delete intent is immutable and does not collapse with the Dismiss action`() {
+        val notification = posted(triggerId = 42L, spriteTag = null)
+
+        val deleteShadow = shadowOf(requireNotNull(notification.deleteIntent) { "no delete intent" })
+        val dismissShadow = shadowOf(notification.actions.single { it.title == "Dismiss" }.actionIntent)
+        assertNotEquals(deleteShadow.requestCode, dismissShadow.requestCode)
+        assertNotEquals(0, deleteShadow.flags and PendingIntent.FLAG_IMMUTABLE)
+        assertEquals(0, deleteShadow.flags and PendingIntent.FLAG_MUTABLE)
     }
 }

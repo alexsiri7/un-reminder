@@ -48,6 +48,15 @@ class NotificationActionReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
+                val existingStatus = triggerRepository.getById(triggerId)?.status
+                if (existingStatus == TriggerStatus.COMPLETED || existingStatus == TriggerStatus.DISMISSED) {
+                    // A swipe can land between a tap and the cancel below (#291), delivering a
+                    // second broadcast for the same trigger. The outcome is already recorded.
+                    Log.d(TAG, "onReceive: trigger=$triggerId already $existingStatus, ignoring $action")
+                    context.getSystemService(NotificationManager::class.java)
+                        .cancel(triggerId.toRequestCode())
+                    return@launch
+                }
                 triggerRepository.updateOutcome(triggerId, status)
                 when (status) {
                     TriggerStatus.COMPLETED -> dismissalTracker.onCompleted(triggerId)

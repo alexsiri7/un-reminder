@@ -41,6 +41,9 @@ class NotificationHelper @Inject constructor(
         // Single fixed id: there is at most one evening invitation, and it is never
         // keyed by a trigger. Kept above DETAIL_BASE so it can't collide with per-trigger codes.
         const val NOTIFICATION_ID_EVENING_INVITATION = 4_000_000L
+        // Swipe-away delete intents: the * 3 per-trigger action slots are all taken
+        // (0=COMPLETED, 1=DISMISSED, 2=WATCH), so these come from their own band.
+        const val NOTIFICATION_DELETE_BASE = 5_000_000L
     }
 
     fun createNotificationChannel() {
@@ -82,8 +85,12 @@ class NotificationHelper @Inject constructor(
         spriteTag: String? = null,
     ) {
         val emoji = emojiRotator.pick(triggerId)
-        val completedIntent = createActionIntent(triggerId, ACTION_COMPLETED, 0)
-        val dismissIntent = createActionIntent(triggerId, ACTION_DISMISSED, 1)
+        // Per-trigger action slots: 0=COMPLETED, 1=DISMISSED, 2=WATCH (the getActivity call below).
+        val completedIntent = createActionIntent(triggerId, ACTION_COMPLETED, triggerId * 3 + 0)
+        val dismissIntent = createActionIntent(triggerId, ACTION_DISMISSED, triggerId * 3 + 1)
+        // A swipe is a dismissal (#291); its own request-code band keeps it from colliding
+        // with another trigger's action slots.
+        val deleteIntent = createActionIntent(triggerId, ACTION_DISMISSED, NOTIFICATION_DELETE_BASE + triggerId)
 
         // The system rounds the large icon's corners itself; the opaque tile goes in as-is.
         val sprite = Icon.createWithResource(context, spriteResolver.resolve(spriteTag, triggerId))
@@ -95,6 +102,7 @@ class NotificationHelper @Inject constructor(
             .setStyle(NotificationCompat.BigTextStyle().bigText(promptText))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
+            .setDeleteIntent(deleteIntent)
             .addAction(0, "Did it", completedIntent)
             .addAction(0, "Dismiss", dismissIntent)
 
@@ -172,14 +180,14 @@ class NotificationHelper @Inject constructor(
         if (intent.getBooleanExtra(EXTRA_FROM_EVENING_INVITATION, false)) cancelEveningInvitation()
     }
 
-    private fun createActionIntent(triggerId: Long, action: String, requestCodeOffset: Int): PendingIntent {
+    private fun createActionIntent(triggerId: Long, action: String, requestCode: Long): PendingIntent {
         val intent = Intent(context, NotificationActionReceiver::class.java).apply {
             putExtra(EXTRA_TRIGGER_ID, triggerId)
             putExtra(EXTRA_ACTION, action)
         }
         return PendingIntent.getBroadcast(
             context,
-            (triggerId * 3 + requestCodeOffset).toRequestCode(), // * 3 = slots per trigger: 0=COMPLETED, 1=DISMISSED; slot 2=WATCH uses getActivity (see postTriggerNotification)
+            requestCode.toRequestCode(),
             intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
