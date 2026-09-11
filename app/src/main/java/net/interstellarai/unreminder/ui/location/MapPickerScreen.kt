@@ -37,6 +37,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import net.interstellarai.unreminder.service.geofence.GeofenceManager.Companion.MIN_RADIUS_M
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
@@ -105,9 +106,14 @@ fun MapPickerScreen(
                 Slider(
                     value = uiState.radiusM,
                     onValueChange = viewModel::updateRadius,
-                    valueRange = 50f..500f,
-                    steps = 89,  // 90 positions at 5 m increments (50, 55, ..., 500)
+                    valueRange = MIN_RADIUS_M..500f,
+                    steps = 79,  // 81 positions at 5 m increments (100, 105, ..., 500)
                     modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    "Minimum ${MIN_RADIUS_M.toInt()} m \u2014 smaller areas aren't reliably detected.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Button(
                     onClick = { viewModel.save(onComplete = onNavigateBack) },

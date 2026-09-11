@@ -22,6 +22,8 @@ class LocationRepository @Inject constructor(
     suspend fun insert(name: String, lat: Double, lng: Double, radiusM: Float = 100f): Long =
         locationDao.insert(LocationEntity(name = name, lat = lat, lng = lng, radiusM = radiusM))
 
+    suspend fun update(location: LocationEntity) = locationDao.update(location)
+
     suspend fun delete(location: LocationEntity) = locationDao.delete(location)
 
     suspend fun getByName(name: String): LocationEntity? = locationDao.getByName(name)

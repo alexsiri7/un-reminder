@@ -4,6 +4,7 @@ import android.content.Context
 import net.interstellarai.unreminder.data.db.LocationEntity
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
+import net.interstellarai.unreminder.service.geofence.GeofenceManager.Companion.MIN_RADIUS_M
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -44,10 +45,10 @@ class MapPickerViewModelTest {
     }
 
     @Test
-    fun `initial state has empty name and default radius 100m`() {
+    fun `initial state has empty name and the minimum radius`() {
         val state = viewModel.uiState.value
         assertEquals("", state.name)
-        assertEquals(100f, state.radiusM)
+        assertEquals(MIN_RADIUS_M, state.radiusM)
         assertFalse(state.centerReady)
     }
 
@@ -61,6 +62,41 @@ class MapPickerViewModelTest {
     fun `updateRadius updates state`() {
         viewModel.updateRadius(250f)
         assertEquals(250f, viewModel.uiState.value.radiusM)
+    }
+
+    @Test
+    fun `updateRadius clamps a sub-minimum radius up to 100m`() {
+        viewModel.updateRadius(40f)
+        assertEquals(100f, viewModel.uiState.value.radiusM)
+    }
+
+    @Test
+    fun `updateRadius accepts exactly 100m unchanged`() {
+        viewModel.updateRadius(100f)
+        assertEquals(100f, viewModel.uiState.value.radiusM)
+    }
+
+    @Test
+    fun `save cannot persist a radius below 100m`() = runTest {
+        coEvery { locationRepository.upsertLocation(any(), any(), any(), any()) } returns 7L
+
+        viewModel.updateName("Home")
+        viewModel.updatePin(51.5, -0.1)
+        viewModel.updateRadius(40f)
+        viewModel.save {}
+
+        coVerify { locationRepository.upsertLocation("Home", 51.5, -0.1, 100f) }
+        coVerify { geofenceManager.registerGeofence(7L, "Home", 51.5, -0.1, 100f) }
+    }
+
+    @Test
+    fun `initialize raises a stored sub-minimum radius so the picker never shows it`() = runTest {
+        coEvery { locationRepository.getByName("Shed") } returns
+            LocationEntity(id = 2, name = "Shed", lat = 48.8, lng = 2.3, radiusM = 40f)
+
+        viewModel.initialize("Shed")
+
+        assertEquals(100f, viewModel.uiState.value.radiusM)
     }
 
     @Test

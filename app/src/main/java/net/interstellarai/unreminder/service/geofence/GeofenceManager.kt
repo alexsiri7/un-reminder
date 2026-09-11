@@ -5,10 +5,13 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.util.Log
 import androidx.core.content.ContextCompat
+import net.interstellarai.unreminder.data.db.LocationEntity
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingRequest
 import com.google.android.gms.location.LocationServices
+import io.sentry.Sentry
+import io.sentry.SentryLevel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,6 +27,11 @@ class GeofenceManager @Inject constructor(
         private const val TAG = "GeofenceManager"
         private const val PREFS_NAME = "geofence_prefs"
         private const val KEY_LOCATION_IDS = "current_location_ids"
+
+        // Below ~100 m ordinary GPS drift makes Android either never report an entry or
+        // flap enter/exit while the user sits still, so smaller fences look precise but
+        // never fire reliably.
+        const val MIN_RADIUS_M = 100f
     }
 
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -94,8 +102,25 @@ class GeofenceManager @Inject constructor(
     }
 
     suspend fun registerAllFromDb() {
-        for (loc in locationRepository.getAllList()) {
+        for (stored in locationRepository.getAllList()) {
+            val loc = raiseToMinimumRadius(stored)
             registerGeofence(loc.id, loc.name, loc.lat, loc.lng, loc.radiusM)
         }
+    }
+
+    private suspend fun raiseToMinimumRadius(loc: LocationEntity): LocationEntity {
+        if (loc.radiusM >= MIN_RADIUS_M) return loc
+        val raised = loc.copy(radiusM = MIN_RADIUS_M)
+        locationRepository.update(raised)
+        Log.i(TAG, "Raised geofence radius to minimum: id=${loc.id} name=${loc.name} from=${loc.radiusM}")
+        Sentry.captureMessage("Geofence radius raised to minimum") { scope ->
+            scope.setTag("component", "geofence")
+            scope.setExtra("location_id", loc.id.toString())
+            scope.setExtra("location_name", loc.name)
+            scope.setExtra("old_radius_m", loc.radiusM.toString())
+            scope.setExtra("new_radius_m", MIN_RADIUS_M.toString())
+            scope.level = SentryLevel.INFO
+        }
+        return raised
     }
 }

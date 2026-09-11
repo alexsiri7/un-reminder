@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
+import net.interstellarai.unreminder.service.geofence.GeofenceManager.Companion.MIN_RADIUS_M
 import com.google.android.gms.location.LocationServices
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -20,7 +21,7 @@ data class MapPickerUiState(
     val name: String = "",
     val lat: Double = 0.0,
     val lng: Double = 0.0,
-    val radiusM: Float = 100f,
+    val radiusM: Float = MIN_RADIUS_M,
     val isLoading: Boolean = false,
     val initialCenterLat: Double = 51.5074,  // London — fallback when no GPS fix is available
     val initialCenterLng: Double = -0.1278,
@@ -51,7 +52,7 @@ class MapPickerViewModel @Inject constructor(
                         name = loc.name,
                         lat = loc.lat,
                         lng = loc.lng,
-                        radiusM = loc.radiusM,
+                        radiusM = loc.radiusM.coerceAtLeast(MIN_RADIUS_M),
                         initialCenterLat = loc.lat,
                         initialCenterLng = loc.lng,
                         centerReady = true
@@ -89,7 +90,7 @@ class MapPickerViewModel @Inject constructor(
     }
 
     fun updateRadius(radiusM: Float) {
-        _uiState.value = _uiState.value.copy(radiusM = radiusM)
+        _uiState.value = _uiState.value.copy(radiusM = radiusM.coerceAtLeast(MIN_RADIUS_M))
     }
 
     fun save(onComplete: () -> Unit) {
