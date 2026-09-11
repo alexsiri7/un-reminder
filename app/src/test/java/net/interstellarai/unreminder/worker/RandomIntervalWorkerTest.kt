@@ -11,8 +11,10 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
+import io.mockk.slot
 import io.mockk.unmockkStatic
 import io.mockk.verify
+import io.sentry.IScope
 import io.sentry.Sentry
 import io.sentry.ScopeCallback
 import io.sentry.protocol.SentryId
@@ -28,6 +30,7 @@ import net.interstellarai.unreminder.data.repository.WindowRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.trigger.TriggerPipeline
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -60,6 +63,11 @@ class RandomIntervalWorkerTest {
             mockTriggerPipeline,
             mockWorkManager
         )
+    }
+
+    @After
+    fun tearDown() {
+        unmockkStatic(Sentry::class)
     }
 
     private fun windowCoveringAllDay(): WindowEntity = WindowEntity(
@@ -149,7 +157,6 @@ class RandomIntervalWorkerTest {
         worker.doWork()
 
         verify(exactly = 1) { Sentry.captureException(any(), any<ScopeCallback>()) }
-        unmockkStatic(Sentry::class)
     }
 
     @Test
@@ -172,7 +179,49 @@ class RandomIntervalWorkerTest {
         assertEquals(Result.success(), result)
         verify(exactly = 1) { Sentry.captureException(any(), any<ScopeCallback>()) }
         coVerify(exactly = 0) { mockTriggerRepository.updateOutcome(any(), any()) }
-        unmockkStatic(Sentry::class)
+    }
+
+    @Test
+    fun `doWork reports a failing reschedule once on the no-window path, tagged step=reschedule`() = runTest {
+        mockkStatic(Sentry::class)
+        val scopeCallback = slot<ScopeCallback>()
+        every { Sentry.captureException(any(), capture(scopeCallback)) } returns SentryId.EMPTY_ID
+        coEvery { mockWindowRepository.getActiveWindows() } returns emptyList()
+        every {
+            mockWorkManager.enqueueUniqueWork(any<String>(), any<ExistingWorkPolicy>(), any<OneTimeWorkRequest>())
+        } throws IllegalStateException("WorkManager db gone")
+
+        val result = worker.doWork()
+
+        assertEquals(Result.success(), result)
+        verify(exactly = 1) { mockWorkManager.enqueueUniqueWork(any<String>(), any<ExistingWorkPolicy>(), any<OneTimeWorkRequest>()) }
+        verify(exactly = 1) { Sentry.captureException(any(), any<ScopeCallback>()) }
+        val scope: IScope = mockk(relaxed = true)
+        scopeCallback.captured.run(scope)
+        verify { scope.setTag("step", "reschedule") }
+        coVerify(exactly = 0) { mockTriggerRepository.insert(any()) }
+    }
+
+    @Test
+    fun `doWork reports a failing reschedule once on the no-eligible-habits path, tagged step=reschedule`() = runTest {
+        mockkStatic(Sentry::class)
+        val scopeCallback = slot<ScopeCallback>()
+        every { Sentry.captureException(any(), capture(scopeCallback)) } returns SentryId.EMPTY_ID
+        coEvery { mockWindowRepository.getActiveWindows() } returns listOf(windowCoveringAllDay())
+        coEvery { mockHabitRepository.getEligibleHabits(any()) } returns emptyList()
+        every {
+            mockWorkManager.enqueueUniqueWork(any<String>(), any<ExistingWorkPolicy>(), any<OneTimeWorkRequest>())
+        } throws IllegalStateException("WorkManager db gone")
+
+        val result = worker.doWork()
+
+        assertEquals(Result.success(), result)
+        verify(exactly = 1) { mockWorkManager.enqueueUniqueWork(any<String>(), any<ExistingWorkPolicy>(), any<OneTimeWorkRequest>()) }
+        verify(exactly = 1) { Sentry.captureException(any(), any<ScopeCallback>()) }
+        val scope: IScope = mockk(relaxed = true)
+        scopeCallback.captured.run(scope)
+        verify { scope.setTag("step", "reschedule") }
+        coVerify(exactly = 0) { mockTriggerRepository.insert(any()) }
     }
 
     @Test

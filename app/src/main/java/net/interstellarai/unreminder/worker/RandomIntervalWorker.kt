@@ -120,15 +120,7 @@ class RandomIntervalWorker @AssistedInject constructor(
             triggerId?.let { triggerRepository.updateOutcome(it, TriggerStatus.DISMISSED) }
         }
 
-        try {
-            scheduleNext(fired)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            // Let out of doWork() this would only reach Logcat, and the chain stays broken
-            // until enqueueInitial() runs on the next app start or the watchdog replaces it.
-            report("Random interval reschedule failed", "reschedule", e)
-        }
+        scheduleNext(fired)
         return Result.success()
     }
 
@@ -140,7 +132,17 @@ class RandomIntervalWorker @AssistedInject constructor(
         }
     }
 
+    // Guards itself so the early returns inside doWork()'s main try are covered too: an enqueue
+    // failure there must not fall into the outer catch (wrong step tag) and then be retried by
+    // the post-try call. Let out of doWork() it would only reach Logcat, and the chain stays
+    // broken until enqueueInitial() runs on the next app start or the watchdog replaces it.
     private fun scheduleNext(fired: Boolean = false) {
-        if (fired) enqueueNextAfterFire(workManager) else enqueueNext(workManager)
+        try {
+            if (fired) enqueueNextAfterFire(workManager) else enqueueNext(workManager)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            report("Random interval reschedule failed", "reschedule", e)
+        }
     }
 }
