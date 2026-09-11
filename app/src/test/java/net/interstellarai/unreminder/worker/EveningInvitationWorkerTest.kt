@@ -9,6 +9,10 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
+import io.mockk.verify
+import io.sentry.ScopeCallback
+import io.sentry.Sentry
+import io.sentry.protocol.SentryId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -183,6 +187,20 @@ class EveningInvitationWorkerTest {
         assertEquals(Result.success(), result)
         coVerify(exactly = 0) { notificationHelper.postEveningInvitation(any()) }
         coVerify(exactly = 1) { scheduler.reschedule() }
+    }
+
+    @Test
+    fun `reports a failing reschedule to Sentry instead of failing the run`() = runTest {
+        mockkStatic(Sentry::class)
+        every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
+        coEvery { scheduler.reschedule() } throws IllegalStateException("WorkManager db gone")
+
+        val result = worker.doWork()
+
+        assertEquals(Result.success(), result)
+        coVerify(exactly = 1) { notificationHelper.postEveningInvitation(any()) }
+        verify(exactly = 1) { Sentry.captureException(any(), any<ScopeCallback>()) }
+        unmockkStatic(Sentry::class)
     }
 
     @Test

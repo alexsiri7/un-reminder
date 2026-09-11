@@ -63,13 +63,25 @@ class EveningInvitationWorker @AssistedInject constructor(
             // ensureScheduled() on next app start or boot re-enqueues after the CANCELLED state.
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Evening invitation worker failed", e)
-            Sentry.captureException(e) { scope ->
-                scope.setTag("component", "evening-invitation-worker")
-            }
+            report("Evening invitation worker failed", e)
         }
-        scheduler.reschedule()
+        try {
+            scheduler.reschedule()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Let out of doWork() this would only reach Logcat, and the chain stays broken
+            // until ensureScheduled() runs on the next app start or boot.
+            report("Evening invitation reschedule failed", e)
+        }
         return Result.success()
+    }
+
+    private fun report(message: String, e: Exception) {
+        Log.e(TAG, message, e)
+        Sentry.captureException(e) { scope ->
+            scope.setTag("component", "evening-invitation-worker")
+        }
     }
 
     private suspend fun anythingDoableNow(): Boolean {
