@@ -9,6 +9,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,7 +52,7 @@ class LocationViewModelTest {
     }
 
     @Test
-    fun `deleteLocation calls delete on repository and removeGeofence by id`() = runTest(testDispatcher) {
+    fun `deleteLocation calls delete on repository and removeGeofence by id, then refreshes registration health`() = runTest(testDispatcher) {
         val location = LocationEntity(id = 42L, name = "Home", lat = 51.5, lng = -0.1, radiusM = 100f)
         coEvery { locationRepository.delete(location) } returns Unit
         coEvery { geofenceManager.removeGeofence(42L) } returns Unit
@@ -61,6 +62,7 @@ class LocationViewModelTest {
 
         coVerify { locationRepository.delete(location) }
         coVerify { geofenceManager.removeGeofence(42L) }
+        verify(exactly = 1) { geofenceManager.refreshRegistration() }
     }
 
     @Test
@@ -140,6 +142,7 @@ class LocationViewModelTest {
 
             coVerify(exactly = 1) { locationRepository.delete(location) }
             coVerify(exactly = 0) { geofenceManager.removeGeofence(any()) }
+            verify(exactly = 0) { geofenceManager.refreshRegistration() }
         } finally {
             unmockkStatic(android.util.Log::class)
         }

@@ -17,6 +17,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineScope
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
@@ -42,7 +43,8 @@ object ServiceModule {
         locationRepository: LocationRepository,
         geofencingClient: GeofencingClient,
         settingsClient: SettingsClient,
-    ): GeofenceManager = GeofenceManager(context, locationRepository, geofencingClient, settingsClient)
+        @ApplicationScope scope: CoroutineScope,
+    ): GeofenceManager = GeofenceManager(context, locationRepository, geofencingClient, settingsClient, scope)
 
     @Provides
     @Singleton

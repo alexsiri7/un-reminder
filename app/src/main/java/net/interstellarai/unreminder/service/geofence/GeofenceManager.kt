@@ -8,6 +8,7 @@ import android.util.Log
 import androidx.core.content.ContextCompat
 import net.interstellarai.unreminder.data.db.LocationEntity
 import net.interstellarai.unreminder.data.repository.LocationRepository
+import net.interstellarai.unreminder.di.ApplicationScope
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofenceStatusCodes
@@ -22,12 +23,17 @@ import io.sentry.Breadcrumb
 import io.sentry.Sentry
 import io.sentry.SentryLevel
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
 import java.time.Instant
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -81,8 +87,9 @@ sealed interface LocationSettingsCheck {
 }
 
 /**
- * Outcome of the last [GeofenceManager.registerAllFromDb]. The Sentry summary and the Settings
- * screen both read this, so neither computes health on its own.
+ * Outcome of the last full registration ([GeofenceManager.registerAllFromDb] or
+ * [GeofenceManager.refreshRegistration]). The Sentry summary and the Settings screen both read
+ * this, so neither computes health on its own.
  */
 data class RegistrationHealth(
     val outcomes: List<Pair<Long, GeofenceRegistration>>,
@@ -105,6 +112,7 @@ class GeofenceManager @Inject constructor(
     private val locationRepository: LocationRepository,
     private val geofencingClient: GeofencingClient,
     private val settingsClient: SettingsClient,
+    @ApplicationScope private val scope: CoroutineScope,
 ) {
     companion object {
         private const val TAG = "GeofenceManager"
@@ -129,6 +137,12 @@ class GeofenceManager @Inject constructor(
 
     private val _registrationHealth = MutableStateFlow<RegistrationHealth?>(null)
     val registrationHealth: StateFlow<RegistrationHealth?> = _registrationHealth.asStateFlow()
+
+    // Full registrations run in launch order so that a run started before a permission grant,
+    // stalled on a Play Services task, cannot outlive a fresher run and overwrite its health
+    // with the stale PermissionMissing outcome when it finally times out.
+    private val registrationMutex = Mutex()
+    private val refreshPending = AtomicBoolean(false)
 
     private fun restoreLocationIds(): Set<Long> {
         val stored = prefs.getStringSet(KEY_LOCATION_IDS, emptySet()) ?: emptySet()
@@ -236,6 +250,32 @@ class GeofenceManager @Inject constructor(
     }
 
     suspend fun registerAllFromDb() {
+        registrationMutex.withLock { reportRegistrationSummary(registerAll()) }
+    }
+
+    /**
+     * Re-runs full registration off the caller's lifecycle; the Settings health row reads the
+     * result. A request made while another is still waiting for the lock is dropped — that
+     * queued run will read the same state — but one made during a run schedules one more.
+     */
+    fun refreshRegistration() {
+        if (!refreshPending.compareAndSet(false, true)) return
+        scope.launch {
+            registrationMutex.withLock {
+                refreshPending.set(false)
+                try {
+                    registerAll()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(TAG, "Geofence refresh failed", e)
+                    Sentry.captureException(e)
+                }
+            }
+        }
+    }
+
+    private suspend fun registerAll(): RegistrationHealth {
         val outcomes = locationRepository.getAllList().map { stored ->
             val loc = raiseToMinimumRadius(stored)
             loc.id to registerGeofence(loc.id, loc.name, loc.lat, loc.lng, loc.radiusM)
@@ -249,7 +289,7 @@ class GeofenceManager @Inject constructor(
             checkedAt = Instant.now(),
         )
         _registrationHealth.value = health
-        reportRegistrationSummary(health)
+        return health
     }
 
     private fun reportRegistrationSummary(health: RegistrationHealth) {

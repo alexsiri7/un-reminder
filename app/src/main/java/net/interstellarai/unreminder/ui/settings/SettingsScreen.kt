@@ -39,6 +39,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import net.interstellarai.unreminder.service.geofence.RegistrationHealth
 import net.interstellarai.unreminder.ui.theme.Dimens
@@ -72,8 +73,9 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    LaunchedEffect(Unit) {
-        viewModel.refreshPermissions()
+    LifecycleResumeEffect(Unit) {
+        viewModel.refreshLocationTracking()
+        onPauseOrDispose {}
     }
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
@@ -82,7 +84,7 @@ fun SettingsScreen(
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
-    ) { viewModel.refreshPermissions() }
+    ) { viewModel.refreshLocationTracking() }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current

@@ -137,6 +137,12 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    /** Settings resume / location permission result: re-read the flags and re-run registration. */
+    fun refreshLocationTracking() {
+        refreshPermissions()
+        geofenceManager.refreshRegistration()
+    }
+
     fun testTriggerNow() {
         viewModelScope.launch {
             val locationIds = geofenceManager.currentLocationIds.value

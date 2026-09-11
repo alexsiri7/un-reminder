@@ -86,6 +86,7 @@ fun HabitListScreen(
         habits = habits,
         aiStatus = aiStatus,
         habitAvailability = habitAvailability,
+        today = LocalDate.now(),
         onAddHabit = onAddHabit,
         onEditHabit = onEditHabit,
         onNavigateToFeedback = onNavigateToFeedback,
@@ -98,6 +99,7 @@ internal fun HabitListContent(
     habits: List<HabitEntity>,
     aiStatus: AiStatus,
     habitAvailability: Map<Long, AvailabilityStatus>,
+    today: LocalDate,
     onAddHabit: () -> Unit,
     onEditHabit: (Long) -> Unit,
     onNavigateToFeedback: () -> Unit,
@@ -122,7 +124,7 @@ internal fun HabitListContent(
         ) {
             AiDownloadBanner(aiStatus = aiStatus)
 
-            HabitListHeader(onNavigateToFeedback)
+            HabitListHeader(today, onNavigateToFeedback)
 
             if (habits.isEmpty()) {
                 Column(
@@ -185,8 +187,7 @@ internal fun HabitListContent(
 }
 
 @Composable
-private fun HabitListHeader(onNavigateToFeedback: () -> Unit) {
-    val today = LocalDate.now()
+private fun HabitListHeader(today: LocalDate, onNavigateToFeedback: () -> Unit) {
     val dateLabel = today.format(DateTimeFormatter.ofPattern("EEE · MMM d", Locale.getDefault()))
 
     Box(modifier = Modifier.fillMaxWidth()) {

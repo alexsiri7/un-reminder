@@ -31,8 +31,11 @@ import io.sentry.IScope
 import io.sentry.ScopeCallback
 import io.sentry.Sentry
 import io.sentry.protocol.SentryId
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import net.interstellarai.unreminder.data.db.LocationEntity
@@ -77,6 +80,7 @@ class GeofenceManagerTest {
             SentryId.EMPTY_ID
         }
         every { Sentry.addBreadcrumb(capture(breadcrumbs)) } just runs
+        every { Sentry.captureException(any()) } returns SentryId.EMPTY_ID
 
         every { geofencingClient.addGeofences(any<GeofencingRequest>(), any<PendingIntent>()) } returns Tasks.forResult(null)
         every { geofencingClient.removeGeofences(any<List<String>>()) } returns Tasks.forResult(null)
@@ -90,7 +94,10 @@ class GeofenceManagerTest {
             .edit().clear().commit()
     }
 
-    private fun newManager() = GeofenceManager(context, locationRepository, geofencingClient, settingsClient)
+    // Refresh tests pass the runTest scope so launched work runs on the test dispatcher's
+    // virtual time; nothing else launches on the scope.
+    private fun newManager(scope: CoroutineScope = CoroutineScope(Dispatchers.Unconfined)) =
+        GeofenceManager(context, locationRepository, geofencingClient, settingsClient, scope)
 
     private fun grantLocationPermissions() {
         shadowOf(context as Application).grantPermissions(
@@ -474,6 +481,83 @@ class GeofenceManagerTest {
         assertTrue(job.isCancelled)
         assertTrue(captured.none { (message, _) -> message == "Geofence registration summary" })
         assertNull(mgr.registrationHealth.value)
+    }
+
+    @Test
+    fun `refreshRegistration updates registrationHealth without emitting a registration summary`() = runTest {
+        grantLocationPermissions()
+        coEvery { locationRepository.getAllList() } returns listOf(
+            LocationEntity(id = 1, name = "Home", lat = 51.5, lng = -0.1, radiusM = 150f),
+        )
+        val mgr = newManager(this)
+
+        mgr.refreshRegistration()
+        advanceUntilIdle()
+
+        val health = mgr.registrationHealth.value!!
+        assertEquals(1, health.registeredCount)
+        assertNull(health.lastFailure)
+        assertTrue(captured.none { (message, _) -> message == "Geofence registration summary" })
+    }
+
+    @Test
+    fun `a refresh launched after a stalled one still writes the freshest health, and a third request during the run is folded into it`() = runTest {
+        coEvery { locationRepository.getAllList() } returns listOf(
+            LocationEntity(id = 1, name = "Home", lat = 51.5, lng = -0.1, radiusM = 150f),
+        )
+        val neverSettled = TaskCompletionSource<LocationSettingsResponse>()
+        every { settingsClient.checkLocationSettings(any()) } returnsMany listOf(
+            neverSettled.task,
+            Tasks.forResult(mockk<LocationSettingsResponse>()),
+        )
+        val mgr = newManager(this)
+
+        mgr.refreshRegistration()
+        runCurrent()
+        grantLocationPermissions()
+        mgr.refreshRegistration()
+        mgr.refreshRegistration()
+        advanceUntilIdle()
+
+        val health = mgr.registrationHealth.value!!
+        assertNull(health.lastFailure)
+        assertEquals(1, health.registeredCount)
+        assertTrue(health.backgroundLocationGranted)
+        coVerify(exactly = 2) { locationRepository.getAllList() }
+    }
+
+    @Test
+    fun `refresh requests made before the first one starts collapse into a single run`() = runTest {
+        grantLocationPermissions()
+        coEvery { locationRepository.getAllList() } returns listOf(
+            LocationEntity(id = 1, name = "Home", lat = 51.5, lng = -0.1, radiusM = 150f),
+        )
+        val mgr = newManager(this)
+
+        mgr.refreshRegistration()
+        mgr.refreshRegistration()
+        mgr.refreshRegistration()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { locationRepository.getAllList() }
+        assertEquals(1, mgr.registrationHealth.value!!.registeredCount)
+    }
+
+    @Test
+    fun `refreshRegistration reports a repository failure instead of crashing the scope`() = runTest {
+        coEvery { locationRepository.getAllList() } throws RuntimeException("db down")
+        val mgr = newManager(this)
+
+        mgr.refreshRegistration()
+        advanceUntilIdle()
+
+        verify(exactly = 1) { Sentry.captureException(any()) }
+        assertNull(mgr.registrationHealth.value)
+
+        mgr.refreshRegistration()
+        advanceUntilIdle()
+
+        coVerify(exactly = 2) { locationRepository.getAllList() }
     }
 
     @Test

@@ -25,6 +25,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -223,6 +224,35 @@ class SettingsViewModelTest {
             assertTrue(viewModel.uiState.value.hasNotificationPermission)
             assertTrue(viewModel.uiState.value.hasFineLocationPermission)
             assertTrue(viewModel.uiState.value.hasBackgroundLocationPermission)
+        } finally {
+            unmockkStatic(ContextCompat::class)
+        }
+    }
+
+    @Test
+    fun `refreshLocationTracking refreshes the permission flags and re-runs registration`() {
+        mockkStatic(ContextCompat::class)
+        try {
+            every { ContextCompat.checkSelfPermission(context, any()) } returns PackageManager.PERMISSION_GRANTED
+
+            viewModel.refreshLocationTracking()
+
+            assertTrue(viewModel.uiState.value.hasBackgroundLocationPermission)
+            verify(exactly = 1) { geofenceManager.refreshRegistration() }
+        } finally {
+            unmockkStatic(ContextCompat::class)
+        }
+    }
+
+    @Test
+    fun `refreshPermissions alone does not re-run registration`() {
+        mockkStatic(ContextCompat::class)
+        try {
+            every { ContextCompat.checkSelfPermission(context, any()) } returns PackageManager.PERMISSION_GRANTED
+
+            viewModel.refreshPermissions()
+
+            verify(exactly = 0) { geofenceManager.refreshRegistration() }
         } finally {
             unmockkStatic(ContextCompat::class)
         }
