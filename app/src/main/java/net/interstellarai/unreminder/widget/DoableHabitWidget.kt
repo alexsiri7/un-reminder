@@ -7,6 +7,8 @@ import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.glance.Button
@@ -57,9 +59,15 @@ import net.interstellarai.unreminder.service.notification.SpriteResolver
 import javax.inject.Inject
 
 /**
+ * The widget's ambient progress line: whether today already counts and the same
+ * days-with-something-done total the Now page shows.
+ */
+data class DayProgress(val completedToday: Boolean, val daysWithAnyCompletion: Int)
+
+/**
  * Home-screen widget: one doable habit, its peeked variant and sprite, and a "did it" button,
- * or a resting state. It only renders what [WidgetRefresher] last stored; every recompute
- * goes through the refresher.
+ * or a resting state, plus a one-line day progress indicator. It only renders what
+ * [WidgetRefresher] last stored; every recompute goes through the refresher.
  */
 class DoableHabitWidget : GlanceAppWidget() {
 
@@ -72,8 +80,12 @@ class DoableHabitWidget : GlanceAppWidget() {
         // The tag, not the drawable id: stored state outlives an app update, and resource
         // ids do not, whereas an unknown tag still resolves to something to show.
         private val SPRITE_TAG = stringPreferencesKey("sprite_tag")
+        private val COMPLETED_TODAY = booleanPreferencesKey("completed_today")
+        private val DAYS_WITH_ANY_COMPLETION = intPreferencesKey("days_with_any_completion")
 
-        fun store(prefs: MutablePreferences, habit: DoableHabit?) {
+        // One write for both so the habit can never land without the progress that goes with
+        // it: a completion from the widget must flip the indicator in the same refresh.
+        fun store(prefs: MutablePreferences, habit: DoableHabit?, progress: DayProgress) {
             if (habit == null) {
                 prefs.remove(HABIT_ID)
                 prefs.remove(HABIT_NAME)
@@ -89,6 +101,8 @@ class DoableHabitWidget : GlanceAppWidget() {
                 if (habit.variationId != null) prefs[VARIATION_ID] = habit.variationId else prefs.remove(VARIATION_ID)
                 if (habit.spriteTag != null) prefs[SPRITE_TAG] = habit.spriteTag else prefs.remove(SPRITE_TAG)
             }
+            prefs[COMPLETED_TODAY] = progress.completedToday
+            prefs[DAYS_WITH_ANY_COMPLETION] = progress.daysWithAnyCompletion
         }
 
         internal fun stored(prefs: Preferences): DoableHabit? {
@@ -104,6 +118,22 @@ class DoableHabitWidget : GlanceAppWidget() {
             )
         }
 
+        /** Null until the first refresh after placement (or after the update that added it). */
+        internal fun storedDayProgress(prefs: Preferences): DayProgress? {
+            val completedToday = prefs[COMPLETED_TODAY] ?: return null
+            val days = prefs[DAYS_WITH_ANY_COMPLETION] ?: return null
+            return DayProgress(completedToday, days)
+        }
+
+        // Done reads as earned and not-yet as an open door: there are no streaks, so nothing
+        // here may hint at loss. "so far" keeps the count reading as the Now page's running
+        // total of days with something done, not as a run that could end.
+        internal fun dayProgressLabel(progress: DayProgress): String {
+            val today = if (progress.completedToday) "\u2713 today counts" else "today's still open"
+            val days = progress.daysWithAnyCompletion
+            return "$today \u00b7 $days ${if (days == 1) "day" else "days"} so far"
+        }
+
         /** Tapping anywhere but "did it" opens the app on the Now menu. */
         internal fun openNowIntent(context: Context): Intent =
             Intent(context, MainActivity::class.java).apply {
@@ -115,13 +145,14 @@ class DoableHabitWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val spriteResolver = EntryPointAccessors.fromApplication(context, WidgetEntryPoint::class.java).spriteResolver()
         provideContent {
-            WidgetContent(stored(currentState()), spriteResolver)
+            val state = currentState<Preferences>()
+            WidgetContent(stored(state), storedDayProgress(state), spriteResolver)
         }
     }
 }
 
 @Composable
-private fun WidgetContent(habit: DoableHabit?, spriteResolver: SpriteResolver) {
+private fun WidgetContent(habit: DoableHabit?, progress: DayProgress?, spriteResolver: SpriteResolver) {
     val openNow = DoableHabitWidget.openNowIntent(LocalContext.current)
     Box(
         modifier = GlanceModifier
@@ -132,8 +163,25 @@ private fun WidgetContent(habit: DoableHabit?, spriteResolver: SpriteResolver) {
             .padding(16.dp),
         contentAlignment = Alignment.CenterStart,
     ) {
-        if (habit == null) Resting() else Suggestion(habit, spriteResolver)
+        Column {
+            if (habit == null) Resting() else Suggestion(habit, spriteResolver)
+            if (progress != null) {
+                Spacer(GlanceModifier.height(6.dp))
+                DayProgressLine(progress)
+            }
+        }
     }
+}
+
+// One small line under whatever else is showing, so it costs the sprite and button nothing
+// and still fits when the launcher squeezes the widget to its minimum size.
+@Composable
+private fun DayProgressLine(progress: DayProgress) {
+    Text(
+        text = DoableHabitWidget.dayProgressLabel(progress),
+        style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 11.sp),
+        maxLines = 1,
+    )
 }
 
 // The sprite is the widget's dominant element and is shown untinted: the tiles are the one

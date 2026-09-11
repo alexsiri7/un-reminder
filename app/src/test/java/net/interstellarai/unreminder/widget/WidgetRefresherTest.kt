@@ -5,13 +5,18 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
 import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import net.interstellarai.unreminder.data.db.WindowEntity
+import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.data.repository.WindowRepository
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -23,7 +28,8 @@ class WidgetRefresherTest {
     private val workManager: WorkManager = mockk(relaxed = true)
     private val picker: DoableHabitPicker = mockk()
     private val windowRepository: WindowRepository = mockk()
-    private val refresher = WidgetRefresher(context, workManager, picker, windowRepository)
+    private val triggerRepository: TriggerRepository = mockk()
+    private val refresher = WidgetRefresher(context, workManager, picker, windowRepository, triggerRepository)
 
     @Test
     fun `refresh enqueues one replaceable refresh job`() {
@@ -65,5 +71,22 @@ class WidgetRefresherTest {
 
         verify(exactly = 1) { workManager.cancelUniqueWork(WidgetRefresher.WINDOW_BOUNDARY_WORK_NAME) }
         verify(exactly = 0) { workManager.enqueueUniqueWork(any(), any(), any<OneTimeWorkRequest>()) }
+    }
+
+    @Test
+    fun `day progress snapshots the today flow and the Now page's day count`() = runTest {
+        every { triggerRepository.hasCompletedAnythingToday() } returns flowOf(true)
+        every { triggerRepository.daysWithAnyCompletion() } returns flowOf(12)
+
+        assertEquals(DayProgress(completedToday = true, daysWithAnyCompletion = 12), refresher.dayProgress())
+    }
+
+    @Test
+    fun `each refresh rebuilds the today flow so the first tick past midnight reads as not yet`() = runTest {
+        every { triggerRepository.hasCompletedAnythingToday() } returnsMany listOf(flowOf(true), flowOf(false))
+        every { triggerRepository.daysWithAnyCompletion() } returns flowOf(3)
+
+        assertTrue(refresher.dayProgress().completedToday)
+        assertFalse(refresher.dayProgress().completedToday)
     }
 }
