@@ -14,6 +14,7 @@ import com.google.android.gms.location.GeofencingRequest
 import com.google.android.gms.location.LocationSettingsResponse
 import com.google.android.gms.location.LocationSettingsStatusCodes
 import com.google.android.gms.location.SettingsClient
+import com.google.android.gms.tasks.TaskCompletionSource
 import com.google.android.gms.tasks.Tasks
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -30,6 +31,9 @@ import io.sentry.IScope
 import io.sentry.ScopeCallback
 import io.sentry.Sentry
 import io.sentry.protocol.SentryId
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import net.interstellarai.unreminder.data.db.LocationEntity
 import net.interstellarai.unreminder.data.repository.LocationRepository
@@ -102,6 +106,21 @@ class GeofenceManagerTest {
         } returns Tasks.forException(ApiException(Status(statusCode)))
     }
 
+    private fun stallRegistrationOf(requestId: String) {
+        val neverSettled = TaskCompletionSource<Void>()
+        every {
+            geofencingClient.addGeofences(
+                match<GeofencingRequest> { it.geofences.single().requestId == requestId },
+                any<PendingIntent>()
+            )
+        } returns neverSettled.task
+    }
+
+    private fun stallLocationSettingsCheck() {
+        val neverSettled = TaskCompletionSource<LocationSettingsResponse>()
+        every { settingsClient.checkLocationSettings(any()) } returns neverSettled.task
+    }
+
     // Stubbing the scope inside the captureMessage `answers` block makes mockk re-run that answer
     // intermittently, so callbacks are captured raw and replayed against a recording scope here.
     private fun ScopeCallback.record(): CapturedScope {
@@ -118,6 +137,9 @@ class GeofenceManagerTest {
 
     private fun registrationSummary(): CapturedScope =
         captured.single { (message, _) -> message == "Geofence registration summary" }.second.record()
+
+    private fun registrationFailures(): List<CapturedScope> =
+        captured.filter { (message, _) -> message == "Geofence registration failed" }.map { it.second.record() }
 
     private fun Breadcrumb.causeAndSets(): Triple<String?, String?, String?> =
         Triple(getData("cause") as String?, getData("old_ids") as String?, getData("new_ids") as String?)
@@ -277,6 +299,92 @@ class GeofenceManagerTest {
         val summary = registrationSummary()
         assertEquals("true", summary.extras["location_enabled"])
         assertEquals("SUCCESS(0)", summary.extras["location_settings"])
+    }
+
+    @Test
+    fun `a single registration rejected by the platform is reported to Sentry`() = runTest {
+        grantLocationPermissions()
+        rejectRegistrationOf("5", GeofenceStatusCodes.GEOFENCE_NOT_AVAILABLE)
+
+        val outcome = newManager().registerGeofence(5L, "Cafe", 51.5, -0.1, 150f)
+
+        assertEquals(GeofenceRegistration.Rejected(GeofenceStatusCodes.GEOFENCE_NOT_AVAILABLE), outcome)
+        val failure = registrationFailures().single()
+        assertEquals("geofence", failure.tags["component"])
+        assertEquals("5", failure.extras["location_id"])
+        assertEquals("Cafe", failure.extras["location_name"])
+        assertEquals("GEOFENCE_NOT_AVAILABLE(1000)", failure.extras["status"])
+        assertTrue(captured.none { (message, _) -> message == "Geofence registration summary" })
+    }
+
+    @Test
+    fun `a single registration without permissions is reported to Sentry`() = runTest {
+        val outcome = newManager().registerGeofence(5L, "Cafe", 51.5, -0.1, 150f)
+
+        assertEquals(GeofenceRegistration.PermissionMissing, outcome)
+        assertEquals("PERMISSION_MISSING", registrationFailures().single().extras["status"])
+    }
+
+    @Test
+    fun `a successful single registration is not reported as a failure`() = runTest {
+        grantLocationPermissions()
+
+        val outcome = newManager().registerGeofence(5L, "Cafe", 51.5, -0.1, 150f)
+
+        assertEquals(GeofenceRegistration.Registered, outcome)
+        assertTrue(captured.isEmpty())
+    }
+
+    @Test
+    fun `an addGeofences task that never settles is reported as a timeout instead of hanging`() = runTest {
+        grantLocationPermissions()
+        coEvery { locationRepository.getAllList() } returns listOf(
+            LocationEntity(id = 1, name = "Home", lat = 51.5, lng = -0.1, radiusM = 150f),
+        )
+        stallRegistrationOf("1")
+
+        newManager().registerAllFromDb()
+
+        assertEquals("id=1 status=TIMEOUT", registrationSummary().extras["failures"])
+        assertEquals("TIMEOUT", registrationFailures().single().extras["status"])
+    }
+
+    @Test
+    fun `a settings check that never settles is reported as a timeout instead of hanging`() = runTest {
+        coEvery { locationRepository.getAllList() } returns emptyList()
+        stallLocationSettingsCheck()
+
+        newManager().registerAllFromDb()
+
+        assertEquals("TIMEOUT", registrationSummary().extras["location_settings"])
+    }
+
+    @Test
+    fun `cancelling a registration mid-flight ends it cancelled rather than as a reported failure`() = runTest {
+        grantLocationPermissions()
+        stallRegistrationOf("1")
+        val mgr = newManager()
+
+        val job = launch { mgr.registerGeofence(1L, "Home", 51.5, -0.1, 150f) }
+        runCurrent()
+        job.cancelAndJoin()
+
+        assertTrue(job.isCancelled)
+        assertTrue(captured.isEmpty())
+    }
+
+    @Test
+    fun `cancelling the settings check mid-flight ends it cancelled without a summary`() = runTest {
+        coEvery { locationRepository.getAllList() } returns emptyList()
+        stallLocationSettingsCheck()
+        val mgr = newManager()
+
+        val job = launch { mgr.registerAllFromDb() }
+        runCurrent()
+        job.cancelAndJoin()
+
+        assertTrue(job.isCancelled)
+        assertTrue(captured.none { (message, _) -> message == "Geofence registration summary" })
     }
 
     @Test

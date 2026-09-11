@@ -127,11 +127,19 @@ class GeofenceManager @Inject constructor(
             hasPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
 
     suspend fun registerGeofence(id: Long, name: String, lat: Double, lng: Double, radiusM: Float): GeofenceRegistration {
-        if (!hasLocationPermissions()) {
-            Log.w(TAG, "Missing required location permissions, cannot register geofence")
-            return GeofenceRegistration.PermissionMissing
+        val outcome = if (hasLocationPermissions()) {
+            addGeofence(id, lat, lng, radiusM)
+        } else {
+            GeofenceRegistration.PermissionMissing
         }
+        when (outcome) {
+            GeofenceRegistration.Registered -> Log.d(TAG, "Geofence registered: id=$id name=$name")
+            else -> reportRegistrationFailure(id, name, outcome)
+        }
+        return outcome
+    }
 
+    private suspend fun addGeofence(id: Long, lat: Double, lng: Double, radiusM: Float): GeofenceRegistration {
         val geofence = Geofence.Builder()
             .setRequestId(id.toString())
             .setCircularRegion(lat, lng, radiusM)
@@ -144,7 +152,7 @@ class GeofenceManager @Inject constructor(
             .addGeofence(geofence)
             .build()
 
-        val outcome = try {
+        return try {
             @Suppress("MissingPermission")
             val task = geofencingClient.addGeofences(request, GeofenceBroadcastReceiver.getPendingIntent(context))
             withTimeoutOrNull(PLAY_SERVICES_TIMEOUT_MS) { task.await(); GeofenceRegistration.Registered }
@@ -156,11 +164,17 @@ class GeofenceManager @Inject constructor(
         } catch (e: Exception) {
             GeofenceRegistration.Failed(e)
         }
-        when (outcome) {
-            GeofenceRegistration.Registered -> Log.d(TAG, "Geofence registered: id=$id name=$name")
-            else -> Log.e(TAG, "Geofence registration failed: id=$id status=${outcome.statusLabel}")
+    }
+
+    private fun reportRegistrationFailure(id: Long, name: String, outcome: GeofenceRegistration) {
+        Log.e(TAG, "Geofence registration failed: id=$id status=${outcome.statusLabel}")
+        Sentry.captureMessage("Geofence registration failed") { scope ->
+            scope.setTag("component", "geofence")
+            scope.setExtra("location_id", id.toString())
+            scope.setExtra("location_name", name)
+            scope.setExtra("status", outcome.statusLabel)
+            scope.level = SentryLevel.WARNING
         }
-        return outcome
     }
 
     fun removeGeofence(id: Long) {
