@@ -14,6 +14,7 @@ import net.interstellarai.unreminder.data.repository.PersonalContextRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
+import net.interstellarai.unreminder.service.geofence.LocationReconciler
 import net.interstellarai.unreminder.service.geofence.RegistrationHealth
 import net.interstellarai.unreminder.service.trigger.TriggerPipeline
 import net.interstellarai.unreminder.worker.EveningInvitationScheduler
@@ -34,6 +35,7 @@ data class SettingsUiState(
     val hasBackgroundLocationPermission: Boolean = false,
     val backgroundRestricted: Boolean = false,
     val registrationHealth: RegistrationHealth? = null,
+    val reconciliationFailure: String? = null,
     val testTriggered: Boolean = false,
     val testTriggeredEmpty: Boolean = false,
     val errorMessage: String? = null,
@@ -42,7 +44,7 @@ data class SettingsUiState(
     val eveningInvitationTime: LocalTime = EveningInvitationRepository.DEFAULT_TIME,
 ) {
     val locationTracking: LocationTrackingStatus
-        get() = LocationTrackingStatus.of(registrationHealth, backgroundRestricted)
+        get() = LocationTrackingStatus.of(registrationHealth, backgroundRestricted, reconciliationFailure)
 }
 
 @HiltViewModel
@@ -52,6 +54,7 @@ class SettingsViewModel @Inject constructor(
     private val triggerRepository: TriggerRepository,
     private val habitRepository: HabitRepository,
     private val geofenceManager: GeofenceManager,
+    private val locationReconciler: LocationReconciler,
     private val personalContextRepository: PersonalContextRepository,
     private val eveningInvitationRepository: EveningInvitationRepository,
     private val eveningInvitationScheduler: EveningInvitationScheduler,
@@ -73,6 +76,11 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             geofenceManager.registrationHealth.collect { health ->
                 _uiState.update { it.copy(registrationHealth = health) }
+            }
+        }
+        viewModelScope.launch {
+            locationReconciler.reconciliationFailure.collect { failure ->
+                _uiState.update { it.copy(reconciliationFailure = failure) }
             }
         }
         viewModelScope.launch {

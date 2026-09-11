@@ -47,6 +47,12 @@ sealed interface LocationTrackingStatus {
         override val advice = "Some geofences did not register ($statusLabel). Reopen this screen to retry."
     }
 
+    data class LocationCheckFailed(val statusLabel: String) : LocationTrackingStatus {
+        override val label = "location check failed"
+        override val advice =
+            "The last check of your position failed ($statusLabel). Open Locations and try again."
+    }
+
     data object LocationSettingsUnverified : LocationTrackingStatus {
         override val label = "location settings unverified"
         override val advice =
@@ -54,7 +60,11 @@ sealed interface LocationTrackingStatus {
     }
 
     companion object {
-        fun of(health: RegistrationHealth?, backgroundRestricted: Boolean): LocationTrackingStatus {
+        fun of(
+            health: RegistrationHealth?,
+            backgroundRestricted: Boolean,
+            reconciliationFailure: String? = null,
+        ): LocationTrackingStatus {
             if (health == null) return Checking
             if (health.savedCount == 0) return NoLocations
             if (!health.backgroundLocationGranted) return BackgroundLocationMissing
@@ -66,6 +76,9 @@ sealed interface LocationTrackingStatus {
             }
             health.lastFailure?.let { return RegistrationFailed(it.statusLabel) }
             if (backgroundRestricted) return BatteryRestricted
+            // A read that actually failed outranks an unverified settings probe: it is evidence,
+            // not a missing answer.
+            reconciliationFailure?.let { return LocationCheckFailed(it) }
             return when (health.locationSettings) {
                 LocationSettingsCheck.Available -> Healthy
                 is LocationSettingsCheck.Unavailable -> LocationSettingsOff

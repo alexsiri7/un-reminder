@@ -14,6 +14,7 @@ import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.geofence.GeofenceRegistration
+import net.interstellarai.unreminder.service.geofence.LocationReconciler
 import net.interstellarai.unreminder.service.geofence.LocationSettingsCheck
 import net.interstellarai.unreminder.service.geofence.RegistrationHealth
 import net.interstellarai.unreminder.service.trigger.TriggerPipeline
@@ -53,6 +54,7 @@ class SettingsViewModelTest {
     private lateinit var triggerPipeline: TriggerPipeline
     private lateinit var habitRepository: HabitRepository
     private lateinit var geofenceManager: GeofenceManager
+    private lateinit var locationReconciler: LocationReconciler
     private lateinit var personalContextRepository: PersonalContextRepository
     private lateinit var eveningInvitationRepository: EveningInvitationRepository
     private lateinit var eveningInvitationScheduler: EveningInvitationScheduler
@@ -62,6 +64,7 @@ class SettingsViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private val currentLocationIdsFlow = MutableStateFlow<Set<Long>>(emptySet())
     private val registrationHealthFlow = MutableStateFlow<RegistrationHealth?>(null)
+    private val reconciliationFailureFlow = MutableStateFlow<String?>(null)
     private val activityManager: ActivityManager = mockk()
 
     @Before
@@ -71,6 +74,7 @@ class SettingsViewModelTest {
         triggerPipeline = mockk(relaxUnitFun = true)
         habitRepository = mockk(relaxUnitFun = true)
         geofenceManager = mockk(relaxed = true)
+        locationReconciler = mockk(relaxed = true)
         personalContextRepository = mockk(relaxUnitFun = true)
         every { personalContextRepository.personalContext } returns flowOf("")
         eveningInvitationRepository = mockk(relaxUnitFun = true)
@@ -81,9 +85,11 @@ class SettingsViewModelTest {
         every { activityManager.isBackgroundRestricted } returns false
         currentLocationIdsFlow.value = emptySet()
         registrationHealthFlow.value = null
+        reconciliationFailureFlow.value = null
         // Default: at least one eligible habit so the pre-existing tests still exercise the pipeline path.
         every { geofenceManager.currentLocationIds } returns currentLocationIdsFlow.asStateFlow()
         every { geofenceManager.registrationHealth } returns registrationHealthFlow.asStateFlow()
+        every { locationReconciler.reconciliationFailure } returns reconciliationFailureFlow.asStateFlow()
         coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(
             HabitEntity(id = 1L, name = "habit")
         )
@@ -94,6 +100,7 @@ class SettingsViewModelTest {
             triggerRepository = triggerRepository,
             habitRepository = habitRepository,
             geofenceManager = geofenceManager,
+            locationReconciler = locationReconciler,
             personalContextRepository = personalContextRepository,
             eveningInvitationRepository = eveningInvitationRepository,
             eveningInvitationScheduler = eveningInvitationScheduler,
@@ -303,6 +310,18 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun `a reconciliation failure reaches the location tracking status`() = runTest {
+        registrationHealthFlow.value = health(outcomes = listOf(1L to GeofenceRegistration.Registered))
+        reconciliationFailureFlow.value = "ApiException(7)"
+        advanceUntilIdle()
+
+        assertEquals(
+            LocationTrackingStatus.LocationCheckFailed("ApiException(7)"),
+            viewModel.uiState.value.locationTracking,
+        )
+    }
+
+    @Test
     fun `no saved locations reads as neutral rather than a fault`() = runTest {
         registrationHealthFlow.value = health(outcomes = emptyList(), backgroundLocationGranted = false)
         advanceUntilIdle()
@@ -349,6 +368,7 @@ class SettingsViewModelTest {
             triggerRepository = triggerRepository,
             habitRepository = habitRepository,
             geofenceManager = geofenceManager,
+            locationReconciler = locationReconciler,
             personalContextRepository = personalContextRepository,
             eveningInvitationRepository = eveningInvitationRepository,
             eveningInvitationScheduler = eveningInvitationScheduler,
@@ -384,6 +404,7 @@ class SettingsViewModelTest {
             triggerRepository = triggerRepository,
             habitRepository = habitRepository,
             geofenceManager = geofenceManager,
+            locationReconciler = locationReconciler,
             personalContextRepository = personalContextRepository,
             eveningInvitationRepository = eveningInvitationRepository,
             eveningInvitationScheduler = eveningInvitationScheduler,
