@@ -67,12 +67,16 @@ jobs:
             echo "changed=true" >> $GITHUB_OUTPUT
           fi
 
+      # The message carries no CI-skip marker: a squash merge concatenates the PR's
+      # commit subjects into main's commit message, where such a marker suppresses the
+      # push-triggered CI and Release runs (#351). The push cannot loop regardless — it
+      # is made with the default GITHUB_TOKEN, whose pushes create no workflow runs.
       - name: Commit updated snapshots to PR branch
         if: steps.record.outputs.changed == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git commit -m "chore: update Paparazzi snapshots [skip ci]"
+          git commit -m "chore: update Paparazzi snapshots"
           git push
 
       - name: Fail — snapshots updated, review required
