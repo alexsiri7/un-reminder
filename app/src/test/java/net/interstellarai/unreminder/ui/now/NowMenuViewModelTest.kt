@@ -447,6 +447,26 @@ class NowMenuViewModelTest {
     }
 
     @Test
+    fun `a failed promotion skips consuming the displayed variant`() = runTest(testDispatcher) {
+        val habits = (1L..2L).map { habit(it) }
+        givenHabits(habits, allAvailable(habits))
+        coEvery { variationRepository.peekUnusedVariation(1L) } returns variation(10L, 1L)
+        coEvery { triggerRepository.insert(any()) } returns 99L
+        coEvery { dismissalTracker.onCompleted(99L) } throws IllegalStateException("promotion broke")
+        val vm = buildViewModel()
+        vm.refresh()
+        advanceUntilIdle()
+        assertEquals(10L, vm.menu().items.single { it.habitId == 1L }.variationId)
+
+        vm.complete(1L)
+        advanceUntilIdle()
+
+        assertFalse(1L in vm.menu().items.map { it.habitId })
+        coVerify(exactly = 1) { dismissalTracker.onCompleted(99L) }
+        coVerify(exactly = 0) { variationRepository.markConsumed(any()) }
+    }
+
+    @Test
     fun `days with any completion is forwarded from the trigger repository`() = runTest(testDispatcher) {
         every { triggerRepository.daysWithAnyCompletion() } returns flowOf(7)
         val vm = buildViewModel()
