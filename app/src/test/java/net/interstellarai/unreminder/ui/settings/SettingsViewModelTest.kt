@@ -5,12 +5,15 @@ import android.content.Context
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import net.interstellarai.unreminder.data.db.HabitEntity
+import net.interstellarai.unreminder.data.repository.EveningInvitationRepository
+import net.interstellarai.unreminder.data.repository.EveningInvitationSettings
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.PersonalContextRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.trigger.TriggerPipeline
+import net.interstellarai.unreminder.worker.EveningInvitationScheduler
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -34,6 +37,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.time.LocalTime
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SettingsViewModelTest {
@@ -43,6 +47,8 @@ class SettingsViewModelTest {
     private lateinit var habitRepository: HabitRepository
     private lateinit var geofenceManager: GeofenceManager
     private lateinit var personalContextRepository: PersonalContextRepository
+    private lateinit var eveningInvitationRepository: EveningInvitationRepository
+    private lateinit var eveningInvitationScheduler: EveningInvitationScheduler
     private lateinit var context: Context
     private lateinit var viewModel: SettingsViewModel
 
@@ -58,6 +64,9 @@ class SettingsViewModelTest {
         geofenceManager = mockk(relaxed = true)
         personalContextRepository = mockk(relaxUnitFun = true)
         every { personalContextRepository.personalContext } returns flowOf("")
+        eveningInvitationRepository = mockk(relaxUnitFun = true)
+        every { eveningInvitationRepository.settings } returns flowOf(EveningInvitationSettings())
+        eveningInvitationScheduler = mockk(relaxUnitFun = true)
         context = mockk(relaxed = true)
         currentLocationIdsFlow.value = emptySet()
         // Default: at least one eligible habit so the pre-existing tests still exercise the pipeline path.
@@ -73,6 +82,8 @@ class SettingsViewModelTest {
             habitRepository = habitRepository,
             geofenceManager = geofenceManager,
             personalContextRepository = personalContextRepository,
+            eveningInvitationRepository = eveningInvitationRepository,
+            eveningInvitationScheduler = eveningInvitationScheduler,
         )
     }
 
@@ -217,6 +228,8 @@ class SettingsViewModelTest {
             habitRepository = habitRepository,
             geofenceManager = geofenceManager,
             personalContextRepository = personalContextRepository,
+            eveningInvitationRepository = eveningInvitationRepository,
+            eveningInvitationScheduler = eveningInvitationScheduler,
         )
         advanceUntilIdle()
         assertEquals("encouragement", vm.uiState.value.personalContext)
@@ -234,5 +247,43 @@ class SettingsViewModelTest {
         viewModel.setPersonalContext("x".repeat(600))
         advanceUntilIdle()
         coVerify { personalContextRepository.setPersonalContext("x".repeat(500)) }
+    }
+
+    // --- evening invitation ---
+
+    @Test
+    fun `evening invitation settings initialize from repository`() = runTest {
+        every { eveningInvitationRepository.settings } returns flowOf(
+            EveningInvitationSettings(enabled = false, time = LocalTime.of(21, 15))
+        )
+        val vm = SettingsViewModel(
+            context = context,
+            triggerPipeline = triggerPipeline,
+            triggerRepository = triggerRepository,
+            habitRepository = habitRepository,
+            geofenceManager = geofenceManager,
+            personalContextRepository = personalContextRepository,
+            eveningInvitationRepository = eveningInvitationRepository,
+            eveningInvitationScheduler = eveningInvitationScheduler,
+        )
+        advanceUntilIdle()
+        assertFalse(vm.uiState.value.eveningInvitationEnabled)
+        assertEquals(LocalTime.of(21, 15), vm.uiState.value.eveningInvitationTime)
+    }
+
+    @Test
+    fun `setEveningInvitationEnabled persists and reschedules`() = runTest {
+        viewModel.setEveningInvitationEnabled(false)
+        advanceUntilIdle()
+        coVerify { eveningInvitationRepository.setEnabled(false) }
+        coVerify { eveningInvitationScheduler.reschedule() }
+    }
+
+    @Test
+    fun `setEveningInvitationTime persists and reschedules`() = runTest {
+        viewModel.setEveningInvitationTime(LocalTime.of(19, 45))
+        advanceUntilIdle()
+        coVerify { eveningInvitationRepository.setTime(LocalTime.of(19, 45)) }
+        coVerify { eveningInvitationScheduler.reschedule() }
     }
 }

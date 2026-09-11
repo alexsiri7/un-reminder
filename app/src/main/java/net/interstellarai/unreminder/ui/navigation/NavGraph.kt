@@ -70,6 +70,8 @@ fun NavGraph(
     onTimerNavigated: () -> Unit = {},
     pendingDetailTriggerId: Long? = null,
     onDetailNavigated: () -> Unit = {},
+    pendingOpenNow: Boolean = false,
+    onNowNavigated: () -> Unit = {},
 ) {
     val isOnboarded by navViewModel.isOnboarded.collectAsStateWithLifecycle()
 
@@ -93,6 +95,16 @@ fun NavGraph(
         val id = pendingDetailTriggerId ?: return@LaunchedEffect
         navController.navigate("reminder_detail/$id")
         onDetailNavigated()
+    }
+
+    LaunchedEffect(pendingOpenNow) {
+        if (!pendingOpenNow) return@LaunchedEffect
+        navController.navigate(Screen.Now.route) {
+            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
+        onNowNavigated()
     }
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()

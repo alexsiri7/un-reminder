@@ -79,6 +79,10 @@
             android:exported="false" />
 
         <receiver
+            android:name=".service.notification.EveningInvitationDismissReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".worker.BootReceiver"
             android:exported="false">
             <intent-filter>

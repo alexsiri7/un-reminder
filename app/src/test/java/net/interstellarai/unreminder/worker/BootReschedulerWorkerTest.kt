@@ -17,6 +17,7 @@ class BootReschedulerWorkerTest {
     private val mockContext: Context = mockk(relaxed = true)
     private val mockWorkerParams: WorkerParameters = mockk(relaxed = true)
     private val mockGeofenceManager: GeofenceManager = mockk(relaxed = true)
+    private val mockScheduler: EveningInvitationScheduler = mockk(relaxUnitFun = true)
 
     private lateinit var worker: BootReschedulerWorker
 
@@ -25,7 +26,8 @@ class BootReschedulerWorkerTest {
         worker = BootReschedulerWorker(
             mockContext,
             mockWorkerParams,
-            mockGeofenceManager
+            mockGeofenceManager,
+            mockScheduler,
         )
     }
 
@@ -37,5 +39,14 @@ class BootReschedulerWorkerTest {
 
         assertEquals(Result.success(), result)
         coVerify(exactly = 1) { mockGeofenceManager.registerAllFromDb() }
+    }
+
+    @Test
+    fun `doWork re-arms the evening invitation without disturbing a live schedule`() = runTest {
+        coEvery { mockGeofenceManager.registerAllFromDb() } returns Unit
+
+        worker.doWork()
+
+        coVerify(exactly = 1) { mockScheduler.ensureScheduled() }
     }
 }

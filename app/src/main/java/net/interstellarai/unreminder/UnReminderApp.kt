@@ -9,6 +9,7 @@ import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.notification.NotificationHelper
 import net.interstellarai.unreminder.service.sentry.applyOptions
 import net.interstellarai.unreminder.service.sentry.shouldInitSentry
+import net.interstellarai.unreminder.worker.EveningInvitationScheduler
 import net.interstellarai.unreminder.worker.RandomIntervalWorker
 import net.interstellarai.unreminder.worker.TriggerWatchdogWorker
 import dagger.hilt.android.HiltAndroidApp
@@ -31,6 +32,9 @@ class UnReminderApp : Application(), Configuration.Provider {
     @Inject
     lateinit var geofenceManager: GeofenceManager
 
+    @Inject
+    lateinit var eveningInvitationScheduler: EveningInvitationScheduler
+
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
             .setWorkerFactory(workerFactory)
@@ -50,8 +54,10 @@ class UnReminderApp : Application(), Configuration.Provider {
         // Re-register all geofences on every launch. Android clears geofences on app update,
         // force-stop, or data clear; re-registering with INITIAL_TRIGGER_ENTER ensures
         // currentLocationIds is accurate even without a device reboot.
+        // The evening invitation is bootstrapped the same way as the trigger chain (KEEP).
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             geofenceManager.registerAllFromDb()
+            eveningInvitationScheduler.ensureScheduled()
         }
     }
 

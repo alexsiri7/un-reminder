@@ -7,12 +7,14 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import net.interstellarai.unreminder.data.db.TriggerEntity
+import net.interstellarai.unreminder.data.repository.EveningInvitationRepository
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.PersonalContextRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.trigger.TriggerPipeline
+import net.interstellarai.unreminder.worker.EveningInvitationScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,6 +23,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Instant
+import java.time.LocalTime
 import javax.inject.Inject
 
 data class SettingsUiState(
@@ -31,6 +34,8 @@ data class SettingsUiState(
     val testTriggeredEmpty: Boolean = false,
     val errorMessage: String? = null,
     val personalContext: String = "",
+    val eveningInvitationEnabled: Boolean = true,
+    val eveningInvitationTime: LocalTime = EveningInvitationRepository.DEFAULT_TIME,
 )
 
 @HiltViewModel
@@ -41,6 +46,8 @@ class SettingsViewModel @Inject constructor(
     private val habitRepository: HabitRepository,
     private val geofenceManager: GeofenceManager,
     private val personalContextRepository: PersonalContextRepository,
+    private val eveningInvitationRepository: EveningInvitationRepository,
+    private val eveningInvitationScheduler: EveningInvitationScheduler,
 ) : ViewModel() {
 
     companion object {
@@ -55,6 +62,30 @@ class SettingsViewModel @Inject constructor(
             personalContextRepository.personalContext.collect { ctx ->
                 _uiState.update { it.copy(personalContext = ctx) }
             }
+        }
+        viewModelScope.launch {
+            eveningInvitationRepository.settings.collect { settings ->
+                _uiState.update {
+                    it.copy(
+                        eveningInvitationEnabled = settings.enabled,
+                        eveningInvitationTime = settings.time,
+                    )
+                }
+            }
+        }
+    }
+
+    fun setEveningInvitationEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            eveningInvitationRepository.setEnabled(enabled)
+            eveningInvitationScheduler.reschedule()
+        }
+    }
+
+    fun setEveningInvitationTime(time: LocalTime) {
+        viewModelScope.launch {
+            eveningInvitationRepository.setTime(time)
+            eveningInvitationScheduler.reschedule()
         }
     }
 

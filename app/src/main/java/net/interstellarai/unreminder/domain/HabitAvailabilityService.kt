@@ -21,6 +21,13 @@ sealed class AvailabilityStatus {
 
 enum class UnavailableReason { INACTIVE, LOCATION, TIME_WINDOW, COMPLETED, COOLDOWN, DAILY_LIMIT }
 
+/** Whether the Now menu would list a habit with this status. */
+val AvailabilityStatus.isDoableNow: Boolean
+    get() = when (this) {
+        is AvailabilityStatus.Available, is AvailabilityStatus.NewHabit -> true
+        is AvailabilityStatus.Unavailable -> false
+    }
+
 @Singleton
 class HabitAvailabilityService @Inject constructor(
     private val habitRepository: HabitRepository,
