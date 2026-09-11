@@ -131,4 +131,20 @@ class Tablet7ScreenshotTest {
             }
         }
     }
+
+    @Test
+    fun tablet7_6() {
+        paparazzi.snapshot {
+            UnReminderTheme {
+                NowMenuContent(
+                    uiState = fakeRankedLowerNowMenu,
+                    daysWithAnyCompletion = 12,
+                    onComplete = {},
+                    onLoadMore = {},
+                    onAddHabit = {},
+                    onNavigateToFeedback = {},
+                )
+            }
+        }
+    }
 }

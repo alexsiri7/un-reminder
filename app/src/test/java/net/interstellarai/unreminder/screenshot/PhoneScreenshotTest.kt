@@ -143,6 +143,22 @@ class PhoneScreenshotTest {
             }
         }
     }
+
+    @Test
+    fun phone_6() {
+        paparazzi.snapshot {
+            UnReminderTheme {
+                NowMenuContent(
+                    uiState = fakeRankedLowerNowMenu,
+                    daysWithAnyCompletion = 12,
+                    onComplete = {},
+                    onLoadMore = {},
+                    onAddHabit = {},
+                    onNavigateToFeedback = {},
+                )
+            }
+        }
+    }
 }
 
 internal val fakeHabits = listOf(
@@ -172,6 +188,26 @@ internal val fakeNowMenu = NowMenuUiState.Menu(
         NowMenuItem(habitId = 3, name = "reading", text = null, variationId = null, spriteRes = MascotSprites.entries[2].drawableRes, tier = DisplayTier.DOABLE),
     ),
     canLoadMore = true,
+)
+
+// One row per tier below DOABLE, in display order, so every reason line and the
+// dimmed/outlined row treatment are pinned by a golden.
+internal val fakeRankedLowerNowMenu = NowMenuUiState.Menu(
+    items = listOf(
+        NowMenuItem(
+            habitId = 4,
+            name = "stretching",
+            text = "Reach for the ceiling, then the floor.",
+            variationId = 14,
+            spriteRes = MascotSprites.entries[3].drawableRes,
+            tier = DisplayTier.RECENTLY_DISMISSED,
+        ),
+        NowMenuItem(habitId = 5, name = "journaling", text = null, variationId = null, spriteRes = MascotSprites.entries[4].drawableRes, tier = DisplayTier.PACED),
+        NowMenuItem(habitId = 6, name = "piano", text = null, variationId = null, spriteRes = MascotSprites.entries[5].drawableRes, tier = DisplayTier.OUT_OF_HOURS),
+        NowMenuItem(habitId = 7, name = "gym", text = null, variationId = null, spriteRes = MascotSprites.entries[6].drawableRes, tier = DisplayTier.ELSEWHERE),
+        NowMenuItem(habitId = 8, name = "water the plants", text = null, variationId = null, spriteRes = MascotSprites.entries[7].drawableRes, tier = DisplayTier.DONE_TODAY),
+    ),
+    canLoadMore = false,
 )
 
 internal val fakeRegistrationHealth = RegistrationHealth(
