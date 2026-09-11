@@ -14,6 +14,10 @@ jobs:
     name: Build & test
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    # The default GITHUB_TOKEN is read-only for this repo; the auto-record step below
+    # pushes refreshed Paparazzi goldens to the PR branch and needs write access.
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
