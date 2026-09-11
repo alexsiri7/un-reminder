@@ -51,7 +51,7 @@ jobs:
         if: steps.unit_tests.outcome == 'failure' && github.event_name == 'pull_request'
         id: record
         run: |
-          ./gradlew :app:recordPaparazzi --no-configuration-cache
+          ./gradlew :app:recordPaparazziRelease --no-configuration-cache
           git add app/src/test/snapshots/
           if git diff --staged --quiet; then
             echo "changed=false" >> $GITHUB_OUTPUT

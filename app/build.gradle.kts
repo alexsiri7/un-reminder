@@ -108,6 +108,18 @@ android {
     testOptions {
         unitTests.isReturnDefaultValues = true
         unitTests.isIncludeAndroidResources = true
+        // Paparazzi's layoutlib ships a real android.util.Log with JNI natives that shadows the
+        // mockable android.jar, so ordinary tests only pass if a screenshot test loaded those
+        // natives first in the same JVM. Each Test task is its own JVM fork: debug runs
+        // everything but the screenshot package with layoutlib excluded from its runtime
+        // classpath (see below); release runs only the screenshot tests. The package name is
+        // load-bearing for both filters.
+        unitTests.all { test ->
+            when (test.name) {
+                "testDebugUnitTest" -> test.filter.excludeTestsMatching("net.interstellarai.unreminder.screenshot.*")
+                "testReleaseUnitTest" -> test.filter.includeTestsMatching("net.interstellarai.unreminder.screenshot.*")
+            }
+        }
     }
 }
 
@@ -117,6 +129,13 @@ tasks.withType<KotlinJvmCompile>().configureEach {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
     }
+}
+
+// layoutlib (transitive via app.cash.paparazzi:paparazzi) is the only jar on the unit-test
+// classpath that ships android.* framework classes; without it the mockable android.jar backs
+// android.util.Log & co. The configuration is created lazily, hence matching{} over named().
+configurations.matching { it.name == "debugUnitTestRuntimeClasspath" }.configureEach {
+    exclude(group = "com.android.tools.layoutlib", module = "layoutlib")
 }
 
 sentry {
