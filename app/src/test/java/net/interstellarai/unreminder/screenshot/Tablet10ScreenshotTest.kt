@@ -1,5 +1,10 @@
 package net.interstellarai.unreminder.screenshot
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.Modifier
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
 import com.android.resources.Density
@@ -8,11 +13,22 @@ import net.interstellarai.unreminder.ui.habit.HabitListContent
 import net.interstellarai.unreminder.ui.now.NowMenuContent
 import net.interstellarai.unreminder.ui.onboarding.OnboardingContent
 import net.interstellarai.unreminder.ui.onboarding.OnboardingUiState
+import net.interstellarai.unreminder.ui.settings.LocationTrackingSection
+import net.interstellarai.unreminder.ui.settings.LocationTrackingStatus
+import net.interstellarai.unreminder.ui.theme.Dimens
 import net.interstellarai.unreminder.ui.theme.UnReminderTheme
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import java.util.TimeZone
 
 class Tablet10ScreenshotTest {
+
+    // The section prints checkedAt as a clock time; the JVM zone must not vary by machine.
+    @Before
+    fun pinTimeZone() {
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+    }
 
     @get:Rule
     val paparazzi = Paparazzi(
@@ -94,6 +110,23 @@ class Tablet10ScreenshotTest {
                     onLoadMore = {},
                     onAddHabit = {},
                     onNavigateToFeedback = {},
+                )
+            }
+        }
+    }
+
+    @Test
+    fun tablet10_5() {
+        paparazzi.snapshot {
+            UnReminderTheme {
+                LocationTrackingSection(
+                    health = fakeRegistrationHealth,
+                    status = LocationTrackingStatus.of(fakeRegistrationHealth, backgroundRestricted = false),
+                    onNavigateToLocations = {},
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background)
+                        .padding(Dimens.xxl),
                 )
             }
         }

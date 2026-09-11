@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import net.interstellarai.unreminder.service.geofence.RegistrationHealth
 import net.interstellarai.unreminder.ui.theme.Dimens
 import net.interstellarai.unreminder.ui.theme.DisplayHuge
 import net.interstellarai.unreminder.ui.theme.DisplaySmall
@@ -53,13 +54,13 @@ import net.interstellarai.unreminder.ui.theme.SansBodyStrong
 import net.interstellarai.unreminder.ui.theme.UnReminderShapes
 import net.interstellarai.unreminder.ui.theme.UnReminderTheme
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 // ─────────────────────────────────────────────────────────────────────────
 // Settings — no explicit screen in the handoff, but styled to match the rest
 // of the app: context strip + serif heading + mono section labels + sharp-
 // cornered "soft" permission rows and accent action buttons.
-// ViewModel untouched.
 // ─────────────────────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -258,6 +259,15 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(Dimens.xxl))
 
+            LocationTrackingSection(
+                health = uiState.registrationHealth,
+                status = uiState.locationTracking,
+                onNavigateToLocations = onNavigateToLocations,
+                modifier = Modifier.padding(horizontal = Dimens.xxl),
+            )
+
+            Spacer(Modifier.height(Dimens.xxl))
+
             SettingsSection(
                 label = "actions",
                 modifier = Modifier.padding(horizontal = Dimens.xxl),
@@ -278,6 +288,8 @@ fun SettingsScreen(
     }
 }
 
+private val ClockFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+
 @Composable
 private fun SettingsSection(
     label: String,
@@ -294,6 +306,131 @@ private fun SettingsSection(
         ) {
             content()
         }
+    }
+}
+
+@Composable
+internal fun LocationTrackingSection(
+    health: RegistrationHealth?,
+    status: LocationTrackingStatus,
+    onNavigateToLocations: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SettingsSection(label = "location tracking", modifier = modifier) {
+        GeofenceCountRow(health)
+        HorizontalDivider(
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            thickness = Dimens.hairline,
+        )
+        TrackingStatusRow(status)
+        HorizontalDivider(
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            thickness = Dimens.hairline,
+        )
+        LinkRow(
+            title = "Locations",
+            subtitle = "where each location stands",
+            onClick = onNavigateToLocations,
+        )
+    }
+}
+
+@Composable
+private fun GeofenceCountRow(health: RegistrationHealth?) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Dimens.lg, vertical = Dimens.md + 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                "Geofences registered",
+                style = DisplaySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                if (health == null) "not checked yet"
+                else "checked ${health.checkedAt.atZone(ZoneId.systemDefault()).format(ClockFormat)}",
+                style = MonoLabelTiny,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            )
+        }
+        Text(
+            if (health == null) "\u2013" else "${health.registeredCount} / ${health.savedCount}",
+            style = MonoLabel.copy(fontWeight = FontWeight.SemiBold),
+            color = MaterialTheme.colorScheme.primary,
+        )
+    }
+}
+
+@Composable
+private fun TrackingStatusRow(status: LocationTrackingStatus) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Dimens.lg, vertical = Dimens.md + 2.dp),
+    ) {
+        Text(
+            "Location tracking",
+            style = DisplaySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            status.label,
+            style = MonoLabelTiny,
+            color = when {
+                status.isFault -> MaterialTheme.colorScheme.error
+                status == LocationTrackingStatus.Healthy -> MaterialTheme.colorScheme.primary
+                else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            },
+        )
+        status.advice?.let { advice ->
+            Spacer(Modifier.height(Dimens.xs))
+            Text(
+                advice,
+                style = SansBody,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@Composable
+private fun LinkRow(
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = Dimens.lg, vertical = Dimens.md + 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                title,
+                style = DisplaySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                subtitle,
+                style = MonoLabelTiny,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            )
+        }
+        Text(
+            "open \u2192",
+            style = MonoLabel.copy(fontWeight = FontWeight.SemiBold),
+            color = MaterialTheme.colorScheme.primary,
+        )
     }
 }
 
@@ -402,7 +539,7 @@ private fun TimeRow(
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (enabled) 1f else 0.5f),
         )
         Text(
-            time.format(DateTimeFormatter.ofPattern("HH:mm")),
+            time.format(ClockFormat),
             style = MonoLabel.copy(fontWeight = FontWeight.SemiBold),
             color = MaterialTheme.colorScheme.primary.copy(alpha = if (enabled) 1f else 0.5f),
         )

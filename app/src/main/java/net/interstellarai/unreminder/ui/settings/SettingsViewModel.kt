@@ -1,6 +1,7 @@
 package net.interstellarai.unreminder.ui.settings
 
 import android.Manifest
+import android.app.ActivityManager
 import android.content.Context
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
@@ -13,6 +14,7 @@ import net.interstellarai.unreminder.data.repository.PersonalContextRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
+import net.interstellarai.unreminder.service.geofence.RegistrationHealth
 import net.interstellarai.unreminder.service.trigger.TriggerPipeline
 import net.interstellarai.unreminder.worker.EveningInvitationScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -30,13 +32,18 @@ data class SettingsUiState(
     val hasNotificationPermission: Boolean = false,
     val hasFineLocationPermission: Boolean = false,
     val hasBackgroundLocationPermission: Boolean = false,
+    val backgroundRestricted: Boolean = false,
+    val registrationHealth: RegistrationHealth? = null,
     val testTriggered: Boolean = false,
     val testTriggeredEmpty: Boolean = false,
     val errorMessage: String? = null,
     val personalContext: String = "",
     val eveningInvitationEnabled: Boolean = true,
     val eveningInvitationTime: LocalTime = EveningInvitationRepository.DEFAULT_TIME,
-)
+) {
+    val locationTracking: LocationTrackingStatus
+        get() = LocationTrackingStatus.of(registrationHealth, backgroundRestricted)
+}
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
@@ -61,6 +68,11 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             personalContextRepository.personalContext.collect { ctx ->
                 _uiState.update { it.copy(personalContext = ctx) }
+            }
+        }
+        viewModelScope.launch {
+            geofenceManager.registrationHealth.collect { health ->
+                _uiState.update { it.copy(registrationHealth = health) }
             }
         }
         viewModelScope.launch {
@@ -119,6 +131,8 @@ class SettingsViewModel @Inject constructor(
                 hasBackgroundLocationPermission = ContextCompat.checkSelfPermission(
                     context, Manifest.permission.ACCESS_BACKGROUND_LOCATION
                 ) == PackageManager.PERMISSION_GRANTED,
+                backgroundRestricted =
+                    context.getSystemService(ActivityManager::class.java)?.isBackgroundRestricted == true,
             )
         }
     }
