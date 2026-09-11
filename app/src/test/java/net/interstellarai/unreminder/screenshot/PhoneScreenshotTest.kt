@@ -5,6 +5,7 @@ import app.cash.paparazzi.Paparazzi
 import com.android.resources.Density
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.service.llm.AiStatus
+import net.interstellarai.unreminder.service.notification.MascotSprites
 import net.interstellarai.unreminder.ui.habit.HabitListContent
 import net.interstellarai.unreminder.ui.now.NowMenuContent
 import net.interstellarai.unreminder.ui.now.NowMenuItem
@@ -112,9 +113,21 @@ internal val fakeHabits = listOf(
 
 internal val fakeNowMenu = NowMenuUiState.Menu(
     items = listOf(
-        NowMenuItem(habitId = 1, name = "meditation", description = "sit for five minutes"),
-        NowMenuItem(habitId = 2, name = "exercise", description = "a short walk around the block"),
-        NowMenuItem(habitId = 3, name = "reading", description = null),
+        NowMenuItem(
+            habitId = 1,
+            name = "meditation",
+            text = "Two minutes of stillness before the next thing — the astronaut kind, drifting.",
+            variationId = 11,
+            spriteRes = MascotSprites.entries[0].drawableRes,
+        ),
+        NowMenuItem(
+            habitId = 2,
+            name = "exercise",
+            text = "A short walk around the block, treasure map optional.",
+            variationId = 12,
+            spriteRes = MascotSprites.entries[1].drawableRes,
+        ),
+        NowMenuItem(habitId = 3, name = "reading", text = null, variationId = null, spriteRes = MascotSprites.entries[2].drawableRes),
     ),
     canLoadMore = true,
 )

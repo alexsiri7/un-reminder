@@ -1,5 +1,8 @@
 package net.interstellarai.unreminder.ui.now
 
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -23,6 +27,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -38,11 +45,13 @@ import net.interstellarai.unreminder.ui.theme.MonoLabel
 import net.interstellarai.unreminder.ui.theme.MonoSectionLabel
 import net.interstellarai.unreminder.ui.theme.NavPill
 import net.interstellarai.unreminder.ui.theme.SansBody
+import net.interstellarai.unreminder.ui.theme.UnReminderShapes
 
 // ─────────────────────────────────────────────────────────────────────────
 // Doable-now menu — the pull surface: three things you could do right now,
-// each with its level-sized ask and a single "did it" action. The shuffle is
-// held by the ViewModel and only redrawn on a fresh entry to the screen.
+// each with a freshly worded ask, its mascot sprite and a single "did it"
+// action. The shuffle and the peeked variants are held by the ViewModel and
+// only redrawn on a fresh entry to the screen.
 // ─────────────────────────────────────────────────────────────────────────
 
 @Composable
@@ -181,16 +190,18 @@ private fun MenuRow(item: NowMenuItem, onComplete: () -> Unit) {
             .padding(horizontal = Dimens.lg, vertical = Dimens.md + 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        SpriteTile(item.spriteRes)
+        Spacer(Modifier.width(Dimens.md))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = item.name,
                 style = DisplaySmall,
                 color = MaterialTheme.colorScheme.onBackground,
             )
-            if (item.description != null) {
+            if (item.text != null) {
                 Spacer(Modifier.height(Dimens.xs))
                 Text(
-                    text = item.description,
+                    text = item.text,
                     style = SansBody,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
                 )
@@ -199,6 +210,22 @@ private fun MenuRow(item: NowMenuItem, onComplete: () -> Unit) {
         Spacer(Modifier.width(Dimens.md))
         ActionChip(label = "did it", filled = true, onClick = onComplete)
     }
+}
+
+// The sprites are opaque full-colour tiles and deliberately the one saturated
+// element on a calm palette, so they are shown untinted; the hairline in the
+// palette's soft tone stops a pale tile bleeding into the light background.
+@Composable
+private fun SpriteTile(@DrawableRes spriteRes: Int) {
+    Image(
+        painter = painterResource(spriteRes),
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = Modifier
+            .size(Dimens.spriteTile)
+            .clip(UnReminderShapes.large)
+            .border(Dimens.hairline, MaterialTheme.colorScheme.surfaceVariant, UnReminderShapes.large),
+    )
 }
 
 @Composable

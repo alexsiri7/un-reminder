@@ -49,8 +49,24 @@ class VariationRepository @Inject constructor(
     suspend fun needsRefill(habitId: Long, threshold: Int = REFILL_THRESHOLD): Boolean =
         dao.countUnused(habitId) < threshold
 
-    suspend fun peekUnused(habitId: Long): String? =
-        dao.getUnusedForHabit(habitId, 1).firstOrNull()?.text
+    suspend fun peekUnused(habitId: Long): String? = peekUnusedVariation(habitId)?.text
+
+    /**
+     * A random unconsumed variation for [habitId], left unconsumed. The menu and widget
+     * display through this so that looking never drains the pool; consumption only
+     * happens when a trigger fires or a habit is completed ([markConsumed]).
+     */
+    suspend fun peekUnusedVariation(habitId: Long): VariationEntity? =
+        dao.getUnusedForHabit(habitId, 1).firstOrNull()
+
+    /**
+     * Marks a displayed variation consumed once its habit is completed. A variation a
+     * trigger claimed in the meantime is already consumed, which is fine: the goal is
+     * only that the words the user acted on are not shown again.
+     */
+    suspend fun markConsumed(id: Long) {
+        dao.markConsumed(id, Instant.now().truncatedTo(ChronoUnit.MILLIS))
+    }
 
     suspend fun insertAll(variants: List<VariationEntity>) = dao.insert(variants)
 

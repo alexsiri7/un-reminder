@@ -32,7 +32,7 @@ class EveningInvitationNotificationTest {
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
         notificationManager = context.getSystemService(NotificationManager::class.java)
-        helper = NotificationHelper(context, EmojiRotator())
+        helper = NotificationHelper(context, EmojiRotator(), SpriteResolver())
         helper.createNotificationChannel()
     }
 

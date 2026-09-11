@@ -3,6 +3,7 @@ package net.interstellarai.unreminder.widget
 import android.content.Context
 import android.util.Log
 import androidx.glance.GlanceId
+import androidx.glance.action.ActionParameters
 import androidx.glance.action.actionParametersOf
 import dagger.hilt.android.EntryPointAccessors
 import io.mockk.coEvery
@@ -50,21 +51,37 @@ class MarkDoneActionTest {
         unmockkStatic(EntryPointAccessors::class, Sentry::class, Log::class)
     }
 
-    private suspend fun tap(habitId: Long = 5L) =
-        MarkDoneAction().onAction(context, glanceId, actionParametersOf(MarkDoneAction.HABIT_ID to habitId))
+    private val shown = DoableHabit(id = 5L, name = "stretch", emoji = "🧘", text = "x", variationId = 50L, spriteTag = null)
+
+    private suspend fun tap(parameters: ActionParameters = MarkDoneAction.parameters(shown)) =
+        MarkDoneAction().onAction(context, glanceId, parameters)
 
     @Test
-    fun `records the completion and then refreshes`() = runTest {
+    fun `records the completion of the shown variant and then refreshes`() = runTest {
         tap()
 
-        coVerify(exactly = 1) { completionRecorder.complete(5L) }
+        coVerify(exactly = 1) { completionRecorder.complete(5L, 50L) }
         coVerify(exactly = 1) { widgetRefresher.refreshNow() }
         verify(exactly = 0) { Sentry.captureException(any(), any<ScopeCallback>()) }
     }
 
     @Test
+    fun `a fallback habit completes without a variant`() = runTest {
+        tap(MarkDoneAction.parameters(shown.copy(variationId = null)))
+
+        coVerify(exactly = 1) { completionRecorder.complete(5L, null) }
+    }
+
+    @Test
+    fun `parameters from before the variant was stored still complete the habit`() = runTest {
+        tap(actionParametersOf(MarkDoneAction.HABIT_ID to 5L))
+
+        coVerify(exactly = 1) { completionRecorder.complete(5L, null) }
+    }
+
+    @Test
     fun `a failed write is reported and the widget still refreshes`() = runTest {
-        coEvery { completionRecorder.complete(5L) } throws RuntimeException("boom")
+        coEvery { completionRecorder.complete(5L, 50L) } throws RuntimeException("boom")
 
         tap()
 
@@ -81,7 +98,7 @@ class MarkDoneActionTest {
 
         tap()
 
-        coVerify(exactly = 1) { completionRecorder.complete(5L) }
+        coVerify(exactly = 1) { completionRecorder.complete(5L, 50L) }
         verify(exactly = 1) { Sentry.captureException(any(), any<ScopeCallback>()) }
         scopeCallback.captured.run(sentryScope)
         verify { sentryScope.setTag("component", "widget-done-refresh") }

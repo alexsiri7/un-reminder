@@ -216,6 +216,31 @@ class TriggerPipelineTest {
     }
 
     @Test
+    fun `pool has variant with sprite tag - threads it to the notification as the large icon source`() = runTest {
+        val variation = VariationEntity(
+            id = 7L, habitId = 1L, text = "Cloud notification body",
+            promptFingerprint = "fp", generatedAt = Instant.now(), consumedAt = null,
+            spriteTag = "wizard_starry_robe"
+        )
+        coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
+        coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(testHabit)
+        coEvery { variationRepository.pickRandomUnused(1L) } returns variation
+        coEvery { variationRepository.needsRefill(1L) } returns false
+
+        pipeline.execute(42L)
+
+        coVerify {
+            notificationHelper.postTriggerNotification(
+                triggerId = 42L,
+                promptText = "Cloud notification body",
+                habitName = "meditation",
+                actionUrl = null,
+                spriteTag = "wizard_starry_robe"
+            )
+        }
+    }
+
+    @Test
     fun `pool has variants and needsRefill true - enqueues refill`() = runTest {
         val variation = VariationEntity(
             id = 7L, habitId = 1L, text = "Cloud notification body",

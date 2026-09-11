@@ -118,4 +118,32 @@ class VariationRepositoryTest {
         repository.peekUnused(1L)
         coVerify(exactly = 0) { mockDao.markConsumed(any(), any()) }
     }
+
+    @Test fun `peekUnusedVariation returns the whole unused row without consuming it`() = runTest {
+        val entity = VariationEntity(
+            id = 7L, habitId = 1L, text = "x",
+            promptFingerprint = "fp", generatedAt = Instant.EPOCH, spriteTag = "wizard_starry_robe",
+        )
+        coEvery { mockDao.getUnusedForHabit(1L, 1) } returns listOf(entity)
+
+        assertEquals(entity, repository.peekUnusedVariation(1L))
+        coVerify(exactly = 0) { mockDao.markConsumed(any(), any()) }
+    }
+
+    @Test fun `peekUnusedVariation returns null when pool is empty`() = runTest {
+        coEvery { mockDao.getUnusedForHabit(1L, 1) } returns emptyList()
+        assertNull(repository.peekUnusedVariation(1L))
+    }
+
+    @Test fun `markConsumed stamps the given row`() = runTest {
+        coEvery { mockDao.markConsumed(eq(7L), any()) } returns 1
+        repository.markConsumed(7L)
+        coVerify(exactly = 1) { mockDao.markConsumed(eq(7L), any()) }
+    }
+
+    @Test fun `markConsumed tolerates a row a trigger already claimed`() = runTest {
+        coEvery { mockDao.markConsumed(eq(7L), any()) } returns 0
+        repository.markConsumed(7L)
+        coVerify(exactly = 1) { mockDao.markConsumed(eq(7L), any()) }
+    }
 }

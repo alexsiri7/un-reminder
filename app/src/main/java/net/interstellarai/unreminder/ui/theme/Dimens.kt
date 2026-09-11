@@ -21,6 +21,7 @@ object Dimens {
 
     // Component-specific
     val glyphBubble = 40.dp
+    val spriteTile = 64.dp
     val fabSize = 44.dp
     val navPillWidth = 108.dp
     val navPillHeight = 4.dp

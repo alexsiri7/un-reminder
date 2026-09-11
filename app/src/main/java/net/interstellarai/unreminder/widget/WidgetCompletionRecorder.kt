@@ -2,6 +2,7 @@ package net.interstellarai.unreminder.widget
 
 import net.interstellarai.unreminder.data.db.TriggerEntity
 import net.interstellarai.unreminder.data.repository.TriggerRepository
+import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.trigger.DismissalTracker
 import java.time.Instant
@@ -12,9 +13,11 @@ import javax.inject.Singleton
 @Singleton
 class WidgetCompletionRecorder @Inject constructor(
     private val triggerRepository: TriggerRepository,
+    private val variationRepository: VariationRepository,
     private val dismissalTracker: DismissalTracker,
 ) {
-    suspend fun complete(habitId: Long) {
+    /** [variationId] is the variant the widget was showing, so it is consumed and not shown again. */
+    suspend fun complete(habitId: Long, variationId: Long?) {
         val now = Instant.now()
         val triggerId = triggerRepository.insert(
             TriggerEntity(
@@ -26,6 +29,7 @@ class WidgetCompletionRecorder @Inject constructor(
             )
         )
         dismissalTracker.onCompleted(triggerId)
+        variationId?.let { variationRepository.markConsumed(it) }
     }
 
     companion object {

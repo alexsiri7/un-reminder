@@ -13,10 +13,12 @@ import androidx.glance.Button
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
+import androidx.glance.Image
+import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
 import androidx.glance.action.ActionParameters
-import androidx.glance.action.actionParametersOf
 import androidx.glance.action.clickable
+import androidx.glance.action.mutableActionParametersOf
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.action.ActionCallback
@@ -29,10 +31,14 @@ import androidx.glance.currentState
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
+import androidx.glance.layout.ContentScale
+import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
+import androidx.glance.layout.size
+import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
@@ -47,11 +53,13 @@ import io.sentry.Sentry
 import kotlinx.coroutines.CancellationException
 import net.interstellarai.unreminder.MainActivity
 import net.interstellarai.unreminder.service.notification.NotificationHelper
+import net.interstellarai.unreminder.service.notification.SpriteResolver
 import javax.inject.Inject
 
 /**
- * Home-screen widget: one doable habit and a "did it" button, or a resting state. It only
- * renders what [WidgetRefresher] last stored; every recompute goes through the refresher.
+ * Home-screen widget: one doable habit, its peeked variant and sprite, and a "did it" button,
+ * or a resting state. It only renders what [WidgetRefresher] last stored; every recompute
+ * goes through the refresher.
  */
 class DoableHabitWidget : GlanceAppWidget() {
 
@@ -59,23 +67,41 @@ class DoableHabitWidget : GlanceAppWidget() {
         private val HABIT_ID = longPreferencesKey("habit_id")
         private val HABIT_NAME = stringPreferencesKey("habit_name")
         private val EMOJI = stringPreferencesKey("emoji")
+        private val TEXT = stringPreferencesKey("text")
+        private val VARIATION_ID = longPreferencesKey("variation_id")
+        // The tag, not the drawable id: stored state outlives an app update, and resource
+        // ids do not, whereas an unknown tag still resolves to something to show.
+        private val SPRITE_TAG = stringPreferencesKey("sprite_tag")
 
         fun store(prefs: MutablePreferences, habit: DoableHabit?) {
             if (habit == null) {
                 prefs.remove(HABIT_ID)
                 prefs.remove(HABIT_NAME)
                 prefs.remove(EMOJI)
+                prefs.remove(TEXT)
+                prefs.remove(VARIATION_ID)
+                prefs.remove(SPRITE_TAG)
             } else {
                 prefs[HABIT_ID] = habit.id
                 prefs[HABIT_NAME] = habit.name
                 prefs[EMOJI] = habit.emoji
+                if (habit.text != null) prefs[TEXT] = habit.text else prefs.remove(TEXT)
+                if (habit.variationId != null) prefs[VARIATION_ID] = habit.variationId else prefs.remove(VARIATION_ID)
+                if (habit.spriteTag != null) prefs[SPRITE_TAG] = habit.spriteTag else prefs.remove(SPRITE_TAG)
             }
         }
 
         internal fun stored(prefs: Preferences): DoableHabit? {
             val id = prefs[HABIT_ID] ?: return null
             val name = prefs[HABIT_NAME] ?: return null
-            return DoableHabit(id = id, name = name, emoji = prefs[EMOJI].orEmpty())
+            return DoableHabit(
+                id = id,
+                name = name,
+                emoji = prefs[EMOJI].orEmpty(),
+                text = prefs[TEXT],
+                variationId = prefs[VARIATION_ID],
+                spriteTag = prefs[SPRITE_TAG],
+            )
         }
 
         /** Tapping anywhere but "did it" opens the app on the Now menu. */
@@ -87,14 +113,15 @@ class DoableHabitWidget : GlanceAppWidget() {
     }
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
+        val spriteResolver = EntryPointAccessors.fromApplication(context, WidgetEntryPoint::class.java).spriteResolver()
         provideContent {
-            WidgetContent(stored(currentState()))
+            WidgetContent(stored(currentState()), spriteResolver)
         }
     }
 }
 
 @Composable
-private fun WidgetContent(habit: DoableHabit?) {
+private fun WidgetContent(habit: DoableHabit?, spriteResolver: SpriteResolver) {
     val openNow = DoableHabitWidget.openNowIntent(LocalContext.current)
     Box(
         modifier = GlanceModifier
@@ -105,29 +132,48 @@ private fun WidgetContent(habit: DoableHabit?) {
             .padding(16.dp),
         contentAlignment = Alignment.CenterStart,
     ) {
-        if (habit == null) Resting() else Suggestion(habit)
+        if (habit == null) Resting() else Suggestion(habit, spriteResolver)
     }
 }
 
+// The sprite is the widget's dominant element and is shown untinted: the tiles are the one
+// saturated thing on the calm palette. Variants are written for notification bodies, so the
+// text is capped at two lines rather than letting the layout grow.
 @Composable
-private fun Suggestion(habit: DoableHabit) {
-    Column {
-        Text(
-            text = "${habit.emoji} ${habit.name}",
-            style = TextStyle(
-                color = GlanceTheme.colors.onSurface,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-            ),
-            maxLines = 2,
+private fun Suggestion(habit: DoableHabit, spriteResolver: SpriteResolver) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Image(
+            provider = ImageProvider(spriteResolver.resolve(habit.spriteTag, rotationSeed = habit.id)),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = GlanceModifier
+                .size(width = 88.dp, height = 74.dp)
+                .cornerRadius(8.dp),
         )
-        Spacer(GlanceModifier.height(12.dp))
-        Button(
-            text = "did it",
-            onClick = actionRunCallback<MarkDoneAction>(
-                actionParametersOf(MarkDoneAction.HABIT_ID to habit.id)
-            ),
-        )
+        Spacer(GlanceModifier.width(12.dp))
+        Column {
+            Text(
+                text = "${habit.emoji} ${habit.name}",
+                style = TextStyle(
+                    color = GlanceTheme.colors.onSurface,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
+                maxLines = 1,
+            )
+            if (habit.text != null) {
+                Text(
+                    text = habit.text,
+                    style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 13.sp),
+                    maxLines = 2,
+                )
+            }
+            Spacer(GlanceModifier.height(8.dp))
+            Button(
+                text = "did it",
+                onClick = actionRunCallback<MarkDoneAction>(MarkDoneAction.parameters(habit)),
+            )
+        }
     }
 }
 
@@ -159,7 +205,13 @@ class MarkDoneAction : ActionCallback {
 
     companion object {
         val HABIT_ID = ActionParameters.Key<Long>("habit_id")
+        val VARIATION_ID = ActionParameters.Key<Long>("variation_id")
         private const val TAG = "MarkDoneAction"
+
+        fun parameters(habit: DoableHabit): ActionParameters =
+            mutableActionParametersOf(HABIT_ID to habit.id).apply {
+                habit.variationId?.let { this[VARIATION_ID] = it }
+            }
     }
 
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
@@ -167,7 +219,7 @@ class MarkDoneAction : ActionCallback {
         val habitId = parameters[HABIT_ID]
         if (habitId != null) {
             try {
-                entryPoint.completionRecorder().complete(habitId)
+                entryPoint.completionRecorder().complete(habitId, parameters[VARIATION_ID])
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "Failed to record widget completion for habit $habitId", e)
@@ -196,4 +248,5 @@ class MarkDoneAction : ActionCallback {
 interface WidgetEntryPoint {
     fun completionRecorder(): WidgetCompletionRecorder
     fun widgetRefresher(): WidgetRefresher
+    fun spriteResolver(): SpriteResolver
 }
