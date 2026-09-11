@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import net.interstellarai.unreminder.MainActivity
+import net.interstellarai.unreminder.widget.DoableHabitWidget
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -65,7 +66,28 @@ class EveningInvitationNotificationTest {
             val intent = savedIntent(pendingIntent)
             assertEquals(ComponentName(context, MainActivity::class.java), intent.component)
             assertTrue(intent.getBooleanExtra(NotificationHelper.EXTRA_OPEN_NOW, false))
+            assertTrue(intent.getBooleanExtra(NotificationHelper.EXTRA_FROM_EVENING_INVITATION, false))
         }
+    }
+
+    @Test
+    fun `opening the app from the invitation clears it`() {
+        val notification = posted()
+
+        helper.cancelEveningInvitationIfOpenedFrom(savedIntent(notification.contentIntent))
+
+        assertNull(shadowOf(notificationManager).getNotification(id))
+    }
+
+    @Test
+    fun `opening the app from the widget leaves the invitation posted`() {
+        posted()
+        val fromWidget = DoableHabitWidget.openNowIntent(context)
+        assertTrue(fromWidget.getBooleanExtra(NotificationHelper.EXTRA_OPEN_NOW, false))
+
+        helper.cancelEveningInvitationIfOpenedFrom(fromWidget)
+
+        assertNotNull(shadowOf(notificationManager).getNotification(id))
     }
 
     @Test

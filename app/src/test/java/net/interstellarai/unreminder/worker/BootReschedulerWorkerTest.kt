@@ -4,9 +4,11 @@ import android.content.Context
 import androidx.work.ListenableWorker.Result
 import androidx.work.WorkerParameters
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
+import net.interstellarai.unreminder.widget.WidgetRefresher
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -18,6 +20,7 @@ class BootReschedulerWorkerTest {
     private val mockWorkerParams: WorkerParameters = mockk(relaxed = true)
     private val mockGeofenceManager: GeofenceManager = mockk(relaxed = true)
     private val mockScheduler: EveningInvitationScheduler = mockk(relaxUnitFun = true)
+    private val widgetRefresher: WidgetRefresher = mockk(relaxUnitFun = true)
 
     private lateinit var worker: BootReschedulerWorker
 
@@ -28,6 +31,7 @@ class BootReschedulerWorkerTest {
             mockWorkerParams,
             mockGeofenceManager,
             mockScheduler,
+            widgetRefresher,
         )
     }
 
@@ -48,5 +52,14 @@ class BootReschedulerWorkerTest {
         worker.doWork()
 
         coVerify(exactly = 1) { mockScheduler.ensureScheduled() }
+    }
+
+    @Test
+    fun `doWork refreshes the widget after a reboot`() = runTest {
+        coEvery { mockGeofenceManager.registerAllFromDb() } returns Unit
+
+        worker.doWork()
+
+        verify(exactly = 1) { widgetRefresher.refresh() }
     }
 }

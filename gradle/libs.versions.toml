@@ -27,6 +27,7 @@ sentry = "8.40.0"
 sentryGradle = "6.5.0"
 datastore = "1.1.1"
 okhttp = "4.12.0"
+glance = "1.1.1"
 
 [libraries]
 compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
@@ -68,6 +69,7 @@ androidx-datastore-preferences = { group = "androidx.datastore", name = "datasto
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 okhttp-mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver", version.ref = "okhttp" }
 sentry-android = { group = "io.sentry", name = "sentry-android", version.ref = "sentry" }
+glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", version.ref = "glance" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

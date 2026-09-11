@@ -3,6 +3,7 @@ package net.interstellarai.unreminder.ui.reminder
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -17,6 +18,7 @@ import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.notification.NotificationHelper
 import net.interstellarai.unreminder.service.trigger.DismissalTracker
+import net.interstellarai.unreminder.widget.WidgetRefresher
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -33,6 +35,7 @@ class ReminderDetailViewModelTest {
     private lateinit var habitRepository: HabitRepository
     private lateinit var dismissalTracker: DismissalTracker
     private lateinit var notificationHelper: NotificationHelper
+    private lateinit var widgetRefresher: WidgetRefresher
     private lateinit var viewModel: ReminderDetailViewModel
 
     @Before
@@ -42,8 +45,9 @@ class ReminderDetailViewModelTest {
         habitRepository = mockk(relaxUnitFun = true)
         dismissalTracker = mockk(relaxUnitFun = true)
         notificationHelper = mockk(relaxUnitFun = true)
+        widgetRefresher = mockk(relaxUnitFun = true)
         viewModel = ReminderDetailViewModel(
-            triggerRepository, habitRepository, dismissalTracker, notificationHelper, testDispatcher
+            triggerRepository, habitRepository, dismissalTracker, notificationHelper, widgetRefresher, testDispatcher
         )
     }
 
@@ -96,6 +100,7 @@ class ReminderDetailViewModelTest {
         coVerify { triggerRepository.updateOutcome(42L, TriggerStatus.COMPLETED) }
         coVerify { dismissalTracker.onCompleted(42L) }
         coVerify { notificationHelper.cancelNotification(42L) }
+        verify(exactly = 1) { widgetRefresher.refresh() }
         assertTrue(viewModel.uiState.value.isDone)
     }
 
@@ -109,6 +114,7 @@ class ReminderDetailViewModelTest {
         advanceUntilIdle()
         coVerify { triggerRepository.updateOutcome(42L, TriggerStatus.DISMISSED) }
         coVerify { dismissalTracker.onDismissed(42L) }
+        verify(exactly = 1) { widgetRefresher.refresh() }
         assertTrue(viewModel.uiState.value.isDone)
     }
 
