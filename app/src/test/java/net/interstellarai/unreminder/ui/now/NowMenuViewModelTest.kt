@@ -290,6 +290,30 @@ class NowMenuViewModelTest {
     }
 
     @Test
+    fun `a failed consume after the write keeps the habit completed and promoted`() = runTest(testDispatcher) {
+        val habits = (1L..3L).map { habit(it) }
+        givenHabits(habits, allAvailable(habits))
+        habits.forEach { h -> coEvery { variationRepository.peekUnusedVariation(h.id) } returns variation(h.id * 10, h.id) }
+        coEvery { triggerRepository.insert(any()) } returns 99L
+        coEvery { variationRepository.markConsumed(any()) } throws IllegalStateException("variations table locked")
+        val vm = buildViewModel()
+        vm.refresh()
+        advanceUntilIdle()
+        val completedId = vm.menu().items.first().habitId
+
+        vm.complete(completedId)
+        advanceUntilIdle()
+
+        assertFalse(completedId in vm.menu().items.map { it.habitId })
+        coVerifyOrder {
+            triggerRepository.insert(any())
+            dismissalTracker.onCompleted(99L)
+            variationRepository.markConsumed(completedId * 10)
+        }
+        verify(exactly = 1) { widgetRefresher.refresh() }
+    }
+
+    @Test
     fun `completing a fallback row consumes nothing`() = runTest(testDispatcher) {
         val habits = (1L..3L).map { habit(it) }
         givenHabits(habits, allAvailable(habits))

@@ -28,8 +28,8 @@ class WidgetCompletionRecorder @Inject constructor(
                 source = SOURCE_WIDGET,
             )
         )
-        variationId?.let { variationRepository.markConsumed(it) }
         dismissalTracker.onCompleted(triggerId)
+        variationId?.let { variationRepository.markConsumed(it) }
     }
 
     companion object {

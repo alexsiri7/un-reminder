@@ -110,8 +110,8 @@ class NowMenuViewModel @Inject constructor(
                 return@launch
             }
             try {
-                item.variationId?.let { variationRepository.markConsumed(it) }
                 dismissalTracker.onCompleted(triggerId)
+                item.variationId?.let { variationRepository.markConsumed(it) }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 // The completion is already on disk; bringing the row back would

@@ -22,7 +22,7 @@ class WidgetCompletionRecorderTest {
     private val recorder = WidgetCompletionRecorder(triggerRepository, variationRepository, dismissalTracker)
 
     @Test
-    fun `inserts a COMPLETED trigger from the widget, consumes the shown variant, then runs promotion`() = runTest {
+    fun `inserts a COMPLETED trigger from the widget, runs promotion, then consumes the shown variant`() = runTest {
         val inserted = slot<TriggerEntity>()
         coEvery { triggerRepository.insert(capture(inserted)) } returns 99L
 
@@ -34,8 +34,8 @@ class WidgetCompletionRecorderTest {
         assertEquals(inserted.captured.scheduledAt, inserted.captured.firedAt)
         coVerifyOrder {
             triggerRepository.insert(any())
-            variationRepository.markConsumed(50L)
             dismissalTracker.onCompleted(99L)
+            variationRepository.markConsumed(50L)
         }
         coVerify(exactly = 1) { variationRepository.markConsumed(any()) }
     }
