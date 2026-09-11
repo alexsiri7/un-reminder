@@ -7,9 +7,11 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
+import io.mockk.slot
 import io.mockk.spyk
 import io.mockk.unmockkStatic
 import io.mockk.verify
+import io.sentry.IScope
 import io.sentry.ScopeCallback
 import io.sentry.Sentry
 import io.sentry.protocol.SentryId
@@ -18,6 +20,7 @@ import net.interstellarai.unreminder.data.db.LocationEntity
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -117,6 +120,37 @@ class GeofenceManagerTest {
         coVerify(exactly = 1) { locationRepository.update(stored.copy(radiusM = 100f)) }
         verify(exactly = 1) { mgr.registerGeofence(3L, "Home", 51.5, -0.1, 100f) }
         verify(exactly = 1) { Sentry.captureMessage(any(), any<ScopeCallback>()) }
+    }
+
+    @Test
+    fun `radius-raise telemetry carries only id, name and radii, never coordinates`() = runTest {
+        mockkStatic(Sentry::class)
+        val callback = slot<ScopeCallback>()
+        every { Sentry.captureMessage(any(), capture(callback)) } returns SentryId.EMPTY_ID
+        val stored = LocationEntity(id = 3, name = "Home", lat = 51.5, lng = -0.1, radiusM = 40f)
+        coEvery { locationRepository.getAllList() } returns listOf(stored)
+        val mgr = spyk(GeofenceManager(context, locationRepository))
+
+        mgr.registerAllFromDb()
+
+        val extras = mutableMapOf<String, String>()
+        val scope = mockk<IScope>(relaxed = true)
+        every { scope.setExtra(any(), any()) } answers { extras[firstArg()] = secondArg() }
+        callback.captured.run(scope)
+
+        assertEquals(
+            mapOf(
+                "location_id" to "3",
+                "location_name" to "Home",
+                "old_radius_m" to "40.0",
+                "new_radius_m" to "100.0"
+            ),
+            extras
+        )
+        verify(exactly = 1) { scope.setTag("component", "geofence") }
+        val payload = extras.values.joinToString()
+        assertFalse(payload.contains("51.5"))
+        assertFalse(payload.contains("-0.1"))
     }
 
     @Test

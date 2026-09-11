@@ -21,7 +21,7 @@ data class MapPickerUiState(
     val name: String = "",
     val lat: Double = 0.0,
     val lng: Double = 0.0,
-    val radiusM: Float = 100f,
+    val radiusM: Float = MIN_RADIUS_M,
     val isLoading: Boolean = false,
     val initialCenterLat: Double = 51.5074,  // London — fallback when no GPS fix is available
     val initialCenterLng: Double = -0.1278,

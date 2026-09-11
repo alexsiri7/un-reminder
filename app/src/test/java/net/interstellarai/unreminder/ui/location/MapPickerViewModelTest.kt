@@ -4,6 +4,7 @@ import android.content.Context
 import net.interstellarai.unreminder.data.db.LocationEntity
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
+import net.interstellarai.unreminder.service.geofence.GeofenceManager.Companion.MIN_RADIUS_M
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -44,10 +45,10 @@ class MapPickerViewModelTest {
     }
 
     @Test
-    fun `initial state has empty name and default radius 100m`() {
+    fun `initial state has empty name and the minimum radius`() {
         val state = viewModel.uiState.value
         assertEquals("", state.name)
-        assertEquals(100f, state.radiusM)
+        assertEquals(MIN_RADIUS_M, state.radiusM)
         assertFalse(state.centerReady)
     }
 
