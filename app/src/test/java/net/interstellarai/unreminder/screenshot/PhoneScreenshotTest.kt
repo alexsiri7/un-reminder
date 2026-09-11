@@ -36,9 +36,9 @@ import java.time.LocalTime
 import java.util.Locale
 import java.util.TimeZone
 
-// Goldens are CI-authoritative: record them on a GitHub runner (the Generate Store Screenshots
-// workflow), never locally. A local render differs from CI's by a whole-frame anti-aliasing
-// shift (~4.5% on the tablets), so a locally recorded golden must not be committed.
+// Goldens are CI-authoritative: ci.yml records and commits them to the PR branch, never record
+// or commit them locally. A local render differs from CI's by a whole-frame anti-aliasing shift
+// (~4.5% on the tablets). See README, "Screenshot tests".
 class PhoneScreenshotTest {
 
     // The header formats the date label with the default locale and the location section
