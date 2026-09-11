@@ -204,6 +204,34 @@ class GeofenceManagerTest {
     }
 
     @Test
+    fun `replaceLocationIds swaps the whole set in one persisted step`() {
+        val mgr = newManager()
+        mgr.addLocationId(7L, LocationSetChangeCause.ENTER)
+        breadcrumbs.clear()
+
+        mgr.replaceLocationIds(setOf(42L, 99L))
+
+        assertEquals(setOf(42L, 99L), mgr.currentLocationIds.value)
+        assertEquals(setOf(42L, 99L), newManager().currentLocationIds.value)
+        assertEquals(
+            listOf(Triple("reconcile", "[7]", "[42, 99]")),
+            breadcrumbs.filter { it.getData("cause") == "reconcile" }.map { it.causeAndSets() }
+        )
+    }
+
+    @Test
+    fun `replaceLocationIds with the set already held changes nothing`() {
+        val mgr = newManager()
+        mgr.addLocationId(7L, LocationSetChangeCause.ENTER)
+        breadcrumbs.clear()
+
+        mgr.replaceLocationIds(setOf(7L))
+
+        assertEquals(setOf(7L), mgr.currentLocationIds.value)
+        assertTrue(breadcrumbs.isEmpty())
+    }
+
+    @Test
     fun `loadPersisted ignores malformed entries instead of crashing`() {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()

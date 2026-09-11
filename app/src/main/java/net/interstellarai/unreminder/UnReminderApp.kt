@@ -6,6 +6,7 @@ import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import androidx.work.WorkManager
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
+import net.interstellarai.unreminder.service.geofence.LocationReconciler
 import net.interstellarai.unreminder.service.geofence.LocationSettingsChangedReceiver
 import net.interstellarai.unreminder.service.notification.NotificationHelper
 import net.interstellarai.unreminder.service.sentry.applyOptions
@@ -34,6 +35,9 @@ class UnReminderApp : Application(), Configuration.Provider {
     lateinit var geofenceManager: GeofenceManager
 
     @Inject
+    lateinit var locationReconciler: LocationReconciler
+
+    @Inject
     lateinit var eveningInvitationScheduler: EveningInvitationScheduler
 
     override val workManagerConfiguration: Configuration
@@ -53,11 +57,13 @@ class UnReminderApp : Application(), Configuration.Provider {
         // terminal state, and reaps stale SCHEDULED rows.
         TriggerWatchdogWorker.enqueue(this)
         // Re-register all geofences on every launch. Android clears geofences on app update,
-        // force-stop, or data clear; re-registering with INITIAL_TRIGGER_ENTER ensures
-        // currentLocationIds is accurate even without a device reboot.
+        // force-stop, or data clear; re-registering with INITIAL_TRIGGER_ENTER gives back the
+        // enter transitions, and the reconciliation that follows corrects the set for the ones
+        // that never arrive.
         // The evening invitation is bootstrapped the same way as the trigger chain (KEEP).
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             geofenceManager.registerAllFromDb()
+            locationReconciler.reconcile()
             eveningInvitationScheduler.ensureScheduled()
         }
         // Registration is also redone whenever system Location or a provider is toggled.

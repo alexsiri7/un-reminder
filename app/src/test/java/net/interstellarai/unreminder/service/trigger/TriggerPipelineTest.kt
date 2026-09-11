@@ -11,11 +11,13 @@ import net.interstellarai.unreminder.data.repository.HabitLevelDescriptionReposi
 import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
+import net.interstellarai.unreminder.service.geofence.LocationReconciler
 import net.interstellarai.unreminder.service.notification.NotificationHelper
 import net.interstellarai.unreminder.service.worker.RefillScheduler
 import net.interstellarai.unreminder.widget.WidgetRefresher
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
@@ -41,6 +43,7 @@ class TriggerPipelineTest {
     private lateinit var triggerRepository: TriggerRepository
     private lateinit var locationRepository: LocationRepository
     private lateinit var geofenceManager: GeofenceManager
+    private lateinit var locationReconciler: LocationReconciler
     private lateinit var notificationHelper: NotificationHelper
     private lateinit var variationRepository: VariationRepository
     private lateinit var refillScheduler: RefillScheduler
@@ -67,6 +70,7 @@ class TriggerPipelineTest {
         triggerRepository = mockk(relaxUnitFun = true)
         locationRepository = mockk()
         geofenceManager = mockk()
+        locationReconciler = mockk(relaxed = true)
         notificationHelper = mockk(relaxUnitFun = true)
         variationRepository = mockk()
         refillScheduler = mockk(relaxUnitFun = true)
@@ -78,6 +82,7 @@ class TriggerPipelineTest {
             triggerRepository = triggerRepository,
             locationRepository = locationRepository,
             geofenceManager = geofenceManager,
+            locationReconciler = locationReconciler,
             notificationHelper = notificationHelper,
             variationRepository = variationRepository,
             refillScheduler = refillScheduler,
@@ -108,6 +113,19 @@ class TriggerPipelineTest {
 
         coVerify(exactly = 0) { habitRepository.getEligibleHabits(any()) }
         coVerify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `location state is reconciled before eligibility is decided`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
+        coEvery { habitRepository.getEligibleHabits(any()) } returns emptyList()
+
+        pipeline.execute(42L)
+
+        coVerifyOrder {
+            locationReconciler.reconcile()
+            habitRepository.getEligibleHabits(any())
+        }
     }
 
     @Test

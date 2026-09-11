@@ -69,6 +69,7 @@ class TriggerGateStaysStrictTest {
             triggerRepository = triggerRepository,
             locationRepository = mockk(),
             geofenceManager = geofenceManager,
+            locationReconciler = mockk(relaxed = true),
             notificationHelper = notificationHelper,
             variationRepository = mockk(),
             refillScheduler = mockk(relaxUnitFun = true),
