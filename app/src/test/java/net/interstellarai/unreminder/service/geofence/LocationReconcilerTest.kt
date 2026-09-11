@@ -143,6 +143,14 @@ class LocationReconcilerTest {
         assertEquals(expected.message, cause.message)
     }
 
+    private suspend fun seedFailure(reconciler: LocationReconciler): String {
+        currentLocationFailsWith(ApiException(Status(CommonStatusCodes.NETWORK_ERROR)))
+        reconciler.reconcileNow()
+        val label = "NETWORK_ERROR(${CommonStatusCodes.NETWORK_ERROR})"
+        assertEquals(label, reconciler.reconciliationFailure.value)
+        return label
+    }
+
     private fun currentLocationNeverSettles() {
         every {
             fusedLocationClient.getCurrentLocation(any<Int>(), any<CancellationToken>())
@@ -306,6 +314,50 @@ class LocationReconcilerTest {
         reconciler.reconcileNow()
 
         assertNull(reconciler.reconciliationFailure.value)
+    }
+
+    @Test
+    fun `a failure stays exposed when a later run gets no fix at all`() = runTest {
+        val reconciler = newReconciler(newGeofenceManager())
+        val label = seedFailure(reconciler)
+
+        currentLocationNeverSettles()
+
+        assertEquals(Reconciliation.NoFix, reconciler.reconcile())
+        assertEquals(label, reconciler.reconciliationFailure.value)
+    }
+
+    @Test
+    fun `a failure stays exposed when a later run is skipped inside the debounce window`() = runTest {
+        currentLocationReturns(fixAt(FIX_LAT, FIX_LNG))
+        val reconciler = newReconciler(newGeofenceManager())
+        reconciler.reconcile()
+        val label = seedFailure(reconciler)
+
+        assertEquals(Reconciliation.Skipped, reconciler.reconcile())
+        assertEquals(label, reconciler.reconciliationFailure.value)
+    }
+
+    @Test
+    fun `a failure stays exposed when a later run finds the permission revoked`() = runTest {
+        val reconciler = newReconciler(newGeofenceManager())
+        val label = seedFailure(reconciler)
+
+        shadowOf(context as Application).denyPermissions(Manifest.permission.ACCESS_FINE_LOCATION)
+
+        assertEquals(Reconciliation.PermissionMissing, reconciler.reconcile())
+        assertEquals(label, reconciler.reconciliationFailure.value)
+    }
+
+    @Test
+    fun `a failure stays exposed when a later run finds system location off`() = runTest {
+        val reconciler = newReconciler(newGeofenceManager())
+        val label = seedFailure(reconciler)
+
+        shadowOf(context.getSystemService(LocationManager::class.java)).setLocationEnabled(false)
+
+        assertEquals(Reconciliation.LocationDisabled, reconciler.reconcile())
+        assertEquals(label, reconciler.reconciliationFailure.value)
     }
 
     @Test
