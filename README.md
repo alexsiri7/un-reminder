@@ -52,7 +52,7 @@ Solo user (the author). Single-device, single-user. Personal productivity / well
 
 ### Screenshot tests
 
-Paparazzi goldens live in `app/src/test/snapshots/images/` and are **CI-authoritative**: record them on a GitHub runner — the `Generate Store Screenshots` workflow runs `recordPaparazziRelease` and opens a PR with the new PNGs — never locally. A local render differs from CI's by a whole-frame anti-aliasing shift (~4.5% on the tablet configs), so locally recorded goldens must not be committed and a local `verifyPaparazziRelease` is expected to fail on the tablets. Snapshotted composables take every time, date and locale input as a parameter (`today`, `checkedAt`) and the screenshot test classes pin `Locale.US` and UTC, so a golden does not depend on the day or machine it was rendered on.
+Paparazzi goldens live in `app/src/test/snapshots/images/` and are **CI-authoritative**: record them on a GitHub runner — the `Generate Store Screenshots` workflow runs `recordPaparazziRelease` and opens a PR with the new PNGs — never locally. A local render differs from CI's by a whole-frame anti-aliasing shift (~4.5% on the tablet configs), so locally recorded goldens must not be committed, and a local `verifyPaparazziRelease` reports tablet diffs of that size even when nothing changed. Snapshotted composables take every time, date and locale input as a parameter (`today`, `checkedAt`) and the screenshot test classes pin `Locale.US` and UTC, so a golden does not depend on the day or machine it was rendered on.
 
 ### Cloudflare Worker (`worker/`)
 
