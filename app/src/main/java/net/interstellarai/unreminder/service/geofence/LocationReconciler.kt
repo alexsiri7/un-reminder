@@ -7,6 +7,8 @@ import android.location.Location
 import android.location.LocationManager
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.common.api.CommonStatusCodes
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
@@ -14,6 +16,9 @@ import io.sentry.Sentry
 import net.interstellarai.unreminder.data.db.LocationEntity
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
@@ -63,6 +68,15 @@ class LocationReconciler @Inject constructor(
     @Volatile
     private var lastSuccessAtMillis = 0L
 
+    private val _reconciliationFailure = MutableStateFlow<String?>(null)
+
+    /**
+     * Status label of the last reconciliation that failed on a real error, or null when the last
+     * one succeeded. Not persisted across process death, so a fresh process reads null until its
+     * first run — the same contract as [GeofenceManager.registrationHealth].
+     */
+    val reconciliationFailure: StateFlow<String?> = _reconciliationFailure.asStateFlow()
+
     /**
      * Replaces the recorded location set with the one the device's position implies. Failure of
      * any kind — no permission, no fix, a stale cache — leaves the existing set untouched;
@@ -89,57 +103,98 @@ class LocationReconciler @Inject constructor(
             if (!force && System.currentTimeMillis() - lastSuccessAtMillis < DEBOUNCE_MS) {
                 return Reconciliation.Skipped
             }
-            val fix = obtainFix() ?: return Reconciliation.NoFix
+            val attempt = obtainFix()
+            val fix = attempt.fix ?: return attempt.error?.let { failure(it) } ?: Reconciliation.NoFix
             val locations = locationRepository.getAllList()
             geofenceManager.recordReconciliation(locations.associate { it.id to it.contains(fix) })
             lastSuccessAtMillis = System.currentTimeMillis()
+            _reconciliationFailure.value = null
             return Reconciliation.Reconciled
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Location reconciliation failed", e)
-            Sentry.captureException(e) { scope -> scope.setTag("component", "location-reconciler") }
-            return Reconciliation.Failed(e)
+            return failure(e)
         } finally {
             inFlight.unlock()
         }
     }
 
-    private suspend fun obtainFix(): Location? =
-        currentFix() ?: lastKnownFix()?.takeIf { System.currentTimeMillis() - it.time <= LAST_LOCATION_MAX_AGE_MS }
+    /** One lookup's outcome: the fix it produced, or the exception that stopped it producing one. */
+    private class FixAttempt(val fix: Location?, val error: Throwable?)
 
-    private suspend fun currentFix(): Location? {
+    /**
+     * Both lookups always run: a `getCurrentLocation` error says nothing about whether the cached
+     * fix can still answer correctly, so an error only becomes the outcome when neither leg
+     * produced a usable fix.
+     */
+    private suspend fun obtainFix(): FixAttempt {
+        val current = currentFix()
+        current.fix?.let { return FixAttempt(it, null) }
+        val last = lastKnownFix()
+        val fresh = last.fix?.takeIf { System.currentTimeMillis() - it.time <= LAST_LOCATION_MAX_AGE_MS }
+        if (fresh != null) return FixAttempt(fresh, null)
+        // The current-fix error is the primary fault; lastLocation usually fails for the same reason.
+        return FixAttempt(null, current.error ?: last.error)
+    }
+
+    private suspend fun currentFix(): FixAttempt {
         val cancellation = CancellationTokenSource()
         return try {
-            withTimeoutOrNull(FIX_TIMEOUT_MS) {
-                @Suppress("MissingPermission")
-                fusedLocationClient
-                    .getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, cancellation.token)
-                    .await()
-            }
+            // withTimeoutOrNull absorbs its own cancellation, so a fix that never arrives is a
+            // null fix with no error: no answer, not a fault.
+            FixAttempt(
+                withTimeoutOrNull(FIX_TIMEOUT_MS) {
+                    @Suppress("MissingPermission")
+                    fusedLocationClient
+                        .getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, cancellation.token)
+                        .await()
+                },
+                null,
+            )
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Log.w(TAG, "Current location request failed", e)
-            null
+            FixAttempt(null, e)
         } finally {
             // Stops Play Services hunting for a fix nobody is waiting for any more.
             cancellation.cancel()
         }
     }
 
-    private suspend fun lastKnownFix(): Location? =
+    private suspend fun lastKnownFix(): FixAttempt =
         try {
-            withTimeoutOrNull(FIX_TIMEOUT_MS) {
-                @Suppress("MissingPermission")
-                fusedLocationClient.lastLocation.await()
-            }
+            FixAttempt(
+                withTimeoutOrNull(FIX_TIMEOUT_MS) {
+                    @Suppress("MissingPermission")
+                    fusedLocationClient.lastLocation.await()
+                },
+                null,
+            )
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Log.w(TAG, "Last location lookup failed", e)
-            null
+            FixAttempt(null, e)
         }
+
+    private fun failure(e: Throwable): Reconciliation.Failed {
+        val label = statusLabelOf(e)
+        Log.e(TAG, "Location reconciliation failed ($label)", e)
+        Sentry.captureException(e) { scope ->
+            scope.setTag("component", "geofence")
+            scope.setExtra("reconciliation_status", label)
+        }
+        _reconciliationFailure.value = label
+        return Reconciliation.Failed(e)
+    }
+
+    // R8 renames ApiException itself, so its status code carries the name that survives the
+    // release build; every other cause here is a platform class, which is never renamed.
+    private fun statusLabelOf(cause: Throwable): String = when (cause) {
+        is ApiException -> "${CommonStatusCodes.getStatusCodeString(cause.statusCode)}(${cause.statusCode})"
+        else -> cause.javaClass.simpleName
+    }
 
     // Rows saved before the radius floor existed are only raised to it when registration next
     // runs; judging them by their stored radius would contradict the fence that is registered

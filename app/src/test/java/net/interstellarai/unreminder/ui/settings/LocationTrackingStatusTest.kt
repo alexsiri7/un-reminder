@@ -31,8 +31,11 @@ class LocationTrackingStatusTest {
         checkedAt = Instant.EPOCH,
     )
 
-    private fun statusOf(health: RegistrationHealth?, backgroundRestricted: Boolean = false) =
-        LocationTrackingStatus.of(health, backgroundRestricted)
+    private fun statusOf(
+        health: RegistrationHealth?,
+        backgroundRestricted: Boolean = false,
+        reconciliationFailure: String? = null,
+    ) = LocationTrackingStatus.of(health, backgroundRestricted, reconciliationFailure)
 
     @Test
     fun `nothing reported yet reads as checking, not healthy`() {
@@ -161,5 +164,30 @@ class LocationTrackingStatusTest {
         assertEquals(faults.size, faults.map { it.label }.toSet().size)
         assertEquals(faults.size, faults.map { it.advice }.toSet().size)
         assertTrue(faults.none { Regex("""\(\d+\)""").containsMatchIn(it.label + it.advice) })
+    }
+
+    @Test
+    fun `a reconciliation failure is reported when registration itself is healthy`() {
+        val status = statusOf(health(), reconciliationFailure = "NETWORK_ERROR(7)")
+        assertEquals(LocationTrackingStatus.LocationCheckFailed("NETWORK_ERROR(7)"), status)
+        assertTrue(status.isFault)
+    }
+
+    @Test
+    fun `a registration failure outranks a reconciliation failure`() {
+        val status = statusOf(
+            health(outcomes = listOf(1L to GeofenceRegistration.Rejected(GeofenceStatusCodes.GEOFENCE_TOO_MANY_GEOFENCES))),
+            reconciliationFailure = "NETWORK_ERROR(7)",
+        )
+        assertTrue(status is LocationTrackingStatus.RegistrationFailed)
+    }
+
+    @Test
+    fun `a reconciliation failure outranks an unverified location settings check`() {
+        val status = statusOf(
+            health(locationSettings = LocationSettingsCheck.TimedOut),
+            reconciliationFailure = "NETWORK_ERROR(7)",
+        )
+        assertEquals(LocationTrackingStatus.LocationCheckFailed("NETWORK_ERROR(7)"), status)
     }
 }
