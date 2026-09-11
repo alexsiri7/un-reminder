@@ -6,6 +6,7 @@ import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import androidx.work.WorkManager
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
+import net.interstellarai.unreminder.service.geofence.LocationSettingsChangedReceiver
 import net.interstellarai.unreminder.service.notification.NotificationHelper
 import net.interstellarai.unreminder.service.sentry.applyOptions
 import net.interstellarai.unreminder.service.sentry.shouldInitSentry
@@ -59,6 +60,8 @@ class UnReminderApp : Application(), Configuration.Provider {
             geofenceManager.registerAllFromDb()
             eveningInvitationScheduler.ensureScheduled()
         }
+        // Registration is also redone whenever system Location or a provider is toggled.
+        LocationSettingsChangedReceiver.register(this, geofenceManager)
     }
 
     private fun initSentry() {

@@ -9,6 +9,7 @@ import net.interstellarai.unreminder.service.geofence.GeofenceManager.Companion.
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -110,7 +111,7 @@ class MapPickerViewModelTest {
     }
 
     @Test
-    fun `save calls upsertLocation and registerGeofence`() = runTest {
+    fun `save calls upsertLocation and registerGeofence, then refreshes registration health`() = runTest {
         val savedId = 7L
         coEvery { locationRepository.upsertLocation(any(), any(), any(), any()) } returns savedId
 
@@ -123,6 +124,7 @@ class MapPickerViewModelTest {
 
         coVerify { locationRepository.upsertLocation("Home", 51.5, -0.1, 150f) }
         coVerify { geofenceManager.registerGeofence(savedId, "Home", 51.5, -0.1, 150f) }
+        verify(exactly = 1) { geofenceManager.refreshRegistration() }
         assertTrue(callbackFired)
     }
 
@@ -159,5 +161,6 @@ class MapPickerViewModelTest {
 
         assertFalse(callbackFired)
         assertFalse(viewModel.uiState.value.errorMessage.isNullOrBlank())
+        verify(exactly = 0) { geofenceManager.refreshRegistration() }
     }
 }

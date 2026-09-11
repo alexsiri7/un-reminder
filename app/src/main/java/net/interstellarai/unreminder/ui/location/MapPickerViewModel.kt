@@ -100,6 +100,7 @@ class MapPickerViewModel @Inject constructor(
             try {
                 val id = locationRepository.upsertLocation(state.name, state.lat, state.lng, state.radiusM)
                 geofenceManager.registerGeofence(id, state.name, state.lat, state.lng, state.radiusM)
+                geofenceManager.refreshRegistration()
                 onComplete()
             } catch (e: Exception) {
                 Log.e("MapPickerViewModel", "Failed to save location for name=${state.name}", e)

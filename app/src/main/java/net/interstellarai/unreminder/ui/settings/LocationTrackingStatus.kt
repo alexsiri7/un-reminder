@@ -44,13 +44,13 @@ sealed interface LocationTrackingStatus {
 
     data class RegistrationFailed(val statusLabel: String) : LocationTrackingStatus {
         override val label = "registration failed"
-        override val advice = "Some geofences did not register ($statusLabel). Reopen the app to retry."
+        override val advice = "Some geofences did not register ($statusLabel). Reopen this screen to retry."
     }
 
     data object LocationSettingsUnverified : LocationTrackingStatus {
         override val label = "location settings unverified"
         override val advice =
-            "Could not confirm Location and Google Location Accuracy are on. Reopen the app to retry."
+            "Could not confirm Location and Google Location Accuracy are on. Reopen this screen to retry."
     }
 
     companion object {

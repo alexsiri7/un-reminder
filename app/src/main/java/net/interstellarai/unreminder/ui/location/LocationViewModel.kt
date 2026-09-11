@@ -41,6 +41,7 @@ class LocationViewModel @Inject constructor(
             try {
                 locationRepository.delete(location)
                 geofenceManager.removeGeofence(location.id)
+                geofenceManager.refreshRegistration()
             } catch (e: Exception) {
                 Log.e(TAG, "deleteLocation failed for id=${location.id}", e)
             }
