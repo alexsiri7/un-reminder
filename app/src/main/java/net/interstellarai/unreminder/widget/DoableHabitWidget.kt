@@ -77,6 +77,13 @@ class DoableHabitWidget : GlanceAppWidget() {
             val name = prefs[HABIT_NAME] ?: return null
             return DoableHabit(id = id, name = name, emoji = prefs[EMOJI].orEmpty())
         }
+
+        /** Tapping anywhere but "did it" opens the app on the Now menu. */
+        internal fun openNowIntent(context: Context): Intent =
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra(NotificationHelper.EXTRA_OPEN_NOW, true)
+            }
     }
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
@@ -88,11 +95,7 @@ class DoableHabitWidget : GlanceAppWidget() {
 
 @Composable
 private fun WidgetContent(habit: DoableHabit?) {
-    val context = LocalContext.current
-    val openNow = Intent(context, MainActivity::class.java).apply {
-        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        putExtra(NotificationHelper.EXTRA_OPEN_NOW, true)
-    }
+    val openNow = DoableHabitWidget.openNowIntent(LocalContext.current)
     Box(
         modifier = GlanceModifier
             .fillMaxSize()

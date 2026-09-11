@@ -31,6 +31,8 @@ class NotificationHelper @Inject constructor(
         const val EXTRA_OPEN_TIMER = "open_timer"
         const val EXTRA_OPEN_DETAIL = "open_detail"
         const val EXTRA_OPEN_NOW = "open_now"
+        // The widget also opens the Now menu; only the invitation's own taps may clear it.
+        const val EXTRA_FROM_EVENING_INVITATION = "from_evening_invitation"
         // Paused-habit notifications use habitId as offset.
         // Base chosen well above realistic trigger ID values to avoid collisions.
         const val NOTIFICATION_ID_PAUSED_BASE = 900_000L
@@ -135,6 +137,7 @@ class NotificationHelper @Inject constructor(
         val openNowIntent = Intent(context, net.interstellarai.unreminder.MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(EXTRA_OPEN_NOW, true)
+            putExtra(EXTRA_FROM_EVENING_INVITATION, true)
         }
         val openNow = PendingIntent.getActivity(
             context,
@@ -170,6 +173,11 @@ class NotificationHelper @Inject constructor(
 
     fun cancelEveningInvitation() {
         notificationManager.cancel(NOTIFICATION_ID_EVENING_INVITATION.toRequestCode())
+    }
+
+    /** "Show me" is an action, so auto-cancel doesn't clear the invitation; the activity it opens does. */
+    fun cancelEveningInvitationIfOpenedFrom(intent: Intent) {
+        if (intent.getBooleanExtra(EXTRA_FROM_EVENING_INVITATION, false)) cancelEveningInvitation()
     }
 
     private fun createActionIntent(triggerId: Long, action: String, requestCodeOffset: Int): PendingIntent {
