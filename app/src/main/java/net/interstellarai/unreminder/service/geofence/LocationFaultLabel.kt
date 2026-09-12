@@ -11,9 +11,9 @@ object LocationFaultLabel {
      *
      * An [ApiException] is decoded to its status code because "NETWORK_ERROR(7)" names the
      * fault where "ApiException" would not; the stable class names `-keepnames` now
-     * guarantees do not make that arm redundant, and `LocationFaultLabelTest` and
-     * `LocationReconcilerTest` assert the decoded label that `SettingsViewModelTest` expects
-     * to reach the health row. Every other cause reports its simple class name, which
+     * guarantees do not make that arm redundant, so do not delete it — `LocationFaultLabelTest`
+     * and `LocationReconcilerTest` assert the decoded label that `SettingsViewModelTest`
+     * expects to reach the health row. Every other cause reports its simple class name, which
      * survives the release build thanks to `-keepnames class * extends java.lang.Throwable`
      * in proguard-rules.pro.
      */
