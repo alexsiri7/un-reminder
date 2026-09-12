@@ -2,6 +2,7 @@ package net.interstellarai.unreminder.data.db
 
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -210,5 +211,27 @@ class VariationDaoTest {
         repeat(20) {
             assertEquals(VariantShape.QUESTION, variationDao.getUnusedForHabit(h2, 1).single().shape)
         }
+    }
+
+    @Test fun `deleteConsumedByHabit keeps only the most recently consumed row`() = runTest {
+        val hId = insertHabit()
+        variationDao.insert(VariantShape.entries.flatMap { shape -> (1..2).map { shaped(hId, shape, it) } })
+        consumeOne(hId, VariantShape.QUESTION)
+        consumeOne(hId, VariantShape.TERSE)
+
+        variationDao.deleteConsumedByHabit(hId)
+
+        val consumed = variationDao.getRecentlyUsedFlow(hId, 50).first()
+        assertEquals(listOf(VariantShape.TERSE), consumed.map { it.shape })
+        assertEquals(10, variationDao.countUnused(hId))
+    }
+
+    @Test fun `deleteConsumedByHabit with nothing consumed leaves the pool alone`() = runTest {
+        val hId = insertHabit()
+        variationDao.insert((1..3).map { shaped(hId, VariantShape.TERSE, it) })
+
+        variationDao.deleteConsumedByHabit(hId)
+
+        assertEquals(3, variationDao.countUnused(hId))
     }
 }

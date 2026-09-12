@@ -67,4 +67,17 @@ class VariationRepositoryRotationTest {
             assertNotEquals(fired, repository.peekUnusedVariation(habitId)!!.shape)
         }
     }
+
+    @Test fun `the first pick after a refill still avoids the shape that fired last`() = runTest {
+        repository.insertAll(balancedPool(perShape = 1))
+        val fired = repository.pickRandomUnused(habitId)!!.shape
+
+        repository.deleteConsumedForHabit(habitId)
+        repository.insertAll(balancedPool(perShape = 3).map { it.copy(promptFingerprint = "fp2") })
+
+        repeat(20) {
+            assertNotEquals(fired, repository.peekUnusedVariation(habitId)!!.shape)
+        }
+        assertNotEquals(fired, repository.pickRandomUnused(habitId)!!.shape)
+    }
 }

@@ -35,7 +35,15 @@ interface VariationDao {
     @Query("DELETE FROM variations WHERE habit_id = :habitId")
     suspend fun deleteByHabit(habitId: Long)
 
-    @Query("DELETE FROM variations WHERE habit_id = :habitId AND consumed_at IS NOT NULL")
+    /**
+     * Prunes consumed variations for [habitId] except the most recently consumed one, which
+     * [getUnusedForHabit] still needs as the shape to rotate away from after a refill.
+     */
+    @Query(
+        "DELETE FROM variations WHERE habit_id = :habitId AND consumed_at IS NOT NULL AND id != (" +
+        "SELECT id FROM variations WHERE habit_id = :habitId AND consumed_at IS NOT NULL " +
+        "ORDER BY consumed_at DESC LIMIT 1)"
+    )
     suspend fun deleteConsumedByHabit(habitId: Long)
 
     /** Inserts variations, silently ignoring duplicates that match the unique (habit_id, prompt_fingerprint, text) index. */
