@@ -37,8 +37,7 @@ class Converters {
 
     /**
      * A shape this build does not know (written by a newer or older worker deploy) reads back
-     * as null, the same as a pre-migration row, so the pool stays readable instead of throwing
-     * on every pick.
+     * as null, the same as a pre-migration row.
      */
     @TypeConverter
     fun toVariantShape(value: String?): VariantShape? = VariantShape.entries.firstOrNull { it.name == value }
