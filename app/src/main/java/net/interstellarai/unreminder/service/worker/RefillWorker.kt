@@ -81,6 +81,7 @@ class RefillWorker @AssistedInject constructor(
                     generatedAt = now,
                     actionUrl = variant.actionUrl,
                     spriteTag = variant.spriteTag,
+                    shape = variant.shape,
                 )
             }
             variationRepository.deleteConsumedForHabit(habitId)

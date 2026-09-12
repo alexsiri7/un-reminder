@@ -2,6 +2,7 @@ package net.interstellarai.unreminder.data.db
 
 import androidx.room.TypeConverter
 import net.interstellarai.unreminder.domain.model.TriggerStatus
+import net.interstellarai.unreminder.domain.model.VariantShape
 import org.json.JSONArray
 import org.json.JSONException
 import java.time.Instant
@@ -30,6 +31,16 @@ class Converters {
             else -> TriggerStatus.valueOf(it)
         }
     }
+
+    @TypeConverter
+    fun fromVariantShape(value: VariantShape?): String? = value?.name
+
+    /**
+     * A shape this build does not know (written by a newer or older worker deploy) reads back
+     * as null, the same as a pre-migration row.
+     */
+    @TypeConverter
+    fun toVariantShape(value: String?): VariantShape? = VariantShape.entries.firstOrNull { it.name == value }
 
     @TypeConverter
     fun fromDescriptionLadder(list: List<String>?): String? =

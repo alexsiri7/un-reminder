@@ -23,7 +23,8 @@ import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.PersonalContextRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
-import net.interstellarai.unreminder.domain.model.NotificationVariant
+import net.interstellarai.unreminder.domain.model.GeneratedVariant
+import net.interstellarai.unreminder.domain.model.VariantShape
 import net.interstellarai.unreminder.service.notification.MascotSprites
 import org.json.JSONException
 import org.junit.After
@@ -93,8 +94,8 @@ class RefillWorkerTest {
         val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
         val variants = listOf(
-            NotificationVariant(text = "variant 1", actionUrl = null),
-            NotificationVariant(text = "variant 2", actionUrl = "https://youtube.com/results?search_query=test"),
+            GeneratedVariant(text = "variant 1", shape = VariantShape.QUESTION, actionUrl = null, spriteTag = null),
+            GeneratedVariant(text = "variant 2", shape = VariantShape.TIMEBOXED, actionUrl = "https://youtube.com/results?search_query=test", spriteTag = null),
         )
         coEvery {
             mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any())
@@ -107,8 +108,8 @@ class RefillWorkerTest {
         coVerify(exactly = 1) {
             mockVariationRepository.insertAll(match<List<VariationEntity>> { entities ->
                 entities.size == 2
-                    && entities[0].text == "variant 1" && entities[0].actionUrl == null
-                    && entities[1].text == "variant 2" && entities[1].actionUrl == "https://youtube.com/results?search_query=test"
+                    && entities[0].text == "variant 1" && entities[0].actionUrl == null && entities[0].shape == VariantShape.QUESTION
+                    && entities[1].text == "variant 2" && entities[1].actionUrl == "https://youtube.com/results?search_query=test" && entities[1].shape == VariantShape.TIMEBOXED
             })
         }
     }
@@ -118,8 +119,8 @@ class RefillWorkerTest {
         val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
         val variants = listOf(
-            NotificationVariant(text = "variant 1", actionUrl = null, spriteTag = "astronaut_zero_g"),
-            NotificationVariant(text = "variant 2", actionUrl = null, spriteTag = null),
+            GeneratedVariant(text = "variant 1", shape = VariantShape.STATEMENT, actionUrl = null, spriteTag = "astronaut_zero_g"),
+            GeneratedVariant(text = "variant 2", shape = VariantShape.STATEMENT, actionUrl = null, spriteTag = null),
         )
         coEvery {
             mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any())
@@ -153,8 +154,8 @@ class RefillWorkerTest {
         val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
         val variants = listOf(
-            NotificationVariant(text = "variant 1", actionUrl = null),
-            NotificationVariant(text = "variant 2", actionUrl = null),
+            GeneratedVariant(text = "variant 1", shape = VariantShape.STATEMENT, actionUrl = null, spriteTag = null),
+            GeneratedVariant(text = "variant 2", shape = VariantShape.STATEMENT, actionUrl = null, spriteTag = null),
         )
         coEvery {
             mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any())

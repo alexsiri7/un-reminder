@@ -5,6 +5,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import net.interstellarai.unreminder.domain.model.VariantShape
 import java.time.Instant
 
 @Entity(
@@ -37,5 +38,7 @@ data class VariationEntity(
     @ColumnInfo(name = "action_url")
     val actionUrl: String? = null,
     @ColumnInfo(name = "sprite_tag")
-    val spriteTag: String? = null
+    val spriteTag: String? = null,
+    /** Null only on rows generated before shapes existed; every new row carries one. */
+    val shape: VariantShape?,
 )

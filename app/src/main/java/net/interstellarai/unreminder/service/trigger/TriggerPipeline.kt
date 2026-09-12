@@ -158,6 +158,12 @@ class TriggerPipeline @Inject constructor(
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             Log.w(TAG, "variationRepository.pickRandomUnused failed — falling back to habit.name", e)
+            // The pool-empty fallback below is indistinguishable from this failure without a report.
+            Sentry.captureException(e) { scope ->
+                scope.setTag("component", "trigger-pipeline")
+                scope.setTag("stage", "pick-variation")
+                scope.setExtra("habit_id", habit.id.toString())
+            }
             null
         }
 

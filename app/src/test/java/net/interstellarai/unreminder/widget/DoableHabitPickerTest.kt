@@ -15,6 +15,7 @@ import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.domain.DisplayTier
 import net.interstellarai.unreminder.domain.HabitAvailabilityService
 import net.interstellarai.unreminder.service.notification.EmojiRotator
+import net.interstellarai.unreminder.domain.model.VariantShape
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Before
@@ -45,7 +46,7 @@ class DoableHabitPickerTest {
 
     private fun variation(id: Long, habitId: Long, spriteTag: String? = null) = VariationEntity(
         id = id, habitId = habitId, text = "variant $id", promptFingerprint = "fp",
-        generatedAt = Instant.EPOCH, spriteTag = spriteTag,
+        generatedAt = Instant.EPOCH, shape = VariantShape.STATEMENT, spriteTag = spriteTag,
     )
 
     private fun givenHabits(habits: List<HabitEntity>, tiers: Map<Long, DisplayTier>) {

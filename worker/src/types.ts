@@ -31,8 +31,13 @@ export interface GenerateBatchRequest {
   personalContext?: string
 }
 
+/** Structural form of a notification, so consecutive nudges differ in kind and not only in words. */
+export const VARIANT_SHAPES = ['QUESTION', 'STATEMENT', 'CHALLENGE', 'OBSERVATION', 'TERSE', 'TIMEBOXED'] as const
+export type VariantShape = (typeof VARIANT_SHAPES)[number]
+
 export interface NotificationVariant {
   text: string
+  shape: VariantShape
   actionUrl?: string
   /** Tag of the sprite to pair with this text; absent when no vocabulary was supplied. */
   spriteTag?: string

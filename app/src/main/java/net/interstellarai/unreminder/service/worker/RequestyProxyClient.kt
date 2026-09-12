@@ -3,7 +3,8 @@ package net.interstellarai.unreminder.service.worker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.interstellarai.unreminder.domain.model.AiHabitFields
-import net.interstellarai.unreminder.domain.model.NotificationVariant
+import net.interstellarai.unreminder.domain.model.GeneratedVariant
+import net.interstellarai.unreminder.domain.model.VariantShape
 import net.interstellarai.unreminder.service.notification.MascotSprite
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -11,6 +12,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import org.json.JSONArray
+import org.json.JSONException
 import org.json.JSONObject
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -59,7 +61,7 @@ class RequestyProxyClient @Inject constructor(
         n: Int,
         workerUrl: String,
         workerSecret: String,
-    ): List<NotificationVariant> {
+    ): List<GeneratedVariant> {
         val payload = JSONObject().apply {
             put("habitTitle", habitTitle)
             put("habitTags", JSONArray(habitTags))
@@ -80,8 +82,12 @@ class RequestyProxyClient @Inject constructor(
                 ?: throw WorkerError(200, "Missing 'variants' array in response")
             (0 until arr.length()).map { i ->
                 val obj = arr.getJSONObject(i)
-                NotificationVariant(
+                GeneratedVariant(
                     text = obj.getString("text"),
+                    shape = obj.getString("shape").let { raw ->
+                        VariantShape.entries.firstOrNull { it.name == raw }
+                            ?: throw JSONException("Unknown variant shape: $raw")
+                    },
                     actionUrl = obj.optString("actionUrl").takeIf { it.isNotEmpty() },
                     spriteTag = obj.optString("spriteTag").takeIf { it.isNotEmpty() }
                 )

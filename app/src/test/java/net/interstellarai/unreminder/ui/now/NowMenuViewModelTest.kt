@@ -34,6 +34,7 @@ import net.interstellarai.unreminder.service.notification.MascotSprites
 import net.interstellarai.unreminder.service.notification.SpriteResolver
 import net.interstellarai.unreminder.service.trigger.DismissalTracker
 import net.interstellarai.unreminder.widget.WidgetRefresher
+import net.interstellarai.unreminder.domain.model.VariantShape
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -75,7 +76,7 @@ class NowMenuViewModelTest {
     private fun habit(id: Long, level: Int = 2) = HabitEntity(id = id, name = "habit $id", dedicationLevel = level)
 
     private fun variation(id: Long, habitId: Long, text: String = "variant $id", spriteTag: String? = null) =
-        VariationEntity(id = id, habitId = habitId, text = text, promptFingerprint = "fp", generatedAt = Instant.EPOCH, spriteTag = spriteTag)
+        VariationEntity(id = id, habitId = habitId, text = text, promptFingerprint = "fp", generatedAt = Instant.EPOCH, shape = VariantShape.STATEMENT, spriteTag = spriteTag)
 
     private fun givenHabits(
         habits: List<HabitEntity>,

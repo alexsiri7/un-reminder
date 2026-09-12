@@ -20,6 +20,7 @@ import net.interstellarai.unreminder.service.geofence.Reconciliation
 import net.interstellarai.unreminder.service.notification.NotificationHelper
 import net.interstellarai.unreminder.service.worker.RefillScheduler
 import net.interstellarai.unreminder.widget.WidgetRefresher
+import net.interstellarai.unreminder.domain.model.VariantShape
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.coVerifyOrder
@@ -117,7 +118,7 @@ class TriggerPipelineTest {
         coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(testHabit)
         coEvery { variationRepository.pickRandomUnused(1L) } returns VariationEntity(
             id = 7L, habitId = 1L, text = "body",
-            promptFingerprint = "fp", generatedAt = Instant.now(), consumedAt = null
+            promptFingerprint = "fp", generatedAt = Instant.now(), shape = VariantShape.STATEMENT, consumedAt = null
         )
         coEvery { variationRepository.needsRefill(1L) } returns false
     }
@@ -297,7 +298,7 @@ class TriggerPipelineTest {
     fun `pool has variants - uses variation text`() = runTest {
         val variation = VariationEntity(
             id = 7L, habitId = 1L, text = "Cloud notification body",
-            promptFingerprint = "fp", generatedAt = Instant.now(), consumedAt = null
+            promptFingerprint = "fp", generatedAt = Instant.now(), shape = VariantShape.STATEMENT, consumedAt = null
         )
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
         coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(testHabit)
@@ -366,7 +367,7 @@ class TriggerPipelineTest {
         val url = "https://www.youtube.com/results?search_query=C+major+vocal+scale"
         val variation = VariationEntity(
             id = 7L, habitId = 1L, text = "Sing the C major scale",
-            promptFingerprint = "fp", generatedAt = Instant.now(), consumedAt = null,
+            promptFingerprint = "fp", generatedAt = Instant.now(), shape = VariantShape.STATEMENT, consumedAt = null,
             actionUrl = url
         )
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
@@ -390,7 +391,7 @@ class TriggerPipelineTest {
     fun `pool has variant with sprite tag - threads it to the notification as the large icon source`() = runTest {
         val variation = VariationEntity(
             id = 7L, habitId = 1L, text = "Cloud notification body",
-            promptFingerprint = "fp", generatedAt = Instant.now(), consumedAt = null,
+            promptFingerprint = "fp", generatedAt = Instant.now(), shape = VariantShape.STATEMENT, consumedAt = null,
             spriteTag = "wizard_starry_robe"
         )
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
@@ -415,7 +416,7 @@ class TriggerPipelineTest {
     fun `pool has variants and needsRefill true - enqueues refill`() = runTest {
         val variation = VariationEntity(
             id = 7L, habitId = 1L, text = "Cloud notification body",
-            promptFingerprint = "fp", generatedAt = Instant.now(), consumedAt = null
+            promptFingerprint = "fp", generatedAt = Instant.now(), shape = VariantShape.STATEMENT, consumedAt = null
         )
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
         coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(testHabit)
@@ -442,6 +443,25 @@ class TriggerPipelineTest {
     }
 
     @Test
+    fun `pickRandomUnused throws - reports to Sentry so it is distinguishable from an empty pool`() = runTest {
+        mockkStatic(Sentry::class)
+        every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
+        every { Sentry.addBreadcrumb(any<Breadcrumb>()) } just runs
+
+        coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
+        coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(testHabit)
+        val failure = RuntimeException("db error")
+        coEvery { variationRepository.pickRandomUnused(1L) } throws failure
+        coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 2) } returns null
+
+        pipeline.execute(42L)
+
+        verify(exactly = 1) { Sentry.captureException(failure, any<ScopeCallback>()) }
+        coVerify { triggerRepository.updateFired(42L, 1L, "meditation") }
+        unmockkStatic(Sentry::class)
+    }
+
+    @Test
     fun `pickRandomUnused throws CancellationException - propagates`() = runTest {
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
         coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(testHabit)
@@ -462,7 +482,7 @@ class TriggerPipelineTest {
         val loc = LocationEntity(id = 1L, name = "Home", lat = 0.0, lng = 0.0, radiusM = 100f)
         val variation = VariationEntity(
             id = 7L, habitId = 1L, text = "Time for meditation!",
-            promptFingerprint = "fp", generatedAt = Instant.now(), consumedAt = null
+            promptFingerprint = "fp", generatedAt = Instant.now(), shape = VariantShape.STATEMENT, consumedAt = null
         )
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
         coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(testHabit)
@@ -479,7 +499,7 @@ class TriggerPipelineTest {
     fun `stale location id - uses any location fallback`() = runTest {
         val variation = VariationEntity(
             id = 7L, habitId = 1L, text = "Time!",
-            promptFingerprint = "fp", generatedAt = Instant.now(), consumedAt = null
+            promptFingerprint = "fp", generatedAt = Instant.now(), shape = VariantShape.STATEMENT, consumedAt = null
         )
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
         coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(testHabit)

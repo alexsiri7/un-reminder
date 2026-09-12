@@ -85,11 +85,11 @@ Generates notification text variants. Requires `X-UR-Secret` header.
 ```json
 {
   "variants": [
-    { "text": "Time to stretch! 🧘" },
-    { "text": "Hold a downward dog for 60 seconds", "actionUrl": "https://www.youtube.com/results?search_query=downward+dog+yoga+form" },
-    { "text": "Let's move!" }
+    { "text": "Got 5 minutes for a full-body stretch?", "shape": "QUESTION" },
+    { "text": "Hold a downward dog for 60 seconds", "shape": "TIMEBOXED", "actionUrl": "https://www.youtube.com/results?search_query=downward+dog+yoga+form" },
+    { "text": "Stretch. Now.", "shape": "TERSE" }
   ]
 }
 ```
 
-Each variant has a `text` field and an optional `actionUrl` field. When `actionUrl` is present, the Android client renders a "Watch" action button on the notification that opens the URL.
+Each variant has a `text` field, a `shape` field and an optional `actionUrl` field. `shape` is one of `QUESTION`, `STATEMENT`, `CHALLENGE`, `OBSERVATION`, `TERSE`, `TIMEBOXED`; the prompt asks for an even spread across all six so the app can rotate shapes between consecutive notifications. When `actionUrl` is present, the Android client renders a "Watch" action button on the notification that opens the URL.
