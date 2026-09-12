@@ -3,6 +3,7 @@ package net.interstellarai.unreminder.worker
 import android.content.Context
 import androidx.work.ListenableWorker.Result
 import androidx.work.WorkerParameters
+import net.interstellarai.unreminder.service.activity.ActivityRecognitionManager
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.widget.WidgetRefresher
 import io.mockk.coEvery
@@ -19,6 +20,7 @@ class BootReschedulerWorkerTest {
     private val mockContext: Context = mockk(relaxed = true)
     private val mockWorkerParams: WorkerParameters = mockk(relaxed = true)
     private val mockGeofenceManager: GeofenceManager = mockk(relaxed = true)
+    private val mockActivityRecognitionManager: ActivityRecognitionManager = mockk(relaxed = true)
     private val mockScheduler: EveningInvitationScheduler = mockk(relaxUnitFun = true)
     private val widgetRefresher: WidgetRefresher = mockk(relaxUnitFun = true)
 
@@ -30,6 +32,7 @@ class BootReschedulerWorkerTest {
             mockContext,
             mockWorkerParams,
             mockGeofenceManager,
+            mockActivityRecognitionManager,
             mockScheduler,
             widgetRefresher,
         )
@@ -43,6 +46,15 @@ class BootReschedulerWorkerTest {
 
         assertEquals(Result.success(), result)
         coVerify(exactly = 1) { mockGeofenceManager.registerAllFromDb() }
+    }
+
+    @Test
+    fun `doWork re-subscribes to activity transitions`() = runTest {
+        coEvery { mockGeofenceManager.registerAllFromDb() } returns Unit
+
+        worker.doWork()
+
+        coVerify(exactly = 1) { mockActivityRecognitionManager.requestTransitionUpdates() }
     }
 
     @Test

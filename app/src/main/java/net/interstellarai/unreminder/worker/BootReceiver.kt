@@ -12,7 +12,7 @@ class BootReceiver : BroadcastReceiver() {
 
         val workManager = WorkManager.getInstance(context)
 
-        // Re-register geofences
+        // Re-register geofences and the activity transition subscription
         workManager.enqueue(
             OneTimeWorkRequestBuilder<BootReschedulerWorker>().build()
         )

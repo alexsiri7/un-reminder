@@ -126,8 +126,9 @@ class ActivityRecognitionManager @Inject constructor(
 
     /**
      * Subscribes to enter and exit for every tracked activity. Play Services drops the
-     * subscription on app update or force-stop, so this runs on every launch and again after
-     * the permission is granted — the same contract as geofence registration.
+     * subscription on app update, force-stop or reboot, so this runs on every launch, from the
+     * boot rescheduler, and again after the permission is granted — the same contract as
+     * geofence registration.
      */
     suspend fun requestTransitionUpdates() {
         if (!hasPermission()) {
