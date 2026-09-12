@@ -26,7 +26,7 @@ The app needs surfaces the user can pull from when they have a moment, a win sma
 
 **A home-screen widget.** Shows one currently-doable habit and a single action to mark it done, plus a tap target that opens the menu. Its content refreshes at least every 30 minutes, and also whenever the user's context changes in a way that alters what is doable. When nothing is doable it shows a resting state rather than a stale suggestion.
 
-**Swiping a notification is a dismissal.** Swiping a trigger notification away is recorded as a dismissal, the same as tapping Dismiss, rather than leaving the trigger unresolved forever.
+**Swiping a notification is a dismissal.** Swiping a trigger notification away is recorded as a dismissal rather than leaving the trigger unresolved forever.
 
 **Habits are never auto-paused.** Repeated dismissal lowers the dedication level, which lowers the size of the ask. A habit already at level 0 stays at level 0 and stays available indefinitely. Nothing in the app deactivates a habit on the user's behalf or tells them a habit has been stopped.
 
