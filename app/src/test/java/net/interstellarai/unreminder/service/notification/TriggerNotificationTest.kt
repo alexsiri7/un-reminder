@@ -30,11 +30,12 @@ class TriggerNotificationTest {
         helper.createNotificationChannel()
     }
 
-    private fun posted(triggerId: Long, spriteTag: String?): Notification {
+    private fun posted(triggerId: Long, spriteTag: String?, actionUrl: String? = null): Notification {
         helper.postTriggerNotification(
             triggerId = triggerId,
             promptText = "body",
             habitName = "meditation",
+            actionUrl = actionUrl,
             spriteTag = spriteTag,
         )
         return requireNotNull(shadowOf(notificationManager).getNotification(triggerId.toRequestCode())) {
@@ -73,10 +74,10 @@ class TriggerNotificationTest {
 
     // Only the geofence intent needs to be mutable (#339); the action receiver's must stay immutable.
     @Test
-    fun `the Did it and Dismiss action intents stay immutable`() {
+    fun `the Did it and Later action intents stay immutable`() {
         val notification = posted(triggerId = 42L, spriteTag = null)
 
-        val actionFlags = listOf("Did it", "Dismiss").map { title ->
+        val actionFlags = listOf("Did it", "Later").map { title ->
             val action = notification.actions.single { it.title == title }
             shadowOf(action.actionIntent).flags
         }
@@ -102,12 +103,12 @@ class TriggerNotificationTest {
     }
 
     @Test
-    fun `the delete intent is immutable and does not collapse with the Dismiss action`() {
+    fun `the delete intent is immutable and does not collapse with the Later action`() {
         val notification = posted(triggerId = 42L, spriteTag = null)
 
         val deleteShadow = shadowOf(requireNotNull(notification.deleteIntent) { "no delete intent" })
-        val dismissShadow = shadowOf(notification.actions.single { it.title == "Dismiss" }.actionIntent)
-        assertNotEquals(deleteShadow.requestCode, dismissShadow.requestCode)
+        val laterShadow = shadowOf(notification.actions.single { it.title == "Later" }.actionIntent)
+        assertNotEquals(deleteShadow.requestCode, laterShadow.requestCode)
         assertNotEquals(0, deleteShadow.flags and PendingIntent.FLAG_IMMUTABLE)
         assertEquals(0, deleteShadow.flags and PendingIntent.FLAG_MUTABLE)
     }
@@ -122,10 +123,31 @@ class TriggerNotificationTest {
             shadowOf(notification.actions.single { it.title == title }.actionIntent).requestCode
         }
         assertEquals((42L * 3 + 0).toRequestCode(), requestCodeOf("Did it"))
-        assertEquals((42L * 3 + 1).toRequestCode(), requestCodeOf("Dismiss"))
+        assertEquals((NotificationHelper.NOTIFICATION_LATER_BASE + 42L).toRequestCode(), requestCodeOf("Later"))
         assertEquals(
             (NotificationHelper.NOTIFICATION_DELETE_BASE + 42L).toRequestCode(),
             shadowOf(requireNotNull(notification.deleteIntent) { "no delete intent" }).requestCode
         )
+    }
+
+    @Test
+    fun `Later is on every trigger notification and Dismiss is no longer a button`() {
+        val plain = posted(triggerId = 42L, spriteTag = null)
+        val withVideo = posted(triggerId = 43L, spriteTag = null, actionUrl = "https://example.com/v")
+
+        assertEquals(listOf("Did it", "Later"), plain.actions.map { it.title })
+        assertEquals(listOf("Did it", "Later", "Watch"), withVideo.actions.map { it.title })
+    }
+
+    @Test
+    fun `tapping Later broadcasts ACTION_LATER for the trigger`() {
+        val notification = posted(triggerId = 42L, spriteTag = null)
+
+        val shadow = shadowOf(notification.actions.single { it.title == "Later" }.actionIntent)
+        assertTrue(shadow.isBroadcast)
+        val saved = shadow.savedIntent
+        assertEquals(NotificationActionReceiver::class.java.name, saved.component?.className)
+        assertEquals(NotificationHelper.ACTION_LATER, saved.getStringExtra(NotificationHelper.EXTRA_ACTION))
+        assertEquals(42L, saved.getLongExtra(NotificationHelper.EXTRA_TRIGGER_ID, -1L))
     }
 }

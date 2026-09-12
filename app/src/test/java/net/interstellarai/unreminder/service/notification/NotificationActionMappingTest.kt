@@ -19,6 +19,11 @@ class NotificationActionMappingTest {
     }
 
     @Test
+    fun `ACTION_LATER maps to LATER`() {
+        assertEquals(TriggerStatus.LATER, mapAction(NotificationHelper.ACTION_LATER))
+    }
+
+    @Test
     fun `unknown action returns null`() {
         assertNull(mapAction("UNKNOWN_ACTION"))
     }
@@ -31,6 +36,7 @@ class NotificationActionMappingTest {
         fun mapAction(action: String): TriggerStatus? = when (action) {
             NotificationHelper.ACTION_COMPLETED -> TriggerStatus.COMPLETED
             NotificationHelper.ACTION_DISMISSED -> TriggerStatus.DISMISSED
+            NotificationHelper.ACTION_LATER -> TriggerStatus.LATER
             else -> null
         }
     }
@@ -121,6 +127,27 @@ class NotificationRequestCodeCollisionTest {
         for (id in 40L..44L) {
             for (offset in 0..2) {
                 assertNotEquals(deleteCode, (id * 3 + offset).toRequestCode())
+            }
+        }
+    }
+
+    @Test
+    fun `later request code does not collide with action, delete or detail codes for same triggerId`() {
+        val triggerId = 42L
+        val laterCode = (NotificationHelper.NOTIFICATION_LATER_BASE + triggerId).toRequestCode()
+        assertNotEquals(laterCode, (triggerId * 3 + 0).toRequestCode())
+        assertNotEquals(laterCode, (triggerId * 3 + 1).toRequestCode())
+        assertNotEquals(laterCode, (triggerId * 3 + 2).toRequestCode())
+        assertNotEquals(laterCode, (NotificationHelper.NOTIFICATION_DELETE_BASE + triggerId).toRequestCode())
+        assertNotEquals(laterCode, (NotificationHelper.NOTIFICATION_DETAIL_BASE + triggerId).toRequestCode())
+    }
+
+    @Test
+    fun `later request code does not alias another trigger's action slots`() {
+        val laterCode = (NotificationHelper.NOTIFICATION_LATER_BASE + 42L).toRequestCode()
+        for (id in 40L..44L) {
+            for (offset in 0..2) {
+                assertNotEquals(laterCode, (id * 3 + offset).toRequestCode())
             }
         }
     }

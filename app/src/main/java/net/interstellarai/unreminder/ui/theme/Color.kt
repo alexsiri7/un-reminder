@@ -28,3 +28,4 @@ val CompletedFull = Color(0xFF4D6B3A)      // accent green
 val CompletedLowFloor = Color(0xFF9A7A15)  // muted butter (win-but-smaller)
 val Dismissed = Color(0xFF6E6E6E)          // soft grey ink
 val Expired = Color(0xFFBFBAA8)            // washed sage — superseded, never answered
+val Later = Color(0xFF7A8A9A)              // slate blue-grey — wrong moment, not passed on

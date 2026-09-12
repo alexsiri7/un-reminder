@@ -26,6 +26,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
             TriggerStatus.COMPLETED,
             TriggerStatus.DISMISSED,
             TriggerStatus.EXPIRED,
+            TriggerStatus.LATER,
         )
     }
 
@@ -47,6 +48,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
         val status = when (action) {
             NotificationHelper.ACTION_COMPLETED -> TriggerStatus.COMPLETED
             NotificationHelper.ACTION_DISMISSED -> TriggerStatus.DISMISSED
+            NotificationHelper.ACTION_LATER -> TriggerStatus.LATER
             else -> return
         }
 
@@ -67,6 +69,8 @@ class NotificationActionReceiver : BroadcastReceiver() {
                 when (status) {
                     TriggerStatus.COMPLETED -> dismissalTracker.onCompleted(triggerId)
                     TriggerStatus.DISMISSED -> dismissalTracker.onDismissed(triggerId)
+                    // Wrong moment, not too big: Later never reaches the DismissalTracker (#370).
+                    TriggerStatus.LATER -> {}
                     else -> {}
                 }
                 manager.cancel(triggerId.toRequestCode())

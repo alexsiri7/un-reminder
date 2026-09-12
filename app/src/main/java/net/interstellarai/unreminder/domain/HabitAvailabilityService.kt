@@ -96,8 +96,9 @@ class HabitAvailabilityService @Inject constructor(
      *
      * A habit whose most recent trigger went unanswered — dismissed outright, or expired when a
      * later nudge superseded it — ranks as [DisplayTier.RECENTLY_DISMISSED] whatever else blocks
-     * it; passing on it is the more telling reason. A habit blocked for several reasons takes the
-     * least actionable of them.
+     * it; passing on it is the more telling reason. A trigger answered with Later is not
+     * unanswered: the habit ranks by its ordinary blockers, so Later confers no placement (#370).
+     * A habit blocked for several reasons takes the least actionable of them.
      */
     suspend fun computeDisplayTiers(habits: List<HabitEntity>): Map<Long, DisplayTier> {
         val availability = computeForAll(habits)
@@ -178,7 +179,7 @@ class HabitAvailabilityService @Inject constructor(
         if (completedCount > 0) reasons += UnavailableReason.COMPLETED
 
         // --- Cooldown ---
-        // DISMISSED, FIRED or EXPIRED within cooldown_minutes (mirrors SQL; 0 cooldown = no restriction).
+        // DISMISSED, FIRED, EXPIRED or LATER within cooldown_minutes (mirrors SQL; 0 cooldown = no restriction).
         if (habit.cooldownMinutes > 0) {
             val nowEpochMillis = Instant.now().toEpochMilli()
             val cooldownCutoff = nowEpochMillis - habit.cooldownMinutes * 60 * 1000L

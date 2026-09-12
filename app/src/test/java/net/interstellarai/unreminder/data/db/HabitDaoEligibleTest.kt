@@ -226,6 +226,31 @@ class HabitDaoEligibleTest {
     }
 
     @Test
+    fun `cooldown 60 with LATER 30 minutes ago is excluded`() = runTest {
+        // Later grants no shortened cooldown: the nudge still happened.
+        val thirtyMinAgo = Instant.now().minusSeconds(30 * 60).toEpochMilli()
+        val now = Instant.now().toEpochMilli()
+        val id = insertHabit("hCooldown60Later", cooldownMinutes = 60, dailyLimit = 999)
+        insertTrigger(id, TriggerStatus.LATER, Instant.ofEpochMilli(thirtyMinAgo))
+
+        val eligible = queryEligibleAt(now)
+
+        assertTrue(eligible.none { it.id == id })
+    }
+
+    @Test
+    fun `cooldown 0 with LATER 1 minute ago is eligible`() = runTest {
+        val oneMinAgo = Instant.now().minusSeconds(60).toEpochMilli()
+        val now = Instant.now().toEpochMilli()
+        val id = insertHabit("hCooldown0Later", cooldownMinutes = 0, dailyLimit = 999)
+        insertTrigger(id, TriggerStatus.LATER, Instant.ofEpochMilli(oneMinAgo))
+
+        val eligible = queryEligibleAt(now)
+
+        assertTrue(eligible.any { it.id == id })
+    }
+
+    @Test
     fun `cooldown 0 with FIRED 1 minute ago is eligible`() = runTest {
         val oneMinAgo = Instant.now().minusSeconds(60).toEpochMilli()
         val now = Instant.now().toEpochMilli()

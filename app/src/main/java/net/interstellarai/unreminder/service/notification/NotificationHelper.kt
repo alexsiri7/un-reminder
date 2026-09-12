@@ -26,6 +26,7 @@ class NotificationHelper @Inject constructor(
         const val EXTRA_ACTION = "action"
         const val ACTION_COMPLETED = "COMPLETED"
         const val ACTION_DISMISSED = "DISMISSED"
+        const val ACTION_LATER = "LATER"
         const val CHANNEL_ID_SYSTEM = "un_reminder_system"
         const val CHANNEL_NAME_SYSTEM = "Habit Status"
         const val CHANNEL_ID_INVITATION = "un_reminder_invitations"
@@ -44,12 +45,18 @@ class NotificationHelper @Inject constructor(
         // Swipe-away delete intents: the per-trigger action slots are all taken, so
         // these come from their own band.
         const val NOTIFICATION_DELETE_BASE = 5_000_000L
+        // Later lives in its own band for the same reason as the swipe intent: the per-trigger
+        // slot codes are an on-device contract and cannot be renumbered or reassigned.
+        const val NOTIFICATION_LATER_BASE = 6_000_000L
     }
 
-    /** The PendingIntent slots a single trigger's notification owns; one code each, never shared. */
+    /**
+     * The PendingIntent slots a single trigger's notification owns; one code each, never shared.
+     * Offset 1 carried the Dismiss button until #370 and is retired, not reusable: a PendingIntent's
+     * identity ignores extras, and pre-#370 notifications may still be on screen.
+     */
     private enum class ActionSlot(private val offset: Int) {
         COMPLETED(0),
-        DISMISSED(1),
         WATCH(2);
 
         fun requestCodeFor(triggerId: Long): Int = (triggerId * SLOTS_PER_TRIGGER + offset).toRequestCode()
@@ -99,8 +106,13 @@ class NotificationHelper @Inject constructor(
     ) {
         val emoji = emojiRotator.pick(triggerId)
         val completedIntent = createActionIntent(triggerId, ACTION_COMPLETED, ActionSlot.COMPLETED)
-        val dismissIntent = createActionIntent(triggerId, ACTION_DISMISSED, ActionSlot.DISMISSED)
-        // A swipe is a dismissal (#291), but it needs a code of its own: the action slots are full.
+        val laterIntent = createBroadcastIntent(
+            triggerId,
+            ACTION_LATER,
+            (NOTIFICATION_LATER_BASE + triggerId).toRequestCode(),
+        )
+        // A swipe is the notification's only dismissal (#291, #370); it needs a code of its own
+        // because the action slots are full.
         val deleteIntent = createBroadcastIntent(
             triggerId,
             ACTION_DISMISSED,
@@ -119,7 +131,7 @@ class NotificationHelper @Inject constructor(
             .setAutoCancel(true)
             .setDeleteIntent(deleteIntent)
             .addAction(0, "Did it", completedIntent)
-            .addAction(0, "Dismiss", dismissIntent)
+            .addAction(0, "Later", laterIntent)
 
         if (actionUrl != null && actionUrl.startsWith("https://")) {
             val watchIntent = PendingIntent.getActivity(
