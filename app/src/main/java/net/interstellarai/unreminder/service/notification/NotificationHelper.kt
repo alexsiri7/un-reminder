@@ -41,9 +41,22 @@ class NotificationHelper @Inject constructor(
         // Single fixed id: there is at most one evening invitation, and it is never
         // keyed by a trigger. Kept above DETAIL_BASE so it can't collide with per-trigger codes.
         const val NOTIFICATION_ID_EVENING_INVITATION = 4_000_000L
-        // Swipe-away delete intents: the * 3 per-trigger action slots are all taken
-        // (0=COMPLETED, 1=DISMISSED, 2=WATCH), so these come from their own band.
+        // Swipe-away delete intents: the per-trigger action slots are all taken, so
+        // these come from their own band.
         const val NOTIFICATION_DELETE_BASE = 5_000_000L
+    }
+
+    /** The PendingIntent slots a single trigger's notification owns; one code each, never shared. */
+    private enum class ActionSlot(private val offset: Int) {
+        COMPLETED(0),
+        DISMISSED(1),
+        WATCH(2);
+
+        fun requestCodeFor(triggerId: Long): Int = (triggerId * SLOTS_PER_TRIGGER + offset).toRequestCode()
+
+        private companion object {
+            const val SLOTS_PER_TRIGGER = 3
+        }
     }
 
     fun createNotificationChannel() {
@@ -85,12 +98,14 @@ class NotificationHelper @Inject constructor(
         spriteTag: String? = null,
     ) {
         val emoji = emojiRotator.pick(triggerId)
-        // Per-trigger action slots: 0=COMPLETED, 1=DISMISSED, 2=WATCH (the getActivity call below).
-        val completedIntent = createActionIntent(triggerId, ACTION_COMPLETED, triggerId * 3 + 0)
-        val dismissIntent = createActionIntent(triggerId, ACTION_DISMISSED, triggerId * 3 + 1)
-        // A swipe is a dismissal (#291); its own request-code band keeps it from colliding
-        // with another trigger's action slots.
-        val deleteIntent = createActionIntent(triggerId, ACTION_DISMISSED, NOTIFICATION_DELETE_BASE + triggerId)
+        val completedIntent = createActionIntent(triggerId, ACTION_COMPLETED, ActionSlot.COMPLETED)
+        val dismissIntent = createActionIntent(triggerId, ACTION_DISMISSED, ActionSlot.DISMISSED)
+        // A swipe is a dismissal (#291), but it needs a code of its own: the action slots are full.
+        val deleteIntent = createBroadcastIntent(
+            triggerId,
+            ACTION_DISMISSED,
+            (NOTIFICATION_DELETE_BASE + triggerId).toRequestCode(),
+        )
 
         // The system rounds the large icon's corners itself; the opaque tile goes in as-is.
         val sprite = Icon.createWithResource(context, spriteResolver.resolve(spriteTag, triggerId))
@@ -109,7 +124,7 @@ class NotificationHelper @Inject constructor(
         if (actionUrl != null && actionUrl.startsWith("https://")) {
             val watchIntent = PendingIntent.getActivity(
                 context,
-                (triggerId * 3 + 2).toRequestCode(),
+                ActionSlot.WATCH.requestCodeFor(triggerId),
                 Intent(Intent.ACTION_VIEW, Uri.parse(actionUrl)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             )
@@ -180,14 +195,17 @@ class NotificationHelper @Inject constructor(
         if (intent.getBooleanExtra(EXTRA_FROM_EVENING_INVITATION, false)) cancelEveningInvitation()
     }
 
-    private fun createActionIntent(triggerId: Long, action: String, requestCode: Long): PendingIntent {
+    private fun createActionIntent(triggerId: Long, action: String, slot: ActionSlot): PendingIntent =
+        createBroadcastIntent(triggerId, action, slot.requestCodeFor(triggerId))
+
+    private fun createBroadcastIntent(triggerId: Long, action: String, requestCode: Int): PendingIntent {
         val intent = Intent(context, NotificationActionReceiver::class.java).apply {
             putExtra(EXTRA_TRIGGER_ID, triggerId)
             putExtra(EXTRA_ACTION, action)
         }
         return PendingIntent.getBroadcast(
             context,
-            requestCode.toRequestCode(),
+            requestCode,
             intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )

@@ -99,6 +99,19 @@ class NotificationActionReceiverTest {
     }
 
     @Test
+    fun `a completion never overwrites an already recorded dismissal`() {
+        coEvery { triggerRepository.getById(42L) } returns trigger(TriggerStatus.DISMISSED)
+
+        receiver.onReceive(context, actionIntent(NotificationHelper.ACTION_COMPLETED))
+
+        verify(timeout = 2_000) { pendingResult.finish() }
+        coVerify(exactly = 0) { triggerRepository.updateOutcome(any(), any()) }
+        coVerify(exactly = 0) { dismissalTracker.onCompleted(any()) }
+        verify(exactly = 0) { widgetRefresher.refresh() }
+        verify(exactly = 1) { notificationManager.cancel(42) }
+    }
+
+    @Test
     fun `two dismiss broadcasts for the same trigger record one dismissal`() {
         coEvery { triggerRepository.getById(42L) } returns trigger(TriggerStatus.FIRED)
         receiver.onReceive(context, actionIntent(NotificationHelper.ACTION_DISMISSED))

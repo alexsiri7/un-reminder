@@ -111,4 +111,21 @@ class TriggerNotificationTest {
         assertNotEquals(0, deleteShadow.flags and PendingIntent.FLAG_IMMUTABLE)
         assertEquals(0, deleteShadow.flags and PendingIntent.FLAG_MUTABLE)
     }
+
+    // Request codes are part of the on-device contract: renumbering one orphans the
+    // PendingIntent of any notification already on screen across an app update.
+    @Test
+    fun `each intent keeps the request code its slot allocates`() {
+        val notification = posted(triggerId = 42L, spriteTag = null)
+
+        val requestCodeOf = { title: String ->
+            shadowOf(notification.actions.single { it.title == title }.actionIntent).requestCode
+        }
+        assertEquals((42L * 3 + 0).toRequestCode(), requestCodeOf("Did it"))
+        assertEquals((42L * 3 + 1).toRequestCode(), requestCodeOf("Dismiss"))
+        assertEquals(
+            (NotificationHelper.NOTIFICATION_DELETE_BASE + 42L).toRequestCode(),
+            shadowOf(requireNotNull(notification.deleteIntent) { "no delete intent" }).requestCode
+        )
+    }
 }
