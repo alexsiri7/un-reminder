@@ -27,7 +27,11 @@ import net.interstellarai.unreminder.data.db.WindowEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.data.repository.WindowRepository
+import net.interstellarai.unreminder.domain.model.ActivityMode
+import net.interstellarai.unreminder.domain.model.ActivityResolution
+import net.interstellarai.unreminder.domain.model.ActivityState
 import net.interstellarai.unreminder.domain.model.TriggerStatus
+import net.interstellarai.unreminder.service.activity.ActivityRecognitionManager
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.trigger.TriggerPipeline
 import org.junit.After
@@ -45,6 +49,7 @@ class RandomIntervalWorkerTest {
     private val mockHabitRepository: HabitRepository = mockk()
     private val mockTriggerRepository: TriggerRepository = mockk(relaxUnitFun = true)
     private val mockGeofenceManager: GeofenceManager = mockk(relaxed = true)
+    private val mockActivityRecognitionManager: ActivityRecognitionManager = mockk()
     private val mockTriggerPipeline: TriggerPipeline = mockk()
     private val mockWorkManager: WorkManager = mockk(relaxed = true)
 
@@ -53,6 +58,8 @@ class RandomIntervalWorkerTest {
     @Before
     fun setup() {
         every { mockGeofenceManager.currentLocationIds } returns MutableStateFlow<Set<Long>>(emptySet()).asStateFlow()
+        every { mockActivityRecognitionManager.resolve() } returns
+            ActivityResolution(ActivityState.Mode(ActivityMode.SITTING), null)
         worker = RandomIntervalWorker(
             mockContext,
             mockWorkerParams,
@@ -60,6 +67,7 @@ class RandomIntervalWorkerTest {
             mockHabitRepository,
             mockTriggerRepository,
             mockGeofenceManager,
+            mockActivityRecognitionManager,
             mockTriggerPipeline,
             mockWorkManager
         )
@@ -92,7 +100,7 @@ class RandomIntervalWorkerTest {
     @Test
     fun `doWork returns success and enqueues next when no eligible habits`() = runTest {
         coEvery { mockWindowRepository.getActiveWindows() } returns listOf(windowCoveringAllDay())
-        coEvery { mockHabitRepository.getEligibleHabits(any()) } returns emptyList()
+        coEvery { mockHabitRepository.getEligibleHabits(any(), any()) } returns emptyList()
 
         val result = worker.doWork()
 
@@ -104,7 +112,7 @@ class RandomIntervalWorkerTest {
     @Test
     fun `doWork inserts trigger and executes pipeline on happy path`() = runTest {
         coEvery { mockWindowRepository.getActiveWindows() } returns listOf(windowCoveringAllDay())
-        coEvery { mockHabitRepository.getEligibleHabits(any()) } returns listOf(mockk())
+        coEvery { mockHabitRepository.getEligibleHabits(any(), any()) } returns listOf(mockk())
         coEvery { mockTriggerRepository.insert(any()) } returns 42L
         coEvery { mockTriggerPipeline.execute(42L) } returns Unit
 
@@ -119,9 +127,35 @@ class RandomIntervalWorkerTest {
     }
 
     @Test
+    fun `doWork asks eligibility about the resolved mode`() = runTest {
+        coEvery { mockWindowRepository.getActiveWindows() } returns listOf(windowCoveringAllDay())
+        every { mockActivityRecognitionManager.resolve() } returns
+            ActivityResolution(ActivityState.Mode(ActivityMode.TRANSPORT), null)
+        coEvery { mockHabitRepository.getEligibleHabits(any(), any()) } returns emptyList()
+
+        worker.doWork()
+
+        coVerify(exactly = 1) { mockHabitRepository.getEligibleHabits(any(), ActivityMode.TRANSPORT) }
+    }
+
+    @Test
+    fun `doWork while cycling pre-checks as sitting and still hands the trigger to the pipeline`() = runTest {
+        coEvery { mockWindowRepository.getActiveWindows() } returns listOf(windowCoveringAllDay())
+        every { mockActivityRecognitionManager.resolve() } returns ActivityResolution(ActivityState.Cycling, null)
+        coEvery { mockHabitRepository.getEligibleHabits(any(), ActivityMode.SITTING) } returns listOf(mockk())
+        coEvery { mockTriggerRepository.insert(any()) } returns 42L
+        coEvery { mockTriggerPipeline.execute(42L) } returns Unit
+
+        worker.doWork()
+
+        coVerify(exactly = 1) { mockTriggerRepository.insert(any()) }
+        coVerify(exactly = 1) { mockTriggerPipeline.execute(42L) }
+    }
+
+    @Test
     fun `doWork still enqueues next when pipeline throws non-cancellation exception`() = runTest {
         coEvery { mockWindowRepository.getActiveWindows() } returns listOf(windowCoveringAllDay())
-        coEvery { mockHabitRepository.getEligibleHabits(any()) } returns listOf(mockk())
+        coEvery { mockHabitRepository.getEligibleHabits(any(), any()) } returns listOf(mockk())
         coEvery { mockTriggerRepository.insert(any()) } returns 1L
         coEvery { mockTriggerPipeline.execute(any()) } throws RuntimeException("pipeline error")
 
@@ -134,7 +168,7 @@ class RandomIntervalWorkerTest {
     @Test
     fun `doWork marks trigger dismissed when pipeline throws non-cancellation exception`() = runTest {
         coEvery { mockWindowRepository.getActiveWindows() } returns listOf(windowCoveringAllDay())
-        coEvery { mockHabitRepository.getEligibleHabits(any()) } returns listOf(mockk())
+        coEvery { mockHabitRepository.getEligibleHabits(any(), any()) } returns listOf(mockk())
         coEvery { mockTriggerRepository.insert(any()) } returns 77L
         coEvery { mockTriggerPipeline.execute(any()) } throws RuntimeException("pipeline error")
 
@@ -150,7 +184,7 @@ class RandomIntervalWorkerTest {
         every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
 
         coEvery { mockWindowRepository.getActiveWindows() } returns listOf(windowCoveringAllDay())
-        coEvery { mockHabitRepository.getEligibleHabits(any()) } returns listOf(mockk())
+        coEvery { mockHabitRepository.getEligibleHabits(any(), any()) } returns listOf(mockk())
         coEvery { mockTriggerRepository.insert(any()) } returns 1L
         coEvery { mockTriggerPipeline.execute(any()) } throws RuntimeException("pipeline error")
 
@@ -165,7 +199,7 @@ class RandomIntervalWorkerTest {
         every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
 
         coEvery { mockWindowRepository.getActiveWindows() } returns listOf(windowCoveringAllDay())
-        coEvery { mockHabitRepository.getEligibleHabits(any()) } returns listOf(mockk())
+        coEvery { mockHabitRepository.getEligibleHabits(any(), any()) } returns listOf(mockk())
         coEvery { mockTriggerRepository.insert(any()) } returns 5L
         coEvery { mockTriggerPipeline.execute(5L) } returns Unit
         coEvery { mockTriggerRepository.getById(5L) } returns
@@ -208,7 +242,7 @@ class RandomIntervalWorkerTest {
         val scopeCallback = slot<ScopeCallback>()
         every { Sentry.captureException(any(), capture(scopeCallback)) } returns SentryId.EMPTY_ID
         coEvery { mockWindowRepository.getActiveWindows() } returns listOf(windowCoveringAllDay())
-        coEvery { mockHabitRepository.getEligibleHabits(any()) } returns emptyList()
+        coEvery { mockHabitRepository.getEligibleHabits(any(), any()) } returns emptyList()
         every {
             mockWorkManager.enqueueUniqueWork(any<String>(), any<ExistingWorkPolicy>(), any<OneTimeWorkRequest>())
         } throws IllegalStateException("WorkManager db gone")
@@ -272,7 +306,7 @@ class RandomIntervalWorkerTest {
     @Test
     fun `doWork marks trigger dismissed when CancellationException thrown after insert`() = runTest {
         coEvery { mockWindowRepository.getActiveWindows() } returns listOf(windowCoveringAllDay())
-        coEvery { mockHabitRepository.getEligibleHabits(any()) } returns listOf(mockk())
+        coEvery { mockHabitRepository.getEligibleHabits(any(), any()) } returns listOf(mockk())
         coEvery { mockTriggerRepository.insert(any()) } returns 99L
         coEvery { mockTriggerPipeline.execute(any()) } throws CancellationException("cancelled")
 

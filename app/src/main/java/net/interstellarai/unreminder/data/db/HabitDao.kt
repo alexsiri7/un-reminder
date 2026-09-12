@@ -38,6 +38,7 @@ interface HabitDao {
     @Query("""
         SELECT DISTINCT h.* FROM habits h
         WHERE h.active = 1
+        AND (h.supported_modes = 0 OR (h.supported_modes & :supportedModeBit) != 0)
         AND (
             NOT EXISTS (SELECT 1 FROM habit_location hl WHERE hl.habit_id = h.id)
             OR EXISTS (
@@ -86,6 +87,7 @@ interface HabitDao {
         nowEpochMillis: Long,
         startOfDayCutoff: Long,
         currentSecondOfDay: Int,
-        dayOfWeekBit: Int
+        dayOfWeekBit: Int,
+        supportedModeBit: Int
     ): List<HabitEntity>
 }

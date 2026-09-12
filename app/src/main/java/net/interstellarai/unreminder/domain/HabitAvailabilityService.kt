@@ -8,7 +8,9 @@ import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.data.repository.WindowRepository
+import net.interstellarai.unreminder.domain.model.ActivityState
 import net.interstellarai.unreminder.domain.model.TriggerStatus
+import net.interstellarai.unreminder.service.activity.ActivityRecognitionManager
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import java.time.Instant
 import java.time.LocalDate
@@ -24,7 +26,7 @@ sealed class AvailabilityStatus {
     data class Unavailable(val reasons: List<UnavailableReason>) : AvailabilityStatus()
 }
 
-enum class UnavailableReason { INACTIVE, LOCATION, TIME_WINDOW, COMPLETED, COOLDOWN, DAILY_LIMIT }
+enum class UnavailableReason { INACTIVE, LOCATION, TIME_WINDOW, ACTIVITY_MODE, COMPLETED, COOLDOWN, DAILY_LIMIT }
 
 /**
  * Whether a notification may fire for a habit with this status. This is the trigger gate and
@@ -39,11 +41,12 @@ val AvailabilityStatus.isDoableNow: Boolean
 /**
  * Where a habit sits on the Now menu and the widget, best first. Availability decides whether
  * to interrupt the user; once they have come looking there is nothing to protect them from, so
- * an unavailable habit is ranked lower rather than hidden. The last four values are the blocked
+ * an unavailable habit is ranked lower rather than hidden. The last five values are the blocked
  * tier, ordered by how actionable the block is: pacing the user set themselves, then the wrong
+ * activity (changed by sitting down, and the least certain reading of the lot), then the wrong
  * time, then the wrong place, then already done today.
  */
-enum class DisplayTier { DOABLE, RECENTLY_DISMISSED, PACED, OUT_OF_HOURS, ELSEWHERE, DONE_TODAY }
+enum class DisplayTier { DOABLE, RECENTLY_DISMISSED, PACED, WRONG_ACTIVITY, OUT_OF_HOURS, ELSEWHERE, DONE_TODAY }
 
 @Singleton
 class HabitAvailabilityService @Inject constructor(
@@ -51,6 +54,7 @@ class HabitAvailabilityService @Inject constructor(
     private val windowRepository: WindowRepository,
     private val triggerRepository: TriggerRepository,
     private val geofenceManager: GeofenceManager,
+    private val activityRecognitionManager: ActivityRecognitionManager,
 ) {
     companion object {
         private const val TAG = "HabitAvailabilityService"
@@ -122,6 +126,7 @@ class HabitAvailabilityService @Inject constructor(
 
     private fun blockedTier(reason: UnavailableReason): DisplayTier = when (reason) {
         UnavailableReason.COOLDOWN, UnavailableReason.DAILY_LIMIT -> DisplayTier.PACED
+        UnavailableReason.ACTIVITY_MODE -> DisplayTier.WRONG_ACTIVITY
         UnavailableReason.TIME_WINDOW -> DisplayTier.OUT_OF_HOURS
         UnavailableReason.LOCATION -> DisplayTier.ELSEWHERE
         UnavailableReason.COMPLETED -> DisplayTier.DONE_TODAY
@@ -167,6 +172,16 @@ class HabitAvailabilityService @Inject constructor(
                     (w.daysOfWeekBitmask and dayOfWeekBit) != 0
             }
             if (!inWindow) reasons += UnavailableReason.TIME_WINDOW
+        }
+
+        // --- Activity mode ---
+        // Habit supports a subset of modes AND the current one is not among them. Cycling has
+        // no mode to match and never blocks here: the user has come looking.
+        if (habit.supportedModes.isNotEmpty()) {
+            val state = activityRecognitionManager.resolve().state
+            if (state is ActivityState.Mode && state.mode !in habit.supportedModes) {
+                reasons += UnavailableReason.ACTIVITY_MODE
+            }
         }
 
         // --- Completed today ---

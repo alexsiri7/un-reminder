@@ -9,6 +9,7 @@ import net.interstellarai.unreminder.data.repository.WindowRepository
 import net.interstellarai.unreminder.domain.AvailabilityStatus
 import net.interstellarai.unreminder.domain.HabitAvailabilityService
 import net.interstellarai.unreminder.domain.UnavailableReason
+import net.interstellarai.unreminder.domain.model.ActivityMode
 import net.interstellarai.unreminder.domain.model.AiHabitFields
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.llm.AiStatus
@@ -23,6 +24,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
+import io.mockk.slot
 import io.mockk.unmockkStatic
 import io.mockk.verify
 import io.sentry.Sentry
@@ -481,6 +483,54 @@ class HabitEditViewModelTest {
 
         coVerify { mockHabitRepository.setWindows(42L, setOf(5L, 7L)) }
         assertTrue(viewModel.uiState.value.isSaved)
+    }
+
+    // --- supported modes ---
+
+    @Test
+    fun `toggleMode adds and removes a mode`() = runTest(testDispatcher) {
+        viewModel.toggleMode(ActivityMode.WALKING)
+        assertEquals(setOf(ActivityMode.WALKING), viewModel.uiState.value.selectedModes)
+
+        viewModel.toggleMode(ActivityMode.WALKING)
+        assertTrue(viewModel.uiState.value.selectedModes.isEmpty())
+    }
+
+    @Test
+    fun `setAnyActivity clears selectedModes`() = runTest(testDispatcher) {
+        viewModel.toggleMode(ActivityMode.WALKING)
+        viewModel.toggleMode(ActivityMode.TRANSPORT)
+        assertEquals(setOf(ActivityMode.WALKING, ActivityMode.TRANSPORT), viewModel.uiState.value.selectedModes)
+
+        viewModel.setAnyActivity()
+        assertTrue(viewModel.uiState.value.selectedModes.isEmpty())
+    }
+
+    @Test
+    fun `save stores the selected modes on the habit`() = runTest(testDispatcher) {
+        val inserted = slot<HabitEntity>()
+        coEvery { mockHabitRepository.insert(capture(inserted)) } returns 42L
+
+        viewModel.toggleMode(ActivityMode.SITTING)
+        viewModel.toggleMode(ActivityMode.TRANSPORT)
+        viewModel.save()
+        advanceUntilIdle()
+
+        assertEquals(setOf(ActivityMode.SITTING, ActivityMode.TRANSPORT), inserted.captured.supportedModes)
+        assertTrue(viewModel.uiState.value.isSaved)
+    }
+
+    @Test
+    fun `loadHabit populates selectedModes from the habit`() = runTest(testDispatcher) {
+        val sittingOnly = testHabit.copy(supportedModes = setOf(ActivityMode.SITTING))
+        coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(sittingOnly)
+        coEvery { mockHabitRepository.getLocationIds(testHabit.id) } returns emptyList()
+        coEvery { mockHabitRepository.getWindowIds(testHabit.id) } returns emptyList()
+
+        viewModel.loadHabit(testHabit.id)
+        advanceUntilIdle()
+
+        assertEquals(setOf(ActivityMode.SITTING), viewModel.uiState.value.selectedModes)
     }
 
     @Test

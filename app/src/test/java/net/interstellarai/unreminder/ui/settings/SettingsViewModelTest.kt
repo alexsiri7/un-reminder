@@ -11,6 +11,9 @@ import net.interstellarai.unreminder.data.repository.EveningInvitationSettings
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.PersonalContextRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
+import net.interstellarai.unreminder.domain.model.ActivityMode
+import net.interstellarai.unreminder.domain.model.ActivityResolution
+import net.interstellarai.unreminder.domain.model.ActivityState
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.activity.ActivityRecognitionManager
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
@@ -78,6 +81,8 @@ class SettingsViewModelTest {
         geofenceManager = mockk(relaxed = true)
         locationReconciler = mockk(relaxed = true)
         activityRecognitionManager = mockk(relaxUnitFun = true)
+        every { activityRecognitionManager.resolve() } returns
+            ActivityResolution(ActivityState.Mode(ActivityMode.SITTING), null)
         personalContextRepository = mockk(relaxUnitFun = true)
         every { personalContextRepository.personalContext } returns flowOf("")
         eveningInvitationRepository = mockk(relaxUnitFun = true)
@@ -93,7 +98,7 @@ class SettingsViewModelTest {
         every { geofenceManager.currentLocationIds } returns currentLocationIdsFlow.asStateFlow()
         every { geofenceManager.registrationHealth } returns registrationHealthFlow.asStateFlow()
         every { locationReconciler.reconciliationFailure } returns reconciliationFailureFlow.asStateFlow()
-        coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(
             HabitEntity(id = 1L, name = "habit")
         )
 
@@ -148,7 +153,7 @@ class SettingsViewModelTest {
     @Test
     fun `testTriggerNow sets testTriggeredEmpty and skips pipeline when no eligible habits`() = runTest {
         currentLocationIdsFlow.value = emptySet()
-        coEvery { habitRepository.getEligibleHabits(any()) } returns emptyList()
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns emptyList()
 
         viewModel.testTriggerNow()
         advanceUntilIdle()
@@ -162,7 +167,7 @@ class SettingsViewModelTest {
     @Test
     fun `testTriggerNow fires pipeline when at least one eligible habit`() = runTest {
         currentLocationIdsFlow.value = setOf(7L)
-        coEvery { habitRepository.getEligibleHabits(setOf(7L)) } returns listOf(
+        coEvery { habitRepository.getEligibleHabits(setOf(7L), any()) } returns listOf(
             HabitEntity(id = 1L, name = "habit")
         )
         coEvery { triggerRepository.insert(any()) } returns 42L
@@ -172,6 +177,21 @@ class SettingsViewModelTest {
 
         assertTrue(viewModel.uiState.value.testTriggered)
         assertFalse(viewModel.uiState.value.testTriggeredEmpty)
+        coVerify { triggerPipeline.execute(42L) }
+    }
+
+    @Test
+    fun `testTriggerNow while cycling pre-checks as sitting and still runs the pipeline`() = runTest {
+        every { activityRecognitionManager.resolve() } returns ActivityResolution(ActivityState.Cycling, null)
+        coEvery { habitRepository.getEligibleHabits(any(), ActivityMode.SITTING) } returns listOf(
+            HabitEntity(id = 1L, name = "habit")
+        )
+        coEvery { triggerRepository.insert(any()) } returns 42L
+
+        viewModel.testTriggerNow()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.testTriggered)
         coVerify { triggerPipeline.execute(42L) }
     }
 
@@ -189,7 +209,7 @@ class SettingsViewModelTest {
     @Test
     fun `clearTestTriggeredEmpty resets testTriggeredEmpty to false`() = runTest {
         currentLocationIdsFlow.value = emptySet()
-        coEvery { habitRepository.getEligibleHabits(any()) } returns emptyList()
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns emptyList()
         viewModel.testTriggerNow()
         advanceUntilIdle()
         assertTrue(viewModel.uiState.value.testTriggeredEmpty)

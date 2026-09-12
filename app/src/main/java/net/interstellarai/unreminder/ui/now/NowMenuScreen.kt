@@ -268,6 +268,7 @@ private fun tierLabel(tier: DisplayTier): String? = when (tier) {
     DisplayTier.DOABLE -> null
     DisplayTier.RECENTLY_DISMISSED -> "you passed on this earlier"
     DisplayTier.PACED -> "at the pace you set"
+    DisplayTier.WRONG_ACTIVITY -> "not for what you're doing"
     DisplayTier.OUT_OF_HOURS -> "outside its hours"
     DisplayTier.ELSEWHERE -> "not at the right place"
     DisplayTier.DONE_TODAY -> "already done today"

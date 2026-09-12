@@ -6,7 +6,11 @@ import net.interstellarai.unreminder.data.db.WindowEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.data.repository.WindowRepository
+import net.interstellarai.unreminder.domain.model.ActivityMode
+import net.interstellarai.unreminder.domain.model.ActivityResolution
+import net.interstellarai.unreminder.domain.model.ActivityState
 import net.interstellarai.unreminder.domain.model.TriggerStatus
+import net.interstellarai.unreminder.service.activity.ActivityRecognitionManager
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import io.mockk.coEvery
 import io.mockk.every
@@ -42,6 +46,7 @@ class HabitAvailabilityServiceTest {
     private val mockWindowRepository: WindowRepository = mockk(relaxed = true)
     private val mockTriggerRepository: TriggerRepository = mockk(relaxed = true)
     private val mockGeofenceManager: GeofenceManager = mockk(relaxed = true)
+    private val mockActivityRecognitionManager: ActivityRecognitionManager = mockk()
 
     private val currentLocationIdsFlow = MutableStateFlow<Set<Long>>(emptySet())
 
@@ -64,17 +69,23 @@ class HabitAvailabilityServiceTest {
         coEvery { mockTriggerRepository.countDailyCompletionsSince(any(), any()) } returns 0
         coEvery { mockTriggerRepository.getLastFiredOrDismissedForHabit(any()) } returns null
         coEvery { mockWindowRepository.getActiveWindows() } returns emptyList()
+        givenActivity(ActivityState.Mode(ActivityMode.SITTING))
         service = HabitAvailabilityService(
             mockHabitRepository,
             mockWindowRepository,
             mockTriggerRepository,
             mockGeofenceManager,
+            mockActivityRecognitionManager,
         )
     }
 
     @After
     fun tearDown() {
         Dispatchers.resetMain()
+    }
+
+    private fun givenActivity(state: ActivityState) {
+        every { mockActivityRecognitionManager.resolve() } returns ActivityResolution(state, null)
     }
 
     // --- computeAvailability (internal, with explicit ids) ---
@@ -125,6 +136,39 @@ class HabitAvailabilityServiceTest {
         currentLocationIdsFlow.value = setOf(2L, 99L)
         val result = service.computeAvailability(testHabit, setOf(1L, 2L), emptySet())
         assertEquals(AvailabilityStatus.Available, result)
+    }
+
+    @Test
+    fun `availability includes ACTIVITY_MODE when the resolved mode is not one the habit supports`() = runTest(testDispatcher) {
+        givenActivity(ActivityState.Mode(ActivityMode.SITTING))
+        val walkingOnly = testHabit.copy(supportedModes = setOf(ActivityMode.WALKING))
+
+        val result = service.computeAvailability(walkingOnly, emptySet(), emptySet()) as AvailabilityStatus.Unavailable
+        assertEquals(listOf(UnavailableReason.ACTIVITY_MODE), result.reasons)
+    }
+
+    @Test
+    fun `availability omits ACTIVITY_MODE when the resolved mode is one the habit supports`() = runTest(testDispatcher) {
+        givenActivity(ActivityState.Mode(ActivityMode.WALKING))
+        val walkingOrTransport = testHabit.copy(supportedModes = setOf(ActivityMode.WALKING, ActivityMode.TRANSPORT))
+
+        assertEquals(AvailabilityStatus.Available, service.computeAvailability(walkingOrTransport, emptySet(), emptySet()))
+    }
+
+    @Test
+    fun `a habit supporting any mode is available in every mode`() = runTest(testDispatcher) {
+        for (mode in ActivityMode.entries) {
+            givenActivity(ActivityState.Mode(mode))
+            assertEquals("while $mode", AvailabilityStatus.Available, service.computeAvailability(testHabit, emptySet(), emptySet()))
+        }
+    }
+
+    @Test
+    fun `cycling never blocks a mode-restricted habit on the availability path`() = runTest(testDispatcher) {
+        givenActivity(ActivityState.Cycling)
+        val sittingOnly = testHabit.copy(supportedModes = setOf(ActivityMode.SITTING))
+
+        assertEquals(AvailabilityStatus.Available, service.computeAvailability(sittingOnly, emptySet(), emptySet()))
     }
 
     @Test
@@ -323,6 +367,7 @@ class HabitAvailabilityServiceTest {
         val outOfHours = testHabit.copy(id = 3L)
         val elsewhere = testHabit.copy(id = 4L)
         val done = testHabit.copy(id = 5L, dailyLimit = 5)
+        val wrongActivity = testHabit.copy(id = 6L, supportedModes = setOf(ActivityMode.WALKING))
         coEvery { mockHabitRepository.getLocationIds(any()) } returns emptyList()
         coEvery { mockHabitRepository.getLocationIds(4L) } returns listOf(10L)
         coEvery { mockHabitRepository.getWindowIds(any()) } returns emptyList()
@@ -332,7 +377,7 @@ class HabitAvailabilityServiceTest {
         coEvery { mockTriggerRepository.countCompletedSince(5L, any()) } returns 1
         currentLocationIdsFlow.value = setOf(99L)
 
-        val tiers = service.computeDisplayTiers(listOf(cooling, capped, outOfHours, elsewhere, done))
+        val tiers = service.computeDisplayTiers(listOf(cooling, capped, outOfHours, elsewhere, done, wrongActivity))
 
         assertEquals(
             mapOf(
@@ -341,6 +386,7 @@ class HabitAvailabilityServiceTest {
                 3L to DisplayTier.OUT_OF_HOURS,
                 4L to DisplayTier.ELSEWHERE,
                 5L to DisplayTier.DONE_TODAY,
+                6L to DisplayTier.WRONG_ACTIVITY,
             ),
             tiers,
         )
@@ -365,6 +411,7 @@ class HabitAvailabilityServiceTest {
                 DisplayTier.DOABLE,
                 DisplayTier.RECENTLY_DISMISSED,
                 DisplayTier.PACED,
+                DisplayTier.WRONG_ACTIVITY,
                 DisplayTier.OUT_OF_HOURS,
                 DisplayTier.ELSEWHERE,
                 DisplayTier.DONE_TODAY,

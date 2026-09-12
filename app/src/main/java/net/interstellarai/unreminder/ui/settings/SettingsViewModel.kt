@@ -12,6 +12,8 @@ import net.interstellarai.unreminder.data.repository.EveningInvitationRepository
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.PersonalContextRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
+import net.interstellarai.unreminder.domain.model.ActivityMode
+import net.interstellarai.unreminder.domain.model.ActivityState
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.activity.ActivityRecognitionManager
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
@@ -166,7 +168,11 @@ class SettingsViewModel @Inject constructor(
     fun testTriggerNow() {
         viewModelScope.launch {
             val locationIds = geofenceManager.currentLocationIds.value
-            val eligible = habitRepository.getEligibleHabits(locationIds)
+            // Cycling suppression belongs to the pipeline; this pre-check only decides whether a
+            // trigger row is worth inserting, so cycling takes the same sitting fallback as an
+            // unknown activity.
+            val mode = (activityRecognitionManager.resolve().state as? ActivityState.Mode)?.mode ?: ActivityMode.SITTING
+            val eligible = habitRepository.getEligibleHabits(locationIds, mode)
             if (eligible.isEmpty()) {
                 _uiState.value = _uiState.value.copy(testTriggeredEmpty = true)
                 return@launch
