@@ -24,6 +24,7 @@ data class ReminderDetailUiState(
     val promptText: String = "",
     val habitName: String = "",
     val dedicationLevel: Int = 0,
+    val videoUrl: String? = null,
     val triggerId: Long = -1L,
     val isLoading: Boolean = true,
     val isDone: Boolean = false,
@@ -53,6 +54,7 @@ class ReminderDetailViewModel @Inject constructor(
                     promptText = trigger?.generatedPrompt ?: "",
                     habitName = habit?.name ?: "",
                     dedicationLevel = habit?.dedicationLevel ?: 0,
+                    videoUrl = trigger?.actionUrl?.takeIf { it.startsWith("https://") },
                     isLoading = false,
                 )
             } catch (e: Exception) {
