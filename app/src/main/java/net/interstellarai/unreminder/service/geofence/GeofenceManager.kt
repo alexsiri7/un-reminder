@@ -62,7 +62,7 @@ sealed interface GeofenceRegistration {
             PermissionMissing -> "PERMISSION_MISSING"
             TimedOut -> "TIMEOUT"
             is Rejected -> "${GeofenceStatusCodes.getStatusCodeString(statusCode)}($statusCode)"
-            is Failed -> cause.javaClass.simpleName
+            is Failed -> LocationFaultLabel.of(cause)
         }
 }
 
@@ -78,7 +78,7 @@ sealed interface GeofenceRemoval {
             Removed -> "REMOVED"
             TimedOut -> "TIMEOUT"
             is Rejected -> "${GeofenceStatusCodes.getStatusCodeString(statusCode)}($statusCode)"
-            is Failed -> cause.javaClass.simpleName
+            is Failed -> LocationFaultLabel.of(cause)
         }
 }
 
@@ -94,7 +94,7 @@ sealed interface LocationSettingsCheck {
             Available -> statusLabelFor(LocationSettingsStatusCodes.SUCCESS)
             TimedOut -> "TIMEOUT"
             is Unavailable -> statusLabelFor(statusCode)
-            is Failed -> cause.javaClass.simpleName
+            is Failed -> LocationFaultLabel.of(cause)
         }
 
     companion object {

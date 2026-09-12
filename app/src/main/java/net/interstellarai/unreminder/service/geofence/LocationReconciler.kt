@@ -7,8 +7,6 @@ import android.location.Location
 import android.location.LocationManager
 import android.util.Log
 import androidx.core.content.ContextCompat
-import com.google.android.gms.common.api.ApiException
-import com.google.android.gms.common.api.CommonStatusCodes
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
@@ -179,7 +177,7 @@ class LocationReconciler @Inject constructor(
         }
 
     private fun failure(e: Throwable): Reconciliation.Failed {
-        val label = statusLabelOf(e)
+        val label = LocationFaultLabel.of(e)
         Log.e(TAG, "Location reconciliation failed ($label)", e)
         Sentry.captureException(e) { scope ->
             scope.setTag("component", "geofence")
@@ -187,13 +185,6 @@ class LocationReconciler @Inject constructor(
         }
         _reconciliationFailure.value = label
         return Reconciliation.Failed(e)
-    }
-
-    // R8 renames ApiException itself, so its status code carries the name that survives the
-    // release build; every other cause here is a platform class, which is never renamed.
-    private fun statusLabelOf(cause: Throwable): String = when (cause) {
-        is ApiException -> "${CommonStatusCodes.getStatusCodeString(cause.statusCode)}(${cause.statusCode})"
-        else -> cause.javaClass.simpleName
     }
 
     // Rows saved before the radius floor existed are only raised to it when registration next

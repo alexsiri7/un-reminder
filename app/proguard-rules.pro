@@ -37,3 +37,9 @@
 # keep rules; the broad wildcard below was defeating R8 shrinking across the entire SDK.
 # -dontwarn is retained to suppress notes on optional Sentry dependencies.
 -dontwarn io.sentry.**
+
+# Fault labels (LocationFaultLabel) show a throwable's simple class name, so R8 renaming an
+# app-owned throwable would put "a.b.c" in the Settings health row and in Sentry.
+# -keepnames is -keep,allowshrinking: names are preserved, unused classes are still removed,
+# so this does not repeat the over-broad Sentry rule that defeated shrinking.
+-keepnames class * extends java.lang.Throwable
