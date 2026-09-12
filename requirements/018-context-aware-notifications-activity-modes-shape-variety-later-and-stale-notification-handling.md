@@ -1,8 +1,8 @@
 ---
 created: '2026-09-12'
-github_issue: null
+github_issue: 369
 id: 018
-status: draft
+status: idea
 title: 'Context-aware notifications: activity modes, shape variety, Later, and stale-notification
   handling'
 updated: '2026-09-12'
@@ -38,4 +38,11 @@ Escalating notifications is explicitly not the approach here. The aim is fewer n
 
 ## Issues
 
-_None yet._
+- #369 — EXPIRED trigger outcome: cancel outstanding notification before posting a new one
+- #370 — Later notification action: resolve trigger without demotion, no priority boost
+- #371 — Activity mode resolution via Activity Recognition Transition API
+- #372 — Habit supported modes as an eligibility dimension
+- #373 — Variant shapes: generate and select across structural shapes, not just wordings
+- #374 — Variant mode tags: mode-appropriate text with neutral fallback
+- #375 — generation_version: server-side version bump regenerates every habit's variant pool
+- #376 — Upgrade the variant generation model and prompt
