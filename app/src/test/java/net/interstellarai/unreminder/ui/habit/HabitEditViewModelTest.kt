@@ -408,6 +408,25 @@ class HabitEditViewModelTest {
     }
 
     @Test
+    fun `save does not delete pool or enqueue when only supported modes changed`() = runTest(testDispatcher) {
+        coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit)
+        coEvery { mockHabitRepository.update(any()) } returns Unit
+
+        viewModel.loadHabit(testHabit.id)
+        advanceUntilIdle()
+
+        // Modes gate eligibility; they are not part of the prompt
+        viewModel.toggleMode(ActivityMode.WALKING)
+
+        viewModel.save()
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { mockVariationRepository.deleteForHabit(any()) }
+        coVerify(exactly = 0) { mockRefillScheduler.enqueueForHabit(any()) }
+        assertTrue(viewModel.uiState.value.isSaved)
+    }
+
+    @Test
     fun `loadHabit sets errorMessage when repository throws`() = runTest(testDispatcher) {
         coEvery { mockHabitRepository.getById(99L) } returns kotlinx.coroutines.flow.flow {
             throw RuntimeException("db error")
