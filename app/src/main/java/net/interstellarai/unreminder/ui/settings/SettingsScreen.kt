@@ -86,6 +86,10 @@ fun SettingsScreen(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { viewModel.refreshLocationTracking() }
 
+    val activityPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { viewModel.refreshActivityRecognition() }
+
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
 
@@ -255,6 +259,18 @@ fun SettingsScreen(
                         locationPermissionLauncher.launch(
                             arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION),
                         )
+                    },
+                )
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    thickness = Dimens.hairline,
+                )
+                PermissionRow(
+                    title = "Physical activity",
+                    subtitle = "skips nudges while you cycle",
+                    granted = uiState.hasActivityRecognitionPermission,
+                    onRequest = {
+                        activityPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
                     },
                 )
             }
@@ -441,6 +457,7 @@ private fun PermissionRow(
     title: String,
     granted: Boolean,
     onRequest: () -> Unit,
+    subtitle: String? = null,
 ) {
     Row(
         modifier = Modifier
@@ -456,6 +473,14 @@ private fun PermissionRow(
                 style = DisplaySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (subtitle != null) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    subtitle,
+                    style = MonoLabelTiny,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                )
+            }
             Spacer(Modifier.height(2.dp))
             Text(
                 if (granted) "granted" else "not granted",

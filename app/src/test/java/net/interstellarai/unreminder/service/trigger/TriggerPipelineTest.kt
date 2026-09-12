@@ -9,7 +9,11 @@ import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.data.repository.HabitLevelDescriptionRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
+import net.interstellarai.unreminder.domain.model.ActivityMode
+import net.interstellarai.unreminder.domain.model.ActivityResolution
+import net.interstellarai.unreminder.domain.model.ActivityState
 import net.interstellarai.unreminder.domain.model.TriggerStatus
+import net.interstellarai.unreminder.service.activity.ActivityRecognitionManager
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.geofence.LocationReconciler
 import net.interstellarai.unreminder.service.geofence.Reconciliation
@@ -40,6 +44,7 @@ import org.junit.Assert.fail
 import kotlin.coroutines.cancellation.CancellationException
 import org.junit.Before
 import org.junit.Test
+import java.time.Duration
 import java.time.Instant
 
 class TriggerPipelineTest {
@@ -49,6 +54,7 @@ class TriggerPipelineTest {
     private lateinit var locationRepository: LocationRepository
     private lateinit var geofenceManager: GeofenceManager
     private lateinit var locationReconciler: LocationReconciler
+    private lateinit var activityRecognitionManager: ActivityRecognitionManager
     private lateinit var notificationHelper: NotificationHelper
     private lateinit var variationRepository: VariationRepository
     private lateinit var refillScheduler: RefillScheduler
@@ -77,6 +83,9 @@ class TriggerPipelineTest {
         geofenceManager = mockk()
         locationReconciler = mockk(relaxed = true)
         coEvery { locationReconciler.reconcile() } returns Reconciliation.Reconciled
+        activityRecognitionManager = mockk()
+        every { activityRecognitionManager.resolve() } returns
+            ActivityResolution(ActivityState.Mode(ActivityMode.SITTING), null)
         notificationHelper = mockk(relaxUnitFun = true)
         variationRepository = mockk()
         refillScheduler = mockk(relaxUnitFun = true)
@@ -89,6 +98,7 @@ class TriggerPipelineTest {
             locationRepository = locationRepository,
             geofenceManager = geofenceManager,
             locationReconciler = locationReconciler,
+            activityRecognitionManager = activityRecognitionManager,
             notificationHelper = notificationHelper,
             variationRepository = variationRepository,
             refillScheduler = refillScheduler,
@@ -142,6 +152,37 @@ class TriggerPipelineTest {
         coVerifyOrder {
             locationReconciler.reconcile()
             habitRepository.getEligibleHabits(any())
+        }
+    }
+
+    @Test
+    fun `cycling - dismisses trigger without consulting eligibility or posting`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
+        every { activityRecognitionManager.resolve() } returns
+            ActivityResolution(ActivityState.Cycling, Duration.ofMinutes(2))
+
+        pipeline.execute(42L)
+
+        coVerify { triggerRepository.updateOutcome(42L, TriggerStatus.DISMISSED) }
+        coVerify(exactly = 0) { habitRepository.getEligibleHabits(any()) }
+        coVerify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `any resolved mode lets the trigger fire`() = runTest {
+        stubEligibleHabitWithVariation()
+        every { activityRecognitionManager.resolve() } returns
+            ActivityResolution(ActivityState.Mode(ActivityMode.TRANSPORT), Duration.ofMinutes(2))
+
+        pipeline.execute(42L)
+
+        coVerify(exactly = 1) {
+            notificationHelper.postTriggerNotification(
+                triggerId = 42L,
+                promptText = "body",
+                habitName = "meditation",
+                actionUrl = null,
+            )
         }
     }
 

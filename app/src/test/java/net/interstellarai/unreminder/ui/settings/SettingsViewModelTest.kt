@@ -12,6 +12,7 @@ import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.PersonalContextRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
+import net.interstellarai.unreminder.service.activity.ActivityRecognitionManager
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.geofence.GeofenceRegistration
 import net.interstellarai.unreminder.service.geofence.LocationReconciler
@@ -55,6 +56,7 @@ class SettingsViewModelTest {
     private lateinit var habitRepository: HabitRepository
     private lateinit var geofenceManager: GeofenceManager
     private lateinit var locationReconciler: LocationReconciler
+    private lateinit var activityRecognitionManager: ActivityRecognitionManager
     private lateinit var personalContextRepository: PersonalContextRepository
     private lateinit var eveningInvitationRepository: EveningInvitationRepository
     private lateinit var eveningInvitationScheduler: EveningInvitationScheduler
@@ -75,6 +77,7 @@ class SettingsViewModelTest {
         habitRepository = mockk(relaxUnitFun = true)
         geofenceManager = mockk(relaxed = true)
         locationReconciler = mockk(relaxed = true)
+        activityRecognitionManager = mockk(relaxUnitFun = true)
         personalContextRepository = mockk(relaxUnitFun = true)
         every { personalContextRepository.personalContext } returns flowOf("")
         eveningInvitationRepository = mockk(relaxUnitFun = true)
@@ -101,6 +104,7 @@ class SettingsViewModelTest {
             habitRepository = habitRepository,
             geofenceManager = geofenceManager,
             locationReconciler = locationReconciler,
+            activityRecognitionManager = activityRecognitionManager,
             personalContextRepository = personalContextRepository,
             eveningInvitationRepository = eveningInvitationRepository,
             eveningInvitationScheduler = eveningInvitationScheduler,
@@ -207,12 +211,16 @@ class SettingsViewModelTest {
             every {
                 ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION)
             } returns PackageManager.PERMISSION_DENIED
+            every {
+                ContextCompat.checkSelfPermission(context, Manifest.permission.ACTIVITY_RECOGNITION)
+            } returns PackageManager.PERMISSION_GRANTED
 
             viewModel.refreshPermissions()
 
             assertTrue(viewModel.uiState.value.hasNotificationPermission)
             assertFalse(viewModel.uiState.value.hasFineLocationPermission)
             assertFalse(viewModel.uiState.value.hasBackgroundLocationPermission)
+            assertTrue(viewModel.uiState.value.hasActivityRecognitionPermission)
         } finally {
             unmockkStatic(ContextCompat::class)
         }
@@ -231,6 +239,7 @@ class SettingsViewModelTest {
             assertTrue(viewModel.uiState.value.hasNotificationPermission)
             assertTrue(viewModel.uiState.value.hasFineLocationPermission)
             assertTrue(viewModel.uiState.value.hasBackgroundLocationPermission)
+            assertTrue(viewModel.uiState.value.hasActivityRecognitionPermission)
         } finally {
             unmockkStatic(ContextCompat::class)
         }
@@ -246,6 +255,22 @@ class SettingsViewModelTest {
 
             assertTrue(viewModel.uiState.value.hasBackgroundLocationPermission)
             verify(exactly = 1) { geofenceManager.refreshRegistration() }
+        } finally {
+            unmockkStatic(ContextCompat::class)
+        }
+    }
+
+    @Test
+    fun `refreshActivityRecognition refreshes the flags and subscribes to transitions`() = runTest {
+        mockkStatic(ContextCompat::class)
+        try {
+            every { ContextCompat.checkSelfPermission(context, any()) } returns PackageManager.PERMISSION_GRANTED
+
+            viewModel.refreshActivityRecognition()
+            advanceUntilIdle()
+
+            assertTrue(viewModel.uiState.value.hasActivityRecognitionPermission)
+            coVerify(exactly = 1) { activityRecognitionManager.requestTransitionUpdates() }
         } finally {
             unmockkStatic(ContextCompat::class)
         }
@@ -369,6 +394,7 @@ class SettingsViewModelTest {
             habitRepository = habitRepository,
             geofenceManager = geofenceManager,
             locationReconciler = locationReconciler,
+            activityRecognitionManager = activityRecognitionManager,
             personalContextRepository = personalContextRepository,
             eveningInvitationRepository = eveningInvitationRepository,
             eveningInvitationScheduler = eveningInvitationScheduler,
@@ -405,6 +431,7 @@ class SettingsViewModelTest {
             habitRepository = habitRepository,
             geofenceManager = geofenceManager,
             locationReconciler = locationReconciler,
+            activityRecognitionManager = activityRecognitionManager,
             personalContextRepository = personalContextRepository,
             eveningInvitationRepository = eveningInvitationRepository,
             eveningInvitationScheduler = eveningInvitationScheduler,
