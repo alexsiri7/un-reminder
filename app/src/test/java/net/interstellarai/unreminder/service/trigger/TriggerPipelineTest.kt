@@ -240,7 +240,7 @@ class TriggerPipelineTest {
 
         coVerifyOrder {
             triggerRepository.getFiredIds()
-            triggerRepository.updateFired(42L, any(), any())
+            triggerRepository.updateFired(42L, any(), any(), any())
         }
     }
 
@@ -318,7 +318,7 @@ class TriggerPipelineTest {
 
         pipeline.execute(42L)
 
-        coVerify { triggerRepository.updateFired(42L, 1L, "Cloud notification body") }
+        coVerify { triggerRepository.updateFired(42L, 1L, "Cloud notification body", null) }
         coVerify {
             notificationHelper.postTriggerNotification(
                 triggerId = 42L,
@@ -340,7 +340,7 @@ class TriggerPipelineTest {
 
         pipeline.execute(42L)
 
-        coVerify { triggerRepository.updateFired(42L, 1L, "meditation") }
+        coVerify { triggerRepository.updateFired(42L, 1L, "meditation", null) }
         coVerify {
             notificationHelper.postTriggerNotification(
                 triggerId = 42L,
@@ -362,7 +362,7 @@ class TriggerPipelineTest {
 
         pipeline.execute(42L)
 
-        coVerify { triggerRepository.updateFired(42L, 1L, "Take three deep breaths") }
+        coVerify { triggerRepository.updateFired(42L, 1L, "Take three deep breaths", null) }
         coVerify {
             notificationHelper.postTriggerNotification(
                 triggerId = 42L,
@@ -388,6 +388,7 @@ class TriggerPipelineTest {
 
         pipeline.execute(42L)
 
+        coVerify { triggerRepository.updateFired(42L, 1L, "Sing the C major scale", url) }
         coVerify {
             notificationHelper.postTriggerNotification(
                 triggerId = 42L,
@@ -436,7 +437,7 @@ class TriggerPipelineTest {
 
         pipeline.execute(42L)
 
-        coVerify { triggerRepository.updateFired(42L, 1L, "Cloud notification body") }
+        coVerify { triggerRepository.updateFired(42L, 1L, "Cloud notification body", null) }
         coVerify(exactly = 1) { refillScheduler.enqueueForHabit(1L) }
     }
 
@@ -449,7 +450,7 @@ class TriggerPipelineTest {
 
         pipeline.execute(42L)
 
-        coVerify { triggerRepository.updateFired(42L, 1L, "meditation") }
+        coVerify { triggerRepository.updateFired(42L, 1L, "meditation", null) }
         coVerify { refillScheduler.enqueueForHabit(1L) }
     }
 
@@ -468,7 +469,7 @@ class TriggerPipelineTest {
         pipeline.execute(42L)
 
         verify(exactly = 1) { Sentry.captureException(failure, any<ScopeCallback>()) }
-        coVerify { triggerRepository.updateFired(42L, 1L, "meditation") }
+        coVerify { triggerRepository.updateFired(42L, 1L, "meditation", null) }
         unmockkStatic(Sentry::class)
     }
 
@@ -485,7 +486,7 @@ class TriggerPipelineTest {
             // expected
         }
 
-        coVerify(exactly = 0) { triggerRepository.updateFired(any(), any(), any()) }
+        coVerify(exactly = 0) { triggerRepository.updateFired(any(), any(), any(), any()) }
     }
 
     @Test
@@ -503,7 +504,7 @@ class TriggerPipelineTest {
 
         pipeline.execute(42L)
 
-        coVerify { triggerRepository.updateFired(42L, 1L, "Time for meditation!") }
+        coVerify { triggerRepository.updateFired(42L, 1L, "Time for meditation!", null) }
     }
 
     @Test
@@ -520,7 +521,7 @@ class TriggerPipelineTest {
 
         pipeline.execute(42L)
 
-        coVerify { triggerRepository.updateFired(42L, 1L, "Time!") }
+        coVerify { triggerRepository.updateFired(42L, 1L, "Time!", null) }
     }
 
     @Test

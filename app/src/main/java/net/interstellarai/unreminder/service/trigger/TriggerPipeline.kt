@@ -114,7 +114,8 @@ class TriggerPipeline @Inject constructor(
             triggerRepository.updateFired(
                 id = triggerId,
                 habitId = habit.id,
-                prompt = resolvedPrompt.text
+                prompt = resolvedPrompt.text,
+                actionUrl = resolvedPrompt.actionUrl
             )
 
             notificationHelper.postTriggerNotification(

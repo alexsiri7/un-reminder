@@ -29,14 +29,16 @@ class TriggerRepository @Inject constructor(
     suspend fun updateFired(
         id: Long,
         habitId: Long,
-        prompt: String
+        prompt: String,
+        actionUrl: String?
     ) {
         triggerDao.updateFired(
             id = id,
             status = TriggerStatus.FIRED.name,
             firedAt = Instant.now().toEpochMilli(),
             habitId = habitId,
-            prompt = prompt
+            prompt = prompt,
+            actionUrl = actionUrl
         )
     }
 

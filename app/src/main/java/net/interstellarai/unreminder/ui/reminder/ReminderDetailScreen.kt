@@ -1,5 +1,10 @@
 package net.interstellarai.unreminder.ui.reminder
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -41,6 +47,7 @@ fun ReminderDetailScreen(
     viewModel: ReminderDetailViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
     LaunchedEffect(triggerId) { viewModel.init(triggerId) }
     LaunchedEffect(uiState.isDone) { if (uiState.isDone) onNavigateBack() }
@@ -110,10 +117,21 @@ fun ReminderDetailScreen(
             horizontalArrangement = Arrangement.spacedBy(Dimens.md, Alignment.CenterHorizontally),
         ) {
             ActionChip(label = "Did it", filled = true, onClick = { viewModel.markCompleted() })
+            uiState.videoUrl?.let { url ->
+                ActionChip(label = "Watch", filled = false, onClick = { openVideo(context, url) })
+            }
             ActionChip(label = "Dismiss", filled = false, onClick = { viewModel.markDismissed() })
         }
 
         Spacer(Modifier.height(Dimens.lg))
         NavPill()
+    }
+}
+
+private fun openVideo(context: Context, url: String) {
+    try {
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+    } catch (e: ActivityNotFoundException) {
+        Log.w("ReminderDetailScreen", "No activity can open $url", e)
     }
 }

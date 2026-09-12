@@ -21,6 +21,9 @@ data class TriggerEntity(
     val status: TriggerStatus = TriggerStatus.SCHEDULED,
     @ColumnInfo(name = "generated_prompt")
     val generatedPrompt: String? = null,
+    /** The variant's action_url as delivered, frozen like generated_prompt so the detail screen shows what the notification carried. */
+    @ColumnInfo(name = "action_url")
+    val actionUrl: String? = null,
     @ColumnInfo(name = "source")
     val source: String? = null
 )

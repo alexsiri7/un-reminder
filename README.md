@@ -196,6 +196,7 @@ A scheduled notification event.
 - `fired_at` — nullable.
 - `status` — `{SCHEDULED, FIRED, COMPLETED, DISMISSED, EXPIRED, LATER}`.
 - `generated_prompt` — the AI-generated text actually shown in the notification.
+- `action_url` — nullable; the variant's video URL as delivered, frozen at fire time like `generated_prompt`.
 
 ### Location
 A named geofence the user has registered. Each location has:
@@ -323,7 +324,9 @@ from the pool, not from a fresh generation.
     prompt text ("reminder" section) and, if the trigger has an associated habit, the habit name and
     current dedication progress bar ("habit" section).
     Two action chips: **Did it** (records `COMPLETED`, dismisses the notification, navigates back) and
-    **Dismiss** (records `DISMISSED`, dismisses the notification, navigates back). No bottom navigation bar
+    **Dismiss** (records `DISMISSED`, dismisses the notification, navigates back). When the trigger's
+    variant carried an `action_url`, a **Watch** chip sits between them and opens that URL; triggers
+    without one show no video affordance. No bottom navigation bar
     (excluded from `showBottomBar` logic in `NavGraph`). Back navigation via "← back" text link or system back.
 
 ---
@@ -347,7 +350,7 @@ from the pool, not from a fresh generation.
 @Entity Window(id, start_time, end_time, days_of_week_bitmask, frequency_per_day, active)
 @Entity Location(id, name /* user-defined, e.g. "Home", "Gym", "Office" */, lat, lng, radius_m)
 @Entity HabitLocationCrossRef(habit_id → Habit.id CASCADE, location_id → Location.id CASCADE)  // junction
-@Entity Trigger(id, window_id?, habit_id?, scheduled_at, fired_at?, status, generated_prompt?)
+@Entity Trigger(id, window_id?, habit_id?, scheduled_at, fired_at?, status, generated_prompt?, action_url?)
 @Entity PendingFeedback(id, screenshot_path? /* nullable */, description, queued_at)  // offline upload queue
 @Entity Variation(id, habit_id → Habit.id CASCADE, text, prompt_fingerprint, generated_at, consumed_at?, action_url?)  // variation pool
 ```

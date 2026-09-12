@@ -33,8 +33,8 @@ interface TriggerDao {
     @Query("SELECT * FROM triggers WHERE id = :id")
     suspend fun getById(id: Long): TriggerEntity?
 
-    @Query("UPDATE triggers SET status = :status, fired_at = :firedAt, habit_id = :habitId, generated_prompt = :prompt WHERE id = :id")
-    suspend fun updateFired(id: Long, status: String, firedAt: Long, habitId: Long, prompt: String)
+    @Query("UPDATE triggers SET status = :status, fired_at = :firedAt, habit_id = :habitId, generated_prompt = :prompt, action_url = :actionUrl WHERE id = :id")
+    suspend fun updateFired(id: Long, status: String, firedAt: Long, habitId: Long, prompt: String, actionUrl: String?)
 
     @Query("UPDATE triggers SET status = :status WHERE id = :id")
     suspend fun updateStatus(id: Long, status: String)
