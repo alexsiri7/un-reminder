@@ -11,4 +11,4 @@ Notifications must offer immediate response options â€” "Did it" and "Dismiss" â
 
 ## What
 
-Android `NotificationManager` notifications with "Did it" (COMPLETED) and "Dismiss" (DISMISSED) action buttons. When a variant has an `action_url`, a third "Watch" button opens the URL. Swiping a trigger notification away is recorded as a dismissal, the same as tapping "Dismiss"; an outcome already recorded is never overwritten. Notification titles rotate through 20 emoji keyed on trigger ID for visual distinctiveness.
+Android `NotificationManager` notifications with "Did it" (COMPLETED) and "Dismiss" (DISMISSED) action buttons. When a variant has an `action_url`, a third "Watch" button opens the URL. Swiping a trigger notification away is recorded as a dismissal, the same as tapping "Dismiss"; an outcome already recorded is never overwritten. A still-unanswered notification is also cancelled when a later trigger supersedes it, and its trigger is recorded as EXPIRED. Notification titles rotate through 20 emoji keyed on trigger ID for visual distinctiveness.

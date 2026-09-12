@@ -278,6 +278,17 @@ class HabitAvailabilityServiceTest {
     }
 
     @Test
+    fun `a habit whose most recent trigger expired unanswered ranks second even while in cooldown`() =
+        runTest(testDispatcher) {
+            val cooldownHabit = testHabit.copy(cooldownMinutes = 60)
+            givenNoLocationsOrWindows()
+            lastTrigger(cooldownHabit.id, TriggerStatus.EXPIRED)
+            coEvery { mockTriggerRepository.getLastFiredOrDismissedForHabit(cooldownHabit.id) } returns Instant.now().toEpochMilli()
+
+            assertEquals(mapOf(1L to DisplayTier.RECENTLY_DISMISSED), service.computeDisplayTiers(listOf(cooldownHabit)))
+        }
+
+    @Test
     fun `a paused habit gets no tier even when recently dismissed`() = runTest(testDispatcher) {
         val paused = testHabit.copy(active = false)
         givenNoLocationsOrWindows()

@@ -4,5 +4,6 @@ enum class TriggerStatus {
     SCHEDULED,
     FIRED,
     COMPLETED,
-    DISMISSED
+    DISMISSED,
+    EXPIRED
 }

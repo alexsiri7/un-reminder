@@ -40,6 +40,7 @@ import net.interstellarai.unreminder.ui.theme.Dimens
 import net.interstellarai.unreminder.ui.theme.Dismissed
 import net.interstellarai.unreminder.ui.theme.DisplayHuge
 import net.interstellarai.unreminder.ui.theme.DisplaySmall
+import net.interstellarai.unreminder.ui.theme.Expired
 import net.interstellarai.unreminder.ui.theme.MonoContextStrip
 import net.interstellarai.unreminder.ui.theme.MonoLabelTiny
 import net.interstellarai.unreminder.ui.theme.MonoSectionLabel
@@ -203,6 +204,7 @@ private fun StatusDot(status: TriggerStatus) {
     val color = when (status) {
         TriggerStatus.COMPLETED -> CompletedFull
         TriggerStatus.DISMISSED -> Dismissed
+        TriggerStatus.EXPIRED -> Expired
         else -> MaterialTheme.colorScheme.outline
     }
     Box(
@@ -216,5 +218,6 @@ private fun StatusDot(status: TriggerStatus) {
 private fun statusLabel(status: TriggerStatus): String = when (status) {
     TriggerStatus.COMPLETED -> "done"
     TriggerStatus.DISMISSED -> "dismissed"
+    TriggerStatus.EXPIRED -> "expired"
     else -> status.name.lowercase().replace('_', ' ')
 }

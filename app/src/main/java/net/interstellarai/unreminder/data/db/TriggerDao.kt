@@ -26,6 +26,10 @@ interface TriggerDao {
     @Query("SELECT * FROM triggers WHERE status = 'SCHEDULED'")
     suspend fun getAllScheduled(): List<TriggerEntity>
 
+    /** Ids of triggers whose notification is posted and still unanswered. */
+    @Query("SELECT id FROM triggers WHERE status = 'FIRED'")
+    suspend fun getFiredIds(): List<Long>
+
     @Query("SELECT * FROM triggers WHERE id = :id")
     suspend fun getById(id: Long): TriggerEntity?
 
@@ -34,6 +38,13 @@ interface TriggerDao {
 
     @Query("UPDATE triggers SET status = :status WHERE id = :id")
     suspend fun updateStatus(id: Long, status: String)
+
+    /**
+     * Records EXPIRED only while the trigger is still unanswered. A real outcome written
+     * concurrently by another path therefore wins and is never overwritten.
+     */
+    @Query("UPDATE triggers SET status = 'EXPIRED' WHERE id = :id AND status = 'FIRED'")
+    suspend fun markExpiredIfUnanswered(id: Long)
 
     @Query("DELETE FROM triggers WHERE status = 'SCHEDULED' AND scheduled_at < :cutoffMillis")
     suspend fun deleteScheduledOlderThan(cutoffMillis: Long)
@@ -54,12 +65,16 @@ interface TriggerDao {
     """)
     suspend fun getCompletionsSince(habitId: Long, sinceMillis: Long): List<TriggerEntity>
 
-    /** Returns max fired_at for DISMISSED or FIRED triggers (used for per-habit cooldown check). */
+    /**
+     * Returns max fired_at for unanswered triggers — DISMISSED, still-FIRED, or EXPIRED
+     * (used for per-habit cooldown check). A superseded notification was still a nudge,
+     * so expiring one must not shorten the cooldown it started.
+     */
     @Query("""
         SELECT MAX(fired_at) FROM triggers
         WHERE habit_id = :habitId
           AND fired_at IS NOT NULL
-          AND (status = 'DISMISSED' OR status = 'FIRED')
+          AND (status = 'DISMISSED' OR status = 'FIRED' OR status = 'EXPIRED')
     """)
     suspend fun getLastFiredOrDismissedForHabit(habitId: Long): Long?
 

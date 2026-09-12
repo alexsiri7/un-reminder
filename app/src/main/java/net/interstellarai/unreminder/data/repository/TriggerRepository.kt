@@ -24,6 +24,8 @@ class TriggerRepository @Inject constructor(
 
     suspend fun getAllScheduled(): List<TriggerEntity> = triggerDao.getAllScheduled()
 
+    suspend fun getFiredIds(): List<Long> = triggerDao.getFiredIds()
+
     suspend fun updateFired(
         id: Long,
         habitId: Long,
@@ -40,6 +42,10 @@ class TriggerRepository @Inject constructor(
 
     suspend fun updateOutcome(id: Long, status: TriggerStatus) {
         triggerDao.updateStatus(id, status.name)
+    }
+
+    suspend fun expireIfUnanswered(id: Long) {
+        triggerDao.markExpiredIfUnanswered(id)
     }
 
     suspend fun deleteScheduledOlderThan(cutoff: Instant) =

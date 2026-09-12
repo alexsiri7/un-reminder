@@ -94,9 +94,10 @@ class HabitAvailabilityService @Inject constructor(
      * The display tier of every active habit, keyed by id. Paused habits get no entry: switching
      * a habit off is the user's decision, not a contextual block, so it is never surfaced.
      *
-     * A habit whose most recent trigger was dismissed ranks as [DisplayTier.RECENTLY_DISMISSED]
-     * whatever else blocks it; the dismissal is the more telling reason. A habit blocked for
-     * several reasons takes the least actionable of them.
+     * A habit whose most recent trigger went unanswered — dismissed outright, or expired when a
+     * later nudge superseded it — ranks as [DisplayTier.RECENTLY_DISMISSED] whatever else blocks
+     * it; passing on it is the more telling reason. A habit blocked for several reasons takes the
+     * least actionable of them.
      */
     suspend fun computeDisplayTiers(habits: List<HabitEntity>): Map<Long, DisplayTier> {
         val availability = computeForAll(habits)
@@ -106,15 +107,17 @@ class HabitAvailabilityService @Inject constructor(
                 if (UnavailableReason.INACTIVE in blockedBy) continue
                 put(
                     habit.id,
-                    if (lastTriggerWasDismissed(habit.id)) DisplayTier.RECENTLY_DISMISSED
+                    if (lastTriggerWentUnanswered(habit.id)) DisplayTier.RECENTLY_DISMISSED
                     else blockedBy.maxOfOrNull { blockedTier(it) } ?: DisplayTier.DOABLE,
                 )
             }
         }
     }
 
-    private suspend fun lastTriggerWasDismissed(habitId: Long): Boolean =
-        triggerRepository.getLastNForHabit(habitId, 1).firstOrNull()?.status == TriggerStatus.DISMISSED
+    private suspend fun lastTriggerWentUnanswered(habitId: Long): Boolean {
+        val status = triggerRepository.getLastNForHabit(habitId, 1).firstOrNull()?.status
+        return status == TriggerStatus.DISMISSED || status == TriggerStatus.EXPIRED
+    }
 
     private fun blockedTier(reason: UnavailableReason): DisplayTier = when (reason) {
         UnavailableReason.COOLDOWN, UnavailableReason.DAILY_LIMIT -> DisplayTier.PACED
@@ -175,7 +178,7 @@ class HabitAvailabilityService @Inject constructor(
         if (completedCount > 0) reasons += UnavailableReason.COMPLETED
 
         // --- Cooldown ---
-        // DISMISSED or FIRED within cooldown_minutes (mirrors SQL; 0 cooldown = no restriction).
+        // DISMISSED, FIRED or EXPIRED within cooldown_minutes (mirrors SQL; 0 cooldown = no restriction).
         if (habit.cooldownMinutes > 0) {
             val nowEpochMillis = Instant.now().toEpochMilli()
             val cooldownCutoff = nowEpochMillis - habit.cooldownMinutes * 60 * 1000L

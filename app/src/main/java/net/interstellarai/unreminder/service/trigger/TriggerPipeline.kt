@@ -93,6 +93,11 @@ class TriggerPipeline @Inject constructor(
             val locationName = resolveLocationName(locationIds)
             val resolvedPrompt = resolvePrompt(habit, locationName, timeOfDay)
 
+            // Read while this trigger is still SCHEDULED: FIRED is written nowhere but
+            // updateFired below, so the list means exactly "posted, no outcome yet" and
+            // cannot contain the notification this run is about to post.
+            val outstandingIds = triggerRepository.getFiredIds()
+
             triggerRepository.updateFired(
                 id = triggerId,
                 habitId = habit.id,
@@ -106,6 +111,9 @@ class TriggerPipeline @Inject constructor(
                 actionUrl = resolvedPrompt.actionUrl,
                 spriteTag = resolvedPrompt.spriteTag,
             )
+            // Destructive, so it waits until the replacement is actually up: a post that
+            // throws must leave the standing notification there to be answered.
+            expireOutstandingNotifications(outstandingIds)
             widgetRefresher.refresh()
         } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -115,6 +123,22 @@ class TriggerPipeline @Inject constructor(
                 scope.setTag("trigger_id", triggerId.toString())
             }
             triggerRepository.updateOutcome(triggerId, TriggerStatus.DISMISSED)
+        }
+    }
+
+    /** Only one unanswered nudge may stand at a time (#369). */
+    private suspend fun expireOutstandingNotifications(outstandingIds: List<Long>) {
+        for (outstandingId in outstandingIds) {
+            try {
+                // Cancelled before the outcome is written: a tap that slips through in
+                // between still reads FIRED and records the real outcome, which the
+                // guarded write then declines to overwrite.
+                notificationHelper.cancelNotification(outstandingId)
+                triggerRepository.expireIfUnanswered(outstandingId)
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                Log.w(TAG, "expiring superseded trigger=$outstandingId failed — non-fatal, continuing", e)
+            }
         }
     }
 
