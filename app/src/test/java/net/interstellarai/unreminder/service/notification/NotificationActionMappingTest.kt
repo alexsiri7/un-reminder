@@ -106,6 +106,26 @@ class NotificationRequestCodeCollisionTest {
     }
 
     @Test
+    fun `delete request code does not collide with action or detail codes for same triggerId`() {
+        val triggerId = 42L
+        val deleteCode = (NotificationHelper.NOTIFICATION_DELETE_BASE + triggerId).toRequestCode()
+        assertNotEquals(deleteCode, (triggerId * 3 + 0).toRequestCode())
+        assertNotEquals(deleteCode, (triggerId * 3 + 1).toRequestCode())
+        assertNotEquals(deleteCode, (triggerId * 3 + 2).toRequestCode())
+        assertNotEquals(deleteCode, (NotificationHelper.NOTIFICATION_DETAIL_BASE + triggerId).toRequestCode())
+    }
+
+    @Test
+    fun `delete request code does not alias another trigger's action slots`() {
+        val deleteCode = (NotificationHelper.NOTIFICATION_DELETE_BASE + 42L).toRequestCode()
+        for (id in 40L..44L) {
+            for (offset in 0..2) {
+                assertNotEquals(deleteCode, (id * 3 + offset).toRequestCode())
+            }
+        }
+    }
+
+    @Test
     fun `evening invitation id does not collide with per-trigger codes`() {
         val id = 42L
         val invitationCode = NotificationHelper.NOTIFICATION_ID_EVENING_INVITATION.toRequestCode()

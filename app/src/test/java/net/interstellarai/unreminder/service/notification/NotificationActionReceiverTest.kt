@@ -6,17 +6,20 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import dagger.hilt.internal.GeneratedComponentManager
+import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.spyk
 import io.mockk.verify
+import net.interstellarai.unreminder.data.db.TriggerEntity
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.trigger.DismissalTracker
 import net.interstellarai.unreminder.widget.WidgetRefresher
 import org.junit.Before
 import org.junit.Test
+import java.time.Instant
 
 class NotificationActionReceiverTest {
 
@@ -50,8 +53,18 @@ class NotificationActionReceiverTest {
         every { getStringExtra(NotificationHelper.EXTRA_ACTION) } returns action
     }
 
+    private fun trigger(status: TriggerStatus) = TriggerEntity(
+        id = 42L,
+        scheduledAt = Instant.now(),
+        firedAt = Instant.now(),
+        status = status,
+        habitId = 5L,
+    )
+
     @Test
     fun `did it records the completion and refreshes the widget`() {
+        coEvery { triggerRepository.getById(42L) } returns trigger(TriggerStatus.FIRED)
+
         receiver.onReceive(context, actionIntent(NotificationHelper.ACTION_COMPLETED))
 
         verify(timeout = 2_000) { pendingResult.finish() }
@@ -63,11 +76,54 @@ class NotificationActionReceiverTest {
 
     @Test
     fun `dismiss records the dismissal and refreshes the widget`() {
+        coEvery { triggerRepository.getById(42L) } returns trigger(TriggerStatus.FIRED)
+
         receiver.onReceive(context, actionIntent(NotificationHelper.ACTION_DISMISSED))
 
         verify(timeout = 2_000) { pendingResult.finish() }
         coVerify(exactly = 1) { triggerRepository.updateOutcome(42L, TriggerStatus.DISMISSED) }
         coVerify(exactly = 1) { dismissalTracker.onDismissed(42L) }
         verify(exactly = 1) { widgetRefresher.refresh() }
+    }
+
+    @Test
+    fun `a dismissal never overwrites an already recorded completion`() {
+        coEvery { triggerRepository.getById(42L) } returns trigger(TriggerStatus.COMPLETED)
+
+        receiver.onReceive(context, actionIntent(NotificationHelper.ACTION_DISMISSED))
+
+        verify(timeout = 2_000) { pendingResult.finish() }
+        coVerify(exactly = 0) { triggerRepository.updateOutcome(any(), any()) }
+        coVerify(exactly = 0) { dismissalTracker.onDismissed(any()) }
+        verify(exactly = 0) { widgetRefresher.refresh() }
+    }
+
+    @Test
+    fun `a completion never overwrites an already recorded dismissal`() {
+        coEvery { triggerRepository.getById(42L) } returns trigger(TriggerStatus.DISMISSED)
+
+        receiver.onReceive(context, actionIntent(NotificationHelper.ACTION_COMPLETED))
+
+        verify(timeout = 2_000) { pendingResult.finish() }
+        coVerify(exactly = 0) { triggerRepository.updateOutcome(any(), any()) }
+        coVerify(exactly = 0) { dismissalTracker.onCompleted(any()) }
+        verify(exactly = 0) { widgetRefresher.refresh() }
+        verify(exactly = 1) { notificationManager.cancel(42) }
+    }
+
+    @Test
+    fun `two dismiss broadcasts for the same trigger record one dismissal`() {
+        coEvery { triggerRepository.getById(42L) } returns trigger(TriggerStatus.FIRED)
+        receiver.onReceive(context, actionIntent(NotificationHelper.ACTION_DISMISSED))
+        verify(exactly = 1, timeout = 2_000) { pendingResult.finish() }
+
+        coEvery { triggerRepository.getById(42L) } returns trigger(TriggerStatus.DISMISSED)
+        receiver.onReceive(context, actionIntent(NotificationHelper.ACTION_DISMISSED))
+        verify(exactly = 2, timeout = 2_000) { pendingResult.finish() }
+
+        coVerify(exactly = 1) { triggerRepository.updateOutcome(42L, TriggerStatus.DISMISSED) }
+        coVerify(exactly = 1) { dismissalTracker.onDismissed(42L) }
+        verify(exactly = 1) { widgetRefresher.refresh() }
+        verify(exactly = 2) { notificationManager.cancel(42) }
     }
 }
