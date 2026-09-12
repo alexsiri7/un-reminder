@@ -1,12 +1,22 @@
 import type { Context } from 'hono'
-import type { Env, GenerateBatchRequest, GenerateBatchResponse, NotificationVariant, SpriteOption } from '../types'
+import type { Env, GenerateBatchRequest, GenerateBatchResponse, NotificationVariant, SpriteOption, VariantShape } from '../types'
+import { VARIANT_SHAPES } from '../types'
 import { addSpend } from '../lib/spend'
 import { callRequestyWithSchemaRetry, COST_PER_OUTPUT_TOKEN, COST_PER_INPUT_TOKEN } from '../lib/requesty'
 import * as Sentry from '@sentry/cloudflare'
 
-function buildPrompt(habitTitle: string, habitTags: string[], locationName: string, timeOfDay: string, personalContext: string, sprites: SpriteOption[], n: number, strict = false): string {
+const shapeGuide =
+  `- QUESTION: asks the user something\n` +
+  `- STATEMENT: a flat declarative\n` +
+  `- CHALLENGE: a small dare\n` +
+  `- OBSERVATION: notes something about the present moment\n` +
+  `- TERSE: two or three words\n` +
+  `- TIMEBOXED: names a small duration ("90 seconds of this")`
+
+export function buildPrompt(habitTitle: string, habitTags: string[], locationName: string, timeOfDay: string, personalContext: string, sprites: SpriteOption[], n: number, strict = false): string {
   const schema =
     `- "text": string (max 80 chars, the notification message)\n` +
+    `- "shape": string, exactly one of ${VARIANT_SHAPES.join(', ')} (the shape the text was written in)\n` +
     `- "actionUrl": optional string (YouTube search URL when habit benefits from technique demonstration; omit for simple habits)` +
     (sprites.length > 0 ? `\n- "spriteTag": string (exactly one tag from the sprite list below)` : '')
   const outputInstruction = strict
@@ -33,18 +43,23 @@ function buildPrompt(habitTitle: string, habitTags: string[], locationName: stri
     `Habit: "${habitTitle}"\n` +
     contextBlock +
     spriteBlock +
-    `\nWrite ${n} short notification messages (max 80 characters each) that make the user act right now. Rules:\n` +
-    `1. Open with an action verb.\n` +
+    `\nWrite ${n} short notification messages (max 80 characters each) that make the user act right now.\n` +
+    `Each message is written in one of these shapes:\n${shapeGuide}\n` +
+    `Rules:\n` +
+    `1. Spread the ${n} messages as evenly as possible across all six shapes, so every shape appears whenever ${n} allows it. Declare each message's shape in "shape".\n` +
     `2. Always include a specific quantity, duration, or named target (e.g. "10 reps", "5 minutes", "C major scale"). If the habit gives no specifics, invent a reasonable concrete goal.\n` +
     `3. Make each message fully self-contained: the user knows exactly what to do and when they are done — no extra decision needed.\n` +
     `4. When location or time of day is relevant, weave it into the message naturally.\n` +
     `5. Never use vague phrases like "do a set", "get started", or "work on your habit".\n` +
-    `6. Vary tone, structure, and the specific goal across all ${n} messages.\n` +
+    `6. Vary tone and the specific goal across all ${n} messages, not only the shape.\n` +
     `7. Include "actionUrl" only when the habit genuinely benefits from technique demonstration (exercise form, musical scales, guided practice). For simple habits ("drink water", "jumping jacks") omit it entirely. When included, use a YouTube search URL of the form https://www.youtube.com/results?search_query=<encoded+query>.\n` +
     spriteRule +
     outputInstruction
   )
 }
+
+const isVariantShape = (value: unknown): value is VariantShape =>
+  typeof value === 'string' && (VARIANT_SHAPES as readonly string[]).includes(value)
 
 export function validateVariants(parsed: unknown, allowedSpriteTags: Set<string> = new Set()): NotificationVariant[] | null {
   if (!Array.isArray(parsed)) return null
@@ -52,14 +67,15 @@ export function validateVariants(parsed: unknown, allowedSpriteTags: Set<string>
   const result: NotificationVariant[] = []
   for (const item of parsed) {
     if (typeof item !== 'object' || item === null) return null
-    const { text, actionUrl, spriteTag } = item as Record<string, unknown>
+    const { text, shape, actionUrl, spriteTag } = item as Record<string, unknown>
     if (typeof text !== 'string' || text.trim() === '') return null
+    if (!isVariantShape(shape)) return null
     if (actionUrl !== undefined) {
       if (typeof actionUrl !== 'string' || !actionUrl.startsWith('https://')) return null
     }
     // An invented tag drops out rather than failing the batch — the app rotates when it is absent.
     const tag = typeof spriteTag === 'string' && allowedSpriteTags.has(spriteTag) ? spriteTag : undefined
-    result.push({ text, actionUrl: typeof actionUrl === 'string' ? actionUrl : undefined, spriteTag: tag })
+    result.push({ text, shape, actionUrl: typeof actionUrl === 'string' ? actionUrl : undefined, spriteTag: tag })
   }
   return result
 }

@@ -263,9 +263,9 @@ describe('un-reminder-worker', () => {
 
   it('returns 200 with N variants on success', async () => {
     const variants = [
-      { text: 'Stretch time!' },
-      { text: 'Your body needs a break', actionUrl: 'https://www.youtube.com/results?search_query=stretching' },
-      { text: "Let's move!" },
+      { text: 'Stretch time!', shape: 'TERSE' },
+      { text: 'Your body needs a break', shape: 'OBSERVATION', actionUrl: 'https://www.youtube.com/results?search_query=stretching' },
+      { text: "Let's move!", shape: 'CHALLENGE' },
     ]
     mockRequestySuccess(variants)
 
@@ -281,14 +281,14 @@ describe('un-reminder-worker', () => {
     const res = await app.fetch(req, testEnv(), ctx)
     await waitOnExecutionContext(ctx)
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { variants: Array<{ text: string; actionUrl?: string }> }
+    const body = (await res.json()) as { variants: Array<{ text: string; shape: string; actionUrl?: string }> }
     expect(body.variants).toEqual(variants)
   })
 
   // ---- personalContext tests ----
 
   it('injects personalContext into prompt as Style line', async () => {
-    const variants = [{ text: 'Stretch!' }, { text: 'Move!' }, { text: 'Go!' }]
+    const variants = [{ text: 'Stretch!', shape: 'TERSE' }, { text: 'Move!', shape: 'TERSE' }, { text: 'Go!', shape: 'TERSE' }]
     mockRequestySuccess(variants)
 
     const req = makeRequest('/v1/generate/batch', {
@@ -313,7 +313,7 @@ describe('un-reminder-worker', () => {
   })
 
   it('omits Style line when personalContext absent', async () => {
-    const variants = [{ text: 'Stretch!' }, { text: 'Move!' }, { text: 'Go!' }]
+    const variants = [{ text: 'Stretch!', shape: 'TERSE' }, { text: 'Move!', shape: 'TERSE' }, { text: 'Go!', shape: 'TERSE' }]
     mockRequestySuccess(variants)
 
     const req = makeRequest('/v1/generate/batch', {
@@ -340,7 +340,7 @@ describe('un-reminder-worker', () => {
   // ---- Sprite vocabulary tests ----
 
   it('offers the sprite vocabulary to the model when sprites are supplied', async () => {
-    const variants = [{ text: 'Stretch!' }, { text: 'Move!' }, { text: 'Go!' }]
+    const variants = [{ text: 'Stretch!', shape: 'TERSE' }, { text: 'Move!', shape: 'TERSE' }, { text: 'Go!', shape: 'TERSE' }]
     mockRequestySuccess(variants)
 
     const req = makeRequest('/v1/generate/batch', {
@@ -370,7 +370,7 @@ describe('un-reminder-worker', () => {
   })
 
   it('leaves the prompt sprite-free when sprites are absent', async () => {
-    const variants = [{ text: 'Stretch!' }, { text: 'Move!' }, { text: 'Go!' }]
+    const variants = [{ text: 'Stretch!', shape: 'TERSE' }, { text: 'Move!', shape: 'TERSE' }, { text: 'Go!', shape: 'TERSE' }]
     mockRequestySuccess(variants)
 
     const req = makeRequest('/v1/generate/batch', {
@@ -419,8 +419,28 @@ describe('un-reminder-worker', () => {
   // ---- Empty-string rejection test ----
 
   it('returns 502 when LLM returns empty strings in variants array', async () => {
-    mockRequestySuccess([{ text: '' }, { text: '' }, { text: '' }])
-    mockRequestySuccess([{ text: '' }, { text: '' }, { text: '' }])
+    mockRequestySuccess([{ text: '', shape: 'TERSE' }, { text: '', shape: 'TERSE' }, { text: '', shape: 'TERSE' }])
+    mockRequestySuccess([{ text: '', shape: 'TERSE' }, { text: '', shape: 'TERSE' }, { text: '', shape: 'TERSE' }])
+
+    const req = makeRequest('/v1/generate/batch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-UR-Secret': SECRET,
+      },
+      body: validBody(3),
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, testEnv(), ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(502)
+  })
+
+  // ---- Shape rejection test ----
+
+  it('returns 502 when the upstream never declares a shape per variant', async () => {
+    mockRequestySuccess([{ text: 'Stretch!' }, { text: 'Move!' }, { text: 'Go!' }])
+    mockRequestySuccess([{ text: 'Stretch!' }, { text: 'Move!' }, { text: 'Go!' }])
 
     const req = makeRequest('/v1/generate/batch', {
       method: 'POST',
@@ -439,7 +459,7 @@ describe('un-reminder-worker', () => {
   // ---- Retry-then-succeed test ----
 
   it('returns 200 when first call is malformed but retry succeeds', async () => {
-    const variants = [{ text: 'Stretch!' }, { text: 'Move it!' }, { text: 'Time to go!' }]
+    const variants = [{ text: 'Stretch!', shape: 'TERSE' }, { text: 'Move it!', shape: 'TERSE' }, { text: 'Time to go!', shape: 'STATEMENT' }]
     mockRequestyMalformed()
     mockRequestySuccess(variants)
 
@@ -455,7 +475,7 @@ describe('un-reminder-worker', () => {
     const res = await app.fetch(req, testEnv(), ctx)
     await waitOnExecutionContext(ctx)
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { variants: Array<{ text: string; actionUrl?: string }> }
+    const body = (await res.json()) as { variants: Array<{ text: string; shape: string; actionUrl?: string }> }
     expect(body.variants).toEqual(variants)
   })
 
@@ -482,7 +502,7 @@ describe('un-reminder-worker', () => {
   // ---- Spend counter increment test ----
 
   it('increments spend counter after successful call', async () => {
-    const variants = [{ text: 'Go stretch!' }]
+    const variants = [{ text: 'Go stretch!', shape: 'TERSE' }]
     mockRequestySuccess(variants)
 
     const e = testEnv()
