@@ -2,6 +2,7 @@ package net.interstellarai.unreminder.data.repository
 
 import net.interstellarai.unreminder.data.db.VariationDao
 import net.interstellarai.unreminder.data.db.VariationEntity
+import net.interstellarai.unreminder.domain.model.VariantShape
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -29,7 +30,7 @@ class VariationRepositoryTest {
     }
 
     @Test fun `pickRandomUnused marks returned row consumed and returns updated entity`() = runTest {
-        val entity = VariationEntity(id = 42L, habitId = 1L, text = "t", promptFingerprint = "fp", generatedAt = Instant.EPOCH)
+        val entity = VariationEntity(id = 42L, habitId = 1L, text = "t", promptFingerprint = "fp", generatedAt = Instant.EPOCH, shape = VariantShape.STATEMENT)
         coEvery { mockDao.getUnusedForHabit(1L, 50) } returns listOf(entity)
         coEvery { mockDao.markConsumed(eq(42L), any()) } returns 1
         val result = repository.pickRandomUnused(1L)
@@ -41,8 +42,8 @@ class VariationRepositoryTest {
     }
 
     @Test fun `pickRandomUnused retries next candidate when markConsumed affects 0 rows`() = runTest {
-        val stale = VariationEntity(id = 99L, habitId = 1L, text = "stale", promptFingerprint = "fp1", generatedAt = Instant.EPOCH)
-        val good = VariationEntity(id = 100L, habitId = 1L, text = "good", promptFingerprint = "fp2", generatedAt = Instant.EPOCH)
+        val stale = VariationEntity(id = 99L, habitId = 1L, text = "stale", promptFingerprint = "fp1", generatedAt = Instant.EPOCH, shape = VariantShape.STATEMENT)
+        val good = VariationEntity(id = 100L, habitId = 1L, text = "good", promptFingerprint = "fp2", generatedAt = Instant.EPOCH, shape = VariantShape.STATEMENT)
         coEvery { mockDao.getUnusedForHabit(1L, 50) } returns listOf(stale, good)
         coEvery { mockDao.markConsumed(eq(99L), any()) } returns 0
         coEvery { mockDao.markConsumed(eq(100L), any()) } returns 1
@@ -54,7 +55,7 @@ class VariationRepositoryTest {
     }
 
     @Test fun `pickRandomUnused returns null when all candidates are stale`() = runTest {
-        val entity = VariationEntity(id = 99L, habitId = 1L, text = "t", promptFingerprint = "fp", generatedAt = Instant.EPOCH)
+        val entity = VariationEntity(id = 99L, habitId = 1L, text = "t", promptFingerprint = "fp", generatedAt = Instant.EPOCH, shape = VariantShape.STATEMENT)
         coEvery { mockDao.getUnusedForHabit(1L, 50) } returns listOf(entity)
         coEvery { mockDao.markConsumed(eq(99L), any()) } returns 0
         assertNull(repository.pickRandomUnused(1L))
@@ -78,8 +79,8 @@ class VariationRepositoryTest {
 
     @Test fun `insertAll delegates to dao insert`() = runTest {
         val variants = listOf(
-            VariationEntity(habitId = 1L, text = "a", promptFingerprint = "fp1", generatedAt = Instant.EPOCH),
-            VariationEntity(habitId = 1L, text = "b", promptFingerprint = "fp2", generatedAt = Instant.EPOCH)
+            VariationEntity(habitId = 1L, text = "a", promptFingerprint = "fp1", generatedAt = Instant.EPOCH, shape = VariantShape.STATEMENT),
+            VariationEntity(habitId = 1L, text = "b", promptFingerprint = "fp2", generatedAt = Instant.EPOCH, shape = VariantShape.STATEMENT)
         )
         repository.insertAll(variants)
         coVerify { mockDao.insert(variants) }
@@ -93,7 +94,7 @@ class VariationRepositoryTest {
     @Test fun `peekUnused returns first unused row text`() = runTest {
         val entity = VariationEntity(
             id = 7L, habitId = 1L, text = "preview-me",
-            promptFingerprint = "fp", generatedAt = Instant.EPOCH,
+            promptFingerprint = "fp", generatedAt = Instant.EPOCH, shape = VariantShape.STATEMENT,
         )
         coEvery { mockDao.getUnusedForHabit(1L, 1) } returns listOf(entity)
         assertEquals("preview-me", repository.peekUnused(1L))
@@ -107,7 +108,7 @@ class VariationRepositoryTest {
     @Test fun `peekUnused does not consume the row`() = runTest {
         val entity = VariationEntity(
             id = 7L, habitId = 1L, text = "x",
-            promptFingerprint = "fp", generatedAt = Instant.EPOCH,
+            promptFingerprint = "fp", generatedAt = Instant.EPOCH, shape = VariantShape.STATEMENT,
         )
         coEvery { mockDao.getUnusedForHabit(1L, 1) } returns listOf(entity)
         repository.peekUnused(1L)
@@ -117,7 +118,7 @@ class VariationRepositoryTest {
     @Test fun `peekUnusedVariation returns the whole unused row without consuming it`() = runTest {
         val entity = VariationEntity(
             id = 7L, habitId = 1L, text = "x",
-            promptFingerprint = "fp", generatedAt = Instant.EPOCH, spriteTag = "wizard_starry_robe",
+            promptFingerprint = "fp", generatedAt = Instant.EPOCH, shape = VariantShape.STATEMENT, spriteTag = "wizard_starry_robe",
         )
         coEvery { mockDao.getUnusedForHabit(1L, 1) } returns listOf(entity)
 

@@ -1,8 +1,10 @@
 package net.interstellarai.unreminder.service.worker
 
 import kotlinx.coroutines.test.runTest
+import net.interstellarai.unreminder.domain.model.VariantShape
 import net.interstellarai.unreminder.service.notification.MascotSprite
 import net.interstellarai.unreminder.service.notification.MascotSprites
+import org.json.JSONException
 import org.json.JSONObject
 import kotlin.test.assertFailsWith
 import okhttp3.OkHttpClient
@@ -97,11 +99,11 @@ class RequestyProxyClientTest {
     // --- generateBatch ---
 
     @Test
-    fun `generateBatch returns list of NotificationVariants on 200`() = runTest {
+    fun `generateBatch returns list of GeneratedVariants on 200`() = runTest {
         server.enqueue(
             MockResponse()
                 .setResponseCode(200)
-                .setBody("""{"variants":[{"text":"v1"},{"text":"v2","actionUrl":"https://youtube.com/results?search_query=test"},{"text":"v3"}]}""")
+                .setBody("""{"variants":[{"text":"v1","shape":"QUESTION"},{"text":"v2","shape":"TIMEBOXED","actionUrl":"https://youtube.com/results?search_query=test"},{"text":"v3","shape":"TERSE"}]}""")
                 .addHeader("Content-Type", "application/json")
         )
 
@@ -118,10 +120,13 @@ class RequestyProxyClientTest {
         )
         assertEquals(3, result.size)
         assertEquals("v1", result[0].text)
+        assertEquals(VariantShape.QUESTION, result[0].shape)
         assertNull(result[0].actionUrl)
         assertEquals("v2", result[1].text)
+        assertEquals(VariantShape.TIMEBOXED, result[1].shape)
         assertEquals("https://youtube.com/results?search_query=test", result[1].actionUrl)
         assertEquals("v3", result[2].text)
+        assertEquals(VariantShape.TERSE, result[2].shape)
         assertNull(result[2].actionUrl)
 
         val recorded = server.takeRequest()
@@ -135,7 +140,7 @@ class RequestyProxyClientTest {
         server.enqueue(
             MockResponse()
                 .setResponseCode(200)
-                .setBody("""{"variants":[{"text":"v1","spriteTag":"astronaut_zero_g"},{"text":"v2"},{"text":"v3","spriteTag":""}]}""")
+                .setBody("""{"variants":[{"text":"v1","shape":"STATEMENT","spriteTag":"astronaut_zero_g"},{"text":"v2","shape":"STATEMENT"},{"text":"v3","shape":"STATEMENT","spriteTag":""}]}""")
                 .addHeader("Content-Type", "application/json")
         )
 
@@ -161,7 +166,7 @@ class RequestyProxyClientTest {
         server.enqueue(
             MockResponse()
                 .setResponseCode(200)
-                .setBody("""{"variants":[{"text":"v1"}]}""")
+                .setBody("""{"variants":[{"text":"v1","shape":"STATEMENT"}]}""")
                 .addHeader("Content-Type", "application/json")
         )
 
@@ -187,6 +192,34 @@ class RequestyProxyClientTest {
         assertEquals("astronaut_zero_g", sent.getJSONObject(0).getString("tag"))
         assertEquals("a cat in an orange spacesuit", sent.getJSONObject(0).getString("description"))
         assertEquals("chef_pan_flip", sent.getJSONObject(1).getString("tag"))
+    }
+
+    @Test
+    fun `generateBatch throws JSONException when a variant has no shape`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"variants":[{"text":"v1","shape":"STATEMENT"},{"text":"v2"}]}""")
+                .addHeader("Content-Type", "application/json")
+        )
+
+        assertFailsWith<JSONException> {
+            proxyClient.generateBatch("Meditate", emptyList(), "", "", "", emptyList(), 2, baseUrl(), "secret")
+        }
+    }
+
+    @Test
+    fun `generateBatch throws JSONException when a shape is outside the six shapes`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"variants":[{"text":"v1","shape":"plea"}]}""")
+                .addHeader("Content-Type", "application/json")
+        )
+
+        assertFailsWith<JSONException> {
+            proxyClient.generateBatch("Meditate", emptyList(), "", "", "", emptyList(), 1, baseUrl(), "secret")
+        }
     }
 
     @Test

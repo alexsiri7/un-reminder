@@ -16,7 +16,7 @@ import androidx.room.TypeConverters
         VariationEntity::class,
         HabitLevelDescriptionEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
