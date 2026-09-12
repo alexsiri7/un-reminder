@@ -16,7 +16,10 @@ import net.interstellarai.unreminder.data.db.TriggerEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.data.repository.WindowRepository
+import net.interstellarai.unreminder.domain.model.ActivityMode
+import net.interstellarai.unreminder.domain.model.ActivityState
 import net.interstellarai.unreminder.domain.model.TriggerStatus
+import net.interstellarai.unreminder.service.activity.ActivityRecognitionManager
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.trigger.TriggerPipeline
 import java.time.Instant
@@ -33,6 +36,7 @@ class RandomIntervalWorker @AssistedInject constructor(
     private val habitRepository: HabitRepository,
     private val triggerRepository: TriggerRepository,
     private val geofenceManager: GeofenceManager,
+    private val activityRecognitionManager: ActivityRecognitionManager,
     private val triggerPipeline: TriggerPipeline,
     private val workManager: WorkManager
 ) : CoroutineWorker(appContext, workerParams) {
@@ -89,7 +93,11 @@ class RandomIntervalWorker @AssistedInject constructor(
             }
 
             step = "habitQuery"
-            val eligibleHabits = habitRepository.getEligibleHabits(geofenceManager.currentLocationIds.value)
+            // Cycling suppression belongs to the pipeline; this pre-check only avoids inserting
+            // a trigger row nothing could fire, so cycling takes the same sitting fallback as
+            // an unknown activity.
+            val mode = (activityRecognitionManager.resolve().state as? ActivityState.Mode)?.mode ?: ActivityMode.SITTING
+            val eligibleHabits = habitRepository.getEligibleHabits(geofenceManager.currentLocationIds.value, mode)
             if (eligibleHabits.isEmpty()) {
                 Log.d(TAG, "No eligible habits, skipping")
                 scheduleNext()

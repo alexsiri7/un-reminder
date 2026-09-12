@@ -22,6 +22,7 @@ import net.interstellarai.unreminder.domain.model.ActivityMode
 import net.interstellarai.unreminder.domain.model.ActivityResolution
 import net.interstellarai.unreminder.domain.model.ActivityState
 import net.interstellarai.unreminder.domain.model.TriggerStatus
+import net.interstellarai.unreminder.service.activity.ActivityRecognitionManager
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.notification.NotificationHelper
 import net.interstellarai.unreminder.widget.WidgetRefresher
@@ -50,6 +51,7 @@ class TriggerGateStaysStrictTest {
     private lateinit var pipeline: TriggerPipeline
     private val notificationHelper: NotificationHelper = mockk(relaxUnitFun = true)
     private val widgetRefresher: WidgetRefresher = mockk(relaxUnitFun = true)
+    private val activityRecognitionManager: ActivityRecognitionManager = mockk()
 
     @Before
     fun setUp() {
@@ -61,11 +63,13 @@ class TriggerGateStaysStrictTest {
         val geofenceManager: GeofenceManager = mockk {
             every { currentLocationIds } returns MutableStateFlow<Set<Long>>(emptySet()).asStateFlow()
         }
+        givenActivity(ActivityMode.SITTING)
         availabilityService = HabitAvailabilityService(
             habitRepository,
             WindowRepository(db.windowDao()),
             triggerRepository,
             geofenceManager,
+            activityRecognitionManager,
         )
         pipeline = TriggerPipeline(
             habitRepository = habitRepository,
@@ -73,9 +77,7 @@ class TriggerGateStaysStrictTest {
             locationRepository = mockk(),
             geofenceManager = geofenceManager,
             locationReconciler = mockk(relaxed = true),
-            activityRecognitionManager = mockk {
-                every { resolve() } returns ActivityResolution(ActivityState.Mode(ActivityMode.SITTING), null)
-            },
+            activityRecognitionManager = activityRecognitionManager,
             notificationHelper = notificationHelper,
             variationRepository = mockk(),
             refillScheduler = mockk(relaxUnitFun = true),
@@ -87,6 +89,10 @@ class TriggerGateStaysStrictTest {
     @After
     fun tearDown() {
         db.close()
+    }
+
+    private fun givenActivity(mode: ActivityMode) {
+        every { activityRecognitionManager.resolve() } returns ActivityResolution(ActivityState.Mode(mode), null)
     }
 
     @Test
@@ -107,7 +113,27 @@ class TriggerGateStaysStrictTest {
 
         pipeline.execute(triggerId)
 
-        assertEquals(emptyList<HabitEntity>(), habitRepository.getEligibleHabits(emptySet()))
+        assertEquals(emptyList<HabitEntity>(), habitRepository.getEligibleHabits(emptySet(), ActivityMode.SITTING))
+        assertEquals(TriggerStatus.DISMISSED, triggerRepository.getById(triggerId)!!.status)
+        verify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any(), any(), any()) }
+        verify(exactly = 0) { widgetRefresher.refresh() }
+    }
+
+    @Test
+    fun `a habit shown as the wrong activity still never fires`() = runTest {
+        val habitId = habitRepository.insert(HabitEntity(name = "meditation", supportedModes = setOf(ActivityMode.SITTING)))
+        val habit = habitRepository.getByIdOnce(habitId)!!
+        val triggerId = triggerRepository.insert(
+            TriggerEntity(scheduledAt = Instant.now(), status = TriggerStatus.SCHEDULED),
+        )
+        givenActivity(ActivityMode.WALKING)
+
+        assertEquals(mapOf(habitId to DisplayTier.WRONG_ACTIVITY), availabilityService.computeDisplayTiers(listOf(habit)))
+        assertFalse(availabilityService.computeAvailability(habit).isDoableNow)
+
+        pipeline.execute(triggerId)
+
+        assertEquals(emptyList<HabitEntity>(), habitRepository.getEligibleHabits(emptySet(), ActivityMode.WALKING))
         assertEquals(TriggerStatus.DISMISSED, triggerRepository.getById(triggerId)!!.status)
         verify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any(), any(), any()) }
         verify(exactly = 0) { widgetRefresher.refresh() }

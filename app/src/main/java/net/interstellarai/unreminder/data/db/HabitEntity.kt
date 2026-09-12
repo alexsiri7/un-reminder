@@ -3,6 +3,7 @@ package net.interstellarai.unreminder.data.db
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import net.interstellarai.unreminder.domain.model.ActivityMode
 import java.time.Instant
 
 @Entity(tableName = "habits")
@@ -20,6 +21,9 @@ data class HabitEntity(
     val dailyLimit: Int = 1,
     @ColumnInfo(name = "cooldown_minutes", defaultValue = "180")
     val cooldownMinutes: Int = 180,
+    /** Activity modes the habit can be done in; empty means any mode. */
+    @ColumnInfo(name = "supported_modes", defaultValue = "0")
+    val supportedModes: Set<ActivityMode> = emptySet(),
     val active: Boolean = true,
     @ColumnInfo(name = "created_at")
     val createdAt: Instant = Instant.now(),

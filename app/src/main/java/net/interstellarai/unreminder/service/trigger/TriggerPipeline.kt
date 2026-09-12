@@ -80,16 +80,19 @@ class TriggerPipeline @Inject constructor(
         val locationIds = geofenceManager.currentLocationIds.value
 
         try {
-            // A DISMISSED written here never reaches DismissalTracker, so no habit pays for it.
-            if (activityRecognitionManager.resolve().state == ActivityState.Cycling) {
-                Log.d(TAG, "Cycling, suppressing trigger $triggerId")
-                triggerRepository.updateOutcome(triggerId, TriggerStatus.DISMISSED)
-                return
+            val mode = when (val state = activityRecognitionManager.resolve().state) {
+                // A DISMISSED written here never reaches DismissalTracker, so no habit pays for it.
+                ActivityState.Cycling -> {
+                    Log.d(TAG, "Cycling, suppressing trigger $triggerId")
+                    triggerRepository.updateOutcome(triggerId, TriggerStatus.DISMISSED)
+                    return
+                }
+                is ActivityState.Mode -> state.mode
             }
 
-            val eligibleHabits = habitRepository.getEligibleHabits(locationIds)
+            val eligibleHabits = habitRepository.getEligibleHabits(locationIds, mode)
             if (eligibleHabits.isEmpty()) {
-                Log.d(TAG, "No eligible habits for locationIds=$locationIds, skipping trigger $triggerId")
+                Log.d(TAG, "No eligible habits for locationIds=$locationIds mode=$mode, skipping trigger $triggerId")
                 triggerRepository.updateOutcome(triggerId, TriggerStatus.DISMISSED)
                 return
             }

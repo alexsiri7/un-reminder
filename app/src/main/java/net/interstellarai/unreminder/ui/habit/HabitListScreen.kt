@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.EventBusy
 import androidx.compose.material.icons.filled.LocationOff
 import androidx.compose.material.icons.filled.PauseCircle
@@ -327,6 +328,7 @@ private fun AvailabilityIndicator(
                         UnavailableReason.LOCATION -> Icons.Default.LocationOff
                         UnavailableReason.COMPLETED -> Icons.Default.CheckCircle
                         UnavailableReason.TIME_WINDOW -> Icons.Outlined.Schedule
+                        UnavailableReason.ACTIVITY_MODE -> Icons.Default.DirectionsWalk
                         UnavailableReason.COOLDOWN -> Icons.Outlined.HourglassEmpty
                         UnavailableReason.INACTIVE -> Icons.Default.PauseCircle
                         UnavailableReason.DAILY_LIMIT -> Icons.Default.EventBusy

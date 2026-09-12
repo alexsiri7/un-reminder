@@ -3,6 +3,7 @@ package net.interstellarai.unreminder.data.db
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.test.runTest
+import net.interstellarai.unreminder.domain.model.ActivityMode
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -53,7 +54,8 @@ class HabitDaoEligibleTest {
         nowEpochMillis = midnightMillis,
         startOfDayCutoff = midnightMillis,
         currentSecondOfDay = 0,
-        dayOfWeekBit = 1
+        dayOfWeekBit = 1,
+        supportedModeBit = ActivityMode.SITTING.bit
     )
 
     private suspend fun queryEligibleAt(nowMillis: Long): List<HabitEntity> = habitDao.getEligibleHabits(
@@ -62,7 +64,18 @@ class HabitDaoEligibleTest {
         nowEpochMillis = nowMillis,
         startOfDayCutoff = midnightMillis,
         currentSecondOfDay = 0,
-        dayOfWeekBit = 1
+        dayOfWeekBit = 1,
+        supportedModeBit = ActivityMode.SITTING.bit
+    )
+
+    private suspend fun queryEligibleIn(mode: ActivityMode): List<HabitEntity> = habitDao.getEligibleHabits(
+        locationIds = listOf(-1L),
+        completedCutoff = midnightMillis,
+        nowEpochMillis = midnightMillis,
+        startOfDayCutoff = midnightMillis,
+        currentSecondOfDay = 0,
+        dayOfWeekBit = 1,
+        supportedModeBit = mode.bit
     )
 
     private suspend fun insertHabit(name: String, dailyLimit: Int = 1, cooldownMinutes: Int = 180): Long =
@@ -312,5 +325,23 @@ class HabitDaoEligibleTest {
         val eligible = queryEligible()
 
         assertTrue(eligible.none { it.id == id })
+    }
+
+    @Test
+    fun `a habit with no supported modes is eligible in every mode`() = runTest {
+        insertHabit("any")
+
+        for (mode in ActivityMode.entries) {
+            assertEquals("eligible while $mode", listOf("any"), queryEligibleIn(mode).map { it.name })
+        }
+    }
+
+    @Test
+    fun `a habit restricted to sitting is eligible while sitting and excluded while walking`() = runTest {
+        habitDao.insert(HabitEntity(name = "meditation", supportedModes = setOf(ActivityMode.SITTING)))
+
+        assertEquals(listOf("meditation"), queryEligibleIn(ActivityMode.SITTING).map { it.name })
+        assertTrue(queryEligibleIn(ActivityMode.WALKING).isEmpty())
+        assertTrue(queryEligibleIn(ActivityMode.TRANSPORT).isEmpty())
     }
 }

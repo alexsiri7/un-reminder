@@ -1,5 +1,6 @@
 package net.interstellarai.unreminder.data.db
 
+import net.interstellarai.unreminder.domain.model.ActivityMode
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.domain.model.VariantShape
 import org.junit.Assert.assertEquals
@@ -140,5 +141,25 @@ class ConvertersTest {
     @Test
     fun `toTriggerStatus maps legacy COMPLETED_LOW_FLOOR to COMPLETED`() {
         assertEquals(TriggerStatus.COMPLETED, converters.toTriggerStatus("COMPLETED_LOW_FLOOR"))
+    }
+
+    @Test
+    fun `activity mode bits are persisted values and never renumbered`() {
+        assertEquals(listOf(1, 2, 4), ActivityMode.entries.map { it.bit })
+    }
+
+    @Test
+    fun `an empty mode set is stored as 0 meaning any mode`() {
+        assertEquals(0, converters.fromActivityModes(emptySet()))
+        assertEquals(emptySet<ActivityMode>(), converters.toActivityModes(0))
+    }
+
+    @Test
+    fun `activity mode set round-trip`() {
+        assertEquals(5, converters.fromActivityModes(setOf(ActivityMode.WALKING, ActivityMode.TRANSPORT)))
+        assertEquals(setOf(ActivityMode.WALKING, ActivityMode.TRANSPORT), converters.toActivityModes(5))
+        for (mode in ActivityMode.entries) {
+            assertEquals(setOf(mode), converters.toActivityModes(converters.fromActivityModes(setOf(mode))))
+        }
     }
 }

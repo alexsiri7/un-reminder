@@ -58,6 +58,7 @@ import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.data.db.WindowEntity
 import net.interstellarai.unreminder.domain.AvailabilityStatus
 import net.interstellarai.unreminder.domain.UnavailableReason
+import net.interstellarai.unreminder.domain.model.ActivityMode
 import net.interstellarai.unreminder.service.llm.AiStatus
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -393,6 +394,29 @@ fun HabitEditScreen(
                             label = win.label(),
                             selected = win.id in uiState.selectedWindowIds,
                             onClick = { viewModel.toggleWindow(win.id) },
+                        )
+                    }
+                }
+            }
+
+            Column(modifier = Modifier.padding(horizontal = Dimens.xxl, vertical = Dimens.xxl)) {
+                MonoSectionLabel("while")
+                Spacer(Modifier.height(Dimens.md - 2.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(Dimens.sm),
+                    verticalArrangement = Arrangement.spacedBy(Dimens.sm),
+                ) {
+                    SelectionChip(
+                        label = "Any activity",
+                        selected = uiState.selectedModes.isEmpty(),
+                        muted = uiState.selectedModes.isEmpty(),
+                        onClick = { viewModel.setAnyActivity() },
+                    )
+                    ActivityMode.entries.forEach { mode ->
+                        SelectionChip(
+                            label = mode.label(),
+                            selected = mode in uiState.selectedModes,
+                            onClick = { viewModel.toggleMode(mode) },
                         )
                     }
                 }
@@ -938,6 +962,7 @@ private fun AvailabilityStatusRow(
                     UnavailableReason.INACTIVE -> "inactive"
                     UnavailableReason.LOCATION -> "location"
                     UnavailableReason.TIME_WINDOW -> "time window"
+                    UnavailableReason.ACTIVITY_MODE -> "activity"
                     UnavailableReason.COMPLETED -> "completed today"
                     UnavailableReason.COOLDOWN -> "in cooldown"
                     UnavailableReason.DAILY_LIMIT -> "daily limit reached"
@@ -956,3 +981,9 @@ private fun AvailabilityStatusRow(
 private fun WindowEntity.label(): String =
     if (name.isNotBlank()) name
     else "${startTime.format(DateTimeFormatter.ofPattern("HH:mm"))}\u2013${endTime.format(DateTimeFormatter.ofPattern("HH:mm"))}"
+
+private fun ActivityMode.label(): String = when (this) {
+    ActivityMode.WALKING -> "Walking"
+    ActivityMode.SITTING -> "Sitting"
+    ActivityMode.TRANSPORT -> "Transport"
+}

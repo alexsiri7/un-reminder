@@ -3,6 +3,7 @@ package net.interstellarai.unreminder.data.repository
 import net.interstellarai.unreminder.data.db.HabitDao
 import net.interstellarai.unreminder.data.db.HabitLocationCrossRefDao
 import net.interstellarai.unreminder.data.db.HabitWindowCrossRefDao
+import net.interstellarai.unreminder.domain.model.ActivityMode
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -30,11 +31,11 @@ class HabitRepositoryTest {
 
     @Test
     fun `getEligibleHabits with empty set uses sentinel -1L`() = runTest {
-        coEvery { habitDao.getEligibleHabits(listOf(-1L), any(), any(), any(), any(), any()) } returns emptyList()
+        coEvery { habitDao.getEligibleHabits(listOf(-1L), any(), any(), any(), any(), any(), any()) } returns emptyList()
 
-        repo.getEligibleHabits(emptySet())
+        repo.getEligibleHabits(emptySet(), ActivityMode.SITTING)
 
-        coVerify { habitDao.getEligibleHabits(listOf(-1L), any(), any(), any(), any(), any()) }
+        coVerify { habitDao.getEligibleHabits(listOf(-1L), any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -48,27 +49,36 @@ class HabitRepositoryTest {
 
     @Test
     fun `getEligibleHabits with non-empty set passes ids directly`() = runTest {
-        coEvery { habitDao.getEligibleHabits(listOf(1L, 2L), any(), any(), any(), any(), any()) } returns emptyList()
+        coEvery { habitDao.getEligibleHabits(listOf(1L, 2L), any(), any(), any(), any(), any(), any()) } returns emptyList()
 
-        repo.getEligibleHabits(setOf(1L, 2L))
+        repo.getEligibleHabits(setOf(1L, 2L), ActivityMode.SITTING)
 
-        coVerify { habitDao.getEligibleHabits(listOf(1L, 2L), any(), any(), any(), any(), any()) }
+        coVerify { habitDao.getEligibleHabits(listOf(1L, 2L), any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
     fun `getEligibleHabits passes nowEpochMillis (not pre-subtracted by 3h) as third arg`() = runTest {
         val captured = slot<Long>()
         coEvery {
-            habitDao.getEligibleHabits(any(), any(), capture(captured), any(), any(), any())
+            habitDao.getEligibleHabits(any(), any(), capture(captured), any(), any(), any(), any())
         } returns emptyList()
 
         val before = Instant.now().toEpochMilli()
-        repo.getEligibleHabits(emptySet())
+        repo.getEligibleHabits(emptySet(), ActivityMode.SITTING)
         val after = Instant.now().toEpochMilli()
 
         assertTrue(captured.captured >= before - 1000)
         assertTrue(captured.captured <= after + 1000)
         val threeHoursMillis = 3 * 3600 * 1000L
         assertTrue(captured.captured > before - threeHoursMillis + 60_000)
+    }
+
+    @Test
+    fun `getEligibleHabits passes the mode's persisted bit as the last dao arg`() = runTest {
+        coEvery { habitDao.getEligibleHabits(any(), any(), any(), any(), any(), any(), 4) } returns emptyList()
+
+        repo.getEligibleHabits(emptySet(), ActivityMode.TRANSPORT)
+
+        coVerify { habitDao.getEligibleHabits(any(), any(), any(), any(), any(), any(), 4) }
     }
 }

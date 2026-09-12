@@ -14,6 +14,7 @@ import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.data.repository.WindowRepository
 import net.interstellarai.unreminder.domain.AvailabilityStatus
 import net.interstellarai.unreminder.domain.HabitAvailabilityService
+import net.interstellarai.unreminder.domain.model.ActivityMode
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.service.llm.LlmUnavailableException
@@ -49,6 +50,7 @@ data class HabitEditUiState(
     val cooldownMinutes: Int = 180,
     val selectedLocationIds: Set<Long> = emptySet(),
     val selectedWindowIds: Set<Long> = emptySet(),
+    val selectedModes: Set<ActivityMode> = emptySet(),
     val active: Boolean = true,
     val isLoading: Boolean = false,
     val isSaved: Boolean = false,
@@ -160,6 +162,7 @@ class HabitEditViewModel @Inject constructor(
                     cooldownMinutes = habit.cooldownMinutes,
                     selectedLocationIds = locationIds,
                     selectedWindowIds = windowIds,
+                    selectedModes = habit.supportedModes,
                     active = habit.active,
                     availabilityStatus = availability
                 )
@@ -207,6 +210,16 @@ class HabitEditViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(selectedWindowIds = emptySet())
     }
 
+    fun toggleMode(mode: ActivityMode) {
+        val current = _uiState.value.selectedModes
+        val updated = if (mode in current) current - mode else current + mode
+        _uiState.value = _uiState.value.copy(selectedModes = updated)
+    }
+
+    fun setAnyActivity() {
+        _uiState.value = _uiState.value.copy(selectedModes = emptySet())
+    }
+
     fun updateActive(active: Boolean) { _uiState.value = _uiState.value.copy(active = active) }
 
     fun save() {
@@ -225,6 +238,7 @@ class HabitEditViewModel @Inject constructor(
                             autoAdjustLevel = state.autoAdjustLevel,
                             dailyLimit = state.dailyLimit,
                             cooldownMinutes = state.cooldownMinutes,
+                            supportedModes = state.selectedModes,
                             active = state.active
                         )
                     )
@@ -238,6 +252,7 @@ class HabitEditViewModel @Inject constructor(
                             autoAdjustLevel = state.autoAdjustLevel,
                             dailyLimit = state.dailyLimit,
                             cooldownMinutes = state.cooldownMinutes,
+                            supportedModes = state.selectedModes,
                             active = state.active
                         )
                     )

@@ -115,7 +115,7 @@ class TriggerPipelineTest {
 
     private fun stubEligibleHabitWithVariation() {
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
-        coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(testHabit)
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
         coEvery { variationRepository.pickRandomUnused(1L) } returns VariationEntity(
             id = 7L, habitId = 1L, text = "body",
             promptFingerprint = "fp", generatedAt = Instant.now(), shape = VariantShape.STATEMENT, consumedAt = null
@@ -139,20 +139,20 @@ class TriggerPipelineTest {
 
         pipeline.execute(42L)
 
-        coVerify(exactly = 0) { habitRepository.getEligibleHabits(any()) }
+        coVerify(exactly = 0) { habitRepository.getEligibleHabits(any(), any()) }
         coVerify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any(), any()) }
     }
 
     @Test
     fun `location state is reconciled before eligibility is decided`() = runTest {
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
-        coEvery { habitRepository.getEligibleHabits(any()) } returns emptyList()
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns emptyList()
 
         pipeline.execute(42L)
 
         coVerifyOrder {
             locationReconciler.reconcile()
-            habitRepository.getEligibleHabits(any())
+            habitRepository.getEligibleHabits(any(), any())
         }
     }
 
@@ -165,7 +165,7 @@ class TriggerPipelineTest {
         pipeline.execute(42L)
 
         coVerify { triggerRepository.updateOutcome(42L, TriggerStatus.DISMISSED) }
-        coVerify(exactly = 0) { habitRepository.getEligibleHabits(any()) }
+        coVerify(exactly = 0) { habitRepository.getEligibleHabits(any(), any()) }
         coVerify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any(), any()) }
     }
 
@@ -188,9 +188,20 @@ class TriggerPipelineTest {
     }
 
     @Test
+    fun `eligibility is asked about the mode that was resolved`() = runTest {
+        stubEligibleHabitWithVariation()
+        every { activityRecognitionManager.resolve() } returns
+            ActivityResolution(ActivityState.Mode(ActivityMode.TRANSPORT), Duration.ofMinutes(2))
+
+        pipeline.execute(42L)
+
+        coVerify(exactly = 1) { habitRepository.getEligibleHabits(any(), ActivityMode.TRANSPORT) }
+    }
+
+    @Test
     fun `no eligible habits - dismisses trigger and no notification`() = runTest {
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
-        coEvery { habitRepository.getEligibleHabits(any()) } returns emptyList()
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns emptyList()
 
         pipeline.execute(42L)
 
@@ -285,7 +296,7 @@ class TriggerPipelineTest {
     @Test
     fun `no eligible habits - outstanding notification is left standing`() = runTest {
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
-        coEvery { habitRepository.getEligibleHabits(any()) } returns emptyList()
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns emptyList()
         coEvery { triggerRepository.getFiredIds() } returns listOf(7L)
 
         pipeline.execute(42L)
@@ -301,7 +312,7 @@ class TriggerPipelineTest {
             promptFingerprint = "fp", generatedAt = Instant.now(), shape = VariantShape.STATEMENT, consumedAt = null
         )
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
-        coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(testHabit)
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
         coEvery { variationRepository.pickRandomUnused(1L) } returns variation
         coEvery { variationRepository.needsRefill(1L) } returns false
 
@@ -323,7 +334,7 @@ class TriggerPipelineTest {
     @Test
     fun `pool empty - falls back to habit name when level description is blank`() = runTest {
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
-        coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(testHabit)
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
         coEvery { variationRepository.pickRandomUnused(1L) } returns null
         coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 2) } returns ""
 
@@ -344,7 +355,7 @@ class TriggerPipelineTest {
     @Test
     fun `pool empty - uses level description when available`() = runTest {
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
-        coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(testHabit)
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
         coEvery { variationRepository.pickRandomUnused(1L) } returns null
         coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 2) } returns
             "Take three deep breaths"
@@ -371,7 +382,7 @@ class TriggerPipelineTest {
             actionUrl = url
         )
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
-        coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(testHabit)
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
         coEvery { variationRepository.pickRandomUnused(1L) } returns variation
         coEvery { variationRepository.needsRefill(1L) } returns false
 
@@ -395,7 +406,7 @@ class TriggerPipelineTest {
             spriteTag = "wizard_starry_robe"
         )
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
-        coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(testHabit)
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
         coEvery { variationRepository.pickRandomUnused(1L) } returns variation
         coEvery { variationRepository.needsRefill(1L) } returns false
 
@@ -419,7 +430,7 @@ class TriggerPipelineTest {
             promptFingerprint = "fp", generatedAt = Instant.now(), shape = VariantShape.STATEMENT, consumedAt = null
         )
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
-        coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(testHabit)
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
         coEvery { variationRepository.pickRandomUnused(1L) } returns variation
         coEvery { variationRepository.needsRefill(1L) } returns true
 
@@ -432,7 +443,7 @@ class TriggerPipelineTest {
     @Test
     fun `pickRandomUnused throws - falls back to habit name and enqueues refill`() = runTest {
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
-        coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(testHabit)
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
         coEvery { variationRepository.pickRandomUnused(1L) } throws RuntimeException("db error")
         coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 2) } returns null
 
@@ -449,7 +460,7 @@ class TriggerPipelineTest {
         every { Sentry.addBreadcrumb(any<Breadcrumb>()) } just runs
 
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
-        coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(testHabit)
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
         val failure = RuntimeException("db error")
         coEvery { variationRepository.pickRandomUnused(1L) } throws failure
         coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 2) } returns null
@@ -464,7 +475,7 @@ class TriggerPipelineTest {
     @Test
     fun `pickRandomUnused throws CancellationException - propagates`() = runTest {
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
-        coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(testHabit)
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
         coEvery { variationRepository.pickRandomUnused(1L) } throws CancellationException("cancelled")
 
         try {
@@ -485,7 +496,7 @@ class TriggerPipelineTest {
             promptFingerprint = "fp", generatedAt = Instant.now(), shape = VariantShape.STATEMENT, consumedAt = null
         )
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
-        coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(testHabit)
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
         coEvery { locationRepository.getByIds(setOf(1L)) } returns listOf(loc)
         coEvery { variationRepository.pickRandomUnused(1L) } returns variation
         coEvery { variationRepository.needsRefill(1L) } returns false
@@ -502,7 +513,7 @@ class TriggerPipelineTest {
             promptFingerprint = "fp", generatedAt = Instant.now(), shape = VariantShape.STATEMENT, consumedAt = null
         )
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
-        coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(testHabit)
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
         coEvery { locationRepository.getByIds(any()) } returns emptyList()
         coEvery { variationRepository.pickRandomUnused(1L) } returns variation
         coEvery { variationRepository.needsRefill(1L) } returns false
@@ -515,7 +526,7 @@ class TriggerPipelineTest {
     @Test
     fun `pipeline exception is caught and does not propagate`() = runTest {
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
-        coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(testHabit)
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
         coEvery { variationRepository.pickRandomUnused(1L) } throws CancellationException("test")
 
         try {
@@ -527,7 +538,7 @@ class TriggerPipelineTest {
     @Test
     fun `pipeline runtime exception dismisses the trigger`() = runTest {
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
-        coEvery { habitRepository.getEligibleHabits(any()) } throws RuntimeException("boom")
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } throws RuntimeException("boom")
 
         pipeline.execute(42L)
 
@@ -540,7 +551,7 @@ class TriggerPipelineTest {
         every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
 
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
-        coEvery { habitRepository.getEligibleHabits(any()) } throws RuntimeException("boom")
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } throws RuntimeException("boom")
 
         pipeline.execute(42L)
 
@@ -556,7 +567,7 @@ class TriggerPipelineTest {
         every { Sentry.captureMessage(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
 
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
-        coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(testHabit)
+        coEvery { habitRepository.getEligibleHabits(any(), any()) } returns listOf(testHabit)
         coEvery { variationRepository.pickRandomUnused(1L) } returns null
         coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 2) } returns ""
 

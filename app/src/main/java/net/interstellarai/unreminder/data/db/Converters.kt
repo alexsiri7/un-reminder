@@ -1,12 +1,24 @@
 package net.interstellarai.unreminder.data.db
 
 import androidx.room.TypeConverter
+import net.interstellarai.unreminder.domain.model.ActivityMode
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.domain.model.VariantShape
 import org.json.JSONArray
 import org.json.JSONException
 import java.time.Instant
 import java.time.LocalTime
+
+/**
+ * The bit each mode occupies in `habits.supported_modes`. Persisted, so never renumbered:
+ * an exhaustive `when` rather than `1 shl ordinal` so reordering the enum cannot remap rows.
+ */
+internal val ActivityMode.bit: Int
+    get() = when (this) {
+        ActivityMode.WALKING -> 1
+        ActivityMode.SITTING -> 2
+        ActivityMode.TRANSPORT -> 4
+    }
 
 class Converters {
     @TypeConverter
@@ -56,4 +68,11 @@ class Converters {
                 List(6) { "" }
             }
         }
+
+    @TypeConverter
+    fun fromActivityModes(value: Set<ActivityMode>): Int = value.fold(0) { acc, mode -> acc or mode.bit }
+
+    @TypeConverter
+    fun toActivityModes(value: Int): Set<ActivityMode> =
+        ActivityMode.entries.filter { value and it.bit != 0 }.toSet()
 }

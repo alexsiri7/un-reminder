@@ -6,6 +6,8 @@ import net.interstellarai.unreminder.data.db.HabitLocationCrossRef
 import net.interstellarai.unreminder.data.db.HabitLocationCrossRefDao
 import net.interstellarai.unreminder.data.db.HabitWindowCrossRef
 import net.interstellarai.unreminder.data.db.HabitWindowCrossRefDao
+import net.interstellarai.unreminder.data.db.bit
+import net.interstellarai.unreminder.domain.model.ActivityMode
 import kotlinx.coroutines.flow.Flow
 import java.time.Instant
 import java.time.LocalDate
@@ -35,7 +37,8 @@ class HabitRepository @Inject constructor(
     suspend fun getByIdOnce(id: Long): HabitEntity? = habitDao.getByIdOnce(id)
 
     suspend fun getEligibleHabits(
-        currentLocationIds: Set<Long>
+        currentLocationIds: Set<Long>,
+        mode: ActivityMode
     ): List<HabitEntity> {
         // COMPLETED today: excluded until midnight (done for the day).
         val completedCutoff = LocalDate.now()
@@ -58,7 +61,8 @@ class HabitRepository @Inject constructor(
             nowEpochMillis,
             startOfDayCutoff,
             currentSecondOfDay,
-            dayOfWeekBit
+            dayOfWeekBit,
+            mode.bit
         )
     }
 

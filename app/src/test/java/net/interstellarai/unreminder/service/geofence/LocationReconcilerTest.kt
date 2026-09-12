@@ -518,6 +518,7 @@ class LocationReconcilerTest {
             mockk<WindowRepository>(relaxed = true),
             triggerRepository,
             geofenceManager,
+            mockk(),
         )
         // Detached from the test scheduler so the stalled fix stays stalled in real time.
         CoroutineScope(Dispatchers.Unconfined).launch { newReconciler(geofenceManager).reconcile() }

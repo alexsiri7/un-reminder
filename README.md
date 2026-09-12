@@ -161,6 +161,10 @@ A repeatable thing the user wants to do. Each habit has:
 - `cooldown_minutes` — integer minutes; default 180 (= 3 h). After a `DISMISSED`, unanswered `FIRED`,
   `EXPIRED`, or `LATER` trigger, the habit is excluded from selection until this many minutes have passed. `0` disables this
   exclusion. User-configurable in the Habit editor (presets 1h · 2h · 3h · 6h · 12h · None).
+- `supported_modes` — bitmask of the activity modes (walking, sitting, transport) the habit can be done
+  in. `0` (empty) means any mode: the default for new habits and what every pre-existing habit gets on
+  migration. A restricted habit is only eligible while the resolved activity is one of its modes.
+  User-configurable in the Habit editor.
 - `created_at`, `updated_at`.
 
 Per-level descriptive text is stored separately in `HabitLevelDescriptionEntity` (`habit_level_descriptions`
@@ -232,9 +236,10 @@ updated by geofence `ENTER`/`EXIT` callbacks. Empty set means no known location.
 
 ### Fire-time pipeline (identical for both trigger kinds)
 
-1. Resolve current location state.
+1. Resolve current location state and activity mode.
 2. Query eligible habits:
    - `active = true`
+   - Supports the current activity mode (or supports any mode).
    - Has **no** entries in `habit_location` (eligible everywhere), OR has at least one
      `location_id` matching a geofence the user is currently inside.
    - Has an active time window covering the current day and time (or no window association).
@@ -290,7 +295,7 @@ from the pool, not from a fresh generation.
    "description ladder" section (collapsed by default, showing only the current dedication level's
    description; tap the header chevron to expand all 6 levels — level 0 = minimum/low-floor through
    level 5 = full version), location chips (multi-select from saved locations; no selection = "Anywhere"),
-   active toggle, daily-limit dropdown (1–10/day, default 1), cooldown dropdown (1h · 2h · 3h · 6h · 12h · None, default 3h).
+   activity chips (Walking · Sitting · Transport; no selection = "Any activity"), active toggle, daily-limit dropdown (1–10/day, default 1), cooldown dropdown (1h · 2h · 3h · 6h · 12h · None, default 3h).
    AI-assist row: **✦ autofill** ("Autofill descriptions" — populates all 6 description-ladder levels (0–5)
    from the habit name via cloud AI; enabled when name ≥ 2 chars) · **↻ resample** / **Preview** (shows
    one unused entry from the local variation pool; enabled when at least one level description is non-blank).
@@ -337,7 +342,7 @@ from the pool, not from a fresh generation.
 
 ```kotlin
 // DB version 10
-@Entity Habit(id, name, dedication_level/*Int 0-5*/, auto_adjust_level/*Boolean*/, daily_limit/*Int, default 1*/, cooldown_minutes/*Int, default 180*/, active, created_at, updated_at)
+@Entity Habit(id, name, dedication_level/*Int 0-5*/, auto_adjust_level/*Boolean*/, daily_limit/*Int, default 1*/, cooldown_minutes/*Int, default 180*/, supported_modes/*Int bitmask, 0 = any*/, active, created_at, updated_at)
 @Entity HabitLevelDescriptionEntity(habit_id → Habit.id CASCADE, level/*0-5*/, description)  // per-level text
 @Entity Window(id, start_time, end_time, days_of_week_bitmask, frequency_per_day, active)
 @Entity Location(id, name /* user-defined, e.g. "Home", "Gym", "Office" */, lat, lng, radius_m)
