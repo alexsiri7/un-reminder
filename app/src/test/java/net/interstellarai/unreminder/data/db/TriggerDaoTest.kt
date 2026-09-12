@@ -43,7 +43,7 @@ class TriggerDaoTest {
     private suspend fun insertHabit(name: String): Long =
         habitDao.insert(HabitEntity(name = name, dailyLimit = 5))
 
-    private suspend fun insertTrigger(habitId: Long?, status: TriggerStatus, firedAtMillis: Long) {
+    private suspend fun insertTrigger(habitId: Long?, status: TriggerStatus, firedAtMillis: Long): Long =
         triggerDao.insert(
             TriggerEntity(
                 habitId = habitId,
@@ -52,7 +52,6 @@ class TriggerDaoTest {
                 status = status
             )
         )
-    }
 
     // Growth counters (#292). Absolute epoch millis and a hardcoded offset keep these independent
     // of the machine's zone: at UTC-8 a local day starts at 08:00 UTC, so every case below is
@@ -205,14 +204,7 @@ class TriggerDaoTest {
     @Test
     fun `getFiredIds returns only triggers still awaiting an outcome`() = runTest {
         val habitId = insertHabit("hOutstanding")
-        val firedId = triggerDao.insert(
-            TriggerEntity(
-                habitId = habitId,
-                scheduledAt = Instant.ofEpochMilli(midnightMillis),
-                firedAt = Instant.ofEpochMilli(midnightMillis),
-                status = TriggerStatus.FIRED
-            )
-        )
+        val firedId = insertTrigger(habitId, TriggerStatus.FIRED, midnightMillis)
         insertTrigger(habitId, TriggerStatus.SCHEDULED, midnightMillis)
         insertTrigger(habitId, TriggerStatus.COMPLETED, midnightMillis)
         insertTrigger(habitId, TriggerStatus.DISMISSED, midnightMillis)
@@ -227,5 +219,30 @@ class TriggerDaoTest {
         insertTrigger(habitId, TriggerStatus.EXPIRED, midnightMillis)
 
         assertEquals(midnightMillis, triggerDao.getLastFiredOrDismissedForHabit(habitId))
+    }
+
+    @Test
+    fun `markExpiredIfUnanswered expires a trigger still awaiting an outcome`() = runTest {
+        val habitId = insertHabit("hUnanswered")
+        val id = insertTrigger(habitId, TriggerStatus.FIRED, midnightMillis)
+
+        triggerDao.markExpiredIfUnanswered(id)
+
+        assertEquals(TriggerStatus.EXPIRED, triggerDao.getById(id)?.status)
+    }
+
+    // The sweep reads outstanding ids, then writes; another writer can record a real outcome in
+    // between, and that outcome must survive.
+    @Test
+    fun `markExpiredIfUnanswered leaves an outcome recorded by another writer alone`() = runTest {
+        val habitId = insertHabit("hRaced")
+        val completedId = insertTrigger(habitId, TriggerStatus.COMPLETED, midnightMillis)
+        val dismissedId = insertTrigger(habitId, TriggerStatus.DISMISSED, midnightMillis)
+
+        triggerDao.markExpiredIfUnanswered(completedId)
+        triggerDao.markExpiredIfUnanswered(dismissedId)
+
+        assertEquals(TriggerStatus.COMPLETED, triggerDao.getById(completedId)?.status)
+        assertEquals(TriggerStatus.DISMISSED, triggerDao.getById(dismissedId)?.status)
     }
 }

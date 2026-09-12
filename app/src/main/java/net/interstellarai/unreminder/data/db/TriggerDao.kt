@@ -39,6 +39,13 @@ interface TriggerDao {
     @Query("UPDATE triggers SET status = :status WHERE id = :id")
     suspend fun updateStatus(id: Long, status: String)
 
+    /**
+     * Records EXPIRED only while the trigger is still unanswered. A real outcome written
+     * concurrently by another path therefore wins and is never overwritten.
+     */
+    @Query("UPDATE triggers SET status = 'EXPIRED' WHERE id = :id AND status = 'FIRED'")
+    suspend fun markExpiredIfUnanswered(id: Long)
+
     @Query("DELETE FROM triggers WHERE status = 'SCHEDULED' AND scheduled_at < :cutoffMillis")
     suspend fun deleteScheduledOlderThan(cutoffMillis: Long)
 

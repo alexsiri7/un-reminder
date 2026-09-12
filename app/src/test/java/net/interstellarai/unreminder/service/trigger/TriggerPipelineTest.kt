@@ -158,15 +158,13 @@ class TriggerPipelineTest {
     }
 
     @Test
-    fun `outstanding notification is cancelled and expired before the new one is posted`() = runTest {
+    fun `outstanding notification is cancelled and expired once the new one is posted`() = runTest {
         stubEligibleHabitWithVariation()
         coEvery { triggerRepository.getFiredIds() } returns listOf(7L)
 
         pipeline.execute(42L)
 
         coVerifyOrder {
-            notificationHelper.cancelNotification(7L)
-            triggerRepository.updateOutcome(7L, TriggerStatus.EXPIRED)
             notificationHelper.postTriggerNotification(
                 triggerId = 42L,
                 promptText = any(),
@@ -174,7 +172,37 @@ class TriggerPipelineTest {
                 actionUrl = any(),
                 spriteTag = any(),
             )
+            notificationHelper.cancelNotification(7L)
+            triggerRepository.expireIfUnanswered(7L)
         }
+    }
+
+    // Self-exclusion rests on this order alone: the sweep list is read while trigger 42 is
+    // still SCHEDULED. Read it after updateFired and the new notification expires itself.
+    @Test
+    fun `outstanding notifications are read before this trigger is marked fired`() = runTest {
+        stubEligibleHabitWithVariation()
+
+        pipeline.execute(42L)
+
+        coVerifyOrder {
+            triggerRepository.getFiredIds()
+            triggerRepository.updateFired(42L, any(), any())
+        }
+    }
+
+    @Test
+    fun `a notification that fails to post leaves the outstanding one standing`() = runTest {
+        stubEligibleHabitWithVariation()
+        coEvery { triggerRepository.getFiredIds() } returns listOf(7L)
+        every {
+            notificationHelper.postTriggerNotification(any(), any(), any(), any(), any())
+        } throws RuntimeException("boom")
+
+        pipeline.execute(42L)
+
+        coVerify(exactly = 0) { notificationHelper.cancelNotification(7L) }
+        coVerify(exactly = 0) { triggerRepository.expireIfUnanswered(7L) }
     }
 
     @Test
@@ -186,8 +214,20 @@ class TriggerPipelineTest {
 
         coVerify(exactly = 1) { notificationHelper.cancelNotification(7L) }
         coVerify(exactly = 1) { notificationHelper.cancelNotification(8L) }
-        coVerify(exactly = 1) { triggerRepository.updateOutcome(7L, TriggerStatus.EXPIRED) }
-        coVerify(exactly = 1) { triggerRepository.updateOutcome(8L, TriggerStatus.EXPIRED) }
+        coVerify(exactly = 1) { triggerRepository.expireIfUnanswered(7L) }
+        coVerify(exactly = 1) { triggerRepository.expireIfUnanswered(8L) }
+    }
+
+    @Test
+    fun `one failed expiry does not abandon the rest or dismiss the posted trigger`() = runTest {
+        stubEligibleHabitWithVariation()
+        coEvery { triggerRepository.getFiredIds() } returns listOf(7L, 8L)
+        coEvery { triggerRepository.expireIfUnanswered(7L) } throws RuntimeException("boom")
+
+        pipeline.execute(42L)
+
+        coVerify(exactly = 1) { triggerRepository.expireIfUnanswered(8L) }
+        coVerify(exactly = 0) { triggerRepository.updateOutcome(42L, TriggerStatus.DISMISSED) }
     }
 
     @Test
@@ -197,7 +237,7 @@ class TriggerPipelineTest {
         pipeline.execute(42L)
 
         coVerify(exactly = 0) { notificationHelper.cancelNotification(any()) }
-        coVerify(exactly = 0) { triggerRepository.updateOutcome(any(), TriggerStatus.EXPIRED) }
+        coVerify(exactly = 0) { triggerRepository.expireIfUnanswered(any()) }
     }
 
     @Test
@@ -209,7 +249,7 @@ class TriggerPipelineTest {
         pipeline.execute(42L)
 
         coVerify(exactly = 0) { notificationHelper.cancelNotification(any()) }
-        coVerify(exactly = 0) { triggerRepository.updateOutcome(7L, any()) }
+        coVerify(exactly = 0) { triggerRepository.expireIfUnanswered(7L) }
     }
 
     @Test

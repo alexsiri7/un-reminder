@@ -44,6 +44,8 @@ class TriggerRepository @Inject constructor(
         triggerDao.updateStatus(id, status.name)
     }
 
+    suspend fun expireIfUnanswered(id: Long) = triggerDao.markExpiredIfUnanswered(id)
+
     suspend fun deleteScheduledOlderThan(cutoff: Instant) =
         triggerDao.deleteScheduledOlderThan(cutoff.toEpochMilli())
 
