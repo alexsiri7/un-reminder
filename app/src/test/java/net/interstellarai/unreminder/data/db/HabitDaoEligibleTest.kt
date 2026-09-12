@@ -213,6 +213,19 @@ class HabitDaoEligibleTest {
     }
 
     @Test
+    fun `cooldown 60 with EXPIRED 30 minutes ago is excluded`() = runTest {
+        // A superseded nudge was still a nudge: expiring it must not shorten the cooldown.
+        val thirtyMinAgo = Instant.now().minusSeconds(30 * 60).toEpochMilli()
+        val now = Instant.now().toEpochMilli()
+        val id = insertHabit("hCooldown60Expired", cooldownMinutes = 60, dailyLimit = 999)
+        insertTrigger(id, TriggerStatus.EXPIRED, Instant.ofEpochMilli(thirtyMinAgo))
+
+        val eligible = queryEligibleAt(now)
+
+        assertTrue(eligible.none { it.id == id })
+    }
+
+    @Test
     fun `cooldown 0 with FIRED 1 minute ago is eligible`() = runTest {
         val oneMinAgo = Instant.now().minusSeconds(60).toEpochMilli()
         val now = Instant.now().toEpochMilli()

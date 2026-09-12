@@ -24,6 +24,8 @@ class TriggerRepository @Inject constructor(
 
     suspend fun getAllScheduled(): List<TriggerEntity> = triggerDao.getAllScheduled()
 
+    suspend fun getFiredIds(): List<Long> = triggerDao.getFiredIds()
+
     suspend fun updateFired(
         id: Long,
         habitId: Long,

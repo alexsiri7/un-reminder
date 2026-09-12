@@ -201,4 +201,31 @@ class TriggerDaoTest {
 
         assertEquals(1, triggerDao.countAnyCompletionsSince(midnightMillis).first())
     }
+
+    @Test
+    fun `getFiredIds returns only triggers still awaiting an outcome`() = runTest {
+        val habitId = insertHabit("hOutstanding")
+        val firedId = triggerDao.insert(
+            TriggerEntity(
+                habitId = habitId,
+                scheduledAt = Instant.ofEpochMilli(midnightMillis),
+                firedAt = Instant.ofEpochMilli(midnightMillis),
+                status = TriggerStatus.FIRED
+            )
+        )
+        insertTrigger(habitId, TriggerStatus.SCHEDULED, midnightMillis)
+        insertTrigger(habitId, TriggerStatus.COMPLETED, midnightMillis)
+        insertTrigger(habitId, TriggerStatus.DISMISSED, midnightMillis)
+        insertTrigger(habitId, TriggerStatus.EXPIRED, midnightMillis)
+
+        assertEquals(listOf(firedId), triggerDao.getFiredIds())
+    }
+
+    @Test
+    fun `an EXPIRED trigger still holds the habit cooldown`() = runTest {
+        val habitId = insertHabit("hExpiredCooldown")
+        insertTrigger(habitId, TriggerStatus.EXPIRED, midnightMillis)
+
+        assertEquals(midnightMillis, triggerDao.getLastFiredOrDismissedForHabit(habitId))
+    }
 }

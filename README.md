@@ -158,8 +158,8 @@ A repeatable thing the user wants to do. Each habit has:
   flooring at level 0 (see [Trigger Logic §5](#5-trigger-logic)).
 - `daily_limit` — integer; default 1. Maximum number of `COMPLETED`/`FIRED` triggers per local day before
   the habit is excluded from selection. User-configurable in the Habit editor.
-- `cooldown_minutes` — integer minutes; default 180 (= 3 h). After a `DISMISSED` or unanswered `FIRED`
-  trigger, the habit is excluded from selection until this many minutes have passed. `0` disables this
+- `cooldown_minutes` — integer minutes; default 180 (= 3 h). After a `DISMISSED`, unanswered `FIRED`, or
+  `EXPIRED` trigger, the habit is excluded from selection until this many minutes have passed. `0` disables this
   exclusion. User-configurable in the Habit editor (presets 1h · 2h · 3h · 6h · 12h · None).
 - `created_at`, `updated_at`.
 
@@ -190,7 +190,7 @@ A scheduled notification event.
 - `habit_id` (populated at fire time, not schedule time — see below)
 - `scheduled_at` — timestamp.
 - `fired_at` — nullable.
-- `status` — `{SCHEDULED, FIRED, COMPLETED, DISMISSED}`.
+- `status` — `{SCHEDULED, FIRED, COMPLETED, DISMISSED, EXPIRED}`.
 - `generated_prompt` — the AI-generated text actually shown in the notification.
 
 ### Location
@@ -239,16 +239,17 @@ updated by geofence `ENTER`/`EXIT` callbacks. Empty set means no known location.
      `location_id` matching a geofence the user is currently inside.
    - Has an active time window covering the current day and time (or no window association).
    - **Not completed today**: any habit with a `COMPLETED` trigger fired after midnight is excluded for the rest of the day.
-   - **Not on cooldown**: any habit with a `DISMISSED` or unanswered `FIRED` trigger inside its `cooldown_minutes` window (default 180 min, configurable per habit in the editor; `0` disables this exclusion entirely) is excluded.
+   - **Not on cooldown**: any habit with a `DISMISSED`, unanswered `FIRED`, or `EXPIRED` trigger inside its `cooldown_minutes` window (default 180 min, configurable per habit in the editor; `0` disables this exclusion entirely) is excluded.
 3. Pick **one** habit by weighted-random selection from the eligible set, biased toward habits
    not recently prompted. Weight formula: `1 + min(minutesSince, 1440) / 120`, where
    `minutesSince` is minutes since the habit was last fired (cap: 1440 min = 24 h). A habit
    never fired receives the maximum weight (~13×). If the eligible set is empty, skip silently.
 4. Pick an unused variation from the cloud-generated pool (see Variation entity). If the pool is empty, use the level description fallback (see Fallback below).
-5. Post the notification with the generated text. Action buttons: **Did it**, **Dismiss**. When the variation includes an `actionUrl`, a third **Watch** button is added that opens the URL in a browser. Tapping the notification body opens the **Reminder Detail screen** for that trigger.
+5. Cancel any notification still awaiting an outcome and record its trigger as `EXPIRED`, so at most one unanswered nudge stands at a time, then post the notification with the generated text. Action buttons: **Did it**, **Dismiss**. When the variation includes an `actionUrl`, a third **Watch** button is added that opens the URL in a browser. Tapping the notification body opens the **Reminder Detail screen** for that trigger.
 6. Record the trigger row with the generated prompt and the outcome when the user responds.
    - **Did it (COMPLETED):** the habit is excluded from the rest of today's triggers (step 2 above). When `auto_adjust_level` is true, consecutive completions promote `dedication_level` (up to max 5).
    - **Dismiss (DISMISSED):** a per-habit cooldown (default 3 h, configurable via `cooldownMinutes` in the Habit editor — presets 1h · 2h · 3h · 6h · 12h · None, where None=`0` disables the cooldown) applies before this habit is eligible again. When `auto_adjust_level` is true: 3 consecutive `DISMISSED` triggers demote `dedication_level` by 1, flooring at level 0. The habit is never auto-paused.
+   - **Superseded (EXPIRED):** a later trigger cancelled this notification before the user touched it. The cooldown applies as for a dismissal, but `dedication_level` never moves: inattention is not evidence the ask was too big.
 
 ### Variation pool (cloud-generated)
 

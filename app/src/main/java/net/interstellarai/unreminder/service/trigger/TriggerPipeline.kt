@@ -93,6 +93,10 @@ class TriggerPipeline @Inject constructor(
             val locationName = resolveLocationName(locationIds)
             val resolvedPrompt = resolvePrompt(habit, locationName, timeOfDay)
 
+            // Only one unanswered nudge may stand at a time (#369). FIRED is written
+            // nowhere but updateFired below, so it means exactly "posted, no outcome yet".
+            expireOutstandingNotifications()
+
             triggerRepository.updateFired(
                 id = triggerId,
                 habitId = habit.id,
@@ -115,6 +119,13 @@ class TriggerPipeline @Inject constructor(
                 scope.setTag("trigger_id", triggerId.toString())
             }
             triggerRepository.updateOutcome(triggerId, TriggerStatus.DISMISSED)
+        }
+    }
+
+    private suspend fun expireOutstandingNotifications() {
+        for (outstandingId in triggerRepository.getFiredIds()) {
+            notificationHelper.cancelNotification(outstandingId)
+            triggerRepository.updateOutcome(outstandingId, TriggerStatus.EXPIRED)
         }
     }
 

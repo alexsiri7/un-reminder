@@ -99,6 +99,17 @@ class TriggerPipelineTest {
         every { geofenceManager.currentLocationIds } returns MutableStateFlow(setOf(1L)).asStateFlow()
         coEvery { locationRepository.getByIds(any()) } returns emptyList()
         coEvery { triggerRepository.getLastFiredForHabit(any()) } returns null
+        coEvery { triggerRepository.getFiredIds() } returns emptyList()
+    }
+
+    private fun stubEligibleHabitWithVariation() {
+        coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
+        coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(testHabit)
+        coEvery { variationRepository.pickRandomUnused(1L) } returns VariationEntity(
+            id = 7L, habitId = 1L, text = "body",
+            promptFingerprint = "fp", generatedAt = Instant.now(), consumedAt = null
+        )
+        coEvery { variationRepository.needsRefill(1L) } returns false
     }
 
     @Test
@@ -144,6 +155,61 @@ class TriggerPipelineTest {
         coVerify { triggerRepository.updateOutcome(42L, TriggerStatus.DISMISSED) }
         coVerify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any(), any()) }
         verify(exactly = 0) { widgetRefresher.refresh() }
+    }
+
+    @Test
+    fun `outstanding notification is cancelled and expired before the new one is posted`() = runTest {
+        stubEligibleHabitWithVariation()
+        coEvery { triggerRepository.getFiredIds() } returns listOf(7L)
+
+        pipeline.execute(42L)
+
+        coVerifyOrder {
+            notificationHelper.cancelNotification(7L)
+            triggerRepository.updateOutcome(7L, TriggerStatus.EXPIRED)
+            notificationHelper.postTriggerNotification(
+                triggerId = 42L,
+                promptText = any(),
+                habitName = any(),
+                actionUrl = any(),
+                spriteTag = any(),
+            )
+        }
+    }
+
+    @Test
+    fun `every outstanding notification is expired, not just the newest`() = runTest {
+        stubEligibleHabitWithVariation()
+        coEvery { triggerRepository.getFiredIds() } returns listOf(7L, 8L)
+
+        pipeline.execute(42L)
+
+        coVerify(exactly = 1) { notificationHelper.cancelNotification(7L) }
+        coVerify(exactly = 1) { notificationHelper.cancelNotification(8L) }
+        coVerify(exactly = 1) { triggerRepository.updateOutcome(7L, TriggerStatus.EXPIRED) }
+        coVerify(exactly = 1) { triggerRepository.updateOutcome(8L, TriggerStatus.EXPIRED) }
+    }
+
+    @Test
+    fun `nothing outstanding - no notification is cancelled and no outcome is expired`() = runTest {
+        stubEligibleHabitWithVariation()
+
+        pipeline.execute(42L)
+
+        coVerify(exactly = 0) { notificationHelper.cancelNotification(any()) }
+        coVerify(exactly = 0) { triggerRepository.updateOutcome(any(), TriggerStatus.EXPIRED) }
+    }
+
+    @Test
+    fun `no eligible habits - outstanding notification is left standing`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
+        coEvery { habitRepository.getEligibleHabits(any()) } returns emptyList()
+        coEvery { triggerRepository.getFiredIds() } returns listOf(7L)
+
+        pipeline.execute(42L)
+
+        coVerify(exactly = 0) { notificationHelper.cancelNotification(any()) }
+        coVerify(exactly = 0) { triggerRepository.updateOutcome(7L, any()) }
     }
 
     @Test
