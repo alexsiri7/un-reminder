@@ -8,6 +8,7 @@ import android.util.Log
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
 import dagger.hilt.android.AndroidEntryPoint
+import io.sentry.Breadcrumb
 import io.sentry.Sentry
 import io.sentry.SentryLevel
 import net.interstellarai.unreminder.widget.WidgetRefresher
@@ -67,15 +68,16 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 }
             }
         }
-        // Reported unconditionally: a week with zero of these is the finding that separates
-        // "registered but never fires" from "fires but the state is mishandled".
-        Sentry.captureMessage("Geofence transition") { scope ->
-            scope.setTag("component", "geofence")
-            scope.setTag("transition", transitionName(transition))
-            scope.setExtra("location_ids", triggeringIds.toString())
-            scope.setExtra("resulting_set_size", geofenceManager.currentLocationIds.value.size.toString())
-            scope.level = SentryLevel.INFO
-        }
+        // Recorded on every broadcast, including ones that change nothing, so the next
+        // captured fault carries the transition history that led to it.
+        Sentry.addBreadcrumb(Breadcrumb().apply {
+            category = "geofence"
+            message = "Geofence transition"
+            level = SentryLevel.INFO
+            setData("transition", transitionName(transition))
+            setData("location_ids", triggeringIds.toString())
+            setData("resulting_set_size", geofenceManager.currentLocationIds.value.size.toString())
+        })
         if (changed) widgetRefresher.refresh()
     }
 

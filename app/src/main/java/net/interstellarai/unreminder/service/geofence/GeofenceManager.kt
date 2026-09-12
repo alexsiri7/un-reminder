@@ -414,20 +414,32 @@ class GeofenceManager @Inject constructor(
     }
 
     private fun reportRegistrationSummary(health: RegistrationHealth) {
+        val fields = mapOf(
+            "saved_count" to health.savedCount.toString(),
+            "registered_count" to health.registeredCount.toString(),
+            "failed_count" to health.failures.size.toString(),
+            "failures" to health.failures.joinToString { (id, outcome) -> "id=$id status=${outcome.statusLabel}" },
+            "fine_location_granted" to health.fineLocationGranted.toString(),
+            "background_location_granted" to health.backgroundLocationGranted.toString(),
+            "location_enabled" to health.locationEnabled.toString(),
+            "location_settings" to health.locationSettings.statusLabel,
+        )
+        if (health.failures.isEmpty()) {
+            Sentry.addBreadcrumb(Breadcrumb().apply {
+                category = "geofence"
+                message = "Geofence registration summary"
+                level = SentryLevel.INFO
+                fields.forEach { (key, value) -> setData(key, value) }
+            })
+            return
+        }
+        // Stays a captured event: reportRegistrationFailure has already fired for each
+        // failure by the time this runs, so a breadcrumb would arrive too late to carry
+        // the permission and location-settings state those events exist to explain.
         Sentry.captureMessage("Geofence registration summary") { scope ->
             scope.setTag("component", "geofence")
-            scope.setExtra("saved_count", health.savedCount.toString())
-            scope.setExtra("registered_count", health.registeredCount.toString())
-            scope.setExtra("failed_count", health.failures.size.toString())
-            scope.setExtra(
-                "failures",
-                health.failures.joinToString { (id, outcome) -> "id=$id status=${outcome.statusLabel}" }
-            )
-            scope.setExtra("fine_location_granted", health.fineLocationGranted.toString())
-            scope.setExtra("background_location_granted", health.backgroundLocationGranted.toString())
-            scope.setExtra("location_enabled", health.locationEnabled.toString())
-            scope.setExtra("location_settings", health.locationSettings.statusLabel)
-            scope.level = if (health.failures.isEmpty()) SentryLevel.INFO else SentryLevel.WARNING
+            fields.forEach { (key, value) -> scope.setExtra(key, value) }
+            scope.level = SentryLevel.WARNING
         }
     }
 
@@ -457,14 +469,15 @@ class GeofenceManager @Inject constructor(
         val raised = loc.copy(radiusM = MIN_RADIUS_M)
         locationRepository.update(raised)
         Log.i(TAG, "Raised geofence radius to minimum: id=${loc.id} name=${loc.name} from=${loc.radiusM}")
-        Sentry.captureMessage("Geofence radius raised to minimum") { scope ->
-            scope.setTag("component", "geofence")
-            scope.setExtra("location_id", loc.id.toString())
-            scope.setExtra("location_name", loc.name)
-            scope.setExtra("old_radius_m", loc.radiusM.toString())
-            scope.setExtra("new_radius_m", MIN_RADIUS_M.toString())
-            scope.level = SentryLevel.INFO
-        }
+        Sentry.addBreadcrumb(Breadcrumb().apply {
+            category = "geofence"
+            message = "Geofence radius raised to minimum"
+            level = SentryLevel.INFO
+            setData("location_id", loc.id.toString())
+            setData("location_name", loc.name)
+            setData("old_radius_m", loc.radiusM.toString())
+            setData("new_radius_m", MIN_RADIUS_M.toString())
+        })
         return raised
     }
 }
