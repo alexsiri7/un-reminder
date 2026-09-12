@@ -20,12 +20,16 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.coVerifyOrder
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkStatic
+import io.mockk.runs
 import io.mockk.unmockkStatic
 import io.mockk.verify
-import io.sentry.Sentry
+import io.sentry.Breadcrumb
 import io.sentry.ScopeCallback
+import io.sentry.Sentry
+import io.sentry.SentryLevel
 import io.sentry.protocol.SentryId
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -374,6 +378,29 @@ class TriggerPipelineTest {
         pipeline.execute(42L)
 
         verify(exactly = 1) { Sentry.captureException(any(), any<ScopeCallback>()) }
+        unmockkStatic(Sentry::class)
+    }
+
+    @Test
+    fun `pool empty leaves a breadcrumb and opens no Sentry issue`() = runTest {
+        val breadcrumbs = mutableListOf<Breadcrumb>()
+        mockkStatic(Sentry::class)
+        every { Sentry.addBreadcrumb(capture(breadcrumbs)) } just runs
+        every { Sentry.captureMessage(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
+
+        coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
+        coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(testHabit)
+        coEvery { variationRepository.pickRandomUnused(1L) } returns null
+        coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 2) } returns ""
+
+        pipeline.execute(42L)
+
+        val crumb = breadcrumbs.single()
+        assertEquals("trigger", crumb.category)
+        assertEquals("Variation pool empty", crumb.message)
+        assertEquals(SentryLevel.INFO, crumb.level)
+        assertEquals("1", crumb.getData("habit_id"))
+        verify(exactly = 0) { Sentry.captureMessage(any(), any<ScopeCallback>()) }
         unmockkStatic(Sentry::class)
     }
 }

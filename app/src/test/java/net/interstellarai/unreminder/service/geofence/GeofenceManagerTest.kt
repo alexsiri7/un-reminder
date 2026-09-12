@@ -30,6 +30,7 @@ import io.sentry.Breadcrumb
 import io.sentry.IScope
 import io.sentry.ScopeCallback
 import io.sentry.Sentry
+import io.sentry.SentryLevel
 import io.sentry.protocol.SentryId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -67,6 +68,7 @@ class GeofenceManagerTest {
     private class CapturedScope {
         val tags = mutableMapOf<String, String>()
         val extras = mutableMapOf<String, String>()
+        var level: SentryLevel? = null
     }
 
     @Before
@@ -138,6 +140,7 @@ class GeofenceManagerTest {
         val scope = mockk<IScope>(relaxed = true)
         every { scope.setTag(any(), any()) } answers { recorded.tags[firstArg()] = secondArg() }
         every { scope.setExtra(any(), any()) } answers { recorded.extras[firstArg()] = secondArg() }
+        every { scope.level = any() } answers { recorded.level = firstArg() }
         run(scope)
         return recorded
     }
@@ -147,6 +150,9 @@ class GeofenceManagerTest {
 
     private fun registrationSummary(): CapturedScope =
         captured.single { (message, _) -> message == "Geofence registration summary" }.second.record()
+
+    private fun summaryBreadcrumb(): Breadcrumb =
+        breadcrumbs.single { it.message == "Geofence registration summary" }
 
     private fun registrationFailures(): List<CapturedScope> =
         captured.filter { (message, _) -> message == "Geofence registration failed" }.map { it.second.record() }
@@ -378,6 +384,7 @@ class GeofenceManagerTest {
 
         val summary = registrationSummary()
         assertEquals("geofence", summary.tags["component"])
+        assertEquals(SentryLevel.WARNING, summary.level)
         assertEquals("3", summary.extras["saved_count"])
         assertEquals("1", summary.extras["registered_count"])
         assertEquals("2", summary.extras["failed_count"])
@@ -415,10 +422,12 @@ class GeofenceManagerTest {
 
         newManager().registerAllFromDb()
 
-        val summary = registrationSummary()
-        assertEquals("0", summary.extras["saved_count"])
-        assertEquals("false", summary.extras["location_enabled"])
-        assertEquals("SETTINGS_CHANGE_UNAVAILABLE(8502)", summary.extras["location_settings"])
+        val summary = summaryBreadcrumb()
+        assertEquals("geofence", summary.category)
+        assertEquals(SentryLevel.INFO, summary.level)
+        assertEquals("0", summary.getData("saved_count"))
+        assertEquals("false", summary.getData("location_enabled"))
+        assertEquals("SETTINGS_CHANGE_UNAVAILABLE(8502)", summary.getData("location_settings"))
     }
 
     @Test
@@ -428,9 +437,24 @@ class GeofenceManagerTest {
 
         newManager().registerAllFromDb()
 
-        val summary = registrationSummary()
-        assertEquals("true", summary.extras["location_enabled"])
-        assertEquals("SUCCESS(0)", summary.extras["location_settings"])
+        val summary = summaryBreadcrumb()
+        assertEquals("geofence", summary.category)
+        assertEquals(SentryLevel.INFO, summary.level)
+        assertEquals("true", summary.getData("location_enabled"))
+        assertEquals("SUCCESS(0)", summary.getData("location_settings"))
+    }
+
+    @Test
+    fun `a clean registration opens no Sentry issue`() = runTest {
+        grantLocationPermissions()
+        coEvery { locationRepository.getAllList() } returns listOf(
+            LocationEntity(id = 1, name = "Home", lat = 51.5, lng = -0.1, radiusM = 150f),
+        )
+
+        newManager().registerAllFromDb()
+
+        assertTrue(captured.isEmpty())
+        assertEquals(SentryLevel.INFO, summaryBreadcrumb().level)
     }
 
     @Test
@@ -498,8 +522,10 @@ class GeofenceManagerTest {
         )
         assertEquals(2, health.registeredCount)
         assertNull(health.lastFailure)
-        assertEquals("2", registrationSummary().extras["registered_count"])
-        assertEquals("", registrationSummary().extras["failures"])
+        assertEquals("geofence", summaryBreadcrumb().category)
+        assertEquals(SentryLevel.INFO, summaryBreadcrumb().level)
+        assertEquals("2", summaryBreadcrumb().getData("registered_count"))
+        assertEquals("", summaryBreadcrumb().getData("failures"))
         verify(exactly = 2) { geofencingClient.addGeofences(any<GeofencingRequest>(), any<PendingIntent>()) }
     }
 
@@ -640,7 +666,9 @@ class GeofenceManagerTest {
 
         newManager().registerAllFromDb()
 
-        assertEquals("TIMEOUT", registrationSummary().extras["location_settings"])
+        assertEquals("geofence", summaryBreadcrumb().category)
+        assertEquals(SentryLevel.INFO, summaryBreadcrumb().level)
+        assertEquals("TIMEOUT", summaryBreadcrumb().getData("location_settings"))
     }
 
     @Test
@@ -669,6 +697,7 @@ class GeofenceManagerTest {
 
         assertTrue(job.isCancelled)
         assertTrue(captured.none { (message, _) -> message == "Geofence registration summary" })
+        assertTrue(breadcrumbs.none { it.message == "Geofence registration summary" })
         assertNull(mgr.registrationHealth.value)
     }
 
@@ -687,6 +716,7 @@ class GeofenceManagerTest {
         assertEquals(1, health.registeredCount)
         assertNull(health.lastFailure)
         assertTrue(captured.none { (message, _) -> message == "Geofence registration summary" })
+        assertTrue(breadcrumbs.none { it.message == "Geofence registration summary" })
     }
 
     @Test
@@ -771,6 +801,10 @@ class GeofenceManagerTest {
         } + breadcrumbs.flatMap { crumb ->
             listOfNotNull(crumb.message, crumb.category) + crumb.data.entries.map { "${it.key}=${it.value}" }
         }
+        // Both halves must carry payload: most of it moved to the breadcrumb side in #366,
+        // so a size check alone would still pass if the captured-event half stopped collecting.
+        assertTrue(messages().isNotEmpty())
+        assertTrue(breadcrumbs.isNotEmpty())
         assertTrue(payloadStrings.size > 10)
         for (coordinate in listOf("51.5074", "0.1278", "48.8566", "2.3522")) {
             val leaked = payloadStrings.filter { it.contains(coordinate) }
@@ -788,7 +822,7 @@ class GeofenceManagerTest {
 
         coVerify(exactly = 1) { locationRepository.update(stored.copy(radiusM = 100f)) }
         coVerify(exactly = 1) { mgr.registerGeofence(3L, "Home", 51.5, -0.1, 100f) }
-        assertEquals(1, captured.count { (message, _) -> message == "Geofence radius raised to minimum" })
+        assertEquals(1, breadcrumbs.count { it.message == "Geofence radius raised to minimum" })
     }
 
     @Test
@@ -798,7 +832,7 @@ class GeofenceManagerTest {
 
         newManager().registerAllFromDb()
 
-        val raised = captured.single { (message, _) -> message == "Geofence radius raised to minimum" }.second.record()
+        val raised = breadcrumbs.single { it.message == "Geofence radius raised to minimum" }
         assertEquals(
             mapOf(
                 "location_id" to "3",
@@ -806,9 +840,10 @@ class GeofenceManagerTest {
                 "old_radius_m" to "40.0",
                 "new_radius_m" to "100.0"
             ),
-            raised.extras
+            raised.data
         )
-        assertEquals("geofence", raised.tags["component"])
+        assertEquals("geofence", raised.category)
+        assertEquals(SentryLevel.INFO, raised.level)
     }
 
     @Test
@@ -821,7 +856,7 @@ class GeofenceManagerTest {
 
         coVerify(exactly = 0) { locationRepository.update(any()) }
         coVerify(exactly = 1) { mgr.registerGeofence(4L, "Gym", 48.8, 2.3, 100f) }
-        assertFalse(captured.any { (message, _) -> message == "Geofence radius raised to minimum" })
+        assertFalse(breadcrumbs.any { it.message == "Geofence radius raised to minimum" })
     }
 
     companion object {

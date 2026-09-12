@@ -59,6 +59,34 @@ Paparazzi goldens live in `app/src/test/snapshots/images/` and are **CI-authorit
 
 Snapshotted composables take every time, date and locale input as a parameter (`today`, `checkedAt`) and the screenshot test classes pin `Locale.US` and UTC, so a golden does not depend on the day or machine it was rendered on.
 
+### Sentry telemetry contract
+
+Sentry's "new issue" alert opens a GitHub issue for every distinct event it sees, so what an event *is* decides whether a human gets paged:
+
+- **Genuine faults** use `captureMessage` or `captureException` at **WARNING or ERROR**. These open issues, and every one of them should be worth reading.
+- **Everything informational** uses `Sentry.addBreadcrumb`. A breadcrumb opens nothing on its own; it rides along with the next captured fault, which is where the history is actually useful.
+
+| Event | Shape |
+|---|---|
+| Geofence error (`GeofenceBroadcastReceiver`) | `captureMessage`, ERROR |
+| Geofence registration failed | `captureMessage`, WARNING |
+| Geofence removal failed | `captureMessage`, WARNING |
+| Registration summary **carrying failures** | `captureMessage`, WARNING |
+| Registration summary, clean | breadcrumb |
+| Geofence transition | breadcrumb |
+| Geofence radius raised to minimum | breadcrumb |
+| Variation pool empty | breadcrumb |
+| `refreshRegistration` / reconciler / worker exceptions | `captureException` |
+
+The failing registration summary is the one summary that stays an issue: `reportRegistrationFailure` has already captured an event per failing location by the time the summary is built, so a breadcrumb would arrive too late to carry the permission and location-settings state those events exist to explain.
+
+Two standing rules:
+
+- **Never interpolate an id into a `captureMessage` message.** Sentry fingerprints on the message, so `"pool empty for habit $id"` opens one issue per habit (#366). Ids go in breadcrumb data or scope extras.
+- **Never send raw coordinates** in any Sentry payload (#324). `GeofenceManagerTest.no geofence telemetry carries coordinates` asserts this across both messages and breadcrumbs.
+
+Narrowing the Sentry alert rule itself to `level:warning+` is a human step in the Sentry org, outside this repository (#366).
+
 ### Cloudflare Worker (`worker/`)
 
 Runs as a Cloudflare Worker (Hono framework). Exposes these routes:

@@ -14,7 +14,9 @@ import net.interstellarai.unreminder.service.geofence.LocationReconciler
 import net.interstellarai.unreminder.service.notification.NotificationHelper
 import net.interstellarai.unreminder.service.worker.RefillScheduler
 import net.interstellarai.unreminder.widget.WidgetRefresher
+import io.sentry.Breadcrumb
 import io.sentry.Sentry
+import io.sentry.SentryLevel
 import kotlinx.coroutines.CancellationException
 import java.time.LocalTime
 import javax.inject.Inject
@@ -142,9 +144,14 @@ class TriggerPipeline @Inject constructor(
         }
 
         Log.w(TAG, "pool empty for habit ${habit.id} — falling back to level description")
-        Sentry.captureMessage("pool empty for habit ${habit.id}") { scope ->
-            scope.setTag("component", "pool-empty")
-        }
+        // The habit id stays out of the message: Sentry fingerprints on it, so an
+        // interpolated id opens one issue per habit.
+        Sentry.addBreadcrumb(Breadcrumb().apply {
+            category = "trigger"
+            message = "Variation pool empty"
+            level = SentryLevel.INFO
+            setData("habit_id", habit.id.toString())
+        })
         try {
             refillScheduler.enqueueForHabit(habit.id)
         } catch (e: Exception) {
