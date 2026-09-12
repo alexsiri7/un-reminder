@@ -16,11 +16,17 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
+import net.interstellarai.unreminder.domain.model.ActivityMode
+import net.interstellarai.unreminder.domain.model.ActivityResolution
+import net.interstellarai.unreminder.domain.model.ActivityState
+import net.interstellarai.unreminder.service.activity.ActivityObservation
+import net.interstellarai.unreminder.service.activity.ActivityRecognitionManager
 import net.interstellarai.unreminder.worker.RandomIntervalWorker
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
+import java.time.Duration
 import java.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -30,7 +36,9 @@ class RecentTriggersViewModelTest {
     private val triggerRepository: TriggerRepository = mockk()
     private val habitRepository: HabitRepository = mockk()
     private val workManager: WorkManager = mockk()
+    private val activityRecognitionManager: ActivityRecognitionManager = mockk()
     private val workInfos = MutableStateFlow<List<WorkInfo>>(emptyList())
+    private val lastObservation = MutableStateFlow<ActivityObservation?>(null)
 
     @Before
     fun setup() {
@@ -40,6 +48,9 @@ class RecentTriggersViewModelTest {
         every {
             workManager.getWorkInfosForUniqueWorkFlow(RandomIntervalWorker.WORK_NAME)
         } returns workInfos
+        every { activityRecognitionManager.lastObservation } returns lastObservation
+        every { activityRecognitionManager.resolve() } returns
+            ActivityResolution(ActivityState.Mode(ActivityMode.SITTING), null)
     }
 
     @After
@@ -48,7 +59,7 @@ class RecentTriggersViewModelTest {
     }
 
     private fun buildViewModel() =
-        RecentTriggersViewModel(triggerRepository, habitRepository, workManager)
+        RecentTriggersViewModel(triggerRepository, habitRepository, workManager, activityRecognitionManager)
 
     private fun mockInfo(state: WorkInfo.State, nextMillis: Long): WorkInfo = mockk {
         every { this@mockk.state } returns state
@@ -132,5 +143,20 @@ class RecentTriggersViewModelTest {
         advanceUntilIdle()
 
         assertEquals(NextTriggerState.NotScheduled, vm.nextTrigger.value)
+    }
+
+    @Test
+    fun `activity readout re-resolves when a transition lands`() = runTest(testDispatcher) {
+        val vm = buildViewModel()
+        backgroundScope.launch { vm.activity.collect {} }
+        advanceUntilIdle()
+        assertEquals(ActivityState.Mode(ActivityMode.SITTING), vm.activity.value.state)
+
+        every { activityRecognitionManager.resolve() } returns
+            ActivityResolution(ActivityState.Cycling, Duration.ofSeconds(5))
+        lastObservation.value = ActivityObservation(activityType = 1, at = Instant.EPOCH)
+        advanceUntilIdle()
+
+        assertEquals(ActivityResolution(ActivityState.Cycling, Duration.ofSeconds(5)), vm.activity.value)
     }
 }

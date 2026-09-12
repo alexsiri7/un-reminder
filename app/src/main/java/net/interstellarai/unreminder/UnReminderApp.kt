@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import androidx.work.WorkManager
+import net.interstellarai.unreminder.service.activity.ActivityRecognitionManager
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.geofence.LocationReconciler
 import net.interstellarai.unreminder.service.geofence.LocationSettingsChangedReceiver
@@ -38,6 +39,9 @@ class UnReminderApp : Application(), Configuration.Provider {
     lateinit var locationReconciler: LocationReconciler
 
     @Inject
+    lateinit var activityRecognitionManager: ActivityRecognitionManager
+
+    @Inject
     lateinit var eveningInvitationScheduler: EveningInvitationScheduler
 
     override val workManagerConfiguration: Configuration
@@ -64,6 +68,7 @@ class UnReminderApp : Application(), Configuration.Provider {
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             geofenceManager.registerAllFromDb()
             locationReconciler.reconcile()
+            activityRecognitionManager.requestTransitionUpdates()
             eveningInvitationScheduler.ensureScheduled()
         }
         // Registration is also redone whenever system Location or a provider is toggled.

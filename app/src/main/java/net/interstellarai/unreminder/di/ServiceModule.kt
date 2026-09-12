@@ -1,12 +1,15 @@
 package net.interstellarai.unreminder.di
 
 import android.content.Context
+import com.google.android.gms.location.ActivityRecognition
+import com.google.android.gms.location.ActivityRecognitionClient
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.SettingsClient
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.service.worker.RefillScheduler
+import net.interstellarai.unreminder.service.activity.ActivityRecognitionManager
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.geofence.LocationReconciler
 import net.interstellarai.unreminder.service.llm.CloudPromptGenerator
@@ -61,6 +64,18 @@ object ServiceModule {
         geofenceManager: GeofenceManager,
         fusedLocationClient: FusedLocationProviderClient,
     ): LocationReconciler = LocationReconciler(context, locationRepository, geofenceManager, fusedLocationClient)
+
+    @Provides
+    @Singleton
+    fun provideActivityRecognitionClient(@ApplicationContext context: Context): ActivityRecognitionClient =
+        ActivityRecognition.getClient(context)
+
+    @Provides
+    @Singleton
+    fun provideActivityRecognitionManager(
+        @ApplicationContext context: Context,
+        activityRecognitionClient: ActivityRecognitionClient,
+    ): ActivityRecognitionManager = ActivityRecognitionManager(context, activityRecognitionClient)
 
     @Provides
     @Singleton

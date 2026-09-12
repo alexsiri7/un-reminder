@@ -65,6 +65,7 @@ fun RecentTriggersScreen(
 ) {
     val triggers by viewModel.triggers.collectAsStateWithLifecycle()
     val nextTrigger by viewModel.nextTrigger.collectAsStateWithLifecycle()
+    val activity by viewModel.activity.collectAsStateWithLifecycle()
     val formatter = DateTimeFormatter.ofPattern("MMM d \u00b7 HH:mm")
 
     Scaffold(
@@ -108,6 +109,16 @@ fun RecentTriggersScreen(
                             Instant.now(),
                             ZoneId.systemDefault(),
                         ),
+                        style = MonoLabelTiny,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                    )
+                }
+                Spacer(Modifier.height(Dimens.xs))
+                Row {
+                    MonoSectionLabel("activity")
+                    Spacer(Modifier.width(Dimens.sm))
+                    Text(
+                        text = formatActivity(activity),
                         style = MonoLabelTiny,
                         color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
                     )

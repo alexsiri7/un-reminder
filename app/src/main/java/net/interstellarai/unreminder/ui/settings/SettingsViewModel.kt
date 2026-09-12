@@ -13,6 +13,7 @@ import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.PersonalContextRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
+import net.interstellarai.unreminder.service.activity.ActivityRecognitionManager
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.geofence.LocationReconciler
 import net.interstellarai.unreminder.service.geofence.RegistrationHealth
@@ -33,6 +34,7 @@ data class SettingsUiState(
     val hasNotificationPermission: Boolean = false,
     val hasFineLocationPermission: Boolean = false,
     val hasBackgroundLocationPermission: Boolean = false,
+    val hasActivityRecognitionPermission: Boolean = false,
     val backgroundRestricted: Boolean = false,
     val registrationHealth: RegistrationHealth? = null,
     val reconciliationFailure: String? = null,
@@ -55,6 +57,7 @@ class SettingsViewModel @Inject constructor(
     private val habitRepository: HabitRepository,
     private val geofenceManager: GeofenceManager,
     private val locationReconciler: LocationReconciler,
+    private val activityRecognitionManager: ActivityRecognitionManager,
     private val personalContextRepository: PersonalContextRepository,
     private val eveningInvitationRepository: EveningInvitationRepository,
     private val eveningInvitationScheduler: EveningInvitationScheduler,
@@ -139,6 +142,9 @@ class SettingsViewModel @Inject constructor(
                 hasBackgroundLocationPermission = ContextCompat.checkSelfPermission(
                     context, Manifest.permission.ACCESS_BACKGROUND_LOCATION
                 ) == PackageManager.PERMISSION_GRANTED,
+                hasActivityRecognitionPermission = ContextCompat.checkSelfPermission(
+                    context, Manifest.permission.ACTIVITY_RECOGNITION
+                ) == PackageManager.PERMISSION_GRANTED,
                 backgroundRestricted =
                     context.getSystemService(ActivityManager::class.java)?.isBackgroundRestricted == true,
             )
@@ -149,6 +155,12 @@ class SettingsViewModel @Inject constructor(
     fun refreshLocationTracking() {
         refreshPermissions()
         geofenceManager.refreshRegistration()
+    }
+
+    /** Activity permission result: the launch-time subscription was skipped while it was denied. */
+    fun refreshActivityRecognition() {
+        refreshPermissions()
+        viewModelScope.launch { activityRecognitionManager.requestTransitionUpdates() }
     }
 
     fun testTriggerNow() {

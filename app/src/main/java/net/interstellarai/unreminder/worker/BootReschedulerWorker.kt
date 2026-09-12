@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import net.interstellarai.unreminder.service.activity.ActivityRecognitionManager
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.widget.WidgetRefresher
 import dagger.assisted.Assisted
@@ -14,6 +15,7 @@ class BootReschedulerWorker @AssistedInject constructor(
     @Assisted appContext: Context,
     @Assisted workerParams: WorkerParameters,
     private val geofenceManager: GeofenceManager,
+    private val activityRecognitionManager: ActivityRecognitionManager,
     private val eveningInvitationScheduler: EveningInvitationScheduler,
     private val widgetRefresher: WidgetRefresher,
 ) : CoroutineWorker(appContext, workerParams) {
@@ -24,6 +26,7 @@ class BootReschedulerWorker @AssistedInject constructor(
 
     override suspend fun doWork(): Result {
         geofenceManager.registerAllFromDb()
+        activityRecognitionManager.requestTransitionUpdates()
         eveningInvitationScheduler.ensureScheduled()
         widgetRefresher.refresh()
         return Result.success()

@@ -18,6 +18,9 @@ import net.interstellarai.unreminder.data.repository.WindowRepository
 import net.interstellarai.unreminder.domain.DisplayTier
 import net.interstellarai.unreminder.domain.HabitAvailabilityService
 import net.interstellarai.unreminder.domain.isDoableNow
+import net.interstellarai.unreminder.domain.model.ActivityMode
+import net.interstellarai.unreminder.domain.model.ActivityResolution
+import net.interstellarai.unreminder.domain.model.ActivityState
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.notification.NotificationHelper
@@ -70,6 +73,9 @@ class TriggerGateStaysStrictTest {
             locationRepository = mockk(),
             geofenceManager = geofenceManager,
             locationReconciler = mockk(relaxed = true),
+            activityRecognitionManager = mockk {
+                every { resolve() } returns ActivityResolution(ActivityState.Mode(ActivityMode.SITTING), null)
+            },
             notificationHelper = notificationHelper,
             variationRepository = mockk(),
             refillScheduler = mockk(relaxUnitFun = true),

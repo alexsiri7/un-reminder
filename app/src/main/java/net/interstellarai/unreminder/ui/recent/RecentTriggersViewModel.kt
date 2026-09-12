@@ -9,6 +9,8 @@ import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.db.TriggerEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
+import net.interstellarai.unreminder.domain.model.ActivityResolution
+import net.interstellarai.unreminder.service.activity.ActivityRecognitionManager
 import net.interstellarai.unreminder.worker.RandomIntervalWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -32,6 +34,7 @@ class RecentTriggersViewModel @Inject constructor(
     triggerRepository: TriggerRepository,
     habitRepository: HabitRepository,
     workManager: WorkManager,
+    activityRecognitionManager: ActivityRecognitionManager,
 ) : ViewModel() {
 
     val triggers: StateFlow<List<TriggerWithHabit>> = combine(
@@ -67,6 +70,14 @@ class RecentTriggersViewModel @Inject constructor(
                 SharingStarted.WhileSubscribed(5000),
                 NextTriggerState.NotScheduled,
             )
+
+    /**
+     * Re-resolved when a transition lands or the screen is re-entered, so the age it carries is
+     * as of the last of those, not of the moment it is read. Good enough for a debug readout.
+     */
+    val activity: StateFlow<ActivityResolution> = activityRecognitionManager.lastObservation
+        .map { activityRecognitionManager.resolve() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), activityRecognitionManager.resolve())
 
     private companion object {
         private const val TAG = "RecentTriggersVM"

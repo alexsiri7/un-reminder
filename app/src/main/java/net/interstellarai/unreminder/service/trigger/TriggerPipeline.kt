@@ -7,8 +7,10 @@ import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
+import net.interstellarai.unreminder.domain.model.ActivityState
 import net.interstellarai.unreminder.domain.model.NotificationVariant
 import net.interstellarai.unreminder.domain.model.TriggerStatus
+import net.interstellarai.unreminder.service.activity.ActivityRecognitionManager
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.geofence.LocationReconciler
 import net.interstellarai.unreminder.service.notification.NotificationHelper
@@ -30,6 +32,7 @@ class TriggerPipeline @Inject constructor(
     private val locationRepository: LocationRepository,
     private val geofenceManager: GeofenceManager,
     private val locationReconciler: LocationReconciler,
+    private val activityRecognitionManager: ActivityRecognitionManager,
     private val notificationHelper: NotificationHelper,
     private val variationRepository: VariationRepository,
     private val refillScheduler: RefillScheduler,
@@ -77,6 +80,13 @@ class TriggerPipeline @Inject constructor(
         val locationIds = geofenceManager.currentLocationIds.value
 
         try {
+            // A DISMISSED written here never reaches DismissalTracker, so no habit pays for it.
+            if (activityRecognitionManager.resolve().state == ActivityState.Cycling) {
+                Log.d(TAG, "Cycling, suppressing trigger $triggerId")
+                triggerRepository.updateOutcome(triggerId, TriggerStatus.DISMISSED)
+                return
+            }
+
             val eligibleHabits = habitRepository.getEligibleHabits(locationIds)
             if (eligibleHabits.isEmpty()) {
                 Log.d(TAG, "No eligible habits for locationIds=$locationIds, skipping trigger $triggerId")
