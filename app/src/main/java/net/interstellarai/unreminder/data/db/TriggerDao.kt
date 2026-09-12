@@ -66,15 +66,16 @@ interface TriggerDao {
     suspend fun getCompletionsSince(habitId: Long, sinceMillis: Long): List<TriggerEntity>
 
     /**
-     * Returns max fired_at for unanswered triggers — DISMISSED, still-FIRED, or EXPIRED
-     * (used for per-habit cooldown check). A superseded notification was still a nudge,
-     * so expiring one must not shorten the cooldown it started.
+     * Returns max fired_at for triggers that were not completed — DISMISSED, still-FIRED,
+     * EXPIRED, or deferred with LATER (used for per-habit cooldown check). A superseded or
+     * deferred notification was still a nudge that happened, so neither may shorten the
+     * cooldown it started.
      */
     @Query("""
         SELECT MAX(fired_at) FROM triggers
         WHERE habit_id = :habitId
           AND fired_at IS NOT NULL
-          AND (status = 'DISMISSED' OR status = 'FIRED' OR status = 'EXPIRED')
+          AND (status = 'DISMISSED' OR status = 'FIRED' OR status = 'EXPIRED' OR status = 'LATER')
     """)
     suspend fun getLastFiredOrDismissedForHabit(habitId: Long): Long?
 

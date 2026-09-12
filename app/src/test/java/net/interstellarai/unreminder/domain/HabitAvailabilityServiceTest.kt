@@ -289,6 +289,25 @@ class HabitAvailabilityServiceTest {
         }
 
     @Test
+    fun `a habit deferred with Later ranks by its cooldown like any habit just prompted`() = runTest(testDispatcher) {
+        val cooldownHabit = testHabit.copy(cooldownMinutes = 60)
+        givenNoLocationsOrWindows()
+        lastTrigger(cooldownHabit.id, TriggerStatus.LATER)
+        coEvery { mockTriggerRepository.getLastFiredOrDismissedForHabit(cooldownHabit.id) } returns Instant.now().toEpochMilli()
+
+        assertEquals(mapOf(1L to DisplayTier.PACED), service.computeDisplayTiers(listOf(cooldownHabit)))
+    }
+
+    @Test
+    fun `a habit deferred with Later and no cooldown is simply doable`() = runTest(testDispatcher) {
+        val noCooldown = testHabit.copy(cooldownMinutes = 0)
+        givenNoLocationsOrWindows()
+        lastTrigger(noCooldown.id, TriggerStatus.LATER)
+
+        assertEquals(mapOf(1L to DisplayTier.DOABLE), service.computeDisplayTiers(listOf(noCooldown)))
+    }
+
+    @Test
     fun `a paused habit gets no tier even when recently dismissed`() = runTest(testDispatcher) {
         val paused = testHabit.copy(active = false)
         givenNoLocationsOrWindows()

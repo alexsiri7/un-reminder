@@ -87,6 +87,32 @@ class NotificationActionReceiverTest {
     }
 
     @Test
+    fun `later records LATER, touches no dedication level, cancels and refreshes`() {
+        coEvery { triggerRepository.getById(42L) } returns trigger(TriggerStatus.FIRED)
+
+        receiver.onReceive(context, actionIntent(NotificationHelper.ACTION_LATER))
+
+        verify(timeout = 2_000) { pendingResult.finish() }
+        coVerify(exactly = 1) { triggerRepository.updateOutcome(42L, TriggerStatus.LATER) }
+        coVerify(exactly = 0) { dismissalTracker.onDismissed(any()) }
+        coVerify(exactly = 0) { dismissalTracker.onCompleted(any()) }
+        verify(exactly = 1) { notificationManager.cancel(42) }
+        verify(exactly = 1) { widgetRefresher.refresh() }
+    }
+
+    @Test
+    fun `a swipe that lands after Later is ignored`() {
+        coEvery { triggerRepository.getById(42L) } returns trigger(TriggerStatus.LATER)
+
+        receiver.onReceive(context, actionIntent(NotificationHelper.ACTION_DISMISSED))
+
+        verify(timeout = 2_000) { pendingResult.finish() }
+        coVerify(exactly = 0) { triggerRepository.updateOutcome(any(), any()) }
+        coVerify(exactly = 0) { dismissalTracker.onDismissed(any()) }
+        verify(exactly = 1) { notificationManager.cancel(42) }
+    }
+
+    @Test
     fun `a dismissal never overwrites an already recorded completion`() {
         coEvery { triggerRepository.getById(42L) } returns trigger(TriggerStatus.COMPLETED)
 

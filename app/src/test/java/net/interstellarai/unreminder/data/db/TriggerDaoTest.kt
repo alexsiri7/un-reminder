@@ -209,6 +209,7 @@ class TriggerDaoTest {
         insertTrigger(habitId, TriggerStatus.COMPLETED, midnightMillis)
         insertTrigger(habitId, TriggerStatus.DISMISSED, midnightMillis)
         insertTrigger(habitId, TriggerStatus.EXPIRED, midnightMillis)
+        insertTrigger(habitId, TriggerStatus.LATER, midnightMillis)
 
         assertEquals(listOf(firedId), triggerDao.getFiredIds())
     }
@@ -219,6 +220,24 @@ class TriggerDaoTest {
         insertTrigger(habitId, TriggerStatus.EXPIRED, midnightMillis)
 
         assertEquals(midnightMillis, triggerDao.getLastFiredOrDismissedForHabit(habitId))
+    }
+
+    @Test
+    fun `a LATER trigger still holds the habit cooldown`() = runTest {
+        val habitId = insertHabit("hLaterCooldown")
+        insertTrigger(habitId, TriggerStatus.LATER, midnightMillis)
+
+        assertEquals(midnightMillis, triggerDao.getLastFiredOrDismissedForHabit(habitId))
+    }
+
+    // Selection weight reads getLastFiredForHabit; a LATER trigger counts as the last prompt,
+    // so the habit re-enters the pool at the weight of a habit just nudged.
+    @Test
+    fun `getLastFiredForHabit returns the fired_at of a LATER trigger`() = runTest {
+        val habitId = insertHabit("hLaterWeight")
+        insertTrigger(habitId, TriggerStatus.LATER, midnightMillis)
+
+        assertEquals(midnightMillis, triggerDao.getLastFiredForHabit(habitId))
     }
 
     @Test

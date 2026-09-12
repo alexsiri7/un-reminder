@@ -68,7 +68,7 @@ interface HabitDao {
             SELECT habit_id FROM triggers
             WHERE habit_id IS NOT NULL
             AND fired_at IS NOT NULL
-            AND (status = 'DISMISSED' OR status = 'FIRED' OR status = 'EXPIRED')
+            AND (status = 'DISMISSED' OR status = 'FIRED' OR status = 'EXPIRED' OR status = 'LATER')
             AND fired_at > (:nowEpochMillis - h.cooldown_minutes * 60 * 1000)
             AND h.cooldown_minutes > 0
         )
