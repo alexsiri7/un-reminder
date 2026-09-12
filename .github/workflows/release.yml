@@ -89,52 +89,7 @@ jobs:
           PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
         run: |
           pip install google-api-python-client google-auth --quiet
-          python3 << 'EOF'
-          import json, os, sys
-          from google.oauth2 import service_account
-          from googleapiclient.discovery import build
-          from googleapiclient.errors import HttpError
-          pkg = 'net.interstellarai.unreminder'
-          creds = service_account.Credentials.from_service_account_info(
-              json.loads(os.environ['PLAY_SERVICE_ACCOUNT_JSON']),
-              scopes=['https://www.googleapis.com/auth/androidpublisher']
-          )
-          svc = build('androidpublisher', 'v3', credentials=creds)
-          edit = svc.edits().insert(packageName=pkg, body={}).execute()
-          eid = edit['id']
-          track = svc.edits().tracks().get(packageName=pkg, editId=eid, track='internal').execute()
-          print(f"Track state: {json.dumps(track, indent=2)}")
-          draft_release = None
-          for r in track.get('releases', []):
-              if r.get('status') == 'draft':
-                  draft_release = r
-          if not draft_release:
-              print("No draft releases to promote")
-              svc.edits().delete(packageName=pkg, editId=eid).execute()
-              sys.exit(0)
-          # Only send the new release as completed; omit older releases so Play retires them
-          draft_release['status'] = 'completed'
-          track['releases'] = [draft_release]
-          try:
-              svc.edits().tracks().update(packageName=pkg, editId=eid, track='internal', body=track).execute()
-              svc.edits().commit(packageName=pkg, editId=eid).execute()
-              print("Successfully promoted draft to completed")
-          except HttpError as e:
-              # Play API rejects 'completed' releases while the app itself is in
-              # draft state (first publication not yet approved). The release was
-              # uploaded fine as a draft and is reachable via Internal App Sharing;
-              # CI shouldn't go red on a Play Console state we can't fix from here.
-              msg = (e.content or b'').decode('utf-8', errors='replace')
-              if e.resp.status == 400 and 'on draft app' in msg.lower():
-                  msg_oneline = msg.replace('\n', ' ').replace('\r', ' ')
-                  print(f"::warning::Play app is still in draft state — draft release uploaded but promotion to 'completed' is not allowed yet. Complete Play Console setup (content rating, target audience, data safety, etc.) to exit draft state. API said: {msg_oneline}")
-                  try:
-                      svc.edits().delete(packageName=pkg, editId=eid).execute()
-                  except HttpError:
-                      pass
-                  sys.exit(0)
-              raise
-          EOF
+          python3 tools/promote_internal_track.py
 
       - name: Publish to Play Store production (tag release)
         if: startsWith(github.ref, 'refs/tags/v')
@@ -202,7 +157,14 @@ jobs:
             title=$(gh pr view "$pr" --repo "${{ github.repository }}" --json title --jq '.title')
             body="PR #$pr: $title (${VERSION_NAME})"
           fi
+          ntfy_title="${{ github.event.repository.name }} landed in prod"
+          ntfy_tags="tada"
+          if [ -n "$PLAY_PROMOTION_BLOCKED" ]; then
+            ntfy_title="${{ github.event.repository.name }} release stuck in Play draft"
+            ntfy_tags="warning"
+            body="$body — $PLAY_PROMOTION_BLOCKED"
+          fi
           curl -s -o /dev/null \
-            -H "Title: ${{ github.event.repository.name }} landed in prod" \
-            -H "Tags: tada" \
+            -H "Title: $ntfy_title" \
+            -H "Tags: $ntfy_tags" \
             -d "$body" "ntfy.sh/$NTFY_TOPIC"
