@@ -35,8 +35,13 @@ class Converters {
     @TypeConverter
     fun fromVariantShape(value: VariantShape?): String? = value?.name
 
+    /**
+     * A shape this build does not know (written by a newer or older worker deploy) reads back
+     * as null, the same as a pre-migration row, so the pool stays readable instead of throwing
+     * on every pick.
+     */
     @TypeConverter
-    fun toVariantShape(value: String?): VariantShape? = value?.let { VariantShape.valueOf(it) }
+    fun toVariantShape(value: String?): VariantShape? = VariantShape.entries.firstOrNull { it.name == value }
 
     @TypeConverter
     fun fromDescriptionLadder(list: List<String>?): String? =

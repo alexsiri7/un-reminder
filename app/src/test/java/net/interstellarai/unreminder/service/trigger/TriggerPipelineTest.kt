@@ -443,6 +443,25 @@ class TriggerPipelineTest {
     }
 
     @Test
+    fun `pickRandomUnused throws - reports to Sentry so it is distinguishable from an empty pool`() = runTest {
+        mockkStatic(Sentry::class)
+        every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
+        every { Sentry.addBreadcrumb(any<Breadcrumb>()) } just runs
+
+        coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
+        coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(testHabit)
+        val failure = RuntimeException("db error")
+        coEvery { variationRepository.pickRandomUnused(1L) } throws failure
+        coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 2) } returns null
+
+        pipeline.execute(42L)
+
+        verify(exactly = 1) { Sentry.captureException(failure, any<ScopeCallback>()) }
+        coVerify { triggerRepository.updateFired(42L, 1L, "meditation") }
+        unmockkStatic(Sentry::class)
+    }
+
+    @Test
     fun `pickRandomUnused throws CancellationException - propagates`() = runTest {
         coEvery { triggerRepository.getById(42L) } returns scheduledTrigger
         coEvery { habitRepository.getEligibleHabits(any()) } returns listOf(testHabit)

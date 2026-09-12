@@ -1,6 +1,7 @@
 package net.interstellarai.unreminder.data.db
 
 import net.interstellarai.unreminder.domain.model.TriggerStatus
+import net.interstellarai.unreminder.domain.model.VariantShape
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -55,6 +56,26 @@ class ConvertersTest {
     fun `TriggerStatus null round-trip`() {
         assertNull(converters.fromTriggerStatus(null))
         assertNull(converters.toTriggerStatus(null))
+    }
+
+    @Test
+    fun `VariantShape round-trip`() {
+        for (shape in VariantShape.entries) {
+            assertEquals(shape, converters.toVariantShape(converters.fromVariantShape(shape)))
+        }
+    }
+
+    @Test
+    fun `VariantShape null round-trip`() {
+        assertNull(converters.fromVariantShape(null))
+        assertNull(converters.toVariantShape(null))
+    }
+
+    @Test
+    fun `toVariantShape reads an unrecognized shape as null instead of throwing`() {
+        assertNull(converters.toVariantShape("PLEA"))
+        assertNull(converters.toVariantShape("question"))
+        assertNull(converters.toVariantShape(""))
     }
 
     @Test
