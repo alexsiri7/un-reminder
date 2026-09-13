@@ -227,6 +227,8 @@ fun SettingsScreen(
             ) {
                 PermissionRow(
                     title = "Notifications",
+                    grantedSubtitle = "lets nudges reach you",
+                    deniedSubtitle = "nudges won't show at all",
                     granted = uiState.hasNotificationPermission,
                     onRequest = {
                         notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -238,6 +240,8 @@ fun SettingsScreen(
                 )
                 PermissionRow(
                     title = "Fine location",
+                    grantedSubtitle = "checks where you are each nudge",
+                    deniedSubtitle = "location habits won't fire",
                     granted = uiState.hasFineLocationPermission,
                     onRequest = {
                         locationPermissionLauncher.launch(
@@ -254,6 +258,8 @@ fun SettingsScreen(
                 )
                 PermissionRow(
                     title = "Background location",
+                    grantedSubtitle = "spots arrivals in the background",
+                    deniedSubtitle = "habits miss you arriving",
                     granted = uiState.hasBackgroundLocationPermission,
                     onRequest = {
                         locationPermissionLauncher.launch(
@@ -267,7 +273,8 @@ fun SettingsScreen(
                 )
                 PermissionRow(
                     title = "Physical activity",
-                    subtitle = "skips nudges while you cycle",
+                    grantedSubtitle = "habits fit motion, skips cycling",
+                    deniedSubtitle = "assumes you sit all day",
                     granted = uiState.hasActivityRecognitionPermission,
                     onRequest = {
                         activityPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
@@ -455,9 +462,10 @@ private fun LinkRow(
 @Composable
 private fun PermissionRow(
     title: String,
+    grantedSubtitle: String,
+    deniedSubtitle: String,
     granted: Boolean,
     onRequest: () -> Unit,
-    subtitle: String? = null,
 ) {
     Row(
         modifier = Modifier
@@ -473,14 +481,12 @@ private fun PermissionRow(
                 style = DisplaySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            if (subtitle != null) {
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    subtitle,
-                    style = MonoLabelTiny,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                )
-            }
+            Spacer(Modifier.height(2.dp))
+            Text(
+                if (granted) grantedSubtitle else deniedSubtitle,
+                style = MonoLabelTiny,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            )
             Spacer(Modifier.height(2.dp))
             Text(
                 if (granted) "granted" else "not granted",
