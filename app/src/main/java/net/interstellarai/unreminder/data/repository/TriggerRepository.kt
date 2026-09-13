@@ -2,6 +2,7 @@ package net.interstellarai.unreminder.data.repository
 
 import net.interstellarai.unreminder.data.db.TriggerDao
 import net.interstellarai.unreminder.data.db.TriggerEntity
+import net.interstellarai.unreminder.domain.model.NotificationStyle
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -30,7 +31,8 @@ class TriggerRepository @Inject constructor(
         id: Long,
         habitId: Long,
         prompt: String,
-        actionUrl: String?
+        actionUrl: String?,
+        style: NotificationStyle,
     ) {
         triggerDao.updateFired(
             id = id,
@@ -38,7 +40,8 @@ class TriggerRepository @Inject constructor(
             firedAt = Instant.now().toEpochMilli(),
             habitId = habitId,
             prompt = prompt,
-            actionUrl = actionUrl
+            actionUrl = actionUrl,
+            style = style.name,
         )
     }
 
@@ -77,6 +80,8 @@ class TriggerRepository @Inject constructor(
         triggerDao.getLastNForHabit(habitId, n)
 
     suspend fun getLastFiredForHabit(habitId: Long): Long? = triggerDao.getLastFiredForHabit(habitId)
+
+    suspend fun getLastStyleForHabit(habitId: Long): NotificationStyle? = triggerDao.getLastStyleForHabit(habitId)
 
     suspend fun getCompletionsSince(habitId: Long, sinceMillis: Long): List<TriggerEntity> =
         triggerDao.getCompletionsSince(habitId, sinceMillis)

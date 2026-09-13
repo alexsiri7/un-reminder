@@ -8,6 +8,7 @@ import android.content.Intent
 import android.graphics.drawable.Icon
 import androidx.core.app.NotificationCompat
 import net.interstellarai.unreminder.R
+import net.interstellarai.unreminder.domain.model.NotificationStyle
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -50,6 +51,11 @@ class NotificationHelper @Inject constructor(
         const val NOTIFICATION_LATER_BASE = 6_000_000L
         // Header sub-text marking a variant that carries a video (#378).
         const val VIDEO_INDICATOR = "\u25B6 video"
+        // ARGB copies of ui/theme/Color.kt's SageAccent and its sage-harmonised status hues; the
+        // service layer stays free of Compose. The palette excludes sage so ACCENT never matches
+        // TEXT_ONLY.
+        internal val SAGE_ACCENT = 0xFF4D6B3A.toInt()
+        internal val ACCENT_PALETTE = listOf(0xFF9A7A15.toInt(), 0xFF7A8A9A.toInt(), 0xFF8C6B4F.toInt())
     }
 
     fun createNotificationChannel() {
@@ -87,6 +93,7 @@ class NotificationHelper @Inject constructor(
         triggerId: Long,
         promptText: String,
         habitName: String,
+        style: NotificationStyle,
         actionUrl: String? = null,
         spriteTag: String? = null,
     ) {
@@ -116,20 +123,40 @@ class NotificationHelper @Inject constructor(
             (NOTIFICATION_DELETE_BASE + triggerId).toRequestCode(),
         )
 
-        // The system rounds the large icon's corners itself; the opaque tile goes in as-is.
+        // The system rounds the large icon's corners itself; the opaque tile goes in as-is, and
+        // the same Icon doubles as the big picture.
         val sprite = Icon.createWithResource(context, spriteResolver.resolve(spriteTag, triggerId))
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setLargeIcon(sprite)
             .setContentTitle("$emoji $habitName")
             .setContentText(promptText)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(promptText))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setDeleteIntent(deleteIntent)
             .setContentIntent(detailPendingIntent)
             .addAction(0, "Open", detailPendingIntent)
             .addAction(0, "Later", laterIntent)
+
+        // The style is chosen and frozen by TriggerPipeline; this only dresses the builder. The
+        // header binds subText before any style summary, so the video indicator survives every
+        // style — never call setSummaryText here.
+        when (style) {
+            NotificationStyle.SPRITE -> builder
+                .setLargeIcon(sprite)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(promptText))
+            NotificationStyle.BIG_PICTURE -> builder
+                .setLargeIcon(sprite)
+                // bigLargeIcon(null): the expanded view otherwise shows the sprite twice.
+                .setStyle(NotificationCompat.BigPictureStyle().bigPicture(sprite).bigLargeIcon(null as Icon?))
+            NotificationStyle.TEXT_ONLY -> builder
+                .setColor(SAGE_ACCENT)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(promptText))
+            NotificationStyle.ACCENT -> builder
+                .setLargeIcon(sprite)
+                // .mod() (not %) keeps the index non-negative for a negative id.
+                .setColor(ACCENT_PALETTE[triggerId.mod(ACCENT_PALETTE.size)])
+                .setStyle(NotificationCompat.BigTextStyle().bigText(promptText))
+        }
 
         // The video itself is watched from the variant view; the notification only flags it.
         if (actionUrl != null && actionUrl.startsWith("https://")) {

@@ -2,6 +2,7 @@ package net.interstellarai.unreminder.data.db
 
 import androidx.room.TypeConverter
 import net.interstellarai.unreminder.domain.model.ActivityMode
+import net.interstellarai.unreminder.domain.model.NotificationStyle
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.domain.model.VariantShape
 import org.json.JSONArray
@@ -53,6 +54,14 @@ class Converters {
      */
     @TypeConverter
     fun toVariantShape(value: String?): VariantShape? = VariantShape.entries.firstOrNull { it.name == value }
+
+    @TypeConverter
+    fun fromNotificationStyle(value: NotificationStyle?): String? = value?.name
+
+    /** A style this build does not know reads back as null, the same as a pre-migration row. */
+    @TypeConverter
+    fun toNotificationStyle(value: String?): NotificationStyle? =
+        NotificationStyle.entries.firstOrNull { it.name == value }
 
     @TypeConverter
     fun fromDescriptionLadder(list: List<String>?): String? =

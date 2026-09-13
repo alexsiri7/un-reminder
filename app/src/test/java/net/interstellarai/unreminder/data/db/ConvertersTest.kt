@@ -2,6 +2,7 @@ package net.interstellarai.unreminder.data.db
 
 import net.interstellarai.unreminder.domain.model.ActivityMode
 import net.interstellarai.unreminder.domain.model.TriggerStatus
+import net.interstellarai.unreminder.domain.model.NotificationStyle
 import net.interstellarai.unreminder.domain.model.VariantShape
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -77,6 +78,26 @@ class ConvertersTest {
         assertNull(converters.toVariantShape("PLEA"))
         assertNull(converters.toVariantShape("question"))
         assertNull(converters.toVariantShape(""))
+    }
+
+    @Test
+    fun `NotificationStyle round-trip`() {
+        for (style in NotificationStyle.entries) {
+            assertEquals(style, converters.toNotificationStyle(converters.fromNotificationStyle(style)))
+        }
+    }
+
+    @Test
+    fun `NotificationStyle null round-trip`() {
+        assertNull(converters.fromNotificationStyle(null))
+        assertNull(converters.toNotificationStyle(null))
+    }
+
+    @Test
+    fun `toNotificationStyle reads an unrecognized style as null instead of throwing`() {
+        assertNull(converters.toNotificationStyle("SPRITE_RIGHT"))
+        assertNull(converters.toNotificationStyle("sprite"))
+        assertNull(converters.toNotificationStyle(""))
     }
 
     @Test

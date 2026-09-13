@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import net.interstellarai.unreminder.MainActivity
+import net.interstellarai.unreminder.domain.model.NotificationStyle
 import net.interstellarai.unreminder.widget.DoableHabitWidget
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -102,7 +103,7 @@ class EveningInvitationNotificationTest {
     @Test
     fun `cancelEveningInvitation clears the invitation and nothing else`() {
         posted()
-        helper.postTriggerNotification(triggerId = 3L, promptText = "prompt", habitName = "stretch")
+        helper.postTriggerNotification(triggerId = 3L, promptText = "prompt", habitName = "stretch", style = NotificationStyle.SPRITE)
         val triggerNotificationId = 3L.toRequestCode()
 
         helper.cancelEveningInvitation()
@@ -114,7 +115,7 @@ class EveningInvitationNotificationTest {
     @Test
     fun `dismiss receiver clears the invitation and nothing else`() {
         posted()
-        helper.postTriggerNotification(triggerId = 3L, promptText = "prompt", habitName = "stretch")
+        helper.postTriggerNotification(triggerId = 3L, promptText = "prompt", habitName = "stretch", style = NotificationStyle.SPRITE)
         val triggerNotificationId = 3L.toRequestCode()
 
         EveningInvitationDismissReceiver().onReceive(context, Intent())

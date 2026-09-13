@@ -6,6 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
+import net.interstellarai.unreminder.domain.model.NotificationStyle
 
 @Dao
 interface TriggerDao {
@@ -33,8 +34,8 @@ interface TriggerDao {
     @Query("SELECT * FROM triggers WHERE id = :id")
     suspend fun getById(id: Long): TriggerEntity?
 
-    @Query("UPDATE triggers SET status = :status, fired_at = :firedAt, habit_id = :habitId, generated_prompt = :prompt, action_url = :actionUrl WHERE id = :id")
-    suspend fun updateFired(id: Long, status: String, firedAt: Long, habitId: Long, prompt: String, actionUrl: String?)
+    @Query("UPDATE triggers SET status = :status, fired_at = :firedAt, habit_id = :habitId, generated_prompt = :prompt, action_url = :actionUrl, style = :style WHERE id = :id")
+    suspend fun updateFired(id: Long, status: String, firedAt: Long, habitId: Long, prompt: String, actionUrl: String?, style: String)
 
     @Query("UPDATE triggers SET status = :status WHERE id = :id")
     suspend fun updateStatus(id: Long, status: String)
@@ -55,6 +56,10 @@ interface TriggerDao {
 
     @Query("SELECT fired_at FROM triggers WHERE habit_id = :habitId AND fired_at IS NOT NULL ORDER BY fired_at DESC LIMIT 1")
     suspend fun getLastFiredForHabit(habitId: Long): Long?
+
+    /** The look of this habit's most recent nudge, so the next one can avoid it. Null before any styled fire. */
+    @Query("SELECT style FROM triggers WHERE habit_id = :habitId AND fired_at IS NOT NULL ORDER BY fired_at DESC LIMIT 1")
+    suspend fun getLastStyleForHabit(habitId: Long): NotificationStyle?
 
     @Query("SELECT * FROM triggers WHERE habit_id = :habitId AND fired_at IS NOT NULL ORDER BY fired_at DESC LIMIT :limit")
     suspend fun getLastNForHabit(habitId: Long, limit: Int): List<TriggerEntity>
