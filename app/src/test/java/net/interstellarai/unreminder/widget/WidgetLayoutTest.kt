@@ -51,6 +51,17 @@ class WidgetLayoutTest {
         assertEquals(WidgetLayout.entries.toSet(), seen)
     }
 
+    // A placed widget always has a previous layout, so a fixed successor order would pass the
+    // two tests above and still show every widget the same predictable cycle.
+    @Test
+    fun `from any previous layout next can land on each of the other four`() {
+        for (previous in WidgetLayout.entries) {
+            val seen = (0 until 200).map { WidgetLayout.next(previous, Random(it)) }.toSet()
+
+            assertEquals("after $previous", WidgetLayout.entries.toSet() - previous, seen)
+        }
+    }
+
     @Test
     fun `an unknown name resolves to no layout`() {
         assertNull(WidgetLayout.fromName("SPRITE_TOP"))
