@@ -67,7 +67,7 @@ model or prompt that produced it. Pricing constants in `src/lib/requesty.ts` fol
 | Version | Model | Prompt | Date | Change |
 |---------|-------|--------|------|--------|
 | `1` | `google/gemini-3-flash-preview` | `buildPrompt` as of #391 (shapes #373, mode tags #374) | 2026-04 | Initial model, never revisited since the first Worker deploy |
-| `2` | `google/gemini-3.6-flash` | Unchanged from `1` | 2026-09 | #376 model upgrade |
+| `2` | `google/gemini-3.6-flash`, `reasoning_effort: low` | Unchanged from `1` | 2026-09 | #376 model upgrade; thinking bounded and reserved inside `max_tokens` |
 
 ### 4. Rate limiting (optional)
 

@@ -77,6 +77,23 @@ describe('callRequesty', () => {
     expect(sentBody?.temperature).toBe(0.9)
   })
 
+  it('bounds thinking with reasoning_effort low on every request', async () => {
+    let sentBody: { reasoning_effort: string } | undefined
+    globalThis.fetch = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      sentBody = JSON.parse(init?.body as string)
+      return new Response(
+        JSON.stringify({
+          choices: [{ message: { content: 'hi' } }],
+          usage: { prompt_tokens: 1, completion_tokens: 1 },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      )
+    }) as typeof fetch
+
+    await callRequesty('key', 'model', 'prompt')
+    expect(sentBody?.reasoning_effort).toBe('low')
+  })
+
   it('defaults tokens to 0 when usage is missing', async () => {
     mockFetchResponses({
       status: 200,

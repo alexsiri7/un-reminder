@@ -11,6 +11,12 @@ const toError = (err: unknown): Error =>
 export const COST_PER_OUTPUT_TOKEN = 7 / 1_000_000
 export const COST_PER_INPUT_TOKEN = 1.5 / 1_000_000
 
+// Requesty maps `low` to a bounded thinking budget (1,024 tokens on Gemini) that is counted
+// inside max_tokens; unbounded thinking truncated the JSON in #81. Callers must leave
+// REASONING_TOKEN_BUDGET of headroom above their expected content.
+export const REASONING_EFFORT = 'low'
+export const REASONING_TOKEN_BUDGET = 1024
+
 export interface RequestyResult {
   text: string
   outputTokens: number
@@ -37,6 +43,7 @@ export async function callRequesty(
       messages: [{ role: 'user', content: prompt }],
       max_tokens: maxTokens,
       temperature,
+      reasoning_effort: REASONING_EFFORT,
     }),
   })
 

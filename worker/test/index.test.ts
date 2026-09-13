@@ -439,6 +439,32 @@ describe('un-reminder-worker', () => {
     expect(upstreamBody.messages[0].content).toContain('"modes": array of strings, each one of WALKING, SITTING, TRANSPORT')
   })
 
+  it('reserves the thinking budget above the per-variant content estimate in max_tokens', async () => {
+    for (const [n, expectedMaxTokens] of [[3, 3 * 120 + 1024], [50, 6144]] as const) {
+      fetchCallIndex = 0
+      fetchResponses.length = 0
+      mockRequestySuccess([{ text: 'Stretch!', shape: 'TERSE' }])
+
+      const req = makeRequest('/v1/generate/batch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-UR-Secret': SECRET,
+        },
+        body: validBody(n),
+      })
+      const ctx = createExecutionContext()
+      const res = await app.fetch(req, testEnv(), ctx)
+      await waitOnExecutionContext(ctx)
+      expect(res.status).toBe(200)
+
+      const fetchMock = globalThis.fetch as unknown as { mock: { calls: unknown[][] } }
+      const requestInit = fetchMock.mock.calls.at(-1)![1] as RequestInit
+      const upstreamBody = JSON.parse(requestInit.body as string) as { max_tokens: number }
+      expect(upstreamBody.max_tokens).toBe(expectedMaxTokens)
+    }
+  })
+
   // ---- personalContext tests ----
 
   it('injects personalContext into prompt as Style line', async () => {
