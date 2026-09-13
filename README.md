@@ -9,7 +9,7 @@ Notifications generated via a private cloud proxy (personal Cloudflare Worker + 
 ## 1. Core Objectives
 
 1. **Decouple time from habit** — move away from "Do X at 7:00 PM."
-2. **Defeat habituation** — every notification looks and reads differently, so the brain doesn't filter them out. Notification titles rotate through 20 emoji keyed on the trigger ID, so each prompt has a distinct visual signature.
+2. **Defeat habituation** — every notification looks and reads differently, so the brain doesn't filter them out. Notifications rotate through 20 emoji keyed on the trigger ID, prefixed to the habit name on the line beneath the title, so each prompt has a distinct visual signature.
 3. **Align with energy & context** — only prompt habits the user can actually do in their current location/state.
 4. **Zero-friction adoption** — install once, add a few habits, done. No companion setup, no OS-level automation configuration.
 

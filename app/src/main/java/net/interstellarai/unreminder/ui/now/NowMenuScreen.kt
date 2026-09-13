@@ -194,19 +194,21 @@ private fun MenuRow(item: NowMenuItem, onComplete: () -> Unit) {
         SpriteTile(item.spriteRes)
         Spacer(Modifier.width(Dimens.md))
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = item.name,
-                style = DisplaySmall,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = textAlpha),
-            )
+            // The variant is the headline and the habit name its label; without a variant the
+            // name takes the headline's place.
             if (item.text != null) {
-                Spacer(Modifier.height(Dimens.xs))
                 Text(
-                    text = item.text,
+                    text = item.name,
                     style = SansBody,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f * textAlpha),
                 )
+                Spacer(Modifier.height(Dimens.xs))
             }
+            Text(
+                text = item.text ?: item.name,
+                style = DisplaySmall,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = textAlpha),
+            )
             if (rankedLowerBecause != null) {
                 Spacer(Modifier.height(Dimens.xs))
                 Text(

@@ -131,10 +131,16 @@ class NotificationHelper @Inject constructor(
         // The system rounds the large icon's corners itself; the opaque tile goes in as-is, and
         // the same Icon doubles as the big picture.
         val sprite = Icon.createWithResource(context, spriteResolver.resolve(spriteTag, triggerId))
+        // The variant is the headline and the habit label the line beneath it. The label is the
+        // content text, not the sub text: on the Android 12+ collapsed template the sub text
+        // shares the top line with the title and is the first thing shrunk, then hidden, once
+        // a long title needs the room. The big-text styles set no bigText because the expanded
+        // template already gives the title two lines and an empty body falls back to the label;
+        // bigText(promptText) would print the variant twice and evict the label.
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("$emoji $habitName")
-            .setContentText(promptText)
+            .setContentTitle(promptText)
+            .setContentText("$emoji $habitName")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setDeleteIntent(deleteIntent)
@@ -148,19 +154,19 @@ class NotificationHelper @Inject constructor(
         when (style) {
             NotificationStyle.SPRITE -> builder
                 .setLargeIcon(sprite)
-                .setStyle(NotificationCompat.BigTextStyle().bigText(promptText))
+                .setStyle(NotificationCompat.BigTextStyle())
             NotificationStyle.BIG_PICTURE -> builder
                 .setLargeIcon(sprite)
                 // bigLargeIcon(null): the expanded view otherwise shows the sprite twice.
                 .setStyle(NotificationCompat.BigPictureStyle().bigPicture(sprite).bigLargeIcon(null as Icon?))
             NotificationStyle.TEXT_ONLY -> builder
                 .setColor(SAGE_ACCENT)
-                .setStyle(NotificationCompat.BigTextStyle().bigText(promptText))
+                .setStyle(NotificationCompat.BigTextStyle())
             NotificationStyle.ACCENT -> builder
                 .setLargeIcon(sprite)
                 // .mod() (not %) keeps the index non-negative for a negative id.
                 .setColor(ACCENT_PALETTE[triggerId.mod(ACCENT_PALETTE.size)])
-                .setStyle(NotificationCompat.BigTextStyle().bigText(promptText))
+                .setStyle(NotificationCompat.BigTextStyle())
         }
 
         // The video itself is watched from the variant view; the notification only flags it.

@@ -184,4 +184,17 @@ class DoableHabitWidgetStateTest {
         assertEquals("🧘 stretch", DoableHabitWidget.stripTitle(habit, progress))
         assertEquals("🧘 stretch", DoableHabitWidget.stripTitle(habit, null))
     }
+
+    @Test
+    fun `with a variant the headline is the variant verbatim and the habit label names the habit`() {
+        assertEquals("Reach for the ceiling, pirate style.", DoableHabitWidget.headline(habit))
+        assertEquals("🧘 stretch", DoableHabitWidget.habitLabel(habit))
+    }
+
+    @Test
+    fun `without a variant the habit name is the headline and there is no label`() {
+        val fallback = habit.copy(text = null, variationId = null)
+        assertEquals("🧘 stretch", DoableHabitWidget.headline(fallback))
+        assertNull(DoableHabitWidget.habitLabel(fallback))
+    }
 }

@@ -40,10 +40,11 @@ class TriggerNotificationTest {
         spriteTag: String?,
         actionUrl: String? = null,
         style: NotificationStyle = NotificationStyle.SPRITE,
+        promptText: String = "body",
     ): Notification {
         helper.postTriggerNotification(
             triggerId = triggerId,
-            promptText = "body",
+            promptText = promptText,
             habitName = "meditation",
             style = style,
             actionUrl = actionUrl,
@@ -66,10 +67,15 @@ class TriggerNotificationTest {
         notification.extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString()
 
     // A distinct trigger id per style so the notifications don't replace each other.
-    private fun eachStyle(actionUrl: String? = null): Map<NotificationStyle, Notification> =
+    private fun eachStyle(actionUrl: String? = null, promptText: String = "body"): Map<NotificationStyle, Notification> =
         NotificationStyle.entries.associateWith { style ->
-            posted(triggerId = 100L + style.ordinal, spriteTag = null, actionUrl = actionUrl, style = style)
+            posted(triggerId = 100L + style.ordinal, spriteTag = null, actionUrl = actionUrl, style = style, promptText = promptText)
         }
+
+    private fun habitLabel(triggerId: Long): String = "${EmojiRotator().pick(triggerId)} meditation"
+
+    private fun textOf(notification: Notification): String? =
+        notification.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()
 
     @Test
     fun `large icon is the sprite tagged on the variant`() {
@@ -88,10 +94,25 @@ class TriggerNotificationTest {
     }
 
     @Test
-    fun `title keeps the emoji rotation alongside the sprite`() {
+    fun `the variant is the title and the habit label with its emoji is the text`() {
         val notification = posted(triggerId = 42L, spriteTag = MascotSprites.entries[0].tag)
 
-        assertEquals("${EmojiRotator().pick(42L)} meditation", notification.extras.getString(Notification.EXTRA_TITLE))
+        assertEquals("body", notification.extras.getString(Notification.EXTRA_TITLE))
+        assertEquals(habitLabel(42L), textOf(notification))
+    }
+
+    // The title is never cut app-side and the body never repeats it: with no bigText the
+    // expanded big-text view falls back to the content text, which is the habit label.
+    @Test
+    fun `every style keeps the whole variant as the title and never repeats it in the body`() {
+        val prompt = "Two minutes of stillness before the next thing, the astronaut kind, drifting on."
+        assertEquals(80, prompt.length)
+
+        for ((style, notification) in eachStyle(promptText = prompt)) {
+            assertEquals("$style", prompt, notification.extras.getString(Notification.EXTRA_TITLE))
+            assertNull("$style", notification.extras.getCharSequence(Notification.EXTRA_BIG_TEXT))
+            assertEquals("$style", habitLabel(100L + style.ordinal), textOf(notification))
+        }
     }
 
     // Only the geofence intent needs to be mutable (#339); the action receiver's must stay immutable.
@@ -184,7 +205,7 @@ class TriggerNotificationTest {
         assertEquals(NotificationHelper.VIDEO_INDICATOR, subText(withVideo))
         assertNull(subText(plain))
         assertNull(subText(insecure))
-        assertEquals("body", withVideo.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString())
+        assertEquals(habitLabel(43L), textOf(withVideo))
     }
 
     @Test
@@ -216,7 +237,8 @@ class TriggerNotificationTest {
         for ((style, notification) in eachStyle(actionUrl = "https://example.com/v")) {
             assertEquals("$style", NotificationHelper.VIDEO_INDICATOR, subTextOf(notification))
             assertNull("$style", notification.extras.getCharSequence(Notification.EXTRA_SUMMARY_TEXT))
-            assertEquals("$style", "body", notification.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString())
+            assertEquals("$style", "body", notification.extras.getString(Notification.EXTRA_TITLE))
+            assertEquals("$style", habitLabel(100L + style.ordinal), textOf(notification))
         }
         for ((style, notification) in eachStyle()) {
             assertNull("$style", subTextOf(notification))
