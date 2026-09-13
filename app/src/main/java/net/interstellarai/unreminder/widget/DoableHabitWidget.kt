@@ -76,7 +76,8 @@ data class DayProgress(val completedToday: Boolean, val daysWithAnyCompletion: I
 /**
  * Home-screen widget: one habit, its peeked variant and sprite, and a "did it" button — or,
  * with no active habit to offer, a prompt to add one — plus a one-line day progress indicator,
- * drawn in whichever of the five [WidgetLayout]s the last refresh rolled. Below its default
+ * drawn in whichever of the five [WidgetLayout]s the last refresh rolled. The variant is the
+ * card's headline and the habit name its small label above it. Below its default
  * size it collapses to a single strip. It only renders what [WidgetRefresher] last stored;
  * every recompute goes through the refresher.
  */
@@ -269,8 +270,8 @@ private fun SpriteLeft(habit: DoableHabit, progress: DayProgress?, palette: Widg
             Sprite(habit, spriteResolver, GlanceModifier.size(width = 88.dp, height = 74.dp).cornerRadius(8.dp))
             Spacer(GlanceModifier.width(12.dp))
             Column {
-                Title(habit, TextStyle(color = palette.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold), maxLines = 1)
-                VariantText(habit, palette.ink, 13.sp)
+                HabitLabel(habit, palette.ink, 11.sp)
+                Headline(habit, TextStyle(color = palette.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold), maxLines = 2)
                 Spacer(GlanceModifier.height(8.dp))
                 DidIt(habit, palette, compact = false)
             }
@@ -287,8 +288,8 @@ private fun SpriteRight(habit: DoableHabit, progress: DayProgress?, palette: Wid
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = GlanceModifier.defaultWeight()) {
-                Title(habit, TextStyle(color = palette.ink, fontSize = 15.sp, fontWeight = FontWeight.Medium), maxLines = 1)
-                VariantText(habit, palette.ink, 13.sp)
+                HabitLabel(habit, palette.ink, 11.sp)
+                Headline(habit, TextStyle(color = palette.ink, fontSize = 15.sp, fontWeight = FontWeight.Medium), maxLines = 2)
                 Spacer(GlanceModifier.height(8.dp))
                 DidIt(habit, palette, compact = false)
             }
@@ -303,14 +304,15 @@ private fun SpriteRight(habit: DoableHabit, progress: DayProgress?, palette: Wid
 }
 
 // Image-dominant: the sprite fills the left half and the text is deliberately the small part,
-// so there is no variant line.
+// so the headline stays at 13sp.
 @Composable
 private fun SpriteLarge(habit: DoableHabit, progress: DayProgress?, palette: WidgetPalette, spriteResolver: SpriteResolver) {
     Row(modifier = GlanceModifier.fillMaxSize()) {
         Sprite(habit, spriteResolver, GlanceModifier.defaultWeight().fillMaxHeight().cornerRadius(12.dp))
         Spacer(GlanceModifier.width(12.dp))
         Column(modifier = GlanceModifier.defaultWeight(), verticalAlignment = Alignment.CenterVertically) {
-            Title(habit, TextStyle(color = palette.ink, fontSize = 13.sp, fontWeight = FontWeight.Medium), maxLines = 2)
+            HabitLabel(habit, palette.ink, 10.sp)
+            Headline(habit, TextStyle(color = palette.ink, fontSize = 13.sp, fontWeight = FontWeight.Medium), maxLines = 2)
             Spacer(GlanceModifier.height(6.dp))
             DidIt(habit, palette, compact = false)
             if (progress != null) {
@@ -321,11 +323,12 @@ private fun SpriteLarge(habit: DoableHabit, progress: DayProgress?, palette: Wid
     }
 }
 
-// No sprite: the title carries the card in the app's serif display face.
+// No sprite: the headline carries the card in the app's serif display face.
 @Composable
 private fun Typographic(habit: DoableHabit, progress: DayProgress?, palette: WidgetPalette) {
     Column {
-        Title(
+        HabitLabel(habit, palette.ink, 11.sp)
+        Headline(
             habit,
             TextStyle(color = palette.ink, fontSize = 22.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Serif),
             maxLines = 2,
@@ -347,17 +350,25 @@ private fun Compact(habit: DoableHabit, progress: DayProgress?, palette: WidgetP
         Row(verticalAlignment = Alignment.CenterVertically) {
             Sprite(habit, spriteResolver, GlanceModifier.size(28.dp).cornerRadius(6.dp))
             Spacer(GlanceModifier.width(8.dp))
-            Title(
-                habit,
-                TextStyle(color = palette.ink, fontSize = 13.sp, fontWeight = FontWeight.Medium),
-                maxLines = 1,
-                modifier = GlanceModifier.defaultWeight(),
-            )
+            // The two text slots sit in different containers, so the no-variant case, where the
+            // name is the headline, has to move it up into the row itself.
+            if (habit.text != null) {
+                HabitLabel(habit, palette.ink, 11.sp, GlanceModifier.defaultWeight())
+            } else {
+                Headline(
+                    habit,
+                    TextStyle(color = palette.ink, fontSize = 13.sp, fontWeight = FontWeight.Medium),
+                    maxLines = 1,
+                    modifier = GlanceModifier.defaultWeight(),
+                )
+            }
             Spacer(GlanceModifier.width(8.dp))
             DidIt(habit, palette, compact = true)
         }
-        Spacer(GlanceModifier.height(4.dp))
-        VariantText(habit, palette.ink, 12.sp)
+        if (habit.text != null) {
+            Spacer(GlanceModifier.height(4.dp))
+            Headline(habit, TextStyle(color = palette.ink, fontSize = 14.sp, fontWeight = FontWeight.Medium), maxLines = 2)
+        }
         if (progress != null) {
             Spacer(GlanceModifier.height(4.dp))
             DayProgressLine(progress, palette.ink, 10.sp)
@@ -376,17 +387,20 @@ private fun Sprite(habit: DoableHabit, spriteResolver: SpriteResolver, modifier:
     )
 }
 
+// The variant is the headline wherever there is one; without a variant the habit name takes
+// its place. Every full layout is budgeted for FULL, so the headline is capped at two lines
+// rather than letting a long variant push the button or the progress line off the card.
 @Composable
-private fun Title(habit: DoableHabit, style: TextStyle, maxLines: Int, modifier: GlanceModifier = GlanceModifier) {
-    Text(text = "${habit.emoji} ${habit.name}", style = style, maxLines = maxLines, modifier = modifier)
+private fun Headline(habit: DoableHabit, style: TextStyle, maxLines: Int, modifier: GlanceModifier = GlanceModifier) {
+    Text(text = habit.text ?: "${habit.emoji} ${habit.name}", style = style, maxLines = maxLines, modifier = modifier)
 }
 
-// Variants are written for notification bodies, so the text is capped at two lines rather
-// than letting the layout grow.
+// The small line that keeps the habit identifiable above its headline; with no variant the
+// name is already the headline, so there is nothing to label.
 @Composable
-private fun VariantText(habit: DoableHabit, ink: ColorProvider, size: TextUnit) {
+private fun HabitLabel(habit: DoableHabit, ink: ColorProvider, size: TextUnit, modifier: GlanceModifier = GlanceModifier) {
     if (habit.text == null) return
-    Text(text = habit.text, style = TextStyle(color = ink, fontSize = size), maxLines = 2)
+    Text(text = "${habit.emoji} ${habit.name}", style = TextStyle(color = ink, fontSize = size), maxLines = 1, modifier = modifier)
 }
 
 // The card inverted: label contrast equals the card's text contrast, and the button can never
