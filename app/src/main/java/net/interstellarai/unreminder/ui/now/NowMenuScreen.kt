@@ -203,18 +203,12 @@ private fun MenuRow(item: NowMenuItem, onComplete: () -> Unit) {
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f * textAlpha),
                 )
                 Spacer(Modifier.height(Dimens.xs))
-                Text(
-                    text = item.text,
-                    style = DisplaySmall,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = textAlpha),
-                )
-            } else {
-                Text(
-                    text = item.name,
-                    style = DisplaySmall,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = textAlpha),
-                )
             }
+            Text(
+                text = item.text ?: item.name,
+                style = DisplaySmall,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = textAlpha),
+            )
             if (rankedLowerBecause != null) {
                 Spacer(Modifier.height(Dimens.xs))
                 Text(
