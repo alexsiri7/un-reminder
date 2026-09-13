@@ -346,7 +346,7 @@ from the pool, not from a fresh generation.
 ## 8. Database Schema (Room)
 
 ```kotlin
-// DB version 15
+// DB version 16
 @Entity Habit(id, name, dedication_level/*Int 0-5*/, auto_adjust_level/*Boolean*/, daily_limit/*Int, default 1*/, cooldown_minutes/*Int, default 180*/, supported_modes/*Int bitmask, 0 = any*/, active, created_at, updated_at)
 @Entity HabitLevelDescriptionEntity(habit_id → Habit.id CASCADE, level/*0-5*/, description)  // per-level text
 @Entity Window(id, start_time, end_time, days_of_week_bitmask, frequency_per_day, active)
@@ -354,7 +354,7 @@ from the pool, not from a fresh generation.
 @Entity HabitLocationCrossRef(habit_id → Habit.id CASCADE, location_id → Location.id CASCADE)  // junction
 @Entity Trigger(id, window_id?, habit_id?, scheduled_at, fired_at?, status, generated_prompt?, action_url?)
 @Entity PendingFeedback(id, screenshot_path? /* nullable */, description, queued_at)  // offline upload queue
-@Entity Variation(id, habit_id → Habit.id CASCADE, text, prompt_fingerprint, generated_at, consumed_at?, action_url?, shape?, modes/*Int bitmask, 0 = neutral*/)  // variation pool
+@Entity Variation(id, habit_id → Habit.id CASCADE, text, prompt_fingerprint, generated_at, consumed_at?, action_url?, shape?, modes/*Int bitmask, 0 = neutral*/, generation_version/*Int, default 0 = pre-version rows*/)  // variation pool
 ```
 
 ---
