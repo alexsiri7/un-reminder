@@ -43,8 +43,8 @@ class WidgetRefresher @Inject constructor(
     }
 
     /**
-     * Re-picks for every placed widget, snapshots today's progress alongside it, and pushes
-     * both to the launcher in one update.
+     * Re-picks for every placed widget, snapshots today's progress alongside it, rolls the
+     * widget's next layout, and pushes all three to the launcher in one update.
      */
     suspend fun refreshNow() {
         val ids = GlanceAppWidgetManager(context).getGlanceIds(DoableHabitWidget::class.java)
@@ -53,7 +53,12 @@ class WidgetRefresher @Inject constructor(
         val progress = dayProgress()
         val widget = DoableHabitWidget()
         for (id in ids) {
-            updateAppWidgetState(context, id) { DoableHabitWidget.store(it, habit, progress) }
+            // Rolled per placed widget so each avoids its own last layout, and rolled here rather
+            // than in provideGlance, which also recomposes on resize and theme change — a
+            // layout swap there would read as a glitch.
+            updateAppWidgetState(context, id) { prefs ->
+                DoableHabitWidget.store(prefs, habit, progress, DoableHabitWidget.nextLayout(prefs))
+            }
             widget.update(context, id)
         }
         scheduleRefreshAtNextWindowBoundary()
