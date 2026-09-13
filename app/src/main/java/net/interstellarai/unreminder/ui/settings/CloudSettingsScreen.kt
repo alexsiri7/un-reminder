@@ -125,7 +125,7 @@ fun CloudSettingsScreen(
     }
 }
 
-private fun regeneratingLabel(progress: RegenerationProgress): String {
+internal fun regeneratingLabel(progress: RegenerationProgress): String {
     val settled = progress.done + progress.failed
     val failed = if (progress.failed > 0) " (${progress.failed} failed)" else ""
     return "regenerating… $settled of ${progress.total}$failed"
