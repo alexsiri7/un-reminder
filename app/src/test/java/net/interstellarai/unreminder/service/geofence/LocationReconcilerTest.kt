@@ -327,6 +327,16 @@ class LocationReconcilerTest {
     }
 
     @Test
+    fun `a Play Services rejection with no status message omits the field`() = runTest {
+        currentLocationFailsWith(ApiException(Status(CommonStatusCodes.API_NOT_CONNECTED)))
+
+        newReconciler(newGeofenceManager()).reconcile()
+
+        val breadcrumb = breadcrumbs.single { it.message == "Location reconciliation rejected by Play Services" }
+        assertEquals(setOf("reconciliation_status"), breadcrumb.data.keys)
+    }
+
+    @Test
     fun `a failure is exposed until the next successful reconciliation clears it`() = runTest {
         currentLocationFailsWith(ApiException(Status(CommonStatusCodes.NETWORK_ERROR)))
         val reconciler = newReconciler(newGeofenceManager())
