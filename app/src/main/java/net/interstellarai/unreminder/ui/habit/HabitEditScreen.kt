@@ -59,6 +59,7 @@ import net.interstellarai.unreminder.data.db.WindowEntity
 import net.interstellarai.unreminder.domain.AvailabilityStatus
 import net.interstellarai.unreminder.domain.UnavailableReason
 import net.interstellarai.unreminder.domain.model.ActivityMode
+import net.interstellarai.unreminder.domain.model.VariantShape
 import net.interstellarai.unreminder.service.llm.AiStatus
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -817,6 +818,13 @@ private fun QueuedNotificationsSection(
                 style = MonoLabelTiny,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f),
             )
+            if (unused.isNotEmpty()) {
+                Text(
+                    shapeBreakdown(unused),
+                    style = MonoLabelTiny,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f),
+                )
+            }
 
             Spacer(Modifier.height(Dimens.md))
 
@@ -879,9 +887,8 @@ private fun VariationRow(
             )
             Spacer(Modifier.height(Dimens.xs))
             Text(
-                text = variation.generatedAt
-                    .atZone(ZoneId.systemDefault())
-                    .format(formatter),
+                text = shapeLabel(variation.shape) + " · " +
+                    variation.generatedAt.atZone(ZoneId.systemDefault()).format(formatter),
                 style = MonoLabelTiny,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f),
             )
@@ -929,16 +936,31 @@ private fun RecentlyUsedVariationRow(
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.65f),
             )
             Spacer(Modifier.height(Dimens.xs))
-            val firedAt = variation.consumedAt
-            if (firedAt != null) {
-                Text(
-                    text = "fired ${firedAt.atZone(ZoneId.systemDefault()).format(formatter)}",
-                    style = MonoLabelTiny,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.35f),
-                )
-            }
+            Text(
+                text = buildString {
+                    append(shapeLabel(variation.shape))
+                    variation.consumedAt?.let { firedAt ->
+                        append(" · fired ")
+                        append(firedAt.atZone(ZoneId.systemDefault()).format(formatter))
+                    }
+                },
+                style = MonoLabelTiny,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.35f),
+            )
         }
     }
+}
+
+/** Rows generated before shapes existed carry none; name that rather than leaving a blank. */
+internal fun shapeLabel(shape: VariantShape?): String = shape?.name?.lowercase() ?: "unshaped"
+
+/** Per-shape counts of the unused pool in enum order, unshaped last, zero counts omitted. */
+internal fun shapeBreakdown(unused: List<VariationEntity>): String {
+    val counts = unused.groupingBy { it.shape }.eachCount()
+    val ordered: List<VariantShape?> = VariantShape.entries + null
+    return ordered
+        .mapNotNull { shape -> counts[shape]?.let { "$it ${shapeLabel(shape)}" } }
+        .joinToString(" · ")
 }
 
 @Composable
