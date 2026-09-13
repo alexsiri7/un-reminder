@@ -56,8 +56,9 @@ class NotificationHelper @Inject constructor(
         const val NOTIFICATION_LATER_BASE = 6_000_000L
         // Header sub-text marking a variant that carries a video (#378).
         const val VIDEO_INDICATOR = "\u25B6 video"
-        // Header tints come from the theme's sage palette. The rotating palette excludes sage
-        // itself so ACCENT never matches TEXT_ONLY.
+        // Header tints come from the theme's sage palette, borrowed for their hues rather than
+        // their outcome meanings; a re-tune there intentionally moves these. The rotating palette
+        // excludes sage itself so ACCENT never matches TEXT_ONLY.
         internal val SAGE_ACCENT = SageAccent.toArgb()
         internal val ACCENT_PALETTE = listOf(CompletedLowFloor, Later, Opened).map { it.toArgb() }
     }
