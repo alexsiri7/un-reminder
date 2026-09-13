@@ -37,11 +37,14 @@ class RefillWorker @AssistedInject constructor(
     companion object {
         const val WORK_NAME = "refill"
         const val KEY_HABIT_ID = "habit_id"
+        /** True for a manual regenerate: the landed batch replaces the unconsumed pool instead of topping it up. */
+        const val KEY_REPLACE = "replace"
         private const val TAG = "RefillWorker"
     }
 
     override suspend fun doWork(): Result {
         val habitId = inputData.getLong(KEY_HABIT_ID, -1L)
+        val replace = inputData.getBoolean(KEY_REPLACE, false)
         if (habitId == -1L) {
             Log.w(TAG, "No habit_id in input data")
             return Result.failure()
@@ -87,7 +90,7 @@ class RefillWorker @AssistedInject constructor(
                     generationVersion = batch.generationVersion,
                 )
             }
-            variationRepository.refill(habitId, batch.generationVersion, entities)
+            variationRepository.refill(habitId, batch.generationVersion, entities, replace)
             Result.success()
         } catch (e: CancellationException) {
             throw e

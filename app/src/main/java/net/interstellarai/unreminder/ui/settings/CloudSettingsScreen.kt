@@ -85,14 +85,17 @@ fun CloudSettingsScreen(
                             MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f),
                             UnReminderShapes.small,
                         )
-                        .clickable(enabled = !uiState.isRegenerating) { viewModel.regenerateAll() }
+                        .clickable(enabled = uiState.regeneration == null) { viewModel.regenerateAll() }
                         .padding(vertical = Dimens.md + 2.dp),
                     contentAlignment = Alignment.Center,
                 ) {
+                    val progress = uiState.regeneration
                     Text(
-                        "regenerate all variants",
+                        if (progress == null) "regenerate all variants" else regeneratingLabel(progress),
                         style = SansBody,
-                        color = MaterialTheme.colorScheme.onBackground,
+                        color = MaterialTheme.colorScheme.onBackground.copy(
+                            alpha = if (progress == null) 1f else 0.6f,
+                        ),
                     )
                 }
                 Spacer(Modifier.height(Dimens.xxl))
@@ -120,4 +123,10 @@ fun CloudSettingsScreen(
             Spacer(Modifier.height(Dimens.xxl))
         }
     }
+}
+
+private fun regeneratingLabel(progress: RegenerationProgress): String {
+    val settled = progress.done + progress.failed
+    val failed = if (progress.failed > 0) " (${progress.failed} failed)" else ""
+    return "regenerating… $settled of ${progress.total}$failed"
 }

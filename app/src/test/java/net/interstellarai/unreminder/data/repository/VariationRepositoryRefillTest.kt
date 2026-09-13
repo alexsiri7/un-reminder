@@ -82,6 +82,48 @@ class VariationRepositoryRefillTest {
         }
     }
 
+    @Test fun `a replace refill at the same version swaps the whole unconsumed pool for the batch`() = runTest {
+        repository.insertAll(pool(version = 2, count = 10))
+
+        repository.refill(habitId, 2, pool(version = 2, count = 18).drop(10), replace = true)
+
+        val rows = unused()
+        assertEquals(8, rows.size)
+        assertEquals((11..18).map { "v2 #$it" }.toSet(), rows.map { it.text }.toSet())
+    }
+
+    @Test fun `a replace refill sweeps unversioned and other-version rows too`() = runTest {
+        repository.insertAll(pool(version = VariationEntity.UNVERSIONED, count = 3))
+        repository.insertAll(pool(version = 1, count = 4))
+        repository.insertAll(pool(version = 2, count = 5))
+
+        repository.refill(habitId, 2, pool(version = 2, count = 7).drop(5), replace = true)
+
+        val rows = unused()
+        assertEquals(2, rows.size)
+        assertEquals(setOf("v2 #6", "v2 #7"), rows.map { it.text }.toSet())
+    }
+
+    @Test fun `an empty batch in replace mode leaves the existing pool alone`() = runTest {
+        repository.insertAll(pool(version = 2, count = 10))
+
+        repository.refill(habitId, 2, emptyList(), replace = true)
+
+        assertEquals(10, unused().size)
+    }
+
+    @Test fun `the last consumed row survives a replace refill and still steers shape rotation`() = runTest {
+        repository.insertAll(pool(version = 2, count = 1))
+        val fired = repository.pickRandomUnused(habitId, ActivityMode.SITTING)!!
+
+        repository.refill(habitId, 2, pool(version = 2, count = 19).drop(1), replace = true)
+
+        assertEquals(listOf(fired.id), db.variationDao().getRecentlyUsedFlow(habitId, 50).first().map { it.id })
+        repeat(20) {
+            assertNotEquals(fired.shape, repository.peekUnusedVariation(habitId, ActivityMode.SITTING)!!.shape)
+        }
+    }
+
     @Test fun `a refill at the same version is additive`() = runTest {
         repository.insertAll(pool(version = 2, count = 5))
 

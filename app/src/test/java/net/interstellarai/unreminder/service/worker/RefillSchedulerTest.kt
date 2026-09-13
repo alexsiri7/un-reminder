@@ -7,6 +7,8 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RefillSchedulerTest {
@@ -23,6 +25,20 @@ class RefillSchedulerTest {
         verify(exactly = 1) { workManager.enqueueUniqueWork("refill-7", ExistingWorkPolicy.REPLACE, capture(request)) }
         assertEquals(0L, request.captured.workSpec.initialDelay)
         assertEquals(7L, request.captured.workSpec.input.getLong(RefillWorker.KEY_HABIT_ID, -1L))
+        assertFalse(request.captured.workSpec.input.getBoolean(RefillWorker.KEY_REPLACE, true))
+    }
+
+    @Test
+    fun `enqueueRegenerate uses its own unique name with REPLACE, sets the replace flag, and returns the request id`() {
+        val request = slot<OneTimeWorkRequest>()
+
+        val id = scheduler.enqueueRegenerate(7L)
+
+        verify(exactly = 1) { workManager.enqueueUniqueWork("regenerate-7", ExistingWorkPolicy.REPLACE, capture(request)) }
+        assertEquals(request.captured.id, id)
+        assertEquals(0L, request.captured.workSpec.initialDelay)
+        assertEquals(7L, request.captured.workSpec.input.getLong(RefillWorker.KEY_HABIT_ID, -1L))
+        assertTrue(request.captured.workSpec.input.getBoolean(RefillWorker.KEY_REPLACE, false))
     }
 
     @Test
@@ -36,6 +52,7 @@ class RefillSchedulerTest {
         assertEquals(listOf("refill-1", "refill-2", "refill-3"), names)
         assertEquals(listOf(0L, 60_000L, 120_000L), requests.map { it.workSpec.initialDelay })
         assertEquals(listOf(1L, 2L, 3L), requests.map { it.workSpec.input.getLong(RefillWorker.KEY_HABIT_ID, -1L) })
+        assertEquals(listOf(false, false, false), requests.map { it.workSpec.input.getBoolean(RefillWorker.KEY_REPLACE, true) })
     }
 
     @Test

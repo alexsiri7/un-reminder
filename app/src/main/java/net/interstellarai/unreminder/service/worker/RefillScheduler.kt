@@ -10,6 +10,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkRequest
 import androidx.work.workDataOf
 import java.time.Duration
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -48,12 +49,25 @@ class RefillScheduler @Inject constructor(
         }
     }
 
-    private fun request(habitId: Long, delay: Duration): OneTimeWorkRequest {
+    /**
+     * Enqueues a manual regeneration: the Worker generates a fresh batch and [RefillWorker] swaps
+     * the whole unconsumed pool for it in one transaction (#402). Its own unique name, so a
+     * threshold top-up REPLACE-ing "refill-<id>" cannot cancel a pending regenerate; REPLACE here
+     * so a repeat press restarts rather than queues behind. Returns the request id so the caller
+     * can observe progress.
+     */
+    fun enqueueRegenerate(habitId: Long): UUID {
+        val request = request(habitId, Duration.ZERO, replace = true)
+        workManager.enqueueUniqueWork("regenerate-$habitId", ExistingWorkPolicy.REPLACE, request)
+        return request.id
+    }
+
+    private fun request(habitId: Long, delay: Duration, replace: Boolean = false): OneTimeWorkRequest {
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
         return OneTimeWorkRequestBuilder<RefillWorker>()
-            .setInputData(workDataOf(RefillWorker.KEY_HABIT_ID to habitId))
+            .setInputData(workDataOf(RefillWorker.KEY_HABIT_ID to habitId, RefillWorker.KEY_REPLACE to replace))
             .setConstraints(constraints)
             .setBackoffCriteria(
                 BackoffPolicy.EXPONENTIAL,
