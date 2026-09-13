@@ -259,8 +259,8 @@ private fun Full(layout: WidgetLayout, habit: DoableHabit, progress: DayProgress
     }
 }
 
-// Every full composition is budgeted for the 180×110dp default size in
-// doable_habit_widget_info.xml; larger placements get slack, content stays start-aligned.
+// Every full composition is budgeted for FULL, which is all LocalSize ever reports for it;
+// larger placements get slack, content stays start-aligned.
 
 @Composable
 private fun SpriteLeft(habit: DoableHabit, progress: DayProgress?, palette: WidgetPalette, spriteResolver: SpriteResolver) {
