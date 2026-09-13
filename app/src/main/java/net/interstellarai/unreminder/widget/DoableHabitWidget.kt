@@ -12,9 +12,9 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.glance.Button
+import androidx.glance.ButtonDefaults
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
-import androidx.glance.GlanceTheme
 import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
@@ -36,14 +36,18 @@ import androidx.glance.layout.Column
 import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
+import androidx.glance.layout.fillMaxHeight
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
 import androidx.glance.layout.size
 import androidx.glance.layout.width
+import androidx.glance.text.FontFamily
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
+import androidx.glance.unit.ColorProvider
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dagger.hilt.EntryPoint
@@ -57,6 +61,7 @@ import net.interstellarai.unreminder.MainActivity
 import net.interstellarai.unreminder.service.notification.NotificationHelper
 import net.interstellarai.unreminder.service.notification.SpriteResolver
 import javax.inject.Inject
+import kotlin.random.Random
 
 /**
  * The widget's ambient progress line: whether today already counts and the same
@@ -66,8 +71,9 @@ data class DayProgress(val completedToday: Boolean, val daysWithAnyCompletion: I
 
 /**
  * Home-screen widget: one habit, its peeked variant and sprite, and a "did it" button — or,
- * with no active habit to offer, a prompt to add one — plus a one-line day progress indicator.
- * It only renders what [WidgetRefresher] last stored; every recompute goes through the refresher.
+ * with no active habit to offer, a prompt to add one — plus a one-line day progress indicator,
+ * drawn in whichever of the five [WidgetLayout]s the last refresh rolled. It only renders what
+ * [WidgetRefresher] last stored; every recompute goes through the refresher.
  */
 class DoableHabitWidget : GlanceAppWidget() {
 
@@ -82,10 +88,12 @@ class DoableHabitWidget : GlanceAppWidget() {
         private val SPRITE_TAG = stringPreferencesKey("sprite_tag")
         private val COMPLETED_TODAY = booleanPreferencesKey("completed_today")
         private val DAYS_WITH_ANY_COMPLETION = intPreferencesKey("days_with_any_completion")
+        private val LAYOUT = stringPreferencesKey("layout")
 
-        // One write for both so the habit can never land without the progress that goes with
-        // it: a completion from the widget must flip the indicator in the same refresh.
-        fun store(prefs: MutablePreferences, habit: DoableHabit?, progress: DayProgress) {
+        // One write for all three so the habit can never land without the progress that goes
+        // with it — a completion from the widget must flip the indicator in the same refresh —
+        // and the look changes in the same redraw as the content.
+        internal fun store(prefs: MutablePreferences, habit: DoableHabit?, progress: DayProgress, layout: WidgetLayout) {
             if (habit == null) {
                 prefs.remove(HABIT_ID)
                 prefs.remove(HABIT_NAME)
@@ -103,7 +111,14 @@ class DoableHabitWidget : GlanceAppWidget() {
             }
             prefs[COMPLETED_TODAY] = progress.completedToday
             prefs[DAYS_WITH_ANY_COMPLETION] = progress.daysWithAnyCompletion
+            prefs[LAYOUT] = layout.name
         }
+
+        internal fun storedLayout(prefs: Preferences): WidgetLayout? = WidgetLayout.fromName(prefs[LAYOUT])
+
+        /** The layout for the next refresh: any of the five but the one this widget last showed. */
+        internal fun nextLayout(prefs: Preferences, random: Random = Random.Default): WidgetLayout =
+            WidgetLayout.next(storedLayout(prefs), random)
 
         internal fun stored(prefs: Preferences): DoableHabit? {
             val id = prefs[HABIT_ID] ?: return null
@@ -146,91 +161,219 @@ class DoableHabitWidget : GlanceAppWidget() {
         val spriteResolver = EntryPointAccessors.fromApplication(context, WidgetEntryPoint::class.java).spriteResolver()
         provideContent {
             val state = currentState<Preferences>()
-            WidgetContent(stored(state), storedDayProgress(state), spriteResolver)
+            // A widget that has not refreshed since the update keeps today's look until its tick.
+            val layout = storedLayout(state) ?: WidgetLayout.SPRITE_LEFT
+            WidgetContent(layout, stored(state), storedDayProgress(state), spriteResolver)
         }
     }
 }
 
 @Composable
-private fun WidgetContent(habit: DoableHabit?, progress: DayProgress?, spriteResolver: SpriteResolver) {
+private fun WidgetContent(
+    layout: WidgetLayout,
+    habit: DoableHabit?,
+    progress: DayProgress?,
+    spriteResolver: SpriteResolver,
+) {
     val openNow = DoableHabitWidget.openNowIntent(LocalContext.current)
+    val padding = when (layout) {
+        WidgetLayout.SPRITE_LEFT, WidgetLayout.SPRITE_RIGHT -> 16.dp
+        WidgetLayout.SPRITE_LARGE, WidgetLayout.TYPOGRAPHIC -> 12.dp
+        WidgetLayout.COMPACT -> 10.dp
+    }
     Box(
         modifier = GlanceModifier
             .fillMaxSize()
-            .background(GlanceTheme.colors.widgetBackground)
+            .background(layout.palette.surface)
             .cornerRadius(16.dp)
             .clickable(actionStartActivity(openNow))
-            .padding(16.dp),
+            .padding(padding),
         contentAlignment = Alignment.CenterStart,
     ) {
-        Column {
-            if (habit == null) NoActiveHabits() else Suggestion(habit, spriteResolver)
-            if (progress != null) {
-                Spacer(GlanceModifier.height(6.dp))
-                DayProgressLine(progress)
+        if (habit == null) {
+            Column {
+                NoActiveHabits(layout.palette.ink, 16.sp)
+                if (progress != null) {
+                    Spacer(GlanceModifier.height(6.dp))
+                    DayProgressLine(progress, layout.palette.ink, 11.sp)
+                }
+            }
+        } else {
+            when (layout) {
+                WidgetLayout.SPRITE_LEFT -> SpriteLeft(habit, progress, layout.palette, spriteResolver)
+                WidgetLayout.SPRITE_RIGHT -> SpriteRight(habit, progress, layout.palette, spriteResolver)
+                WidgetLayout.SPRITE_LARGE -> SpriteLarge(habit, progress, layout.palette, spriteResolver)
+                WidgetLayout.TYPOGRAPHIC -> Typographic(habit, progress, layout.palette)
+                WidgetLayout.COMPACT -> Compact(habit, progress, layout.palette, spriteResolver)
             }
         }
     }
 }
 
-// One small line under whatever else is showing, so it costs the sprite and button nothing
-// and still fits when the launcher squeezes the widget to its minimum size.
+// Every full composition is budgeted for the 180×110dp default size in
+// doable_habit_widget_info.xml; larger placements get slack, content stays start-aligned.
+
 @Composable
-private fun DayProgressLine(progress: DayProgress) {
-    Text(
-        text = DoableHabitWidget.dayProgressLabel(progress),
-        style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 11.sp),
-        maxLines = 1,
+private fun SpriteLeft(habit: DoableHabit, progress: DayProgress?, palette: WidgetPalette, spriteResolver: SpriteResolver) {
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Sprite(habit, spriteResolver, GlanceModifier.size(width = 88.dp, height = 74.dp).cornerRadius(8.dp))
+            Spacer(GlanceModifier.width(12.dp))
+            Column {
+                Title(habit, TextStyle(color = palette.ink, fontSize = 16.sp, fontWeight = FontWeight.Bold), maxLines = 1)
+                VariantText(habit, palette.ink, 13.sp)
+                Spacer(GlanceModifier.height(8.dp))
+                DidIt(habit, palette, compact = false)
+            }
+        }
+        if (progress != null) {
+            Spacer(GlanceModifier.height(6.dp))
+            DayProgressLine(progress, palette.ink, 11.sp)
+        }
+    }
+}
+
+@Composable
+private fun SpriteRight(habit: DoableHabit, progress: DayProgress?, palette: WidgetPalette, spriteResolver: SpriteResolver) {
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = GlanceModifier.defaultWeight()) {
+                Title(habit, TextStyle(color = palette.ink, fontSize = 15.sp, fontWeight = FontWeight.Medium), maxLines = 1)
+                VariantText(habit, palette.ink, 13.sp)
+                Spacer(GlanceModifier.height(8.dp))
+                DidIt(habit, palette, compact = false)
+            }
+            Spacer(GlanceModifier.width(12.dp))
+            Sprite(habit, spriteResolver, GlanceModifier.size(72.dp).cornerRadius(36.dp))
+        }
+        if (progress != null) {
+            Spacer(GlanceModifier.height(6.dp))
+            DayProgressLine(progress, palette.ink, 11.sp)
+        }
+    }
+}
+
+// Image-dominant: the sprite fills the left half and the text is deliberately the small part,
+// so there is no variant line.
+@Composable
+private fun SpriteLarge(habit: DoableHabit, progress: DayProgress?, palette: WidgetPalette, spriteResolver: SpriteResolver) {
+    Row(modifier = GlanceModifier.fillMaxSize()) {
+        Sprite(habit, spriteResolver, GlanceModifier.defaultWeight().fillMaxHeight().cornerRadius(12.dp))
+        Spacer(GlanceModifier.width(12.dp))
+        Column(modifier = GlanceModifier.defaultWeight(), verticalAlignment = Alignment.CenterVertically) {
+            Title(habit, TextStyle(color = palette.ink, fontSize = 13.sp, fontWeight = FontWeight.Medium), maxLines = 2)
+            Spacer(GlanceModifier.height(6.dp))
+            DidIt(habit, palette, compact = false)
+            if (progress != null) {
+                Spacer(GlanceModifier.height(6.dp))
+                DayProgressLine(progress, palette.ink, 10.sp)
+            }
+        }
+    }
+}
+
+// No sprite: the title carries the card in the app's serif display face.
+@Composable
+private fun Typographic(habit: DoableHabit, progress: DayProgress?, palette: WidgetPalette) {
+    Column {
+        Title(
+            habit,
+            TextStyle(color = palette.ink, fontSize = 22.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Serif),
+            maxLines = 2,
+        )
+        Spacer(GlanceModifier.height(4.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            DidIt(habit, palette, compact = true)
+            if (progress != null) {
+                Spacer(GlanceModifier.width(10.dp))
+                DayProgressLine(progress, palette.ink, 11.sp, GlanceModifier.defaultWeight())
+            }
+        }
+    }
+}
+
+@Composable
+private fun Compact(habit: DoableHabit, progress: DayProgress?, palette: WidgetPalette, spriteResolver: SpriteResolver) {
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Sprite(habit, spriteResolver, GlanceModifier.size(28.dp).cornerRadius(6.dp))
+            Spacer(GlanceModifier.width(8.dp))
+            Title(
+                habit,
+                TextStyle(color = palette.ink, fontSize = 13.sp, fontWeight = FontWeight.Medium),
+                maxLines = 1,
+                modifier = GlanceModifier.defaultWeight(),
+            )
+            Spacer(GlanceModifier.width(8.dp))
+            DidIt(habit, palette, compact = true)
+        }
+        Spacer(GlanceModifier.height(4.dp))
+        VariantText(habit, palette.ink, 12.sp)
+        if (progress != null) {
+            Spacer(GlanceModifier.height(4.dp))
+            DayProgressLine(progress, palette.ink, 10.sp)
+        }
+    }
+}
+
+// Shown untinted: the tiles are the one saturated thing on the calm palette.
+@Composable
+private fun Sprite(habit: DoableHabit, spriteResolver: SpriteResolver, modifier: GlanceModifier) {
+    Image(
+        provider = ImageProvider(spriteResolver.resolve(habit.spriteTag, rotationSeed = habit.id)),
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = modifier,
     )
 }
 
-// The sprite is the widget's dominant element and is shown untinted: the tiles are the one
-// saturated thing on the calm palette. Variants are written for notification bodies, so the
-// text is capped at two lines rather than letting the layout grow.
 @Composable
-private fun Suggestion(habit: DoableHabit, spriteResolver: SpriteResolver) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Image(
-            provider = ImageProvider(spriteResolver.resolve(habit.spriteTag, rotationSeed = habit.id)),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = GlanceModifier
-                .size(width = 88.dp, height = 74.dp)
-                .cornerRadius(8.dp),
-        )
-        Spacer(GlanceModifier.width(12.dp))
-        Column {
-            Text(
-                text = "${habit.emoji} ${habit.name}",
-                style = TextStyle(
-                    color = GlanceTheme.colors.onSurface,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                ),
-                maxLines = 1,
-            )
-            if (habit.text != null) {
-                Text(
-                    text = habit.text,
-                    style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 13.sp),
-                    maxLines = 2,
-                )
-            }
-            Spacer(GlanceModifier.height(8.dp))
-            Button(
-                text = "did it",
-                onClick = actionRunCallback<MarkDoneAction>(MarkDoneAction.parameters(habit)),
-            )
-        }
-    }
+private fun Title(habit: DoableHabit, style: TextStyle, maxLines: Int, modifier: GlanceModifier = GlanceModifier) {
+    Text(text = "${habit.emoji} ${habit.name}", style = style, maxLines = maxLines, modifier = modifier)
+}
+
+// Variants are written for notification bodies, so the text is capped at two lines rather
+// than letting the layout grow.
+@Composable
+private fun VariantText(habit: DoableHabit, ink: ColorProvider, size: TextUnit) {
+    if (habit.text == null) return
+    Text(text = habit.text, style = TextStyle(color = ink, fontSize = size), maxLines = 2)
+}
+
+// The card inverted: label contrast equals the card's text contrast, and the button can never
+// vanish into an accent-coloured surface.
+@Composable
+private fun DidIt(habit: DoableHabit, palette: WidgetPalette, compact: Boolean) {
+    Button(
+        text = "did it",
+        onClick = actionRunCallback<MarkDoneAction>(MarkDoneAction.parameters(habit)),
+        colors = ButtonDefaults.buttonColors(backgroundColor = palette.ink, contentColor = palette.surface),
+        style = TextStyle(fontSize = if (compact) 12.sp else 13.sp, fontWeight = FontWeight.Medium),
+        modifier = if (compact) {
+            GlanceModifier.padding(horizontal = 12.dp, vertical = 4.dp)
+        } else {
+            GlanceModifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        },
+    )
+}
+
+// One small line under whatever else is showing, so it costs the sprite and button nothing.
+@Composable
+private fun DayProgressLine(progress: DayProgress, ink: ColorProvider, size: TextUnit, modifier: GlanceModifier = GlanceModifier) {
+    Text(
+        text = DoableHabitWidget.dayProgressLabel(progress),
+        style = TextStyle(color = ink, fontSize = size),
+        maxLines = 1,
+        modifier = modifier,
+    )
 }
 
 // The whole widget already opens the Now page, whose empty state leads to the habit editor.
 @Composable
-private fun NoActiveHabits() {
+private fun NoActiveHabits(ink: ColorProvider, size: TextUnit) {
     Text(
         text = "no active habits \u00b7 tap to add one",
-        style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 16.sp),
+        style = TextStyle(color = ink, fontSize = size),
     )
 }
 
