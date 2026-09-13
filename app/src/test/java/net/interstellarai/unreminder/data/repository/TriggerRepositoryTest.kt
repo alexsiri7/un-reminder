@@ -1,10 +1,12 @@
 package net.interstellarai.unreminder.data.repository
 
 import io.mockk.coEvery
+import io.mockk.coJustRun
 import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import net.interstellarai.unreminder.data.db.TriggerDao
+import net.interstellarai.unreminder.domain.model.NotificationStyle
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -20,6 +22,27 @@ class TriggerRepositoryTest {
     fun setup() {
         triggerDao = mockk()
         repo = TriggerRepository(triggerDao)
+    }
+
+    @Test
+    fun `updateFired freezes the chosen style by name alongside the prompt and action url`() = runTest {
+        coJustRun { triggerDao.updateFired(any(), any(), any(), any(), any(), any(), any()) }
+
+        for (style in NotificationStyle.entries) {
+            repo.updateFired(id = 42L, habitId = 1L, prompt = "p", actionUrl = "https://v", style = style)
+
+            coVerify(exactly = 1) {
+                triggerDao.updateFired(
+                    id = 42L,
+                    status = "FIRED",
+                    firedAt = any(),
+                    habitId = 1L,
+                    prompt = "p",
+                    actionUrl = "https://v",
+                    style = style.name,
+                )
+            }
+        }
     }
 
     @Test
