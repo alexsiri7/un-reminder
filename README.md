@@ -75,10 +75,13 @@ Sentry's "new issue" alert opens a GitHub issue for every distinct event it sees
 | Registration summary, clean | breadcrumb |
 | Geofence transition | breadcrumb |
 | Geofence radius raised to minimum | breadcrumb |
+| Location reconciliation rejected by Play Services (`ApiException` `API_NOT_CONNECTED`) | breadcrumb |
 | Variation pool empty | breadcrumb |
-| `refreshRegistration` / reconciler / worker exceptions | `captureException` |
+| `refreshRegistration` / worker exceptions, and reconciler exceptions other than the row above | `captureException` |
 
 The failing registration summary is the one summary that stays an issue: `reportRegistrationFailure` has already captured an event per failing location by the time the summary is built, so a breadcrumb would arrive too late to carry the permission and location-settings state those events exist to explain.
+
+`API_NOT_CONNECTED` is Play Services declining to serve `LocationServices.API` on that device at all (missing, disabled, updating, or not authentic — #407); the Settings health row shows the decoded label, and no change in this repository can act on it, so it does not open an issue.
 
 Two standing rules:
 

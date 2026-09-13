@@ -7,10 +7,14 @@ import android.location.Location
 import android.location.LocationManager
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.common.api.CommonStatusCodes
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
+import io.sentry.Breadcrumb
 import io.sentry.Sentry
+import io.sentry.SentryLevel
 import net.interstellarai.unreminder.data.db.LocationEntity
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import kotlinx.coroutines.CancellationException
@@ -179,9 +183,22 @@ class LocationReconciler @Inject constructor(
     private fun failure(e: Throwable): Reconciliation.Failed {
         val label = LocationFaultLabel.of(e)
         Log.e(TAG, "Location reconciliation failed ($label)", e)
-        Sentry.captureException(e) { scope ->
-            scope.setTag("component", "geofence")
-            scope.setExtra("reconciliation_status", label)
+        if (e is ApiException && e.statusCode == CommonStatusCodes.API_NOT_CONNECTED) {
+            // Play Services itself declined to serve LocationServices.API on this device (missing,
+            // disabled, updating, or not authentic — #407). Nothing here can change that and the
+            // health row already carries the label, so it rides along rather than opening an issue.
+            Sentry.addBreadcrumb(Breadcrumb().apply {
+                category = "geofence"
+                message = "Location reconciliation rejected by Play Services"
+                level = SentryLevel.INFO
+                setData("reconciliation_status", label)
+                e.status.statusMessage?.let { setData("status_message", it) }
+            })
+        } else {
+            Sentry.captureException(e) { scope ->
+                scope.setTag("component", "geofence")
+                scope.setExtra("reconciliation_status", label)
+            }
         }
         _reconciliationFailure.value = label
         return Reconciliation.Failed(e)
