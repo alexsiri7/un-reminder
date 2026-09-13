@@ -47,6 +47,7 @@ class ReminderDetailViewModelTest {
         dismissalTracker = mockk(relaxUnitFun = true)
         notificationHelper = mockk(relaxUnitFun = true)
         widgetRefresher = mockk(relaxUnitFun = true)
+        coEvery { triggerRepository.recordOutcome(any(), any()) } returns true
         viewModel = ReminderDetailViewModel(
             triggerRepository, habitRepository, dismissalTracker, notificationHelper, widgetRefresher, testDispatcher
         )
@@ -57,11 +58,16 @@ class ReminderDetailViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun makeTrigger(habitId: Long = 1L, prompt: String = "test prompt", actionUrl: String? = null) = TriggerEntity(
+    private fun makeTrigger(
+        habitId: Long = 1L,
+        prompt: String = "test prompt",
+        actionUrl: String? = null,
+        status: TriggerStatus = TriggerStatus.SCHEDULED,
+    ) = TriggerEntity(
         id = 42L,
         habitId = habitId,
         scheduledAt = Instant.EPOCH,
-        status = TriggerStatus.SCHEDULED,
+        status = status,
         generatedPrompt = prompt,
         actionUrl = actionUrl,
     )
@@ -120,42 +126,82 @@ class ReminderDetailViewModelTest {
     }
 
     @Test
-    fun `init records no outcome`() = runTest {
+    fun `init records no completion on a trigger that is not live`() = runTest {
         coEvery { triggerRepository.getById(42L) } returns makeTrigger()
         coEvery { habitRepository.getByIdOnce(1L) } returns makeHabit()
         viewModel.init(42L)
         advanceUntilIdle()
-        coVerify(exactly = 0) { triggerRepository.updateOutcome(any(), any()) }
+        coVerify(exactly = 0) { triggerRepository.recordOutcome(any(), any()) }
         coVerify(exactly = 0) { dismissalTracker.onCompleted(any()) }
         coVerify(exactly = 0) { dismissalTracker.onDismissed(any()) }
     }
 
     @Test
+    fun `init on a FIRED trigger records OPENED, cancels the notification and touches no dedication level`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns makeTrigger(status = TriggerStatus.FIRED)
+        coEvery { habitRepository.getByIdOnce(1L) } returns makeHabit()
+        viewModel.init(42L)
+        advanceUntilIdle()
+        coVerify(exactly = 1) { triggerRepository.recordOutcome(42L, TriggerStatus.OPENED) }
+        verify(exactly = 1) { notificationHelper.cancelNotification(42L) }
+        coVerify(exactly = 0) { dismissalTracker.onDismissed(any()) }
+        coVerify(exactly = 0) { dismissalTracker.onCompleted(any()) }
+        assertTrue(viewModel.uiState.value.canComplete)
+    }
+
+    @Test
+    fun `init on a resolved trigger records nothing and hides Did it`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns makeTrigger(status = TriggerStatus.DISMISSED)
+        coEvery { habitRepository.getByIdOnce(1L) } returns makeHabit()
+        viewModel.init(42L)
+        advanceUntilIdle()
+        coVerify(exactly = 0) { triggerRepository.recordOutcome(any(), any()) }
+        verify(exactly = 0) { notificationHelper.cancelNotification(any()) }
+        assertFalse(viewModel.uiState.value.canComplete)
+    }
+
+    @Test
     fun `markCompleted records COMPLETED outcome and sets isDone`() = runTest {
-        coEvery { triggerRepository.getById(42L) } returns makeTrigger()
+        coEvery { triggerRepository.getById(42L) } returns makeTrigger(status = TriggerStatus.FIRED)
         coEvery { habitRepository.getByIdOnce(1L) } returns makeHabit()
         viewModel.init(42L)
         advanceUntilIdle()
         viewModel.markCompleted()
         advanceUntilIdle()
-        coVerify { triggerRepository.updateOutcome(42L, TriggerStatus.COMPLETED) }
-        coVerify { dismissalTracker.onCompleted(42L) }
+        coVerify(exactly = 1) { triggerRepository.recordOutcome(42L, TriggerStatus.COMPLETED) }
+        coVerify(exactly = 1) { dismissalTracker.onCompleted(42L) }
         coVerify { notificationHelper.cancelNotification(42L) }
         verify(exactly = 1) { widgetRefresher.refresh() }
         assertTrue(viewModel.uiState.value.isDone)
     }
 
     @Test
-    fun `markDismissed records DISMISSED outcome and sets isDone`() = runTest {
-        coEvery { triggerRepository.getById(42L) } returns makeTrigger()
+    fun `markCompleted after an open upgrades OPENED to COMPLETED`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns makeTrigger(status = TriggerStatus.OPENED)
         coEvery { habitRepository.getByIdOnce(1L) } returns makeHabit()
         viewModel.init(42L)
         advanceUntilIdle()
-        viewModel.markDismissed()
+        assertTrue(viewModel.uiState.value.canComplete)
+        viewModel.markCompleted()
         advanceUntilIdle()
-        coVerify { triggerRepository.updateOutcome(42L, TriggerStatus.DISMISSED) }
-        coVerify { dismissalTracker.onDismissed(42L) }
-        verify(exactly = 1) { widgetRefresher.refresh() }
+        coVerify(exactly = 0) { triggerRepository.recordOutcome(42L, TriggerStatus.OPENED) }
+        coVerify(exactly = 1) { triggerRepository.recordOutcome(42L, TriggerStatus.COMPLETED) }
+        coVerify(exactly = 1) { dismissalTracker.onCompleted(42L) }
+        assertTrue(viewModel.uiState.value.isDone)
+    }
+
+    @Test
+    fun `markCompleted whose write is declined runs no side effects`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns makeTrigger(status = TriggerStatus.OPENED)
+        coEvery { habitRepository.getByIdOnce(1L) } returns makeHabit()
+        coEvery { triggerRepository.recordOutcome(42L, TriggerStatus.COMPLETED) } returns false
+        viewModel.init(42L)
+        advanceUntilIdle()
+        viewModel.markCompleted()
+        advanceUntilIdle()
+        coVerify(exactly = 0) { dismissalTracker.onCompleted(any()) }
+        verify(exactly = 0) { widgetRefresher.refresh() }
+        verify(exactly = 1) { notificationHelper.cancelNotification(42L) }
         assertTrue(viewModel.uiState.value.isDone)
     }
 
@@ -167,7 +213,7 @@ class ReminderDetailViewModelTest {
         viewModel.init(42L)
         viewModel.markCompleted()
         advanceUntilIdle()
-        // With the -1L guard, updateOutcome should never be called with -1L
-        coVerify(exactly = 0) { triggerRepository.updateOutcome(-1L, any()) }
+        // With the -1L guard, recordOutcome should never be called with -1L
+        coVerify(exactly = 0) { triggerRepository.recordOutcome(-1L, any()) }
     }
 }

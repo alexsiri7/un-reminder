@@ -29,6 +29,7 @@ data class ReminderDetailUiState(
     val isLoading: Boolean = true,
     val isDone: Boolean = false,
     val isProcessing: Boolean = false,
+    val canComplete: Boolean = false,
 )
 
 @HiltViewModel
@@ -49,6 +50,12 @@ class ReminderDetailViewModel @Inject constructor(
             try {
                 val trigger = triggerRepository.getById(triggerId)
                 val habit = trigger?.habitId?.let { habitRepository.getByIdOnce(it) }
+                if (trigger?.status == TriggerStatus.FIRED) {
+                    // Opened from a live notification. The Open action does not auto-cancel it,
+                    // and OPENED never reaches the DismissalTracker (#378).
+                    triggerRepository.recordOutcome(triggerId, TriggerStatus.OPENED)
+                    notificationHelper.cancelNotification(triggerId)
+                }
                 _uiState.value = ReminderDetailUiState(
                     triggerId = triggerId,
                     promptText = trigger?.generatedPrompt ?: "",
@@ -56,6 +63,7 @@ class ReminderDetailViewModel @Inject constructor(
                     dedicationLevel = habit?.dedicationLevel ?: 0,
                     videoUrl = trigger?.actionUrl?.takeIf { it.startsWith("https://") },
                     isLoading = false,
+                    canComplete = trigger?.status == TriggerStatus.FIRED || trigger?.status == TriggerStatus.OPENED,
                 )
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
@@ -65,27 +73,21 @@ class ReminderDetailViewModel @Inject constructor(
         }
     }
 
-    fun markCompleted() = recordOutcome(TriggerStatus.COMPLETED)
-    fun markDismissed() = recordOutcome(TriggerStatus.DISMISSED)
-
-    private fun recordOutcome(status: TriggerStatus) {
+    fun markCompleted() {
         val triggerId = _uiState.value.triggerId
         if (triggerId == -1L) return
         if (_uiState.value.isProcessing) return
         _uiState.value = _uiState.value.copy(isProcessing = true)
         viewModelScope.launch(ioDispatcher) {
             try {
-                triggerRepository.updateOutcome(triggerId, status)
-                if (status == TriggerStatus.COMPLETED) {
+                if (triggerRepository.recordOutcome(triggerId, TriggerStatus.COMPLETED)) {
                     dismissalTracker.onCompleted(triggerId)
-                } else {
-                    dismissalTracker.onDismissed(triggerId)
+                    widgetRefresher.refresh()
                 }
                 notificationHelper.cancelNotification(triggerId)
-                widgetRefresher.refresh()
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                Log.e(TAG, "Failed to record outcome $status for trigger $triggerId", e)
+                Log.e(TAG, "Failed to record completion for trigger $triggerId", e)
             } finally {
                 _uiState.value = _uiState.value.copy(isDone = true, isProcessing = false)
             }
