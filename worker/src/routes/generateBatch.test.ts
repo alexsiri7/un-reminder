@@ -149,6 +149,35 @@ describe('validateVariants', () => {
     expect(result!.map((v) => v.text)).toEqual(['Sit up straight', 'Breathe for 60 seconds'])
   })
 
+  it('drops a variant tagged for a supported and an unsupported mode together', () => {
+    const result = validateVariants(
+      [
+        { text: 'Sit up straight', shape: 'STATEMENT', modes: ['SITTING'] },
+        { text: 'Roll your shoulders as you walk', shape: 'STATEMENT', modes: ['WALKING', 'SITTING'] },
+      ],
+      new Set(),
+      ['SITTING'],
+    )
+    expect(result!.map((v) => v.text)).toEqual(['Sit up straight'])
+  })
+
+  it('counts each variant dropped for an unsupported mode', () => {
+    const stats = { droppedForMode: 0 }
+    const result = validateVariants(
+      [
+        { text: 'Count 20 steps', shape: 'TERSE', modes: ['WALKING'] },
+        { text: 'Sit up straight', shape: 'STATEMENT', modes: ['SITTING'] },
+        { text: 'Roll your shoulders as you walk', shape: 'STATEMENT', modes: ['WALKING', 'SITTING'] },
+        { text: 'Breathe for 60 seconds', shape: 'TIMEBOXED', modes: [] },
+      ],
+      new Set(),
+      ['SITTING'],
+      stats,
+    )
+    expect(result!.length).toBe(2)
+    expect(stats.droppedForMode).toBe(2)
+  })
+
   it('returns null when every variant was written for an unsupported mode', () => {
     expect(validateVariants([{ text: 'Count 20 steps', shape: 'TERSE', modes: ['WALKING'] }], new Set(), ['SITTING'])).toBeNull()
   })

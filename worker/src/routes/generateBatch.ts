@@ -79,12 +79,14 @@ const isActivityMode = (value: unknown): value is ActivityMode =>
 /**
  * A variant written for an activity outside [supportedModes] is dropped rather than failing
  * the batch: its text is for a context the habit is never in, so keeping it would only take
- * up pool space the app can never draw from.
+ * up pool space the app can never draw from. Each such drop is counted on [stats] so the
+ * handler can report a batch that came back short.
  */
 export function validateVariants(
   parsed: unknown,
   allowedSpriteTags: Set<string> = new Set(),
   supportedModes: readonly ActivityMode[] = ACTIVITY_MODES,
+  stats: { droppedForMode: number } = { droppedForMode: 0 },
 ): NotificationVariant[] | null {
   if (!Array.isArray(parsed)) return null
   if (parsed.length === 0) return null
@@ -96,7 +98,10 @@ export function validateVariants(
     if (!isVariantShape(shape)) return null
     const variantModes = modes === undefined ? [] : modes
     if (!Array.isArray(variantModes) || !variantModes.every(isActivityMode)) return null
-    if (!variantModes.every((m) => supportedModes.includes(m))) continue
+    if (!variantModes.every((m) => supportedModes.includes(m))) {
+      stats.droppedForMode++
+      continue
+    }
     if (actionUrl !== undefined) {
       if (typeof actionUrl !== 'string' || !actionUrl.startsWith('https://')) return null
     }
@@ -140,18 +145,33 @@ export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promi
   // about 85 tokens; a truncated batch is invalid JSON and costs a retry.
   const maxTokens = Math.min(n * 120, 6144)
 
+  // Only the accepted attempt's count survives; a rejected first attempt is retried whole.
+  let droppedForMode = 0
   const result = await callRequestyWithSchemaRetry(
     c.env.UR_REQUESTY_KEY,
     c.env.UR_MODEL,
     prompt,
     strictPrompt,
-    (parsed) => validateVariants(parsed, allowedSpriteTags, modes),
+    (parsed) => {
+      const stats = { droppedForMode: 0 }
+      const variants = validateVariants(parsed, allowedSpriteTags, modes, stats)
+      if (variants) droppedForMode = stats.droppedForMode
+      return variants
+    },
     maxTokens,
     0.9,
   )
 
   if (!result) {
     return c.json({ error: 'Upstream unavailable or returned invalid response' }, 502)
+  }
+  if (droppedForMode > 0) {
+    console.warn('[generateBatch] dropped variants tagged for unsupported modes', {
+      requested: n,
+      returned: result.data.length,
+      dropped: droppedForMode,
+      modes,
+    })
   }
 
   const spendDollars =
