@@ -5,6 +5,9 @@ import net.interstellarai.unreminder.data.repository.HabitLevelDescriptionReposi
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.domain.HabitAvailabilityService
+import net.interstellarai.unreminder.domain.model.ActivityMode
+import net.interstellarai.unreminder.domain.model.ActivityState
+import net.interstellarai.unreminder.service.activity.ActivityRecognitionManager
 import net.interstellarai.unreminder.service.notification.EmojiRotator
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -34,13 +37,17 @@ class DoableHabitPicker @Inject constructor(
     private val levelDescriptionRepository: HabitLevelDescriptionRepository,
     private val variationRepository: VariationRepository,
     private val emojiRotator: EmojiRotator,
+    private val activityRecognitionManager: ActivityRecognitionManager,
 ) {
     suspend fun pick(): DoableHabit? {
         val habits = habitRepository.getAll().first()
         val tiers = availabilityService.computeDisplayTiers(habits)
         val bestTier = tiers.values.minOrNull() ?: return null
         val habit = habits.filter { tiers[it.id] == bestTier }.randomOrNull() ?: return null
-        val variation = variationRepository.peekUnusedVariation(habit.id)
+        // Cycling suppresses nothing on the widget, so its text takes the same sitting
+        // fallback as an unknown activity.
+        val mode = (activityRecognitionManager.resolve().state as? ActivityState.Mode)?.mode ?: ActivityMode.SITTING
+        val variation = variationRepository.peekUnusedVariation(habit.id, mode)
         val text = variation?.text
             ?: levelDescriptionRepository.getDescriptionForLevel(habit.id, habit.dedicationLevel)
         // Notifications key the emoji by trigger id; the widget has no trigger, so the

@@ -10,7 +10,10 @@ import net.interstellarai.unreminder.domain.AvailabilityStatus
 import net.interstellarai.unreminder.domain.HabitAvailabilityService
 import net.interstellarai.unreminder.domain.UnavailableReason
 import net.interstellarai.unreminder.domain.model.ActivityMode
+import net.interstellarai.unreminder.domain.model.ActivityResolution
+import net.interstellarai.unreminder.domain.model.ActivityState
 import net.interstellarai.unreminder.domain.model.AiHabitFields
+import net.interstellarai.unreminder.service.activity.ActivityRecognitionManager
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.service.llm.LlmUnavailableException
@@ -66,6 +69,7 @@ class HabitEditViewModelTest {
     private val mockGeofenceManager: GeofenceManager = mockk(relaxed = true)
     private val mockTriggerRepository: TriggerRepository = mockk(relaxed = true)
     private val mockAvailabilityService: HabitAvailabilityService = mockk(relaxed = true)
+    private val mockActivityRecognitionManager: ActivityRecognitionManager = mockk()
     private lateinit var viewModel: HabitEditViewModel
 
     // Backing flow for geofenceManager.currentLocationIds — tests mutate this directly.
@@ -89,6 +93,8 @@ class HabitEditViewModelTest {
         every { mockWindowRepository.getAll() } returns flowOf(emptyList())
         every { mockPromptGenerator.aiStatus } returns MutableStateFlow<AiStatus>(AiStatus.Ready)
         every { mockGeofenceManager.currentLocationIds } returns currentLocationIdsFlow.asStateFlow()
+        every { mockActivityRecognitionManager.resolve() } returns
+            ActivityResolution(ActivityState.Mode(ActivityMode.SITTING), null)
         coEvery { mockAvailabilityService.computeAvailability(any<HabitEntity>()) } returns AvailabilityStatus.Available
         coEvery { mockAvailabilityService.computeAvailability(any<HabitEntity>(), any(), any()) } returns AvailabilityStatus.Available
         viewModel = HabitEditViewModel(
@@ -101,6 +107,7 @@ class HabitEditViewModelTest {
             mockGeofenceManager,
             mockTriggerRepository,
             mockAvailabilityService,
+            mockActivityRecognitionManager,
         )
         viewModel.updateName("meditation")
         testLadder.forEachIndexed { i, text -> viewModel.updateDescriptionAtLevel(i, text) }
@@ -177,7 +184,7 @@ class HabitEditViewModelTest {
     @Test
     fun `previewNotification shows dialog with pooled variation when available`() = runTest(testDispatcher) {
         coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit)
-        coEvery { mockVariationRepository.peekUnused(testHabit.id) } returns
+        coEvery { mockVariationRepository.peekUnused(testHabit.id, any()) } returns
             "Open your journal and write one line"
         viewModel.loadHabit(testHabit.id)
         advanceUntilIdle()
@@ -192,9 +199,28 @@ class HabitEditViewModelTest {
     }
 
     @Test
+    fun `previewNotification peeks for the resolved mode, reading cycling as sitting`() = runTest(testDispatcher) {
+        coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit)
+        coEvery { mockVariationRepository.peekUnused(testHabit.id, ActivityMode.WALKING) } returns "walking words"
+        coEvery { mockVariationRepository.peekUnused(testHabit.id, ActivityMode.SITTING) } returns "sitting words"
+        viewModel.loadHabit(testHabit.id)
+        advanceUntilIdle()
+
+        every { mockActivityRecognitionManager.resolve() } returns ActivityResolution(ActivityState.Mode(ActivityMode.WALKING), null)
+        viewModel.previewNotification()
+        advanceUntilIdle()
+        assertEquals("walking words", viewModel.uiState.value.previewNotification)
+
+        every { mockActivityRecognitionManager.resolve() } returns ActivityResolution(ActivityState.Cycling, null)
+        viewModel.previewNotification()
+        advanceUntilIdle()
+        assertEquals("sitting words", viewModel.uiState.value.previewNotification)
+    }
+
+    @Test
     fun `previewNotification surfaces errorMessage and does not open dialog when pool is empty`() = runTest(testDispatcher) {
         coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit)
-        coEvery { mockVariationRepository.peekUnused(testHabit.id) } returns null
+        coEvery { mockVariationRepository.peekUnused(testHabit.id, any()) } returns null
         viewModel.loadHabit(testHabit.id)
         advanceUntilIdle()
 
@@ -223,13 +249,13 @@ class HabitEditViewModelTest {
             "Save the habit first to preview a real notification.",
             state.errorMessage
         )
-        coVerify(exactly = 0) { mockVariationRepository.peekUnused(any()) }
+        coVerify(exactly = 0) { mockVariationRepository.peekUnused(any(), any()) }
     }
 
     @Test
     fun `previewNotification sets errorMessage when peekUnused throws`() = runTest(testDispatcher) {
         coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit)
-        coEvery { mockVariationRepository.peekUnused(testHabit.id) } throws RuntimeException("db error")
+        coEvery { mockVariationRepository.peekUnused(testHabit.id, any()) } throws RuntimeException("db error")
         viewModel.loadHabit(testHabit.id)
         advanceUntilIdle()
 
@@ -246,7 +272,7 @@ class HabitEditViewModelTest {
     @Test
     fun `dismissPreviewDialog clears showPreviewDialog and previewNotification`() = runTest(testDispatcher) {
         coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit)
-        coEvery { mockVariationRepository.peekUnused(testHabit.id) } returns "preview text"
+        coEvery { mockVariationRepository.peekUnused(testHabit.id, any()) } returns "preview text"
         viewModel.loadHabit(testHabit.id)
         advanceUntilIdle()
         viewModel.previewNotification()
@@ -449,6 +475,7 @@ class HabitEditViewModelTest {
             mockHabitRepository, mockLocationRepository, mockWindowRepository,
             mockPromptGenerator, mockRefillScheduler, mockVariationRepository,
             mockGeofenceManager, mockTriggerRepository, mockAvailabilityService,
+            mockActivityRecognitionManager,
         )
         assertEquals(AiStatus.Unavailable, vm.aiStatus.value)
     }
@@ -460,6 +487,7 @@ class HabitEditViewModelTest {
             mockHabitRepository, mockLocationRepository, mockWindowRepository,
             mockPromptGenerator, mockRefillScheduler, mockVariationRepository,
             mockGeofenceManager, mockTriggerRepository, mockAvailabilityService,
+            mockActivityRecognitionManager,
         )
         assertEquals(AiStatus.Ready, vm.aiStatus.value)
     }
@@ -693,6 +721,7 @@ class HabitEditViewModelTest {
             mockHabitRepository, mockLocationRepository, mockWindowRepository,
             mockPromptGenerator, mockRefillScheduler, mockVariationRepository,
             mockGeofenceManager, mockTriggerRepository, mockAvailabilityService,
+            mockActivityRecognitionManager,
         )
 
         flow.value = setOf(1L, 2L, 3L)
@@ -713,6 +742,7 @@ class HabitEditViewModelTest {
             mockHabitRepository, mockLocationRepository, mockWindowRepository,
             mockPromptGenerator, mockRefillScheduler, mockVariationRepository,
             mockGeofenceManager, mockTriggerRepository, mockAvailabilityService,
+            mockActivityRecognitionManager,
         )
 
         coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit)

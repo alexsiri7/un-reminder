@@ -14,6 +14,10 @@ import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.domain.DisplayTier
 import net.interstellarai.unreminder.domain.HabitAvailabilityService
+import net.interstellarai.unreminder.domain.model.ActivityMode
+import net.interstellarai.unreminder.domain.model.ActivityResolution
+import net.interstellarai.unreminder.domain.model.ActivityState
+import net.interstellarai.unreminder.service.activity.ActivityRecognitionManager
 import net.interstellarai.unreminder.service.notification.EmojiRotator
 import net.interstellarai.unreminder.domain.model.VariantShape
 import org.junit.Assert.assertEquals
@@ -28,18 +32,22 @@ class DoableHabitPickerTest {
     private val availabilityService: HabitAvailabilityService = mockk()
     private val levelDescriptionRepository: HabitLevelDescriptionRepository = mockk()
     private val variationRepository: VariationRepository = mockk()
+    private val activityRecognitionManager: ActivityRecognitionManager = mockk()
     private val picker = DoableHabitPicker(
         habitRepository,
         availabilityService,
         levelDescriptionRepository,
         variationRepository,
         EmojiRotator(),
+        activityRecognitionManager,
     )
 
     @Before
     fun setup() {
         coEvery { levelDescriptionRepository.getDescriptionForLevel(any(), any()) } returns null
-        coEvery { variationRepository.peekUnusedVariation(any()) } returns null
+        coEvery { variationRepository.peekUnusedVariation(any(), any()) } returns null
+        every { activityRecognitionManager.resolve() } returns
+            ActivityResolution(ActivityState.Mode(ActivityMode.SITTING), null)
     }
 
     private fun habit(id: Long) = HabitEntity(id = id, name = "habit $id", dedicationLevel = 2)
@@ -93,7 +101,7 @@ class DoableHabitPickerTest {
     @Test
     fun `carries the habit name, a stable emoji and the peeked variant with its sprite tag`() = runTest {
         givenHabits(listOf(habit(7L)), mapOf(7L to DisplayTier.DOABLE))
-        coEvery { variationRepository.peekUnusedVariation(7L) } returns variation(70L, 7L, spriteTag = "chef_pan_flip")
+        coEvery { variationRepository.peekUnusedVariation(7L, any()) } returns variation(70L, 7L, spriteTag = "chef_pan_flip")
 
         val first = picker.pick()
         val second = picker.pick()
@@ -115,11 +123,11 @@ class DoableHabitPickerTest {
     @Test
     fun `a refresh only peeks and never consumes or refills`() = runTest {
         givenHabits(listOf(habit(7L)), mapOf(7L to DisplayTier.DOABLE))
-        coEvery { variationRepository.peekUnusedVariation(7L) } returns variation(70L, 7L)
+        coEvery { variationRepository.peekUnusedVariation(7L, any()) } returns variation(70L, 7L)
 
         repeat(3) { picker.pick() }
 
-        coVerify(exactly = 3) { variationRepository.peekUnusedVariation(7L) }
+        coVerify(exactly = 3) { variationRepository.peekUnusedVariation(7L, any()) }
         confirmVerified(variationRepository)
     }
 
@@ -154,5 +162,18 @@ class DoableHabitPickerTest {
 
         givenHabits(emptyList(), emptyMap())
         assertNull(picker.pick())
+    }
+
+    @Test
+    fun `peeks the variant for the resolved mode, reading cycling as sitting`() = runTest {
+        givenHabits(listOf(habit(7L)), mapOf(7L to DisplayTier.DOABLE))
+        coEvery { variationRepository.peekUnusedVariation(7L, ActivityMode.WALKING) } returns variation(70L, 7L)
+        coEvery { variationRepository.peekUnusedVariation(7L, ActivityMode.SITTING) } returns variation(71L, 7L)
+
+        every { activityRecognitionManager.resolve() } returns ActivityResolution(ActivityState.Mode(ActivityMode.WALKING), null)
+        assertEquals(70L, picker.pick()!!.variationId)
+
+        every { activityRecognitionManager.resolve() } returns ActivityResolution(ActivityState.Cycling, null)
+        assertEquals(71L, picker.pick()!!.variationId)
     }
 }

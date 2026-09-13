@@ -4,6 +4,8 @@ import android.util.Log
 import kotlinx.coroutines.flow.Flow
 import net.interstellarai.unreminder.data.db.VariationDao
 import net.interstellarai.unreminder.data.db.VariationEntity
+import net.interstellarai.unreminder.data.db.bit
+import net.interstellarai.unreminder.domain.model.ActivityMode
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import javax.inject.Inject
@@ -23,15 +25,17 @@ class VariationRepository @Inject constructor(
 
     /**
      * Picks an unconsumed variation for [habitId], marks it consumed, and returns it. The
-     * draw is random among variations whose shape differs from the last one consumed for the
-     * habit, so consecutive nudges change shape; the same shape is only a last resort.
+     * draw prefers a variation written for [mode], then a mode-neutral one, and only then one
+     * written for another mode; within that it is random among variations whose shape
+     * differs from the last one consumed for the habit, so consecutive nudges change shape
+     * and the same shape is only a last resort.
      * Returns null when no variation could be claimed — either the pool is empty
      * or all candidates were concurrently consumed (race-safe via optimistic UPDATE).
      * Callers should treat null as "nothing available; consider triggering a refill".
      * The returned entity is already marked consumed; do not call [VariationDao.markConsumed] again.
      */
-    suspend fun pickRandomUnused(habitId: Long): VariationEntity? {
-        val unused = dao.getUnusedForHabit(habitId, POOL_SIZE)
+    suspend fun pickRandomUnused(habitId: Long, mode: ActivityMode): VariationEntity? {
+        val unused = dao.getUnusedForHabit(habitId, mode.bit, POOL_SIZE)
         // Truncate to millis so the returned copy matches Room's epoch-millis storage
         val now = Instant.now().truncatedTo(ChronoUnit.MILLIS)
         for (candidate in unused) {
@@ -51,16 +55,16 @@ class VariationRepository @Inject constructor(
     suspend fun needsRefill(habitId: Long, threshold: Int = REFILL_THRESHOLD): Boolean =
         dao.countUnused(habitId) < threshold
 
-    suspend fun peekUnused(habitId: Long): String? = peekUnusedVariation(habitId)?.text
+    suspend fun peekUnused(habitId: Long, mode: ActivityMode): String? = peekUnusedVariation(habitId, mode)?.text
 
     /**
-     * An unconsumed variation for [habitId], left unconsumed and drawn with the same shape
-     * rotation as [pickRandomUnused]. The menu and widget display through this so that
-     * looking never drains the pool; consumption only happens when a trigger fires or a
-     * habit is completed ([markConsumed]).
+     * An unconsumed variation for [habitId], left unconsumed and drawn with the same mode
+     * preference and shape rotation as [pickRandomUnused]. The menu and widget display
+     * through this so that looking never drains the pool; consumption only happens when a
+     * trigger fires or a habit is completed ([markConsumed]).
      */
-    suspend fun peekUnusedVariation(habitId: Long): VariationEntity? =
-        dao.getUnusedForHabit(habitId, 1).firstOrNull()
+    suspend fun peekUnusedVariation(habitId: Long, mode: ActivityMode): VariationEntity? =
+        dao.getUnusedForHabit(habitId, mode.bit, 1).firstOrNull()
 
     /**
      * Marks a displayed variation consumed once its habit is completed. A variation a

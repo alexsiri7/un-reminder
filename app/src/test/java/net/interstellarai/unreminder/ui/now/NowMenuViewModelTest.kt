@@ -29,7 +29,11 @@ import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.domain.DisplayTier
 import net.interstellarai.unreminder.domain.HabitAvailabilityService
+import net.interstellarai.unreminder.domain.model.ActivityMode
+import net.interstellarai.unreminder.domain.model.ActivityResolution
+import net.interstellarai.unreminder.domain.model.ActivityState
 import net.interstellarai.unreminder.domain.model.TriggerStatus
+import net.interstellarai.unreminder.service.activity.ActivityRecognitionManager
 import net.interstellarai.unreminder.service.notification.MascotSprites
 import net.interstellarai.unreminder.service.notification.SpriteResolver
 import net.interstellarai.unreminder.service.trigger.DismissalTracker
@@ -56,6 +60,7 @@ class NowMenuViewModelTest {
     private val spriteResolver = SpriteResolver()
     private val dismissalTracker: DismissalTracker = mockk(relaxUnitFun = true)
     private val widgetRefresher: WidgetRefresher = mockk(relaxUnitFun = true)
+    private val activityRecognitionManager: ActivityRecognitionManager = mockk()
 
     @Before
     fun setup() {
@@ -64,7 +69,9 @@ class NowMenuViewModelTest {
         every { android.util.Log.e(any<String>(), any<String>(), any<Throwable>()) } returns 0
         every { triggerRepository.daysWithAnyCompletion() } returns flowOf(0)
         coEvery { levelDescriptionRepository.getDescriptionForLevel(any(), any()) } returns null
-        coEvery { variationRepository.peekUnusedVariation(any()) } returns null
+        coEvery { variationRepository.peekUnusedVariation(any(), any()) } returns null
+        every { activityRecognitionManager.resolve() } returns
+            ActivityResolution(ActivityState.Mode(ActivityMode.SITTING), null)
     }
 
     @After
@@ -97,6 +104,7 @@ class NowMenuViewModelTest {
         spriteResolver,
         dismissalTracker,
         widgetRefresher,
+        activityRecognitionManager,
     )
 
     private fun NowMenuViewModel.menu() = uiState.value as NowMenuUiState.Menu
@@ -289,7 +297,7 @@ class NowMenuViewModelTest {
         givenHabits(habits, allDoable(habits))
         coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 4) } returns "ten minutes"
         val sprite = MascotSprites.entries[3]
-        coEvery { variationRepository.peekUnusedVariation(1L) } returns variation(7L, 1L, "sit like a wizard", sprite.tag)
+        coEvery { variationRepository.peekUnusedVariation(1L, any()) } returns variation(7L, 1L, "sit like a wizard", sprite.tag)
         val vm = buildViewModel()
         vm.refresh()
         advanceUntilIdle()
@@ -298,6 +306,25 @@ class NowMenuViewModelTest {
         assertEquals("sit like a wizard", row.text)
         assertEquals(7L, row.variationId)
         assertEquals(sprite.drawableRes, row.spriteRes)
+    }
+
+    @Test
+    fun `rows peek the variant for the resolved mode, reading cycling as sitting`() = runTest(testDispatcher) {
+        val habits = listOf(habit(1L))
+        givenHabits(habits, allDoable(habits))
+        coEvery { variationRepository.peekUnusedVariation(1L, ActivityMode.TRANSPORT) } returns variation(7L, 1L)
+        coEvery { variationRepository.peekUnusedVariation(1L, ActivityMode.SITTING) } returns variation(8L, 1L)
+        val vm = buildViewModel()
+
+        every { activityRecognitionManager.resolve() } returns ActivityResolution(ActivityState.Mode(ActivityMode.TRANSPORT), null)
+        vm.refresh()
+        advanceUntilIdle()
+        assertEquals(7L, vm.menu().items.single().variationId)
+
+        every { activityRecognitionManager.resolve() } returns ActivityResolution(ActivityState.Cycling, null)
+        vm.refresh()
+        advanceUntilIdle()
+        assertEquals(8L, vm.menu().items.single().variationId)
     }
 
     @Test
@@ -335,15 +362,15 @@ class NowMenuViewModelTest {
     fun `rendering the menu only peeks and never consumes or refills`() = runTest(testDispatcher) {
         val habits = (1L..2L).map { habit(it) }
         givenHabits(habits, allDoable(habits))
-        coEvery { variationRepository.peekUnusedVariation(1L) } returns variation(7L, 1L)
+        coEvery { variationRepository.peekUnusedVariation(1L, any()) } returns variation(7L, 1L)
         val vm = buildViewModel()
         vm.refresh()
         advanceUntilIdle()
         vm.refresh()
         advanceUntilIdle()
 
-        coVerify(exactly = 2) { variationRepository.peekUnusedVariation(1L) }
-        coVerify(exactly = 2) { variationRepository.peekUnusedVariation(2L) }
+        coVerify(exactly = 2) { variationRepository.peekUnusedVariation(1L, any()) }
+        coVerify(exactly = 2) { variationRepository.peekUnusedVariation(2L, any()) }
         confirmVerified(variationRepository)
     }
 
@@ -352,7 +379,7 @@ class NowMenuViewModelTest {
         val habits = (1L..5L).map { habit(it) }
         givenHabits(habits, allDoable(habits))
         habits.forEach { h ->
-            coEvery { variationRepository.peekUnusedVariation(h.id) } returnsMany listOf(
+            coEvery { variationRepository.peekUnusedVariation(h.id, any()) } returnsMany listOf(
                 variation(h.id * 10, h.id, spriteTag = MascotSprites.entries[0].tag),
                 variation(h.id * 10 + 1, h.id, spriteTag = MascotSprites.entries[1].tag),
             )
@@ -371,14 +398,14 @@ class NowMenuViewModelTest {
             assertEquals(row.habitId * 10, row.variationId)
             assertEquals(MascotSprites.entries[0].drawableRes, row.spriteRes)
         }
-        habits.forEach { coVerify(exactly = 1) { variationRepository.peekUnusedVariation(it.id) } }
+        habits.forEach { coVerify(exactly = 1) { variationRepository.peekUnusedVariation(it.id, any()) } }
     }
 
     @Test
     fun `completing marks exactly the displayed variant consumed`() = runTest(testDispatcher) {
         val habits = (1L..3L).map { habit(it) }
         givenHabits(habits, allDoable(habits))
-        habits.forEach { h -> coEvery { variationRepository.peekUnusedVariation(h.id) } returns variation(h.id * 10, h.id) }
+        habits.forEach { h -> coEvery { variationRepository.peekUnusedVariation(h.id, any()) } returns variation(h.id * 10, h.id) }
         coEvery { triggerRepository.insert(any()) } returns 99L
         val vm = buildViewModel()
         vm.refresh()
@@ -396,7 +423,7 @@ class NowMenuViewModelTest {
     fun `a failed consume after the write keeps the habit completed and promoted`() = runTest(testDispatcher) {
         val habits = (1L..3L).map { habit(it) }
         givenHabits(habits, allDoable(habits))
-        habits.forEach { h -> coEvery { variationRepository.peekUnusedVariation(h.id) } returns variation(h.id * 10, h.id) }
+        habits.forEach { h -> coEvery { variationRepository.peekUnusedVariation(h.id, any()) } returns variation(h.id * 10, h.id) }
         coEvery { triggerRepository.insert(any()) } returns 99L
         coEvery { variationRepository.markConsumed(any()) } throws IllegalStateException("variations table locked")
         val vm = buildViewModel()
@@ -435,7 +462,7 @@ class NowMenuViewModelTest {
     fun `a failed completion write consumes nothing`() = runTest(testDispatcher) {
         val habits = (1L..3L).map { habit(it) }
         givenHabits(habits, allDoable(habits))
-        habits.forEach { h -> coEvery { variationRepository.peekUnusedVariation(h.id) } returns variation(h.id * 10, h.id) }
+        habits.forEach { h -> coEvery { variationRepository.peekUnusedVariation(h.id, any()) } returns variation(h.id * 10, h.id) }
         coEvery { triggerRepository.insert(any()) } throws IllegalStateException("disk full")
         val vm = buildViewModel()
         vm.refresh()
@@ -553,7 +580,7 @@ class NowMenuViewModelTest {
     fun `a failed promotion skips consuming the displayed variant`() = runTest(testDispatcher) {
         val habits = (1L..2L).map { habit(it) }
         givenHabits(habits, allDoable(habits))
-        coEvery { variationRepository.peekUnusedVariation(1L) } returns variation(10L, 1L)
+        coEvery { variationRepository.peekUnusedVariation(1L, any()) } returns variation(10L, 1L)
         coEvery { triggerRepository.insert(any()) } returns 99L
         coEvery { dismissalTracker.onCompleted(99L) } throws IllegalStateException("promotion broke")
         val vm = buildViewModel()
@@ -583,7 +610,7 @@ class NowMenuViewModelTest {
     fun `completing a blocked habit is a normal completion`() = runTest(testDispatcher) {
         val habits = (1L..2L).map { habit(it) }
         givenHabits(habits, mapOf(1L to DisplayTier.DONE_TODAY, 2L to DisplayTier.OUT_OF_HOURS))
-        coEvery { variationRepository.peekUnusedVariation(1L) } returns variation(10L, 1L)
+        coEvery { variationRepository.peekUnusedVariation(1L, any()) } returns variation(10L, 1L)
         val inserted = slot<TriggerEntity>()
         coEvery { triggerRepository.insert(capture(inserted)) } returns 99L
         val vm = buildViewModel()

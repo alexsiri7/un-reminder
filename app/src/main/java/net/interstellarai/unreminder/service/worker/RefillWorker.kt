@@ -68,6 +68,7 @@ class RefillWorker @AssistedInject constructor(
                 timeOfDay = "",
                 personalContext = personalContext,
                 sprites = MascotSprites.entries,
+                supportedModes = habit.supportedModes,
                 n = VariationRepository.POOL_SIZE,
                 workerUrl = url,
                 workerSecret = secret,
@@ -82,6 +83,7 @@ class RefillWorker @AssistedInject constructor(
                     actionUrl = variant.actionUrl,
                     spriteTag = variant.spriteTag,
                     shape = variant.shape,
+                    modes = variant.modes,
                 )
             }
             variationRepository.deleteConsumedForHabit(habitId)

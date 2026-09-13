@@ -5,6 +5,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import net.interstellarai.unreminder.domain.model.ActivityMode
 import net.interstellarai.unreminder.domain.model.VariantShape
 import java.time.Instant
 
@@ -41,4 +42,7 @@ data class VariationEntity(
     val spriteTag: String? = null,
     /** Null only on rows generated before shapes existed; every new row carries one. */
     val shape: VariantShape?,
+    /** The activities the text was written for; empty when it reads naturally in any of them. */
+    @ColumnInfo(name = "modes", defaultValue = "0")
+    val modes: Set<ActivityMode> = emptySet(),
 )

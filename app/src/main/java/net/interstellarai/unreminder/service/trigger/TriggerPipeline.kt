@@ -7,6 +7,7 @@ import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
+import net.interstellarai.unreminder.domain.model.ActivityMode
 import net.interstellarai.unreminder.domain.model.ActivityState
 import net.interstellarai.unreminder.domain.model.NotificationVariant
 import net.interstellarai.unreminder.domain.model.TriggerStatus
@@ -104,7 +105,7 @@ class TriggerPipeline @Inject constructor(
             val habit = pickWeighted(eligibleHabits, lastFiredMap, nowMillis)
             val timeOfDay = resolveTimeOfDay()
             val locationName = resolveLocationName(locationIds)
-            val resolvedPrompt = resolvePrompt(habit, locationName, timeOfDay)
+            val resolvedPrompt = resolvePrompt(habit, mode, locationName, timeOfDay)
 
             // Read while this trigger is still SCHEDULED: FIRED is written nowhere but
             // updateFired below, so the list means exactly "posted, no outcome yet" and
@@ -156,9 +157,9 @@ class TriggerPipeline @Inject constructor(
         }
     }
 
-    private suspend fun resolvePrompt(habit: HabitEntity, locationName: String, timeOfDay: String): NotificationVariant {
+    private suspend fun resolvePrompt(habit: HabitEntity, mode: ActivityMode, locationName: String, timeOfDay: String): NotificationVariant {
         val variation = try {
-            variationRepository.pickRandomUnused(habit.id)
+            variationRepository.pickRandomUnused(habit.id, mode)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             Log.w(TAG, "variationRepository.pickRandomUnused failed — falling back to habit.name", e)
