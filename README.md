@@ -345,7 +345,7 @@ from the pool, not from a fresh generation.
 ## 8. Database Schema (Room)
 
 ```kotlin
-// DB version 10
+// DB version 15
 @Entity Habit(id, name, dedication_level/*Int 0-5*/, auto_adjust_level/*Boolean*/, daily_limit/*Int, default 1*/, cooldown_minutes/*Int, default 180*/, supported_modes/*Int bitmask, 0 = any*/, active, created_at, updated_at)
 @Entity HabitLevelDescriptionEntity(habit_id → Habit.id CASCADE, level/*0-5*/, description)  // per-level text
 @Entity Window(id, start_time, end_time, days_of_week_bitmask, frequency_per_day, active)
