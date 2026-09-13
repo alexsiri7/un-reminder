@@ -324,7 +324,7 @@ from the pool, not from a fresh generation.
    reading reactively from `WorkManager.getWorkInfosForUniqueWorkFlow(RandomIntervalWorker.WORK_NAME)`.
    Includes a "Send Feedback" button in the top bar.
 7. **Settings screen** — notification permission status, background location permission status, a manual "Test trigger now" button, a button to regenerate tomorrow's scheduled triggers, a link to Cloud AI settings, and a "Send Feedback" button.
-7a. **Cloud AI settings screen** — worker URL and shared secret for cloud generation, and a "regenerate all variants" button that clears the variation pool and re-queues a refill job for every active habit.
+7a. **Cloud AI settings screen** — worker URL and shared secret for cloud generation, and a "regenerate all variants" button that generates a fresh batch per active habit and swaps it in only once it lands, keeping the previous variants until then (see "Pool lifecycle" above).
 8. **Onboarding screen** — shown once on first launch. Walks the user through three collapsible steps: (1) granting Notifications and Location permissions, (2) creating a first habit with name/descriptions and weekday schedule, (3) creating a first time window. Includes a "Skip" action in the top bar. Completion (or skip) is persisted via DataStore (`onboarding_done` key) and never shown again. Bottom navigation bar is hidden while onboarding is active.
 9. **Feedback screen** — annotated screenshot tool. Captures the current screen, lets the user draw annotations (red/yellow/green strokes), type a description, and submit as a GitHub issue. Falls back to an offline queue (WorkManager) when connectivity is unavailable.
 10. **Reminder detail screen** — read/act view for a single past or recent trigger, accessible by tapping
