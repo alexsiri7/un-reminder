@@ -50,16 +50,24 @@ Configured in `wrangler.toml` under `[vars]`:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `UR_MODEL` | `gemini-3-flash-preview` | Model to use via Requesty |
+| `UR_MODEL` | `google/gemini-3.6-flash` | Model to use via Requesty |
 | `UR_DAILY_CAP_CENTS` | `50` | Max daily spend in cents |
 | `UR_MONTHLY_CAP_CENTS` | `500` | Max monthly spend in cents |
-| `UR_GENERATION_VERSION` | `1` | Integer ≥ 1 identifying the current model + prompt; echoed on `/v1/health` and `/v1/generate/batch` |
+| `UR_GENERATION_VERSION` | `2` | Integer ≥ 1 identifying the current model + prompt; echoed on `/v1/health` and `/v1/generate/batch` |
 
 **Rolling out a new model or prompt:** bump `UR_GENERATION_VERSION` in the same deploy that changes
 `UR_MODEL` or `buildPrompt`. Every device checks the version daily and regenerates each active habit's
 pool that was generated under another version, paced about one habit per minute, keeping the old pool
 live until the new batch lands. A value that is missing, non-integer or below 1 makes both routes
 answer 503 (the app reserves `0` for rows generated before versions existed).
+
+**Generation version history** — add a row with every bump so a copy regression can be traced to the
+model or prompt that produced it. Pricing constants in `src/lib/requesty.ts` follow `UR_MODEL`.
+
+| Version | Model | Prompt | Date | Change |
+|---------|-------|--------|------|--------|
+| `1` | `google/gemini-3-flash-preview` | `buildPrompt` as of #391 (shapes #373, mode tags #374) | 2026-04 | Initial model, never revisited since the first Worker deploy |
+| `2` | `google/gemini-3.6-flash` | Unchanged from `1` | 2026-09 | #376 model upgrade |
 
 ### 4. Rate limiting (optional)
 
@@ -99,7 +107,7 @@ Generates notification text variants. Requires `X-UR-Secret` header.
     { "text": "Hold a downward dog for 60 seconds", "shape": "TIMEBOXED", "modes": ["SITTING"], "actionUrl": "https://www.youtube.com/results?search_query=downward+dog+yoga+form" },
     { "text": "Roll your shoulders 10 times as you walk", "shape": "STATEMENT", "modes": ["WALKING"] }
   ],
-  "generationVersion": 1
+  "generationVersion": 2
 }
 ```
 

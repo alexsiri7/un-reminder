@@ -5,11 +5,11 @@ const REQUESTY_URL = 'https://router.requesty.ai/v1/chat/completions'
 const toError = (err: unknown): Error =>
   err instanceof Error ? err : new Error(String(err))
 
-// Pricing per token via Requesty for gemini-3-flash-preview (2026-04).
+// Pricing per token via Requesty for google/gemini-3.6-flash (catalog 2026-09).
 // These constants MUST match the model configured in UR_MODEL (wrangler.toml).
 // If you change the model, update pricing here too.
-export const COST_PER_OUTPUT_TOKEN = 0.000075 / 1000
-export const COST_PER_INPUT_TOKEN = 0.000075 / 1000
+export const COST_PER_OUTPUT_TOKEN = 7 / 1_000_000
+export const COST_PER_INPUT_TOKEN = 1.5 / 1_000_000
 
 export interface RequestyResult {
   text: string

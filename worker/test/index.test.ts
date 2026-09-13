@@ -65,7 +65,7 @@ function testEnv() {
     ...env,
     UR_SHARED_SECRET: SECRET,
     UR_REQUESTY_KEY: 'test-requesty-key',
-    UR_MODEL: 'gemini-3-flash-preview',
+    UR_MODEL: 'google/gemini-3.6-flash',
     UR_DAILY_CAP_CENTS: '50',
     UR_MONTHLY_CAP_CENTS: '500',
   }
