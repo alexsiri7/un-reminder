@@ -327,8 +327,9 @@ from the pool, not from a fresh generation.
     prompt text ("reminder" section) and, if the trigger has an associated habit, the habit name and
     current dedication progress bar ("habit" section).
     Opening a live (`FIRED`) trigger records `OPENED` and clears its notification. Action chips:
-    **Did it** (records `COMPLETED`, navigates back), shown only while the trigger is `FIRED` or
-    `OPENED`, and — when the trigger's variant carried an `action_url` — **Watch**, which opens that
+    **Did it** (records `COMPLETED` and navigates back; if a swipe or Later already resolved the
+    trigger, nothing is recorded and the chip is withdrawn instead), shown only while the trigger
+    is `FIRED` or `OPENED`, and — when the trigger's variant carried an `action_url` — **Watch**, which opens that
     URL; triggers without one show no video affordance. There is no Dismiss chip: swiping the
     notification is the only dismissal path. No bottom navigation bar
     (excluded from `showBottomBar` logic in `NavGraph`). Back navigation via "← back" text link or system back.

@@ -150,6 +150,18 @@ class ReminderDetailViewModelTest {
     }
 
     @Test
+    fun `init whose OPENED write is declined hides Did it`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns makeTrigger(status = TriggerStatus.FIRED)
+        coEvery { habitRepository.getByIdOnce(1L) } returns makeHabit()
+        coEvery { triggerRepository.recordOutcome(42L, TriggerStatus.OPENED) } returns false
+        viewModel.init(42L)
+        advanceUntilIdle()
+        verify(exactly = 1) { notificationHelper.cancelNotification(42L) }
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertFalse(viewModel.uiState.value.canComplete)
+    }
+
+    @Test
     fun `init on a resolved trigger records nothing and hides Did it`() = runTest {
         coEvery { triggerRepository.getById(42L) } returns makeTrigger(status = TriggerStatus.DISMISSED)
         coEvery { habitRepository.getByIdOnce(1L) } returns makeHabit()
@@ -191,7 +203,7 @@ class ReminderDetailViewModelTest {
     }
 
     @Test
-    fun `markCompleted whose write is declined runs no side effects`() = runTest {
+    fun `markCompleted whose write is declined runs no side effects, stays on screen and hides Did it`() = runTest {
         coEvery { triggerRepository.getById(42L) } returns makeTrigger(status = TriggerStatus.OPENED)
         coEvery { habitRepository.getByIdOnce(1L) } returns makeHabit()
         coEvery { triggerRepository.recordOutcome(42L, TriggerStatus.COMPLETED) } returns false
@@ -202,7 +214,9 @@ class ReminderDetailViewModelTest {
         coVerify(exactly = 0) { dismissalTracker.onCompleted(any()) }
         verify(exactly = 0) { widgetRefresher.refresh() }
         verify(exactly = 1) { notificationHelper.cancelNotification(42L) }
-        assertTrue(viewModel.uiState.value.isDone)
+        assertFalse(viewModel.uiState.value.isDone)
+        assertFalse(viewModel.uiState.value.canComplete)
+        assertFalse(viewModel.uiState.value.isProcessing)
     }
 
     @Test
