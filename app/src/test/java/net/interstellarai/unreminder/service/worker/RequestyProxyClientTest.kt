@@ -1,6 +1,7 @@
 package net.interstellarai.unreminder.service.worker
 
 import kotlinx.coroutines.test.runTest
+import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.domain.model.ActivityMode
 import net.interstellarai.unreminder.domain.model.VariantShape
 import net.interstellarai.unreminder.service.notification.MascotSprite
@@ -108,7 +109,7 @@ class RequestyProxyClientTest {
                 .addHeader("Content-Type", "application/json")
         )
 
-        val result = proxyClient.generateBatch(
+        val batch = proxyClient.generateBatch(
             habitTitle = "Meditate",
             habitTags = emptyList(),
             locationName = "",
@@ -120,6 +121,7 @@ class RequestyProxyClientTest {
             workerUrl = baseUrl(),
             workerSecret = "secret",
         )
+        val result = batch.variants
         assertEquals(3, result.size)
         assertEquals("v1", result[0].text)
         assertEquals(VariantShape.QUESTION, result[0].shape)
@@ -159,9 +161,9 @@ class RequestyProxyClientTest {
             workerSecret = "secret",
         )
 
-        assertEquals("astronaut_zero_g", result[0].spriteTag)
-        assertNull(result[1].spriteTag)
-        assertNull(result[2].spriteTag)
+        assertEquals("astronaut_zero_g", result.variants[0].spriteTag)
+        assertNull(result.variants[1].spriteTag)
+        assertNull(result.variants[2].spriteTag)
     }
 
     @Test
@@ -213,7 +215,7 @@ class RequestyProxyClientTest {
                 .addHeader("Content-Type", "application/json")
         )
 
-        val result = proxyClient.generateBatch("Meditate", emptyList(), "", "", "", emptyList(), emptySet(), 4, baseUrl(), "secret")
+        val result = proxyClient.generateBatch("Meditate", emptyList(), "", "", "", emptyList(), emptySet(), 4, baseUrl(), "secret").variants
 
         assertEquals(setOf(ActivityMode.WALKING, ActivityMode.TRANSPORT), result[0].modes)
         assertEquals(emptySet<ActivityMode>(), result[1].modes)
@@ -237,6 +239,28 @@ class RequestyProxyClientTest {
 
         val sent = JSONObject(server.takeRequest().body.readUtf8()).getJSONArray("supportedModes")
         assertEquals(setOf("SITTING", "TRANSPORT"), (0 until sent.length()).map { sent.getString(it) }.toSet())
+    }
+
+    @Test
+    fun `generateBatch reads generationVersion and reports UNVERSIONED when absent`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"variants":[{"text":"v1","shape":"STATEMENT"}],"generationVersion":3}""")
+                .addHeader("Content-Type", "application/json")
+        )
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"variants":[{"text":"v1","shape":"STATEMENT"}]}""")
+                .addHeader("Content-Type", "application/json")
+        )
+
+        val versioned = proxyClient.generateBatch("Meditate", emptyList(), "", "", "", emptyList(), emptySet(), 1, baseUrl(), "secret")
+        val legacy = proxyClient.generateBatch("Meditate", emptyList(), "", "", "", emptyList(), emptySet(), 1, baseUrl(), "secret")
+
+        assertEquals(3, versioned.generationVersion)
+        assertEquals(VariationEntity.UNVERSIONED, legacy.generationVersion)
     }
 
     @Test
@@ -302,5 +326,44 @@ class RequestyProxyClientTest {
         assertFailsWith<Exception> {
             proxyClient.generateBatch("Meditate", emptyList(), "", "", "", emptyList(), emptySet(), 1, baseUrl(), "secret")
         }
+    }
+
+    // --- generationVersion ---
+
+    @Test
+    fun `generationVersion reads the field from a GET on the public health route`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"status":"ok","spendUsedToday":0.01,"generationVersion":4}""")
+                .addHeader("Content-Type", "application/json")
+        )
+
+        assertEquals(4, proxyClient.generationVersion(baseUrl()))
+
+        val recorded = server.takeRequest()
+        assertEquals("GET", recorded.method)
+        assertEquals("/v1/health", recorded.path)
+        assertNull(recorded.getHeader("X-UR-Secret"))
+    }
+
+    @Test
+    fun `generationVersion reports UNVERSIONED when the worker omits the field`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"status":"ok","spendUsedToday":0.01}""")
+                .addHeader("Content-Type", "application/json")
+        )
+
+        assertEquals(VariationEntity.UNVERSIONED, proxyClient.generationVersion(baseUrl()))
+    }
+
+    @Test
+    fun `generationVersion throws WorkerError on 503`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(503).setBody("""{"error":"Service misconfigured"}"""))
+
+        val ex = assertFailsWith<WorkerError> { proxyClient.generationVersion(baseUrl()) }
+        assertEquals(503, ex.code)
     }
 }

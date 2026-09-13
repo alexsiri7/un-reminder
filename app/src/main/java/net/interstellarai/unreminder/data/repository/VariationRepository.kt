@@ -1,7 +1,9 @@
 package net.interstellarai.unreminder.data.repository
 
 import android.util.Log
+import androidx.room.withTransaction
 import kotlinx.coroutines.flow.Flow
+import net.interstellarai.unreminder.data.db.AppDatabase
 import net.interstellarai.unreminder.data.db.VariationDao
 import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.data.db.bit
@@ -13,7 +15,8 @@ import javax.inject.Singleton
 
 @Singleton
 class VariationRepository @Inject constructor(
-    private val dao: VariationDao
+    private val dao: VariationDao,
+    private val db: AppDatabase,
 ) {
     companion object {
         const val POOL_SIZE = 50
@@ -79,7 +82,25 @@ class VariationRepository @Inject constructor(
 
     suspend fun deleteForHabit(habitId: Long) = dao.deleteByHabit(habitId)
 
-    suspend fun deleteConsumedForHabit(habitId: Long) = dao.deleteConsumedByHabit(habitId)
+    /**
+     * Lands a generated batch for [habitId]. Unconsumed rows from any other generation version
+     * go first (pre-version rows included) so the pool is never mixed-vintage, consumed rows are
+     * pruned, then the batch is inserted — in one transaction, so a reader sees the old pool or
+     * the new one and never the gap between. A batch from a Worker that reports no version
+     * only tops up: absent is not "everything is stale".
+     */
+    suspend fun refill(habitId: Long, generationVersion: Int, variants: List<VariationEntity>) =
+        db.withTransaction {
+            if (generationVersion != VariationEntity.UNVERSIONED) {
+                dao.deleteUnusedNotAtVersion(habitId, generationVersion)
+            }
+            dao.deleteConsumedByHabit(habitId)
+            dao.insert(variants)
+        }
+
+    /** Active habits whose pool was generated under a version other than [generationVersion]. */
+    suspend fun habitIdsNeedingRegeneration(generationVersion: Int): List<Long> =
+        dao.activeHabitIdsWithUnusedNotAtVersion(generationVersion)
 
     fun unusedVariationsFlow(habitId: Long): Flow<List<VariationEntity>> =
         dao.getUnusedFlow(habitId)

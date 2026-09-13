@@ -297,4 +297,71 @@ class VariationDaoTest {
             assertEquals(setOf(ActivityMode.WALKING), head.modes)
         }
     }
+
+    private fun versioned(habitId: Long, version: Int, index: Int) = VariationEntity(
+        habitId = habitId, text = "v$version #$index", promptFingerprint = "fp",
+        generatedAt = Instant.EPOCH, shape = VariantShape.STATEMENT, generationVersion = version,
+    )
+
+    private suspend fun consumeText(habitId: Long, text: String) {
+        val row = variationDao.getUnusedForHabit(habitId, ActivityMode.SITTING.bit, 50).first { it.text == text }
+        variationDao.markConsumed(row.id, Instant.now())
+    }
+
+    @Test fun `deleteUnusedNotAtVersion removes only unconsumed rows at other versions`() = runTest {
+        val hId = insertHabit()
+        val other = insertHabit()
+        variationDao.insert(listOf(versioned(hId, 1, 1), versioned(hId, 1, 2), versioned(hId, 2, 1), versioned(other, 1, 1)))
+        consumeText(hId, "v1 #2")
+
+        variationDao.deleteUnusedNotAtVersion(hId, 2)
+
+        assertEquals(listOf("v2 #1"), variationDao.getUnusedForHabit(hId, ActivityMode.SITTING.bit, 50).map { it.text })
+        assertEquals(listOf("v1 #2"), variationDao.getRecentlyUsedFlow(hId, 50).first().map { it.text })
+        assertEquals(1, variationDao.countUnused(other))
+    }
+
+    @Test fun `deleteUnusedNotAtVersion treats unversioned rows as another version`() = runTest {
+        val hId = insertHabit()
+        variationDao.insert(listOf(
+            VariationEntity(habitId = hId, text = "legacy", promptFingerprint = "fp", generatedAt = Instant.EPOCH, shape = null),
+            versioned(hId, 1, 1),
+        ))
+
+        variationDao.deleteUnusedNotAtVersion(hId, 1)
+
+        assertEquals(listOf("v1 #1"), variationDao.getUnusedForHabit(hId, ActivityMode.SITTING.bit, 50).map { it.text })
+    }
+
+    @Test fun `activeHabitIdsWithUnusedNotAtVersion lists a habit with stale unconsumed rows`() = runTest {
+        val stale = insertHabit()
+        val current = insertHabit()
+        variationDao.insert(listOf(versioned(stale, 1, 1), versioned(stale, 2, 1), versioned(current, 2, 1)))
+
+        assertEquals(listOf(stale), variationDao.activeHabitIdsWithUnusedNotAtVersion(2))
+    }
+
+    @Test fun `activeHabitIdsWithUnusedNotAtVersion omits a habit whose only stale row is consumed`() = runTest {
+        val hId = insertHabit()
+        variationDao.insert(listOf(versioned(hId, 1, 1), versioned(hId, 2, 1)))
+        consumeText(hId, "v1 #1")
+
+        assertTrue(variationDao.activeHabitIdsWithUnusedNotAtVersion(2).isEmpty())
+    }
+
+    @Test fun `activeHabitIdsWithUnusedNotAtVersion omits an inactive habit`() = runTest {
+        val hId = habitDao.insert(HabitEntity(name = "h", active = false))
+        variationDao.insert(listOf(versioned(hId, 1, 1)))
+
+        assertTrue(variationDao.activeHabitIdsWithUnusedNotAtVersion(2).isEmpty())
+    }
+
+    @Test fun `activeHabitIdsWithUnusedNotAtVersion lists unversioned pools against any real version`() = runTest {
+        val hId = insertHabit()
+        variationDao.insert(listOf(
+            VariationEntity(habitId = hId, text = "legacy", promptFingerprint = "fp", generatedAt = Instant.EPOCH, shape = null),
+        ))
+
+        assertEquals(listOf(hId), variationDao.activeHabitIdsWithUnusedNotAtVersion(1))
+    }
 }

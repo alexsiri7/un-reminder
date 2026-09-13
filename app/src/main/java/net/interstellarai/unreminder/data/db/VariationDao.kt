@@ -49,6 +49,25 @@ interface VariationDao {
     )
     suspend fun deleteConsumedByHabit(habitId: Long)
 
+    /**
+     * Removes the unconsumed part of [habitId]'s pool that was generated under a version other
+     * than [version]. Rows at [VariationEntity.UNVERSIONED] count as another version, so the
+     * pre-version rows go on the first versioned refill.
+     */
+    @Query("DELETE FROM variations WHERE habit_id = :habitId AND consumed_at IS NULL AND generation_version != :version")
+    suspend fun deleteUnusedNotAtVersion(habitId: Long, version: Int)
+
+    /**
+     * Active habits whose pool — its unconsumed rows — holds anything generated under a
+     * version other than [version]. Consumed rows are history, not the pool, so a habit
+     * whose only stale rows are consumed is not listed.
+     */
+    @Query(
+        "SELECT DISTINCT v.habit_id FROM variations v JOIN habits h ON h.id = v.habit_id " +
+        "WHERE h.active = 1 AND v.consumed_at IS NULL AND v.generation_version != :version"
+    )
+    suspend fun activeHabitIdsWithUnusedNotAtVersion(version: Int): List<Long>
+
     /** Inserts variations, silently ignoring duplicates that match the unique (habit_id, prompt_fingerprint, text) index. */
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(variants: List<VariationEntity>)

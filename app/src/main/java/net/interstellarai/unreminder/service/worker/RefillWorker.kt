@@ -61,7 +61,7 @@ class RefillWorker @AssistedInject constructor(
             "${habit.name}|${habit.descriptionLadder.joinToString("|")}|$personalContext"
 
         return try {
-            val variants = requestyProxyClient.generateBatch(
+            val batch = requestyProxyClient.generateBatch(
                 habitTitle = habit.name,
                 habitTags = emptyList(),
                 locationName = "",
@@ -74,7 +74,7 @@ class RefillWorker @AssistedInject constructor(
                 workerSecret = secret,
             )
             val now = Instant.now()
-            val entities = variants.map { variant ->
+            val entities = batch.variants.map { variant ->
                 VariationEntity(
                     habitId = habitId,
                     text = variant.text,
@@ -84,10 +84,10 @@ class RefillWorker @AssistedInject constructor(
                     spriteTag = variant.spriteTag,
                     shape = variant.shape,
                     modes = variant.modes,
+                    generationVersion = batch.generationVersion,
                 )
             }
-            variationRepository.deleteConsumedForHabit(habitId)
-            variationRepository.insertAll(entities)
+            variationRepository.refill(habitId, batch.generationVersion, entities)
             Result.success()
         } catch (e: CancellationException) {
             throw e

@@ -33,7 +33,7 @@ class VariationRepositoryRotationTest {
             ApplicationProvider.getApplicationContext(),
             AppDatabase::class.java
         ).allowMainThreadQueries().build()
-        repository = VariationRepository(db.variationDao())
+        repository = VariationRepository(db.variationDao(), db)
         habitId = db.habitDao().insert(HabitEntity(name = "h"))
     }
 
@@ -75,8 +75,7 @@ class VariationRepositoryRotationTest {
         repository.insertAll(balancedPool(perShape = 1))
         val fired = repository.pickRandomUnused(habitId, ActivityMode.SITTING)!!.shape
 
-        repository.deleteConsumedForHabit(habitId)
-        repository.insertAll(balancedPool(perShape = 3).map { it.copy(promptFingerprint = "fp2") })
+        repository.refill(habitId, VariationEntity.UNVERSIONED, balancedPool(perShape = 3).map { it.copy(promptFingerprint = "fp2") })
 
         repeat(20) {
             assertNotEquals(fired, repository.peekUnusedVariation(habitId, ActivityMode.SITTING)!!.shape)

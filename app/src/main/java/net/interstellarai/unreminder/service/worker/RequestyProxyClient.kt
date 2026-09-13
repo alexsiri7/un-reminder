@@ -2,8 +2,10 @@ package net.interstellarai.unreminder.service.worker
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.domain.model.ActivityMode
 import net.interstellarai.unreminder.domain.model.AiHabitFields
+import net.interstellarai.unreminder.domain.model.GeneratedBatch
 import net.interstellarai.unreminder.domain.model.GeneratedVariant
 import net.interstellarai.unreminder.domain.model.VariantShape
 import net.interstellarai.unreminder.service.notification.MascotSprite
@@ -28,17 +30,37 @@ private fun Response.throwOnError(): Nothing = when (code) {
 class RequestyProxyClient @Inject constructor(
     private val okHttpClient: OkHttpClient,
 ) {
-    private fun post(path: String, payload: JSONObject, workerUrl: String, secret: String): JSONObject {
-        val request = Request.Builder()
-            .url("${workerUrl.trimEnd('/')}/$path")
-            .addHeader("X-UR-Secret", secret)
-            .addHeader("Accept", "application/json")
-            .post(payload.toString().toRequestBody("application/json".toMediaType()))
-            .build()
-        return okHttpClient.newCall(request).execute().use { response ->
+    private fun post(path: String, payload: JSONObject, workerUrl: String, secret: String): JSONObject =
+        execute(
+            Request.Builder()
+                .url("${workerUrl.trimEnd('/')}/$path")
+                .addHeader("X-UR-Secret", secret)
+                .addHeader("Accept", "application/json")
+                .post(payload.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+        )
+
+    private fun get(path: String, workerUrl: String): JSONObject =
+        execute(
+            Request.Builder()
+                .url("${workerUrl.trimEnd('/')}/$path")
+                .addHeader("Accept", "application/json")
+                .get()
+                .build()
+        )
+
+    private fun execute(request: Request): JSONObject =
+        okHttpClient.newCall(request).execute().use { response ->
             if (response.code !in 200..299) response.throwOnError()
             JSONObject(response.body?.string() ?: throw RuntimeException("Worker returned empty body"))
         }
+
+    /**
+     * The Worker's current generation version from the public `/v1/health` route, or
+     * [VariationEntity.UNVERSIONED] when the deployed Worker predates versions.
+     */
+    suspend fun generationVersion(workerUrl: String): Int = withContext(Dispatchers.IO) {
+        get("v1/health", workerUrl).optInt("generationVersion", VariationEntity.UNVERSIONED)
     }
 
     suspend fun habitFields(
@@ -63,7 +85,7 @@ class RequestyProxyClient @Inject constructor(
         n: Int,
         workerUrl: String,
         workerSecret: String,
-    ): List<GeneratedVariant> {
+    ): GeneratedBatch {
         val payload = JSONObject().apply {
             put("habitTitle", habitTitle)
             put("habitTags", JSONArray(habitTags))
@@ -80,10 +102,10 @@ class RequestyProxyClient @Inject constructor(
             put("n", n)
         }
         return withContext(Dispatchers.IO) {
-            val arr = post("v1/generate/batch", payload, workerUrl, workerSecret)
-                .optJSONArray("variants")
+            val body = post("v1/generate/batch", payload, workerUrl, workerSecret)
+            val arr = body.optJSONArray("variants")
                 ?: throw WorkerError(200, "Missing 'variants' array in response")
-            (0 until arr.length()).map { i ->
+            val variants = (0 until arr.length()).map { i ->
                 val obj = arr.getJSONObject(i)
                 GeneratedVariant(
                     text = obj.getString("text"),
@@ -96,6 +118,9 @@ class RequestyProxyClient @Inject constructor(
                     spriteTag = obj.optString("spriteTag").takeIf { it.isNotEmpty() }
                 )
             }
+            // Absent on a Worker deployed before versions existed; the row is then stamped
+            // unversioned so a later versioned refill sweeps it.
+            GeneratedBatch(variants, body.optInt("generationVersion", VariationEntity.UNVERSIONED))
         }
     }
 
