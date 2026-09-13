@@ -54,6 +54,14 @@ class DismissalTrackerTest {
         habitId = habitId
     )
 
+    private fun makeOpenedTrigger(id: Long) = TriggerEntity(
+        id = id,
+        scheduledAt = Instant.now(),
+        firedAt = Instant.now(),
+        status = TriggerStatus.OPENED,
+        habitId = habitId
+    )
+
     private val testHabit = HabitEntity(
         id = habitId,
         name = "meditation",
@@ -164,6 +172,36 @@ class DismissalTrackerTest {
         coEvery { triggerRepository.getLastNForHabit(habitId, 3) } returns listOf(
             makeDismissedTrigger(42),
             makeLaterTrigger(41),
+            makeDismissedTrigger(40)
+        )
+        coEvery { habitRepository.getByIdOnce(habitId) } returns testHabit.copy(dedicationLevel = 2)
+
+        tracker.onDismissed(triggerId)
+
+        coVerify(exactly = 0) { habitRepository.update(any()) }
+    }
+
+    @Test
+    fun `3 opened triggers - no demotion`() = runTest {
+        coEvery { triggerRepository.getById(triggerId) } returns makeTrigger(TriggerStatus.DISMISSED)
+        coEvery { triggerRepository.getLastNForHabit(habitId, 3) } returns listOf(
+            makeOpenedTrigger(42),
+            makeOpenedTrigger(41),
+            makeOpenedTrigger(40)
+        )
+        coEvery { habitRepository.getByIdOnce(habitId) } returns testHabit.copy(dedicationLevel = 2)
+
+        tracker.onDismissed(triggerId)
+
+        coVerify(exactly = 0) { habitRepository.update(any()) }
+    }
+
+    @Test
+    fun `an opened trigger breaks a dismissal streak`() = runTest {
+        coEvery { triggerRepository.getById(triggerId) } returns makeTrigger(TriggerStatus.DISMISSED)
+        coEvery { triggerRepository.getLastNForHabit(habitId, 3) } returns listOf(
+            makeDismissedTrigger(42),
+            makeOpenedTrigger(41),
             makeDismissedTrigger(40)
         )
         coEvery { habitRepository.getByIdOnce(habitId) } returns testHabit.copy(dedicationLevel = 2)

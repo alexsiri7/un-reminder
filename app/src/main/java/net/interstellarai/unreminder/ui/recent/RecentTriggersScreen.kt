@@ -46,6 +46,7 @@ import net.interstellarai.unreminder.ui.theme.MonoContextStrip
 import net.interstellarai.unreminder.ui.theme.MonoLabelTiny
 import net.interstellarai.unreminder.ui.theme.MonoSectionLabel
 import net.interstellarai.unreminder.ui.theme.NavPill
+import net.interstellarai.unreminder.ui.theme.Opened
 import net.interstellarai.unreminder.ui.theme.SansBody
 import java.time.Instant
 import java.time.ZoneId
@@ -218,6 +219,7 @@ private fun StatusDot(status: TriggerStatus) {
         TriggerStatus.DISMISSED -> Dismissed
         TriggerStatus.EXPIRED -> Expired
         TriggerStatus.LATER -> Later
+        TriggerStatus.OPENED -> Opened
         else -> MaterialTheme.colorScheme.outline
     }
     Box(
@@ -233,5 +235,6 @@ private fun statusLabel(status: TriggerStatus): String = when (status) {
     TriggerStatus.DISMISSED -> "dismissed"
     TriggerStatus.EXPIRED -> "expired"
     TriggerStatus.LATER -> "later"
+    TriggerStatus.OPENED -> "opened"
     else -> status.name.lowercase().replace('_', ' ')
 }

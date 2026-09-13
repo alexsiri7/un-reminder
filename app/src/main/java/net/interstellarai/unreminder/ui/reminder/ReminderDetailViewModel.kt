@@ -29,6 +29,7 @@ data class ReminderDetailUiState(
     val isLoading: Boolean = true,
     val isDone: Boolean = false,
     val isProcessing: Boolean = false,
+    val canComplete: Boolean = false,
 )
 
 @HiltViewModel
@@ -49,6 +50,18 @@ class ReminderDetailViewModel @Inject constructor(
             try {
                 val trigger = triggerRepository.getById(triggerId)
                 val habit = trigger?.habitId?.let { habitRepository.getByIdOnce(it) }
+                val canComplete = when (trigger?.status) {
+                    TriggerStatus.FIRED -> {
+                        // Opened from a live notification. The Open action does not auto-cancel it,
+                        // and OPENED never reaches the DismissalTracker (#378). A declined write
+                        // means a swipe or Later resolved the trigger first, so Did it must hide.
+                        val opened = triggerRepository.recordOutcome(triggerId, TriggerStatus.OPENED)
+                        notificationHelper.cancelNotification(triggerId)
+                        opened
+                    }
+                    TriggerStatus.OPENED -> true
+                    else -> false
+                }
                 _uiState.value = ReminderDetailUiState(
                     triggerId = triggerId,
                     promptText = trigger?.generatedPrompt ?: "",
@@ -56,6 +69,7 @@ class ReminderDetailViewModel @Inject constructor(
                     dedicationLevel = habit?.dedicationLevel ?: 0,
                     videoUrl = trigger?.actionUrl?.takeIf { it.startsWith("https://") },
                     isLoading = false,
+                    canComplete = canComplete,
                 )
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
@@ -65,29 +79,32 @@ class ReminderDetailViewModel @Inject constructor(
         }
     }
 
-    fun markCompleted() = recordOutcome(TriggerStatus.COMPLETED)
-    fun markDismissed() = recordOutcome(TriggerStatus.DISMISSED)
-
-    private fun recordOutcome(status: TriggerStatus) {
+    fun markCompleted() {
         val triggerId = _uiState.value.triggerId
         if (triggerId == -1L) return
         if (_uiState.value.isProcessing) return
         _uiState.value = _uiState.value.copy(isProcessing = true)
         viewModelScope.launch(ioDispatcher) {
             try {
-                triggerRepository.updateOutcome(triggerId, status)
-                if (status == TriggerStatus.COMPLETED) {
+                val recorded = triggerRepository.recordOutcome(triggerId, TriggerStatus.COMPLETED)
+                if (recorded) {
                     dismissalTracker.onCompleted(triggerId)
-                } else {
-                    dismissalTracker.onDismissed(triggerId)
+                    widgetRefresher.refresh()
                 }
                 notificationHelper.cancelNotification(triggerId)
-                widgetRefresher.refresh()
+                // A declined write means a swipe or Later resolved the trigger since the screen
+                // loaded: nothing was recorded, so withdraw the chip rather than leave as if
+                // the tap had worked.
+                _uiState.value = if (recorded) {
+                    _uiState.value.copy(isDone = true)
+                } else {
+                    _uiState.value.copy(canComplete = false)
+                }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                Log.e(TAG, "Failed to record outcome $status for trigger $triggerId", e)
+                Log.e(TAG, "Failed to record completion for trigger $triggerId", e)
             } finally {
-                _uiState.value = _uiState.value.copy(isDone = true, isProcessing = false)
+                _uiState.value = _uiState.value.copy(isProcessing = false)
             }
         }
     }

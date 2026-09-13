@@ -159,7 +159,7 @@ A repeatable thing the user wants to do. Each habit has:
 - `daily_limit` — integer; default 1. Maximum number of `COMPLETED`/`FIRED` triggers per local day before
   the habit is excluded from selection. User-configurable in the Habit editor.
 - `cooldown_minutes` — integer minutes; default 180 (= 3 h). After a `DISMISSED`, unanswered `FIRED`,
-  `EXPIRED`, or `LATER` trigger, the habit is excluded from selection until this many minutes have passed. `0` disables this
+  `EXPIRED`, `LATER`, or `OPENED` trigger, the habit is excluded from selection until this many minutes have passed. `0` disables this
   exclusion. User-configurable in the Habit editor (presets 1h · 2h · 3h · 6h · 12h · None).
 - `supported_modes` — bitmask of the activity modes (walking, sitting, transport) the habit can be done
   in. `0` (empty) means any mode: the default for new habits and what every pre-existing habit gets on
@@ -194,7 +194,7 @@ A scheduled notification event.
 - `habit_id` (populated at fire time, not schedule time — see below)
 - `scheduled_at` — timestamp.
 - `fired_at` — nullable.
-- `status` — `{SCHEDULED, FIRED, COMPLETED, DISMISSED, EXPIRED, LATER}`.
+- `status` — `{SCHEDULED, FIRED, COMPLETED, DISMISSED, EXPIRED, LATER, OPENED}`.
 - `generated_prompt` — the AI-generated text actually shown in the notification.
 - `action_url` — nullable; the variant's video URL as delivered, frozen at fire time like `generated_prompt`.
 
@@ -213,7 +213,7 @@ A pre-generated prompt text for a habit, stored in a local pool to avoid LLM lat
 - `prompt_fingerprint` — hash of the LLM prompt that produced this variation; part of the `(habit_id, prompt_fingerprint, text)` composite unique constraint that prevents duplicates.
 - `generated_at` — when the variation was generated.
 - `consumed_at` — nullable; set when the variation is picked for a notification. Unconsumed variations form the available pool.
-- `action_url` — nullable; optional URL returned by the worker. When non-null, the notification includes a **Watch** action button that opens this URL.
+- `action_url` — nullable; optional URL returned by the worker. When non-null, the notification shows a video indicator and the Reminder Detail screen offers a **Watch** chip that opens this URL.
 - `modes` — bitmask of the activity modes the text was written for (same bits as `habits.supported_modes`); `0` means mode-neutral. Selection prefers a variation for the current mode, then a neutral one, then any other, so a habit always has something to say.
 
 ### Location state
@@ -246,15 +246,16 @@ updated by geofence `ENTER`/`EXIT` callbacks. Empty set means no known location.
      `location_id` matching a geofence the user is currently inside.
    - Has an active time window covering the current day and time (or no window association).
    - **Not completed today**: any habit with a `COMPLETED` trigger fired after midnight is excluded for the rest of the day.
-   - **Not on cooldown**: any habit with a `DISMISSED`, unanswered `FIRED`, `EXPIRED`, or `LATER` trigger inside its `cooldown_minutes` window (default 180 min, configurable per habit in the editor; `0` disables this exclusion entirely) is excluded.
+   - **Not on cooldown**: any habit with a `DISMISSED`, unanswered `FIRED`, `EXPIRED`, `LATER`, or `OPENED` trigger inside its `cooldown_minutes` window (default 180 min, configurable per habit in the editor; `0` disables this exclusion entirely) is excluded.
 3. Pick **one** habit by weighted-random selection from the eligible set, biased toward habits
    not recently prompted. Weight formula: `1 + min(minutesSince, 1440) / 120`, where
    `minutesSince` is minutes since the habit was last fired (cap: 1440 min = 24 h). A habit
    never fired receives the maximum weight (~13×). If the eligible set is empty, skip silently.
 4. Pick an unused variation from the cloud-generated pool (see Variation entity). If the pool is empty, use the level description fallback (see Fallback below).
-5. Post the notification with the generated text, then cancel any notification that was still awaiting an outcome and record its trigger as `EXPIRED`, so at most one unanswered nudge stands at a time. The replacement goes up first so a post that fails leaves the standing notification answerable, and an outcome the user recorded in the meantime is never overwritten. Action buttons: **Did it**, **Later**. When the variation includes an `actionUrl`, a third **Watch** button is added that opens the URL in a browser. Swiping the notification away records `DISMISSED`. Tapping the notification body opens the **Reminder Detail screen** for that trigger.
+5. Post the notification with the generated text, then cancel any notification that was still awaiting an outcome and record its trigger as `EXPIRED`, so at most one unanswered nudge stands at a time. The replacement goes up first so a post that fails leaves the standing notification answerable, and an outcome the user recorded in the meantime is never overwritten. Action buttons: **Open**, **Later**. When the variation includes an `actionUrl`, the notification's header sub-text carries a video indicator (`▶ video`); the video itself is watched from the detail screen. Swiping the notification away records `DISMISSED`. Tapping **Open** or the notification body opens the **Reminder Detail screen** for that trigger.
 6. Record the trigger row with the generated prompt and the outcome when the user responds.
-   - **Did it (COMPLETED):** the habit is excluded from the rest of today's triggers (step 2 above). When `auto_adjust_level` is true, consecutive completions promote `dedication_level` (up to max 5).
+   - **Open (OPENED):** resolves the trigger and clears the notification. The cooldown applies as after any nudge; `dedication_level` never moves. Upgraded to `COMPLETED` if the user taps **Did it** on the detail screen, otherwise it stays `OPENED`. This is the only outcome ever replaced by another; every other recorded outcome is final.
+   - **Did it (COMPLETED):** recorded from the detail screen. The habit is excluded from the rest of today's triggers (step 2 above). When `auto_adjust_level` is true, consecutive completions promote `dedication_level` (up to max 5).
    - **Swipe away (DISMISSED):** a per-habit cooldown (default 3 h, configurable via `cooldownMinutes` in the Habit editor — presets 1h · 2h · 3h · 6h · 12h · None, where None=`0` disables the cooldown) applies before this habit is eligible again. When `auto_adjust_level` is true: 3 consecutive `DISMISSED` triggers demote `dedication_level` by 1, flooring at level 0. The habit is never auto-paused.
    - **Superseded (EXPIRED):** a later trigger cancelled this notification before the user touched it. The cooldown applies as for a dismissal, but `dedication_level` never moves: inattention is not evidence the ask was too big.
    - **Later (LATER):** wrong moment, not too big. The cooldown and selection weight apply exactly as after any nudge; `dedication_level` never moves and the habit gets no priority.
@@ -325,10 +326,12 @@ from the pool, not from a fresh generation.
     any row in the Recent Triggers screen or by tapping a live notification body. Shows the AI-generated
     prompt text ("reminder" section) and, if the trigger has an associated habit, the habit name and
     current dedication progress bar ("habit" section).
-    Two action chips: **Did it** (records `COMPLETED`, dismisses the notification, navigates back) and
-    **Dismiss** (records `DISMISSED`, dismisses the notification, navigates back). When the trigger's
-    variant carried an `action_url`, a **Watch** chip sits between them and opens that URL; triggers
-    without one show no video affordance. No bottom navigation bar
+    Opening a live (`FIRED`) trigger records `OPENED` and clears its notification. Action chips:
+    **Did it** (records `COMPLETED` and navigates back; if a swipe or Later already resolved the
+    trigger, nothing is recorded and the chip is withdrawn instead), shown only while the trigger
+    is `FIRED` or `OPENED`, and — when the trigger's variant carried an `action_url` — **Watch**, which opens that
+    URL; triggers without one show no video affordance. There is no Dismiss chip: swiping the
+    notification is the only dismissal path. No bottom navigation bar
     (excluded from `showBottomBar` logic in `NavGraph`). Back navigation via "← back" text link or system back.
 
 ---
@@ -367,7 +370,7 @@ The app is considered MVP-complete when:
 2. Daily schedule job correctly populates `Trigger` rows for the next 24h based on active windows.
 3. At least one window trigger fires during its window using a prompt drawn from the variation pool (Gemini Flash via Requesty.ai, pre-generated by the Cloudflare Worker).
 4. Entering the registered `HOME` geofence triggers exactly one notification 5 minutes later (debounced).
-5. Notification actions correctly record `COMPLETED` or `LATER`; swiping the notification away records `DISMISSED`.
+5. Tapping Later records `LATER`; tapping Open or the notification body records `OPENED`; swiping the notification away records `DISMISSED`.
 6. Recent triggers screen displays the last 20 triggers with their generated prompts.
 7. App works with airplane mode on (no network dependency).
 8. Cold-start to habit list is under 1 second.

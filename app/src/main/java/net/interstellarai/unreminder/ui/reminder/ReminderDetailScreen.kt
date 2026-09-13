@@ -116,11 +116,12 @@ fun ReminderDetailScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(Dimens.md, Alignment.CenterHorizontally),
         ) {
-            ActionChip(label = "Did it", filled = true, onClick = { viewModel.markCompleted() })
+            if (uiState.canComplete) {
+                ActionChip(label = "Did it", filled = true, onClick = { viewModel.markCompleted() })
+            }
             uiState.videoUrl?.let { url ->
                 ActionChip(label = "Watch", filled = false, onClick = { openVideo(context, url) })
             }
-            ActionChip(label = "Dismiss", filled = false, onClick = { viewModel.markDismissed() })
         }
 
         Spacer(Modifier.height(Dimens.lg))

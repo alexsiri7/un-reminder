@@ -46,6 +46,10 @@ interface TriggerDao {
     @Query("UPDATE triggers SET status = 'EXPIRED' WHERE id = :id AND status = 'FIRED'")
     suspend fun markExpiredIfUnanswered(id: Long)
 
+    /** Writes [status] only while the row is in one of [allowedFrom]; returns rows changed (0 or 1). */
+    @Query("UPDATE triggers SET status = :status WHERE id = :id AND status IN (:allowedFrom)")
+    suspend fun updateStatusIf(id: Long, status: String, allowedFrom: List<String>): Int
+
     @Query("DELETE FROM triggers WHERE status = 'SCHEDULED' AND scheduled_at < :cutoffMillis")
     suspend fun deleteScheduledOlderThan(cutoffMillis: Long)
 
@@ -67,15 +71,15 @@ interface TriggerDao {
 
     /**
      * Returns max fired_at for triggers that were not completed — DISMISSED, still-FIRED,
-     * EXPIRED, or deferred with LATER (used for per-habit cooldown check). A superseded or
-     * deferred notification was still a nudge that happened, so neither may shorten the
-     * cooldown it started.
+     * EXPIRED, deferred with LATER, or OPENED without completing (used for per-habit cooldown
+     * check). A superseded, deferred or merely opened notification was still a nudge that
+     * happened, so none may shorten the cooldown it started.
      */
     @Query("""
         SELECT MAX(fired_at) FROM triggers
         WHERE habit_id = :habitId
           AND fired_at IS NOT NULL
-          AND (status = 'DISMISSED' OR status = 'FIRED' OR status = 'EXPIRED' OR status = 'LATER')
+          AND (status = 'DISMISSED' OR status = 'FIRED' OR status = 'EXPIRED' OR status = 'LATER' OR status = 'OPENED')
     """)
     suspend fun getLastFiredOrDismissedForHabit(habitId: Long): Long?
 

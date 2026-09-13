@@ -42,8 +42,28 @@ class TriggerRepository @Inject constructor(
         )
     }
 
+    /**
+     * Unguarded write; only for the administrative DISMISSED writes in TriggerPipeline and
+     * RandomIntervalWorker over a SCHEDULED or failed-post row. Every user outcome goes
+     * through [recordOutcome].
+     */
     suspend fun updateOutcome(id: Long, status: TriggerStatus) {
         triggerDao.updateStatus(id, status.name)
+    }
+
+    /**
+     * Records a user outcome without overwriting one already recorded. OPENED → COMPLETED is the
+     * single permitted upgrade (#378); everything else may only resolve a still-FIRED trigger.
+     * Returns false when nothing changed, so callers can skip side effects.
+     */
+    suspend fun recordOutcome(id: Long, status: TriggerStatus): Boolean {
+        val allowedFrom = when (status) {
+            TriggerStatus.COMPLETED -> listOf(TriggerStatus.FIRED, TriggerStatus.OPENED)
+            TriggerStatus.OPENED, TriggerStatus.DISMISSED, TriggerStatus.LATER -> listOf(TriggerStatus.FIRED)
+            TriggerStatus.SCHEDULED, TriggerStatus.FIRED, TriggerStatus.EXPIRED ->
+                throw IllegalArgumentException("$status is not a user outcome")
+        }
+        return triggerDao.updateStatusIf(id, status.name, allowedFrom.map { it.name }) > 0
     }
 
     suspend fun expireIfUnanswered(id: Long) {
