@@ -11,4 +11,4 @@ Every notification for a habit should look and read differently so the brain doe
 
 ## What
 
-Cloudflare Worker (`/v1/generate/batch`) generates batches of notification text variants via Gemini Flash through Requesty.ai. Variants stored in the `Variation` table. Pool refilled when unused count drops below 20. Entire pool cleared and regenerated when habit name or description changes. `action_url` field adds optional Watch button to notifications.
+Cloudflare Worker (`/v1/generate/batch`) generates batches of notification text variants via Gemini Flash through Requesty.ai. Variants stored in the `Variation` table. Pool refilled when unused count drops below 20. Entire pool cleared and regenerated when habit name or description changes. `action_url` field adds a video indicator to the notification and a Watch action on the variant view.
