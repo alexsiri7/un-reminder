@@ -7,6 +7,7 @@ import kotlinx.coroutines.test.runTest
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -263,5 +264,21 @@ class TriggerDaoTest {
 
         assertEquals(TriggerStatus.COMPLETED, triggerDao.getById(completedId)?.status)
         assertEquals(TriggerStatus.DISMISSED, triggerDao.getById(dismissedId)?.status)
+    }
+
+    @Test
+    fun `updateFired stores the action_url delivered with the prompt`() = runTest {
+        val habitId = insertHabit("hSing")
+        val withVideo = triggerDao.insert(TriggerEntity(scheduledAt = Instant.ofEpochMilli(midnightMillis)))
+        val withoutVideo = triggerDao.insert(TriggerEntity(scheduledAt = Instant.ofEpochMilli(midnightMillis)))
+        val url = "https://www.youtube.com/results?search_query=C+major+vocal+scale"
+
+        triggerDao.updateFired(withVideo, TriggerStatus.FIRED.name, midnightMillis, habitId, "Sing the scale", url)
+        triggerDao.updateFired(withoutVideo, TriggerStatus.FIRED.name, midnightMillis, habitId, "Breathe", null)
+
+        val fired = triggerDao.getById(withVideo)
+        assertEquals("Sing the scale", fired?.generatedPrompt)
+        assertEquals(url, fired?.actionUrl)
+        assertNull(triggerDao.getById(withoutVideo)?.actionUrl)
     }
 }

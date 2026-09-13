@@ -22,6 +22,7 @@ import net.interstellarai.unreminder.widget.WidgetRefresher
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -56,12 +57,13 @@ class ReminderDetailViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun makeTrigger(habitId: Long = 1L, prompt: String = "test prompt") = TriggerEntity(
+    private fun makeTrigger(habitId: Long = 1L, prompt: String = "test prompt", actionUrl: String? = null) = TriggerEntity(
         id = 42L,
         habitId = habitId,
         scheduledAt = Instant.EPOCH,
         status = TriggerStatus.SCHEDULED,
         generatedPrompt = prompt,
+        actionUrl = actionUrl,
     )
 
     private fun makeHabit(id: Long = 1L, name: String = "Meditate", level: Int = 3) =
@@ -87,6 +89,45 @@ class ReminderDetailViewModelTest {
         assertEquals("", viewModel.uiState.value.promptText)
         assertEquals("", viewModel.uiState.value.habitName)
         assertFalse(viewModel.uiState.value.isLoading)
+    }
+
+    @Test
+    fun `init surfaces the trigger's action_url as videoUrl`() = runTest {
+        val url = "https://www.youtube.com/results?search_query=C+major+vocal+scale"
+        coEvery { triggerRepository.getById(42L) } returns makeTrigger(actionUrl = url)
+        coEvery { habitRepository.getByIdOnce(1L) } returns makeHabit()
+        viewModel.init(42L)
+        advanceUntilIdle()
+        assertEquals(url, viewModel.uiState.value.videoUrl)
+    }
+
+    @Test
+    fun `init hides a missing action_url`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns makeTrigger(actionUrl = null)
+        coEvery { habitRepository.getByIdOnce(1L) } returns makeHabit()
+        viewModel.init(42L)
+        advanceUntilIdle()
+        assertNull(viewModel.uiState.value.videoUrl)
+    }
+
+    @Test
+    fun `init hides a non-https action_url`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns makeTrigger(actionUrl = "http://example.com/video")
+        coEvery { habitRepository.getByIdOnce(1L) } returns makeHabit()
+        viewModel.init(42L)
+        advanceUntilIdle()
+        assertNull(viewModel.uiState.value.videoUrl)
+    }
+
+    @Test
+    fun `init records no outcome`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns makeTrigger()
+        coEvery { habitRepository.getByIdOnce(1L) } returns makeHabit()
+        viewModel.init(42L)
+        advanceUntilIdle()
+        coVerify(exactly = 0) { triggerRepository.updateOutcome(any(), any()) }
+        coVerify(exactly = 0) { dismissalTracker.onCompleted(any()) }
+        coVerify(exactly = 0) { dismissalTracker.onDismissed(any()) }
     }
 
     @Test
