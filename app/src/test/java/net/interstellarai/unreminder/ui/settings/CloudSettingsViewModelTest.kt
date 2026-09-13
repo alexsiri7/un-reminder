@@ -225,6 +225,68 @@ class CloudSettingsViewModelTest {
     }
 
     @Test
+    fun `the summary still reports habits whose enqueue threw after their notice was replaced`() = runTest(testDispatcher) {
+        every { mockRefillScheduler.enqueueRegenerate(1L) } throws RuntimeException("wm error")
+
+        val vm = createViewModel()
+        vm.regenerateAll()
+        advanceUntilIdle()
+
+        settle(WorkInfo.State.SUCCEEDED)
+        advanceUntilIdle()
+
+        assertNull(vm.uiState.value.regeneration)
+        assertEquals("Regenerated 1 habit(s), 1 not queued — previous variants kept.", vm.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun `the summary lists failed and not-queued habits together`() = runTest(testDispatcher) {
+        coEvery { mockHabitRepository.getAllActive() } returns flowOf(habits + HabitEntity(id = 3L, name = "C"))
+        every { mockRefillScheduler.enqueueRegenerate(3L) } throws RuntimeException("wm error")
+
+        val vm = createViewModel()
+        vm.regenerateAll()
+        advanceUntilIdle()
+
+        settle(WorkInfo.State.SUCCEEDED, WorkInfo.State.FAILED)
+        advanceUntilIdle()
+
+        assertEquals(
+            "Regenerated 1 habit(s), 1 failed and 1 not queued — previous variants kept.",
+            vm.uiState.value.errorMessage,
+        )
+    }
+
+    @Test
+    fun `a broken progress flow still reports habits whose enqueue threw`() = runTest(testDispatcher) {
+        every { mockRefillScheduler.enqueueRegenerate(1L) } throws RuntimeException("wm error")
+        every { workManager.getWorkInfosFlow(any()) } returns flow { throw IllegalStateException("boom") }
+
+        val vm = createViewModel()
+        vm.regenerateAll()
+        advanceUntilIdle()
+
+        assertNull(vm.uiState.value.regeneration)
+        assertEquals(
+            "Regeneration is still running in the background. 1 habit(s) not queued.",
+            vm.uiState.value.errorMessage,
+        )
+    }
+
+    @Test
+    fun `regenerateAll reports every habit when no enqueue succeeds and leaves the button enabled`() = runTest(testDispatcher) {
+        every { mockRefillScheduler.enqueueRegenerate(any()) } throws RuntimeException("wm error")
+
+        val vm = createViewModel()
+        vm.regenerateAll()
+        advanceUntilIdle()
+
+        assertEquals("Failed to queue regeneration for 2 habit(s).", vm.uiState.value.errorMessage)
+        assertNull(vm.uiState.value.regeneration)
+        verify(exactly = 0) { workManager.getWorkInfosFlow(any()) }
+    }
+
+    @Test
     fun `regenerateAll sets errorMessage on exception`() = runTest(testDispatcher) {
         coEvery { mockHabitRepository.getAllActive() } throws RuntimeException("db error")
 

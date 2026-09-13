@@ -90,7 +90,7 @@ class CloudSettingsViewModel @Inject constructor(
             _uiState.value = _uiState.value.copy(
                 regeneration = RegenerationProgress(total = ids.size, done = 0, failed = 0)
             )
-            observe(ids)
+            observe(ids, notQueued = failCount)
         }
     }
 
@@ -98,9 +98,10 @@ class CloudSettingsViewModel @Inject constructor(
      * Follows this press's works until every one is terminal, then posts a one-shot summary and
      * stops — never resubscribes, so WorkManager pruning old specs cannot re-fire the snackbar.
      * A retrying work sits ENQUEUED and counts as in flight: nothing has failed and the old pool
-     * is intact until it lands.
+     * is intact until it lands. Habits that were never enqueued ([notQueued]) are folded into the
+     * summary because it replaces whatever notice is on screen when it lands.
      */
-    private suspend fun observe(ids: List<UUID>) {
+    private suspend fun observe(ids: List<UUID>, notQueued: Int) {
         workManager.getWorkInfosFlow(WorkQuery.fromIds(ids))
             .map { infos ->
                 RegenerationProgress(
@@ -121,21 +122,27 @@ class CloudSettingsViewModel @Inject constructor(
                 Log.e(TAG, "regenerateAll: lost track of regeneration progress", e)
                 _uiState.value = _uiState.value.copy(
                     regeneration = null,
-                    errorMessage = "Regeneration is still running in the background.",
+                    errorMessage = "Regeneration is still running in the background." +
+                        if (notQueued > 0) " $notQueued habit(s) not queued." else "",
                 )
             }
             .collect { progress ->
                 _uiState.value = if (progress.inFlight > 0) {
                     _uiState.value.copy(regeneration = progress)
                 } else {
-                    _uiState.value.copy(regeneration = null, errorMessage = summary(progress))
+                    _uiState.value.copy(regeneration = null, errorMessage = summary(progress, notQueued))
                 }
             }
     }
 
-    private fun summary(progress: RegenerationProgress): String =
-        if (progress.failed == 0) "Regenerated ${progress.done} habit(s)."
-        else "Regenerated ${progress.done} habit(s), ${progress.failed} failed — previous variants kept."
+    private fun summary(progress: RegenerationProgress, notQueued: Int): String {
+        val problems = buildList {
+            if (progress.failed > 0) add("${progress.failed} failed")
+            if (notQueued > 0) add("$notQueued not queued")
+        }
+        return if (problems.isEmpty()) "Regenerated ${progress.done} habit(s)."
+        else "Regenerated ${progress.done} habit(s), ${problems.joinToString(" and ")} — previous variants kept."
+    }
 
     fun clearError() {
         _uiState.value = _uiState.value.copy(errorMessage = null)
