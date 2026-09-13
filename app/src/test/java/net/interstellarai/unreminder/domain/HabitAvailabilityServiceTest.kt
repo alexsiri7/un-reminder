@@ -343,6 +343,16 @@ class HabitAvailabilityServiceTest {
     }
 
     @Test
+    fun `a habit opened without completing ranks by its cooldown like any habit just prompted`() = runTest(testDispatcher) {
+        val cooldownHabit = testHabit.copy(cooldownMinutes = 60)
+        givenNoLocationsOrWindows()
+        lastTrigger(cooldownHabit.id, TriggerStatus.OPENED)
+        coEvery { mockTriggerRepository.getLastFiredOrDismissedForHabit(cooldownHabit.id) } returns Instant.now().toEpochMilli()
+
+        assertEquals(mapOf(1L to DisplayTier.PACED), service.computeDisplayTiers(listOf(cooldownHabit)))
+    }
+
+    @Test
     fun `a habit deferred with Later and no cooldown is simply doable`() = runTest(testDispatcher) {
         val noCooldown = testHabit.copy(cooldownMinutes = 0)
         givenNoLocationsOrWindows()

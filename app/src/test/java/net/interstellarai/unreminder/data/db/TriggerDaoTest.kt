@@ -211,6 +211,7 @@ class TriggerDaoTest {
         insertTrigger(habitId, TriggerStatus.DISMISSED, midnightMillis)
         insertTrigger(habitId, TriggerStatus.EXPIRED, midnightMillis)
         insertTrigger(habitId, TriggerStatus.LATER, midnightMillis)
+        insertTrigger(habitId, TriggerStatus.OPENED, midnightMillis)
 
         assertEquals(listOf(firedId), triggerDao.getFiredIds())
     }
@@ -227,6 +228,14 @@ class TriggerDaoTest {
     fun `a LATER trigger still holds the habit cooldown`() = runTest {
         val habitId = insertHabit("hLaterCooldown")
         insertTrigger(habitId, TriggerStatus.LATER, midnightMillis)
+
+        assertEquals(midnightMillis, triggerDao.getLastFiredOrDismissedForHabit(habitId))
+    }
+
+    @Test
+    fun `an OPENED trigger still holds the habit cooldown`() = runTest {
+        val habitId = insertHabit("hOpenedCooldown")
+        insertTrigger(habitId, TriggerStatus.OPENED, midnightMillis)
 
         assertEquals(midnightMillis, triggerDao.getLastFiredOrDismissedForHabit(habitId))
     }
@@ -264,6 +273,50 @@ class TriggerDaoTest {
 
         assertEquals(TriggerStatus.COMPLETED, triggerDao.getById(completedId)?.status)
         assertEquals(TriggerStatus.DISMISSED, triggerDao.getById(dismissedId)?.status)
+    }
+
+    @Test
+    fun `updateStatusIf records COMPLETED over FIRED and returns 1`() = runTest {
+        val habitId = insertHabit("hGuardFired")
+        val id = insertTrigger(habitId, TriggerStatus.FIRED, midnightMillis)
+
+        val changed = triggerDao.updateStatusIf(id, "COMPLETED", listOf("FIRED", "OPENED"))
+
+        assertEquals(1, changed)
+        assertEquals(TriggerStatus.COMPLETED, triggerDao.getById(id)?.status)
+    }
+
+    @Test
+    fun `updateStatusIf upgrades OPENED to COMPLETED`() = runTest {
+        val habitId = insertHabit("hGuardOpened")
+        val id = insertTrigger(habitId, TriggerStatus.OPENED, midnightMillis)
+
+        val changed = triggerDao.updateStatusIf(id, "COMPLETED", listOf("FIRED", "OPENED"))
+
+        assertEquals(1, changed)
+        assertEquals(TriggerStatus.COMPLETED, triggerDao.getById(id)?.status)
+    }
+
+    @Test
+    fun `updateStatusIf refuses to overwrite OPENED with DISMISSED`() = runTest {
+        val habitId = insertHabit("hGuardOpenedDismiss")
+        val id = insertTrigger(habitId, TriggerStatus.OPENED, midnightMillis)
+
+        val changed = triggerDao.updateStatusIf(id, "DISMISSED", listOf("FIRED"))
+
+        assertEquals(0, changed)
+        assertEquals(TriggerStatus.OPENED, triggerDao.getById(id)?.status)
+    }
+
+    @Test
+    fun `updateStatusIf refuses to overwrite a resolved outcome`() = runTest {
+        val habitId = insertHabit("hGuardResolved")
+        val id = insertTrigger(habitId, TriggerStatus.COMPLETED, midnightMillis)
+
+        val changed = triggerDao.updateStatusIf(id, "DISMISSED", listOf("FIRED"))
+
+        assertEquals(0, changed)
+        assertEquals(TriggerStatus.COMPLETED, triggerDao.getById(id)?.status)
     }
 
     @Test

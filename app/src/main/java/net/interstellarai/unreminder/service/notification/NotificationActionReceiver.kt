@@ -22,12 +22,6 @@ class NotificationActionReceiver : BroadcastReceiver() {
 
     companion object {
         private const val TAG = "NotificationActionReceiver"
-        private val RESOLVED_STATUSES = setOf(
-            TriggerStatus.COMPLETED,
-            TriggerStatus.DISMISSED,
-            TriggerStatus.EXPIRED,
-            TriggerStatus.LATER,
-        )
     }
 
     @Inject
@@ -56,16 +50,15 @@ class NotificationActionReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.IO).launch {
             val manager = context.getSystemService(NotificationManager::class.java)
             try {
-                val existingStatus = triggerRepository.getById(triggerId)?.status
-                if (existingStatus != null && existingStatus in RESOLVED_STATUSES) {
+                if (!triggerRepository.recordOutcome(triggerId, status)) {
                     // A swipe can land between a tap and the cancel below (#291), delivering a
                     // second broadcast for the same trigger, and a later trigger can supersede
-                    // this one (#369). Either way the outcome is already recorded.
-                    Log.d(TAG, "onReceive: trigger=$triggerId already $existingStatus, ignoring $action")
+                    // this one (#369). Either way the outcome is already recorded and the
+                    // repository declined the write.
+                    Log.d(TAG, "onReceive: trigger=$triggerId already resolved, ignoring $action")
                     manager.cancel(triggerId.toRequestCode())
                     return@launch
                 }
-                triggerRepository.updateOutcome(triggerId, status)
                 when (status) {
                     TriggerStatus.COMPLETED -> dismissalTracker.onCompleted(triggerId)
                     TriggerStatus.DISMISSED -> dismissalTracker.onDismissed(triggerId)

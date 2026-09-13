@@ -6,5 +6,6 @@ enum class TriggerStatus {
     COMPLETED,
     DISMISSED,
     EXPIRED,
-    LATER
+    LATER,
+    OPENED
 }

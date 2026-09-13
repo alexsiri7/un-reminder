@@ -194,7 +194,7 @@ class HabitAvailabilityService @Inject constructor(
         if (completedCount > 0) reasons += UnavailableReason.COMPLETED
 
         // --- Cooldown ---
-        // DISMISSED, FIRED, EXPIRED or LATER within cooldown_minutes (mirrors SQL; 0 cooldown = no restriction).
+        // DISMISSED, FIRED, EXPIRED, LATER or OPENED within cooldown_minutes (mirrors SQL; 0 cooldown = no restriction).
         if (habit.cooldownMinutes > 0) {
             val nowEpochMillis = Instant.now().toEpochMilli()
             val cooldownCutoff = nowEpochMillis - habit.cooldownMinutes * 60 * 1000L
