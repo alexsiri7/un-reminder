@@ -3,7 +3,7 @@ import type { ActivityMode, Env, GenerateBatchRequest, GenerateBatchResponse, No
 import { ACTIVITY_MODES, VARIANT_SHAPES } from '../types'
 import { addSpend } from '../lib/spend'
 import { readGenerationVersion } from '../lib/generationVersion'
-import { callRequestyWithSchemaRetry, COST_PER_OUTPUT_TOKEN, COST_PER_INPUT_TOKEN } from '../lib/requesty'
+import { callRequestyWithSchemaRetry, COST_PER_OUTPUT_TOKEN, COST_PER_INPUT_TOKEN, REASONING_TOKEN_BUDGET } from '../lib/requesty'
 import * as Sentry from '@sentry/cloudflare'
 
 const shapeGuide =
@@ -149,8 +149,9 @@ export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promi
   const allowedSpriteTags = new Set(spriteOptions.map((s) => s.tag))
 
   // A variant with a long text, two modes, an actionUrl and a spriteTag runs to ~250 chars,
-  // about 85 tokens; a truncated batch is invalid JSON and costs a retry.
-  const maxTokens = Math.min(n * 120, 6144)
+  // about 85 tokens; a truncated batch is invalid JSON and costs a retry. The model's thinking
+  // budget shares this cap, so it is reserved on top of the content estimate.
+  const maxTokens = Math.min(n * 120 + REASONING_TOKEN_BUDGET, 6144)
 
   // Only the accepted attempt's count survives; a rejected first attempt is retried whole.
   let droppedForMode = 0

@@ -21,11 +21,12 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 UR_DAILY_CAP_CENTS  = "50"
 UR_MONTHLY_CAP_CENTS = "500"
-UR_MODEL = "google/gemini-3-flash-preview"
+UR_MODEL = "google/gemini-3.6-flash"
 # Bump whenever UR_MODEL or buildPrompt (src/routes/generateBatch.ts) changes: every device
 # regenerates every active habit's pool once per bump, paced about one habit per minute.
 # Must be an integer >= 1 — the app reads 0 as "generated before versions existed".
-UR_GENERATION_VERSION = "1"
+# Which model and prompt each version ran is recorded in README.md (Generation version history).
+UR_GENERATION_VERSION = "2"
 
 [[kv_namespaces]]
 binding = "UR_SPEND"
