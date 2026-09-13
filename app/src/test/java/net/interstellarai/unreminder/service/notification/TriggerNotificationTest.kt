@@ -4,11 +4,14 @@ import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.drawable.Icon
 import androidx.test.core.app.ApplicationProvider
 import net.interstellarai.unreminder.MainActivity
+import net.interstellarai.unreminder.domain.model.NotificationStyle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -32,11 +35,17 @@ class TriggerNotificationTest {
         helper.createNotificationChannel()
     }
 
-    private fun posted(triggerId: Long, spriteTag: String?, actionUrl: String? = null): Notification {
+    private fun posted(
+        triggerId: Long,
+        spriteTag: String?,
+        actionUrl: String? = null,
+        style: NotificationStyle = NotificationStyle.SPRITE,
+    ): Notification {
         helper.postTriggerNotification(
             triggerId = triggerId,
             promptText = "body",
             habitName = "meditation",
+            style = style,
             actionUrl = actionUrl,
             spriteTag = spriteTag,
         )
@@ -50,6 +59,17 @@ class TriggerNotificationTest {
         assertEquals(Icon.TYPE_RESOURCE, shadowOf(icon).type)
         return shadowOf(icon).resId
     }
+
+    private fun templateOf(notification: Notification): String? = notification.extras.getString(Notification.EXTRA_TEMPLATE)
+
+    private fun subTextOf(notification: Notification): String? =
+        notification.extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString()
+
+    // A distinct trigger id per style so the notifications don't replace each other.
+    private fun eachStyle(actionUrl: String? = null): Map<NotificationStyle, Notification> =
+        NotificationStyle.entries.associateWith { style ->
+            posted(triggerId = 100L + style.ordinal, spriteTag = null, actionUrl = actionUrl, style = style)
+        }
 
     @Test
     fun `large icon is the sprite tagged on the variant`() {
@@ -177,5 +197,99 @@ class TriggerNotificationTest {
         assertEquals(NotificationActionReceiver::class.java.name, saved.component?.className)
         assertEquals(NotificationHelper.ACTION_LATER, saved.getStringExtra(NotificationHelper.EXTRA_ACTION))
         assertEquals(42L, saved.getLongExtra(NotificationHelper.EXTRA_TRIGGER_ID, -1L))
+    }
+
+    @Test
+    fun `every style carries exactly Open and Later with or without a video`() {
+        for ((style, notification) in eachStyle()) {
+            assertEquals("$style", listOf("Open", "Later"), notification.actions.map { it.title })
+        }
+        for ((style, notification) in eachStyle(actionUrl = "https://example.com/v")) {
+            assertEquals("$style", listOf("Open", "Later"), notification.actions.map { it.title })
+        }
+    }
+
+    // The header binds subText before any style summary, so the indicator only stays visible
+    // in every style as long as no style sets a summary.
+    @Test
+    fun `every style shows the video indicator in the sub text and none sets a summary`() {
+        for ((style, notification) in eachStyle(actionUrl = "https://example.com/v")) {
+            assertEquals("$style", NotificationHelper.VIDEO_INDICATOR, subTextOf(notification))
+            assertNull("$style", notification.extras.getCharSequence(Notification.EXTRA_SUMMARY_TEXT))
+            assertEquals("$style", "body", notification.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString())
+        }
+        for ((style, notification) in eachStyle()) {
+            assertNull("$style", subTextOf(notification))
+        }
+    }
+
+    @Test
+    fun `every style keeps the detail content intent and the delete intent`() {
+        for ((style, notification) in eachStyle()) {
+            val triggerId = 100L + style.ordinal
+            val requestCodeOf = { title: String ->
+                shadowOf(notification.actions.single { it.title == title }.actionIntent).requestCode
+            }
+            assertEquals("$style", (NotificationHelper.NOTIFICATION_DETAIL_BASE + triggerId).toRequestCode(), requestCodeOf("Open"))
+            assertEquals("$style", requestCodeOf("Open"), shadowOf(notification.contentIntent).requestCode)
+            assertEquals("$style", (NotificationHelper.NOTIFICATION_LATER_BASE + triggerId).toRequestCode(), requestCodeOf("Later"))
+            assertEquals(
+                "$style",
+                (NotificationHelper.NOTIFICATION_DELETE_BASE + triggerId).toRequestCode(),
+                shadowOf(requireNotNull(notification.deleteIntent) { "$style has no delete intent" }).requestCode
+            )
+        }
+    }
+
+    @Test
+    fun `SPRITE is big text with the sprite and the default colour`() {
+        val notification = posted(triggerId = 42L, spriteTag = null, style = NotificationStyle.SPRITE)
+
+        assertEquals(Notification.BigTextStyle::class.java.name, templateOf(notification))
+        assertEquals(resolver.resolve(null, rotationSeed = 42L), largeIconRes(notification))
+        assertEquals(Notification.COLOR_DEFAULT, notification.color)
+    }
+
+    @Test
+    fun `BIG_PICTURE is a big picture of the sprite with the thumbnail hidden when expanded`() {
+        val notification = posted(triggerId = 42L, spriteTag = null, style = NotificationStyle.BIG_PICTURE)
+
+        assertEquals(Notification.BigPictureStyle::class.java.name, templateOf(notification))
+        assertEquals(resolver.resolve(null, rotationSeed = 42L), largeIconRes(notification))
+        val picture = notification.extras.getParcelable(Notification.EXTRA_PICTURE_ICON, Icon::class.java)
+            ?: notification.extras.getParcelable(Notification.EXTRA_PICTURE, Bitmap::class.java)
+        assertNotNull("no big picture", picture)
+        assertTrue(notification.extras.containsKey(Notification.EXTRA_LARGE_ICON_BIG))
+        assertNull(notification.extras.getParcelable(Notification.EXTRA_LARGE_ICON_BIG, Icon::class.java))
+    }
+
+    @Test
+    fun `TEXT_ONLY has no large icon and the sage accent`() {
+        val notification = posted(triggerId = 42L, spriteTag = null, style = NotificationStyle.TEXT_ONLY)
+
+        assertEquals(Notification.BigTextStyle::class.java.name, templateOf(notification))
+        assertNull(notification.getLargeIcon())
+        assertEquals(NotificationHelper.SAGE_ACCENT, notification.color)
+    }
+
+    @Test
+    fun `ACCENT keeps the sprite and rotates the header colour by trigger id`() {
+        val colours = listOf(1L, 2L, 3L).map { id ->
+            val notification = posted(triggerId = id, spriteTag = null, style = NotificationStyle.ACCENT)
+            assertEquals(Notification.BigTextStyle::class.java.name, templateOf(notification))
+            assertEquals(resolver.resolve(null, rotationSeed = id), largeIconRes(notification))
+            assertEquals(NotificationHelper.ACCENT_PALETTE[id.mod(NotificationHelper.ACCENT_PALETTE.size)], notification.color)
+            notification.color
+        }
+
+        assertEquals(3, colours.toSet().size)
+        assertTrue(NotificationHelper.SAGE_ACCENT !in colours)
+    }
+
+    @Test
+    fun `a negative trigger id still picks an accent`() {
+        val notification = posted(triggerId = -7L, spriteTag = null, style = NotificationStyle.ACCENT)
+
+        assertTrue(notification.color in NotificationHelper.ACCENT_PALETTE)
     }
 }

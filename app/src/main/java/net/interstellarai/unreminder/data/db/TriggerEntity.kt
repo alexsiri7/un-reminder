@@ -3,6 +3,7 @@ package net.interstellarai.unreminder.data.db
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import net.interstellarai.unreminder.domain.model.NotificationStyle
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import java.time.Instant
 
@@ -24,6 +25,9 @@ data class TriggerEntity(
     /** The variant's action_url as delivered, frozen like generated_prompt so the detail screen shows what the notification carried. */
     @ColumnInfo(name = "action_url")
     val actionUrl: String? = null,
+    /** The look the notification was posted with, frozen like action_url so a style can be read against its outcome. Null on rows fired before styles existed. */
+    @ColumnInfo(name = "style")
+    val style: NotificationStyle? = null,
     @ColumnInfo(name = "source")
     val source: String? = null
 )

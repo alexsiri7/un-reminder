@@ -9,6 +9,7 @@ import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.domain.model.ActivityMode
 import net.interstellarai.unreminder.domain.model.ActivityState
+import net.interstellarai.unreminder.domain.model.NotificationStyle
 import net.interstellarai.unreminder.domain.model.NotificationVariant
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.activity.ActivityRecognitionManager
@@ -112,17 +113,24 @@ class TriggerPipeline @Inject constructor(
             // cannot contain the notification this run is about to post.
             val outstandingIds = triggerRepository.getFiredIds()
 
+            // Presentation rotates on its own axis (#386): independent of the variant's shape
+            // and of the sprite, and frozen with the fired row so a look can be read against
+            // its outcome.
+            val style = NotificationStyle.next(triggerRepository.getLastStyleForHabit(habit.id))
+
             triggerRepository.updateFired(
                 id = triggerId,
                 habitId = habit.id,
                 prompt = resolvedPrompt.text,
-                actionUrl = resolvedPrompt.actionUrl
+                actionUrl = resolvedPrompt.actionUrl,
+                style = style,
             )
 
             notificationHelper.postTriggerNotification(
                 triggerId = triggerId,
                 promptText = resolvedPrompt.text,
                 habitName = habit.name,
+                style = style,
                 actionUrl = resolvedPrompt.actionUrl,
                 spriteTag = resolvedPrompt.spriteTag,
             )

@@ -12,6 +12,7 @@ import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.domain.model.ActivityMode
 import net.interstellarai.unreminder.domain.model.ActivityResolution
 import net.interstellarai.unreminder.domain.model.ActivityState
+import net.interstellarai.unreminder.domain.model.NotificationStyle
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.activity.ActivityRecognitionManager
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
@@ -23,12 +24,14 @@ import net.interstellarai.unreminder.widget.WidgetRefresher
 import net.interstellarai.unreminder.domain.model.VariantShape
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.clearMocks
 import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.runs
+import io.mockk.slot
 import io.mockk.unmockkStatic
 import io.mockk.verify
 import io.sentry.Breadcrumb
@@ -40,6 +43,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import kotlin.coroutines.cancellation.CancellationException
@@ -110,6 +114,7 @@ class TriggerPipelineTest {
         every { geofenceManager.currentLocationIds } returns MutableStateFlow(setOf(1L)).asStateFlow()
         coEvery { locationRepository.getByIds(any()) } returns emptyList()
         coEvery { triggerRepository.getLastFiredForHabit(any()) } returns null
+        coEvery { triggerRepository.getLastStyleForHabit(any()) } returns null
         coEvery { triggerRepository.getFiredIds() } returns emptyList()
     }
 
@@ -129,7 +134,7 @@ class TriggerPipelineTest {
 
         pipeline.execute(99L)
 
-        coVerify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -140,7 +145,7 @@ class TriggerPipelineTest {
         pipeline.execute(42L)
 
         coVerify(exactly = 0) { habitRepository.getEligibleHabits(any(), any()) }
-        coVerify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -166,7 +171,7 @@ class TriggerPipelineTest {
 
         coVerify { triggerRepository.updateOutcome(42L, TriggerStatus.DISMISSED) }
         coVerify(exactly = 0) { habitRepository.getEligibleHabits(any(), any()) }
-        coVerify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -182,6 +187,7 @@ class TriggerPipelineTest {
                 triggerId = 42L,
                 promptText = "body",
                 habitName = "meditation",
+                style = any(),
                 actionUrl = null,
             )
         }
@@ -217,7 +223,7 @@ class TriggerPipelineTest {
         pipeline.execute(42L)
 
         coVerify { triggerRepository.updateOutcome(42L, TriggerStatus.DISMISSED) }
-        coVerify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any(), any(), any(), any()) }
         verify(exactly = 0) { widgetRefresher.refresh() }
     }
 
@@ -233,6 +239,7 @@ class TriggerPipelineTest {
                 triggerId = 42L,
                 promptText = any(),
                 habitName = any(),
+                style = any(),
                 actionUrl = any(),
                 spriteTag = any(),
             )
@@ -251,7 +258,45 @@ class TriggerPipelineTest {
 
         coVerifyOrder {
             triggerRepository.getFiredIds()
-            triggerRepository.updateFired(42L, any(), any(), any())
+            triggerRepository.updateFired(42L, any(), any(), any(), any())
+        }
+    }
+
+    @Test
+    fun `the style avoids the habit's last one and is frozen on the row the notification is posted from`() = runTest {
+        for (previous in NotificationStyle.entries) {
+            clearMocks(triggerRepository, notificationHelper, answers = false)
+            stubEligibleHabitWithVariation()
+            coEvery { triggerRepository.getLastStyleForHabit(1L) } returns previous
+            val frozen = slot<NotificationStyle>()
+
+            pipeline.execute(42L)
+
+            coVerify(exactly = 1) { triggerRepository.updateFired(42L, any(), any(), any(), capture(frozen)) }
+            assertNotEquals(previous, frozen.captured)
+            coVerify(exactly = 1) {
+                notificationHelper.postTriggerNotification(
+                    triggerId = 42L,
+                    promptText = "body",
+                    habitName = "meditation",
+                    style = frozen.captured,
+                    actionUrl = null,
+                    spriteTag = null,
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `the style is chosen after the outstanding ids are read and before the row is marked fired`() = runTest {
+        stubEligibleHabitWithVariation()
+
+        pipeline.execute(42L)
+
+        coVerifyOrder {
+            triggerRepository.getFiredIds()
+            triggerRepository.getLastStyleForHabit(1L)
+            triggerRepository.updateFired(42L, any(), any(), any(), any())
         }
     }
 
@@ -260,7 +305,7 @@ class TriggerPipelineTest {
         stubEligibleHabitWithVariation()
         coEvery { triggerRepository.getFiredIds() } returns listOf(7L)
         every {
-            notificationHelper.postTriggerNotification(any(), any(), any(), any(), any())
+            notificationHelper.postTriggerNotification(any(), any(), any(), any(), any(), any())
         } throws RuntimeException("boom")
 
         pipeline.execute(42L)
@@ -329,12 +374,13 @@ class TriggerPipelineTest {
 
         pipeline.execute(42L)
 
-        coVerify { triggerRepository.updateFired(42L, 1L, "Cloud notification body", null) }
+        coVerify { triggerRepository.updateFired(42L, 1L, "Cloud notification body", null, any()) }
         coVerify {
             notificationHelper.postTriggerNotification(
                 triggerId = 42L,
                 promptText = "Cloud notification body",
                 habitName = "meditation",
+                style = any(),
                 actionUrl = null
             )
         }
@@ -351,12 +397,13 @@ class TriggerPipelineTest {
 
         pipeline.execute(42L)
 
-        coVerify { triggerRepository.updateFired(42L, 1L, "meditation", null) }
+        coVerify { triggerRepository.updateFired(42L, 1L, "meditation", null, any()) }
         coVerify {
             notificationHelper.postTriggerNotification(
                 triggerId = 42L,
                 promptText = "meditation",
                 habitName = "meditation",
+                style = any(),
                 actionUrl = null
             )
         }
@@ -373,12 +420,13 @@ class TriggerPipelineTest {
 
         pipeline.execute(42L)
 
-        coVerify { triggerRepository.updateFired(42L, 1L, "Take three deep breaths", null) }
+        coVerify { triggerRepository.updateFired(42L, 1L, "Take three deep breaths", null, any()) }
         coVerify {
             notificationHelper.postTriggerNotification(
                 triggerId = 42L,
                 promptText = "Take three deep breaths",
                 habitName = "meditation",
+                style = any(),
                 actionUrl = null
             )
         }
@@ -399,12 +447,13 @@ class TriggerPipelineTest {
 
         pipeline.execute(42L)
 
-        coVerify { triggerRepository.updateFired(42L, 1L, "Sing the C major scale", url) }
+        coVerify { triggerRepository.updateFired(42L, 1L, "Sing the C major scale", url, any()) }
         coVerify {
             notificationHelper.postTriggerNotification(
                 triggerId = 42L,
                 promptText = "Sing the C major scale",
                 habitName = "meditation",
+                style = any(),
                 actionUrl = url
             )
         }
@@ -429,6 +478,7 @@ class TriggerPipelineTest {
                 triggerId = 42L,
                 promptText = "Cloud notification body",
                 habitName = "meditation",
+                style = any(),
                 actionUrl = null,
                 spriteTag = "wizard_starry_robe"
             )
@@ -448,7 +498,7 @@ class TriggerPipelineTest {
 
         pipeline.execute(42L)
 
-        coVerify { triggerRepository.updateFired(42L, 1L, "Cloud notification body", null) }
+        coVerify { triggerRepository.updateFired(42L, 1L, "Cloud notification body", null, any()) }
         coVerify(exactly = 1) { refillScheduler.enqueueForHabit(1L) }
     }
 
@@ -461,7 +511,7 @@ class TriggerPipelineTest {
 
         pipeline.execute(42L)
 
-        coVerify { triggerRepository.updateFired(42L, 1L, "meditation", null) }
+        coVerify { triggerRepository.updateFired(42L, 1L, "meditation", null, any()) }
         coVerify { refillScheduler.enqueueForHabit(1L) }
     }
 
@@ -480,7 +530,7 @@ class TriggerPipelineTest {
         pipeline.execute(42L)
 
         verify(exactly = 1) { Sentry.captureException(failure, any<ScopeCallback>()) }
-        coVerify { triggerRepository.updateFired(42L, 1L, "meditation", null) }
+        coVerify { triggerRepository.updateFired(42L, 1L, "meditation", null, any()) }
         unmockkStatic(Sentry::class)
     }
 
@@ -497,7 +547,7 @@ class TriggerPipelineTest {
             // expected
         }
 
-        coVerify(exactly = 0) { triggerRepository.updateFired(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { triggerRepository.updateFired(any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -515,7 +565,7 @@ class TriggerPipelineTest {
 
         pipeline.execute(42L)
 
-        coVerify { triggerRepository.updateFired(42L, 1L, "Time for meditation!", null) }
+        coVerify { triggerRepository.updateFired(42L, 1L, "Time for meditation!", null, any()) }
     }
 
     @Test
@@ -532,7 +582,7 @@ class TriggerPipelineTest {
 
         pipeline.execute(42L)
 
-        coVerify { triggerRepository.updateFired(42L, 1L, "Time!", null) }
+        coVerify { triggerRepository.updateFired(42L, 1L, "Time!", null, any()) }
     }
 
     @Test

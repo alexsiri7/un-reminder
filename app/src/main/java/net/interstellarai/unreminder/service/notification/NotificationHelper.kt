@@ -6,8 +6,14 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.graphics.drawable.Icon
+import androidx.compose.ui.graphics.toArgb
 import androidx.core.app.NotificationCompat
 import net.interstellarai.unreminder.R
+import net.interstellarai.unreminder.domain.model.NotificationStyle
+import net.interstellarai.unreminder.ui.theme.CompletedLowFloor
+import net.interstellarai.unreminder.ui.theme.Later
+import net.interstellarai.unreminder.ui.theme.Opened
+import net.interstellarai.unreminder.ui.theme.SageAccent
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -50,6 +56,11 @@ class NotificationHelper @Inject constructor(
         const val NOTIFICATION_LATER_BASE = 6_000_000L
         // Header sub-text marking a variant that carries a video (#378).
         const val VIDEO_INDICATOR = "\u25B6 video"
+        // Header tints come from the theme's sage palette, borrowed for their hues rather than
+        // their outcome meanings; a re-tune there intentionally moves these. The rotating palette
+        // excludes sage itself so ACCENT never matches TEXT_ONLY.
+        internal val SAGE_ACCENT = SageAccent.toArgb()
+        internal val ACCENT_PALETTE = listOf(CompletedLowFloor, Later, Opened).map { it.toArgb() }
     }
 
     fun createNotificationChannel() {
@@ -87,6 +98,7 @@ class NotificationHelper @Inject constructor(
         triggerId: Long,
         promptText: String,
         habitName: String,
+        style: NotificationStyle,
         actionUrl: String? = null,
         spriteTag: String? = null,
     ) {
@@ -116,20 +128,40 @@ class NotificationHelper @Inject constructor(
             (NOTIFICATION_DELETE_BASE + triggerId).toRequestCode(),
         )
 
-        // The system rounds the large icon's corners itself; the opaque tile goes in as-is.
+        // The system rounds the large icon's corners itself; the opaque tile goes in as-is, and
+        // the same Icon doubles as the big picture.
         val sprite = Icon.createWithResource(context, spriteResolver.resolve(spriteTag, triggerId))
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setLargeIcon(sprite)
             .setContentTitle("$emoji $habitName")
             .setContentText(promptText)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(promptText))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setDeleteIntent(deleteIntent)
             .setContentIntent(detailPendingIntent)
             .addAction(0, "Open", detailPendingIntent)
             .addAction(0, "Later", laterIntent)
+
+        // The style is chosen and frozen by TriggerPipeline; this only dresses the builder. The
+        // header binds subText before any style summary, so the video indicator survives every
+        // style — never call setSummaryText here.
+        when (style) {
+            NotificationStyle.SPRITE -> builder
+                .setLargeIcon(sprite)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(promptText))
+            NotificationStyle.BIG_PICTURE -> builder
+                .setLargeIcon(sprite)
+                // bigLargeIcon(null): the expanded view otherwise shows the sprite twice.
+                .setStyle(NotificationCompat.BigPictureStyle().bigPicture(sprite).bigLargeIcon(null as Icon?))
+            NotificationStyle.TEXT_ONLY -> builder
+                .setColor(SAGE_ACCENT)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(promptText))
+            NotificationStyle.ACCENT -> builder
+                .setLargeIcon(sprite)
+                // .mod() (not %) keeps the index non-negative for a negative id.
+                .setColor(ACCENT_PALETTE[triggerId.mod(ACCENT_PALETTE.size)])
+                .setStyle(NotificationCompat.BigTextStyle().bigText(promptText))
+        }
 
         // The video itself is watched from the variant view; the notification only flags it.
         if (actionUrl != null && actionUrl.startsWith("https://")) {
