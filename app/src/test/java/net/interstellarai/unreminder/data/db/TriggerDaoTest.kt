@@ -357,4 +357,13 @@ class TriggerDaoTest {
 
         assertNull(triggerDao.getLastStyleForHabit(habitId))
     }
+
+    // The first fire after the update reads a row from before the column existed.
+    @Test
+    fun `getLastStyleForHabit is null for a row fired before styles existed`() = runTest {
+        val habitId = insertHabit("hPreStyle")
+        insertTrigger(habitId, TriggerStatus.FIRED, midnightMillis)
+
+        assertNull(triggerDao.getLastStyleForHabit(habitId))
+    }
 }
