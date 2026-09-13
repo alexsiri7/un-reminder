@@ -6,9 +6,14 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.graphics.drawable.Icon
+import androidx.compose.ui.graphics.toArgb
 import androidx.core.app.NotificationCompat
 import net.interstellarai.unreminder.R
 import net.interstellarai.unreminder.domain.model.NotificationStyle
+import net.interstellarai.unreminder.ui.theme.CompletedLowFloor
+import net.interstellarai.unreminder.ui.theme.Later
+import net.interstellarai.unreminder.ui.theme.Opened
+import net.interstellarai.unreminder.ui.theme.SageAccent
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -51,11 +56,10 @@ class NotificationHelper @Inject constructor(
         const val NOTIFICATION_LATER_BASE = 6_000_000L
         // Header sub-text marking a variant that carries a video (#378).
         const val VIDEO_INDICATOR = "\u25B6 video"
-        // ARGB copies of ui/theme/Color.kt's SageAccent and its sage-harmonised status hues; the
-        // service layer stays free of Compose. The palette excludes sage so ACCENT never matches
-        // TEXT_ONLY.
-        internal val SAGE_ACCENT = 0xFF4D6B3A.toInt()
-        internal val ACCENT_PALETTE = listOf(0xFF9A7A15.toInt(), 0xFF7A8A9A.toInt(), 0xFF8C6B4F.toInt())
+        // Header tints come from the theme's sage palette. The rotating palette excludes sage
+        // itself so ACCENT never matches TEXT_ONLY.
+        internal val SAGE_ACCENT = SageAccent.toArgb()
+        internal val ACCENT_PALETTE = listOf(CompletedLowFloor, Later, Opened).map { it.toArgb() }
     }
 
     fun createNotificationChannel() {
