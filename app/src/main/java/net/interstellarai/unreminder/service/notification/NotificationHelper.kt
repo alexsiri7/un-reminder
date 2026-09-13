@@ -6,7 +6,6 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.graphics.drawable.Icon
-import android.net.Uri
 import androidx.core.app.NotificationCompat
 import net.interstellarai.unreminder.R
 import javax.inject.Inject
@@ -24,6 +23,7 @@ class NotificationHelper @Inject constructor(
         const val CHANNEL_NAME = "Habit Triggers"
         const val EXTRA_TRIGGER_ID = "trigger_id"
         const val EXTRA_ACTION = "action"
+        // No button sends this since #378; pre-update notifications still on screen do.
         const val ACTION_COMPLETED = "COMPLETED"
         const val ACTION_DISMISSED = "DISMISSED"
         const val ACTION_LATER = "LATER"
@@ -36,34 +36,20 @@ class NotificationHelper @Inject constructor(
         const val EXTRA_OPEN_NOW = "open_now"
         // The widget also opens the Now menu; only the invitation's own taps may clear it.
         const val EXTRA_FROM_EVENING_INVITATION = "from_evening_invitation"
-        // Content intent base — above the * 3 action-intent range.
+        // Content intent base — above the retired * 3 action-intent range.
         const val NOTIFICATION_CONTENT_BASE = 2_000_000L
         const val NOTIFICATION_DETAIL_BASE = 3_000_000L
         // Single fixed id: there is at most one evening invitation, and it is never
         // keyed by a trigger. Kept above DETAIL_BASE so it can't collide with per-trigger codes.
         const val NOTIFICATION_ID_EVENING_INVITATION = 4_000_000L
-        // Swipe-away delete intents: the per-trigger action slots are all taken, so
-        // these come from their own band.
+        // Swipe-away and Later intents each live in their own band. The per-trigger
+        // `triggerId * 3 + {0 Did it, 1 Dismiss, 2 Watch}` band those buttons once used is fully
+        // retired (#370, #378) and must never be reallocated: a PendingIntent's identity ignores
+        // extras, and pre-update notifications may still be on screen.
         const val NOTIFICATION_DELETE_BASE = 5_000_000L
-        // Later lives in its own band for the same reason as the swipe intent: the per-trigger
-        // slot codes are an on-device contract and cannot be renumbered or reassigned.
         const val NOTIFICATION_LATER_BASE = 6_000_000L
-    }
-
-    /**
-     * The PendingIntent slots a single trigger's notification owns; one code each, never shared.
-     * Offset 1 carried the Dismiss button until #370 and is retired, not reusable: a PendingIntent's
-     * identity ignores extras, and pre-#370 notifications may still be on screen.
-     */
-    private enum class ActionSlot(private val offset: Int) {
-        COMPLETED(0),
-        WATCH(2);
-
-        fun requestCodeFor(triggerId: Long): Int = (triggerId * SLOTS_PER_TRIGGER + offset).toRequestCode()
-
-        private companion object {
-            const val SLOTS_PER_TRIGGER = 3
-        }
+        // Header sub-text marking a variant that carries a video (#378).
+        const val VIDEO_INDICATOR = "\u25B6 video"
     }
 
     fun createNotificationChannel() {
@@ -105,14 +91,25 @@ class NotificationHelper @Inject constructor(
         spriteTag: String? = null,
     ) {
         val emoji = emojiRotator.pick(triggerId)
-        val completedIntent = createActionIntent(triggerId, ACTION_COMPLETED, ActionSlot.COMPLETED)
+        // One PendingIntent serves both the body tap and Open, as the invitation's "Show me" does.
+        // The screen it opens records OPENED (ReminderDetailViewModel) and clears the notification.
+        val detailIntent = Intent(context, net.interstellarai.unreminder.MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(EXTRA_TRIGGER_ID, triggerId)
+            putExtra(EXTRA_OPEN_DETAIL, true)
+        }
+        val detailPendingIntent = PendingIntent.getActivity(
+            context,
+            (NOTIFICATION_DETAIL_BASE + triggerId).toRequestCode(),
+            detailIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
         val laterIntent = createBroadcastIntent(
             triggerId,
             ACTION_LATER,
             (NOTIFICATION_LATER_BASE + triggerId).toRequestCode(),
         )
-        // A swipe is the notification's only dismissal (#291, #370); it needs a code of its own
-        // because the action slots are full.
+        // A swipe is the notification's only dismissal (#291, #370).
         val deleteIntent = createBroadcastIntent(
             triggerId,
             ACTION_DISMISSED,
@@ -130,32 +127,14 @@ class NotificationHelper @Inject constructor(
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .setDeleteIntent(deleteIntent)
-            .addAction(0, "Did it", completedIntent)
+            .setContentIntent(detailPendingIntent)
+            .addAction(0, "Open", detailPendingIntent)
             .addAction(0, "Later", laterIntent)
 
+        // The video itself is watched from the variant view; the notification only flags it.
         if (actionUrl != null && actionUrl.startsWith("https://")) {
-            val watchIntent = PendingIntent.getActivity(
-                context,
-                ActionSlot.WATCH.requestCodeFor(triggerId),
-                Intent(Intent.ACTION_VIEW, Uri.parse(actionUrl)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-            )
-            builder.addAction(0, "Watch", watchIntent)
+            builder.setSubText(VIDEO_INDICATOR)
         }
-
-        // Content intent: opens ReminderDetailScreen when user taps notification body
-        val detailIntent = Intent(context, net.interstellarai.unreminder.MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra(EXTRA_TRIGGER_ID, triggerId)
-            putExtra(EXTRA_OPEN_DETAIL, true)
-        }
-        val detailPendingIntent = PendingIntent.getActivity(
-            context,
-            (NOTIFICATION_DETAIL_BASE + triggerId).toRequestCode(),
-            detailIntent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
-        builder.setContentIntent(detailPendingIntent)
 
         notificationManager.notify(triggerId.toRequestCode(), builder.build())
     }
@@ -206,9 +185,6 @@ class NotificationHelper @Inject constructor(
     fun cancelEveningInvitationIfOpenedFrom(intent: Intent) {
         if (intent.getBooleanExtra(EXTRA_FROM_EVENING_INVITATION, false)) cancelEveningInvitation()
     }
-
-    private fun createActionIntent(triggerId: Long, action: String, slot: ActionSlot): PendingIntent =
-        createBroadcastIntent(triggerId, action, slot.requestCodeFor(triggerId))
 
     private fun createBroadcastIntent(triggerId: Long, action: String, requestCode: Int): PendingIntent {
         val intent = Intent(context, NotificationActionReceiver::class.java).apply {

@@ -6,8 +6,10 @@ import android.app.PendingIntent
 import android.content.Context
 import android.graphics.drawable.Icon
 import androidx.test.core.app.ApplicationProvider
+import net.interstellarai.unreminder.MainActivity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -74,10 +76,10 @@ class TriggerNotificationTest {
 
     // Only the geofence intent needs to be mutable (#339); the action receiver's must stay immutable.
     @Test
-    fun `the Did it and Later action intents stay immutable`() {
+    fun `the Open and Later action intents stay immutable`() {
         val notification = posted(triggerId = 42L, spriteTag = null)
 
-        val actionFlags = listOf("Did it", "Later").map { title ->
+        val actionFlags = listOf("Open", "Later").map { title ->
             val action = notification.actions.single { it.title == title }
             shadowOf(action.actionIntent).flags
         }
@@ -122,7 +124,8 @@ class TriggerNotificationTest {
         val requestCodeOf = { title: String ->
             shadowOf(notification.actions.single { it.title == title }.actionIntent).requestCode
         }
-        assertEquals((42L * 3 + 0).toRequestCode(), requestCodeOf("Did it"))
+        assertEquals((NotificationHelper.NOTIFICATION_DETAIL_BASE + 42L).toRequestCode(), requestCodeOf("Open"))
+        assertEquals(requestCodeOf("Open"), shadowOf(notification.contentIntent).requestCode)
         assertEquals((NotificationHelper.NOTIFICATION_LATER_BASE + 42L).toRequestCode(), requestCodeOf("Later"))
         assertEquals(
             (NotificationHelper.NOTIFICATION_DELETE_BASE + 42L).toRequestCode(),
@@ -131,12 +134,37 @@ class TriggerNotificationTest {
     }
 
     @Test
-    fun `Later is on every trigger notification and Dismiss is no longer a button`() {
+    fun `trigger notifications carry exactly Open and Later with or without a video`() {
         val plain = posted(triggerId = 42L, spriteTag = null)
         val withVideo = posted(triggerId = 43L, spriteTag = null, actionUrl = "https://example.com/v")
 
-        assertEquals(listOf("Did it", "Later"), plain.actions.map { it.title })
-        assertEquals(listOf("Did it", "Later", "Watch"), withVideo.actions.map { it.title })
+        assertEquals(listOf("Open", "Later"), plain.actions.map { it.title })
+        assertEquals(listOf("Open", "Later"), withVideo.actions.map { it.title })
+    }
+
+    @Test
+    fun `Open opens the reminder detail for this trigger`() {
+        val notification = posted(triggerId = 42L, spriteTag = null)
+
+        val shadow = shadowOf(notification.actions.single { it.title == "Open" }.actionIntent)
+        assertTrue(shadow.isActivity)
+        val saved = shadow.savedIntent
+        assertEquals(MainActivity::class.java.name, saved.component?.className)
+        assertTrue(saved.getBooleanExtra(NotificationHelper.EXTRA_OPEN_DETAIL, false))
+        assertEquals(42L, saved.getLongExtra(NotificationHelper.EXTRA_TRIGGER_ID, -1L))
+    }
+
+    @Test
+    fun `a video-bearing variant shows the indicator in the sub text`() {
+        val plain = posted(triggerId = 42L, spriteTag = null)
+        val withVideo = posted(triggerId = 43L, spriteTag = null, actionUrl = "https://example.com/v")
+        val insecure = posted(triggerId = 44L, spriteTag = null, actionUrl = "http://example.com/v")
+
+        val subText = { n: Notification -> n.extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString() }
+        assertEquals(NotificationHelper.VIDEO_INDICATOR, subText(withVideo))
+        assertNull(subText(plain))
+        assertNull(subText(insecure))
+        assertEquals("body", withVideo.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString())
     }
 
     @Test
