@@ -53,6 +53,13 @@ Configured in `wrangler.toml` under `[vars]`:
 | `UR_MODEL` | `gemini-3-flash-preview` | Model to use via Requesty |
 | `UR_DAILY_CAP_CENTS` | `50` | Max daily spend in cents |
 | `UR_MONTHLY_CAP_CENTS` | `500` | Max monthly spend in cents |
+| `UR_GENERATION_VERSION` | `1` | Integer ≥ 1 identifying the current model + prompt; echoed on `/v1/health` and `/v1/generate/batch` |
+
+**Rolling out a new model or prompt:** bump `UR_GENERATION_VERSION` in the same deploy that changes
+`UR_MODEL` or `buildPrompt`. Every device checks the version daily and regenerates each active habit's
+pool that was generated under another version, paced about one habit per minute, keeping the old pool
+live until the new batch lands. A value that is missing, non-integer or below 1 makes both routes
+answer 503 (the app reserves `0` for rows generated before versions existed).
 
 ### 4. Rate limiting (optional)
 
@@ -62,7 +69,7 @@ Configure rate limiting rules at the Cloudflare zone dashboard level (not in Wor
 
 ### `GET /v1/health`
 
-Returns worker status and current daily spend.
+Returns worker status, current daily spend and the deployed `generationVersion`.
 
 ### `POST /v1/generate/batch`
 
@@ -91,8 +98,12 @@ Generates notification text variants. Requires `X-UR-Secret` header.
     { "text": "Got 5 minutes for a full-body stretch?", "shape": "QUESTION", "modes": [] },
     { "text": "Hold a downward dog for 60 seconds", "shape": "TIMEBOXED", "modes": ["SITTING"], "actionUrl": "https://www.youtube.com/results?search_query=downward+dog+yoga+form" },
     { "text": "Roll your shoulders 10 times as you walk", "shape": "STATEMENT", "modes": ["WALKING"] }
-  ]
+  ],
+  "generationVersion": 1
 }
 ```
+
+`generationVersion` is the version these variants were generated under; the app stamps each stored
+row with it and regenerates a habit's pool once the deployed version moves on.
 
 Each variant has a `text` field, a `shape` field, a `modes` field and an optional `actionUrl` field. `shape` is one of `QUESTION`, `STATEMENT`, `CHALLENGE`, `OBSERVATION`, `TERSE`, `TIMEBOXED`; the prompt asks for an even spread across all six so the app can rotate shapes between consecutive notifications. `modes` lists the supported modes the text was written for, or is empty for a mode-neutral message; the prompt asks for at least half of the batch to be neutral and the rest spread across the supported modes, and a variant tagged with a mode outside `supportedModes` is dropped from the batch. When `actionUrl` is present, the Android client renders a "Watch" action button on the notification that opens the URL.

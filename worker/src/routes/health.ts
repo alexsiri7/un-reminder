@@ -1,12 +1,18 @@
 import type { Context } from 'hono'
 import type { Env, HealthResponse } from '../types'
 import { getSpend } from '../lib/spend'
+import { readGenerationVersion } from '../lib/generationVersion'
 
 export async function healthHandler(c: Context<{ Bindings: Env }>): Promise<Response> {
   const capDailyCents = parseInt(c.env.UR_DAILY_CAP_CENTS, 10)
   const capMonthlyCents = parseInt(c.env.UR_MONTHLY_CAP_CENTS, 10)
   if (isNaN(capDailyCents) || isNaN(capMonthlyCents)) {
     console.error('[healthHandler] Spend cap env vars missing or invalid')
+    return c.json({ error: 'Service misconfigured' }, 503)
+  }
+  const generationVersion = readGenerationVersion(c.env)
+  if (generationVersion === null) {
+    console.error('[healthHandler] UR_GENERATION_VERSION missing or not an integer >= 1')
     return c.json({ error: 'Service misconfigured' }, 503)
   }
 
@@ -24,6 +30,7 @@ export async function healthHandler(c: Context<{ Bindings: Env }>): Promise<Resp
     spendUsedMonth: parseFloat(monthly.toFixed(4)),
     capDaily: capDailyCents / 100,
     capMonthly: capMonthlyCents / 100,
+    generationVersion,
   }
   return c.json(body)
 }

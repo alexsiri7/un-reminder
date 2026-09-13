@@ -2,6 +2,7 @@ import type { Context } from 'hono'
 import type { ActivityMode, Env, GenerateBatchRequest, GenerateBatchResponse, NotificationVariant, SpriteOption, VariantShape } from '../types'
 import { ACTIVITY_MODES, VARIANT_SHAPES } from '../types'
 import { addSpend } from '../lib/spend'
+import { readGenerationVersion } from '../lib/generationVersion'
 import { callRequestyWithSchemaRetry, COST_PER_OUTPUT_TOKEN, COST_PER_INPUT_TOKEN } from '../lib/requesty'
 import * as Sentry from '@sentry/cloudflare'
 
@@ -113,6 +114,12 @@ export function validateVariants(
 }
 
 export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promise<Response> {
+  const generationVersion = readGenerationVersion(c.env)
+  if (generationVersion === null) {
+    console.error('[generateBatch] UR_GENERATION_VERSION missing or not an integer >= 1')
+    return c.json({ error: 'Service misconfigured' }, 503)
+  }
+
   let body: GenerateBatchRequest
   try {
     body = await c.req.json<GenerateBatchRequest>()
@@ -186,6 +193,6 @@ export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promi
     }),
   )
 
-  const response: GenerateBatchResponse = { variants: result.data }
+  const response: GenerateBatchResponse = { variants: result.data, generationVersion }
   return c.json(response)
 }
