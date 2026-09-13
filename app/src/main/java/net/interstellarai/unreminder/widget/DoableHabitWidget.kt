@@ -174,6 +174,15 @@ class DoableHabitWidget : GlanceAppWidget() {
             return "$prefix${habit.emoji} ${habit.name}"
         }
 
+        // The variant is the headline wherever there is one; without a variant the habit name
+        // takes its place.
+        internal fun headline(habit: DoableHabit): String = habit.text ?: "${habit.emoji} ${habit.name}"
+
+        // The small line that keeps the habit identifiable above its headline; with no variant
+        // the name is already the headline, so there is nothing to label.
+        internal fun habitLabel(habit: DoableHabit): String? =
+            if (habit.text == null) null else "${habit.emoji} ${habit.name}"
+
         /** Tapping anywhere but "did it" opens the app on the Now menu. */
         internal fun openNowIntent(context: Context): Intent =
             Intent(context, MainActivity::class.java).apply {
@@ -346,13 +355,14 @@ private fun Typographic(habit: DoableHabit, progress: DayProgress?, palette: Wid
 
 @Composable
 private fun Compact(habit: DoableHabit, progress: DayProgress?, palette: WidgetPalette, spriteResolver: SpriteResolver) {
+    val label = DoableHabitWidget.habitLabel(habit)
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Sprite(habit, spriteResolver, GlanceModifier.size(28.dp).cornerRadius(6.dp))
             Spacer(GlanceModifier.width(8.dp))
             // The two text slots sit in different containers, so the no-variant case, where the
             // name is the headline, has to move it up into the row itself.
-            if (habit.text != null) {
+            if (label != null) {
                 HabitLabel(habit, palette.ink, 11.sp, GlanceModifier.defaultWeight())
             } else {
                 Headline(
@@ -365,7 +375,7 @@ private fun Compact(habit: DoableHabit, progress: DayProgress?, palette: WidgetP
             Spacer(GlanceModifier.width(8.dp))
             DidIt(habit, palette, compact = true)
         }
-        if (habit.text != null) {
+        if (label != null) {
             Spacer(GlanceModifier.height(4.dp))
             Headline(habit, TextStyle(color = palette.ink, fontSize = 14.sp, fontWeight = FontWeight.Medium), maxLines = 2)
         }
@@ -387,20 +397,17 @@ private fun Sprite(habit: DoableHabit, spriteResolver: SpriteResolver, modifier:
     )
 }
 
-// The variant is the headline wherever there is one; without a variant the habit name takes
-// its place. Every full layout is budgeted for FULL, so the headline is capped at two lines
-// rather than letting a long variant push the button or the progress line off the card.
+// Every full layout is budgeted for FULL, so the headline is capped at two lines rather than
+// letting a long variant push the button or the progress line off the card.
 @Composable
 private fun Headline(habit: DoableHabit, style: TextStyle, maxLines: Int, modifier: GlanceModifier = GlanceModifier) {
-    Text(text = habit.text ?: "${habit.emoji} ${habit.name}", style = style, maxLines = maxLines, modifier = modifier)
+    Text(text = DoableHabitWidget.headline(habit), style = style, maxLines = maxLines, modifier = modifier)
 }
 
-// The small line that keeps the habit identifiable above its headline; with no variant the
-// name is already the headline, so there is nothing to label.
 @Composable
 private fun HabitLabel(habit: DoableHabit, ink: ColorProvider, size: TextUnit, modifier: GlanceModifier = GlanceModifier) {
-    if (habit.text == null) return
-    Text(text = "${habit.emoji} ${habit.name}", style = TextStyle(color = ink, fontSize = size), maxLines = 1, modifier = modifier)
+    val label = DoableHabitWidget.habitLabel(habit) ?: return
+    Text(text = label, style = TextStyle(color = ink, fontSize = size), maxLines = 1, modifier = modifier)
 }
 
 // The card inverted: label contrast equals the card's text contrast, and the button can never
