@@ -173,4 +173,15 @@ class DoableHabitWidgetStateTest {
             previous = current
         }
     }
+
+    @Test
+    fun `the strip title carries the check on a done day`() {
+        assertEquals("\u2713 🧘 stretch", DoableHabitWidget.stripTitle(habit, progress.copy(completedToday = true)))
+    }
+
+    @Test
+    fun `the strip title is bare on a not-yet day and before the first refresh`() {
+        assertEquals("🧘 stretch", DoableHabitWidget.stripTitle(habit, progress))
+        assertEquals("🧘 stretch", DoableHabitWidget.stripTitle(habit, null))
+    }
 }

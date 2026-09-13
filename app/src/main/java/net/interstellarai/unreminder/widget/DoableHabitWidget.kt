@@ -16,6 +16,7 @@ import androidx.glance.ButtonDefaults
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.Image
+import androidx.glance.LocalSize
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
 import androidx.glance.action.ActionParameters
@@ -23,6 +24,7 @@ import androidx.glance.action.clickable
 import androidx.glance.action.mutableActionParametersOf
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.action.ActionCallback
 import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.action.actionStartActivity
@@ -47,6 +49,8 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -72,12 +76,25 @@ data class DayProgress(val completedToday: Boolean, val daysWithAnyCompletion: I
 /**
  * Home-screen widget: one habit, its peeked variant and sprite, and a "did it" button — or,
  * with no active habit to offer, a prompt to add one — plus a one-line day progress indicator,
- * drawn in whichever of the five [WidgetLayout]s the last refresh rolled. It only renders what
- * [WidgetRefresher] last stored; every recompute goes through the refresher.
+ * drawn in whichever of the five [WidgetLayout]s the last refresh rolled. Below its default
+ * size it collapses to a single strip. It only renders what [WidgetRefresher] last stored;
+ * every recompute goes through the refresher.
  */
 class DoableHabitWidget : GlanceAppWidget() {
 
+    // Two forms only, so two buckets: the launcher composes the largest one that fits and
+    // LocalSize reports that bucket, never the true size.
+    override val sizeMode: SizeMode = SizeMode.Responsive(setOf(STRIP, FULL))
+
     companion object {
+        /** minResizeWidth/minResizeHeight in doable_habit_widget_info.xml. */
+        internal val STRIP = DpSize(110.dp, 40.dp)
+
+        // Deliberately under the declared 180×110 minWidth/minHeight: launchers report a
+        // default placement a few dp smaller than declared, and a bucket that only just fits
+        // would hand an unresized widget the strip.
+        internal val FULL = DpSize(160.dp, 96.dp)
+
         private val HABIT_ID = longPreferencesKey("habit_id")
         private val HABIT_NAME = stringPreferencesKey("habit_name")
         private val EMOJI = stringPreferencesKey("emoji")
@@ -149,6 +166,13 @@ class DoableHabitWidget : GlanceAppWidget() {
             return "$today \u00b7 $days ${if (days == 1) "day" else "days"} so far"
         }
 
+        // The strip has no room for the progress line, so the earned-day half of it moves
+        // onto the title; the day count waits for the full size.
+        internal fun stripTitle(habit: DoableHabit, progress: DayProgress?): String {
+            val prefix = if (progress?.completedToday == true) "\u2713 " else ""
+            return "$prefix${habit.emoji} ${habit.name}"
+        }
+
         /** Tapping anywhere but "did it" opens the app on the Now menu. */
         internal fun openNowIntent(context: Context): Intent =
             Intent(context, MainActivity::class.java).apply {
@@ -176,37 +200,62 @@ private fun WidgetContent(
     spriteResolver: SpriteResolver,
 ) {
     val openNow = DoableHabitWidget.openNowIntent(LocalContext.current)
-    val padding = when (layout) {
-        WidgetLayout.SPRITE_LEFT, WidgetLayout.SPRITE_RIGHT -> 16.dp
-        WidgetLayout.SPRITE_LARGE, WidgetLayout.TYPOGRAPHIC -> 12.dp
-        WidgetLayout.COMPACT -> 10.dp
-    }
+    val strip = LocalSize.current.height < DoableHabitWidget.FULL.height
+    val card = GlanceModifier
+        .fillMaxSize()
+        .background(layout.palette.surface)
+        .cornerRadius(16.dp)
+        .clickable(actionStartActivity(openNow))
     Box(
-        modifier = GlanceModifier
-            .fillMaxSize()
-            .background(layout.palette.surface)
-            .cornerRadius(16.dp)
-            .clickable(actionStartActivity(openNow))
-            .padding(padding),
+        modifier = if (strip) card.padding(horizontal = 10.dp, vertical = 5.dp) else card.padding(fullPadding(layout)),
         contentAlignment = Alignment.CenterStart,
     ) {
-        if (habit == null) {
-            Column {
-                NoActiveHabits(layout.palette.ink, 16.sp)
-                if (progress != null) {
-                    Spacer(GlanceModifier.height(6.dp))
-                    DayProgressLine(progress, layout.palette.ink, 11.sp)
-                }
-            }
-        } else {
-            when (layout) {
-                WidgetLayout.SPRITE_LEFT -> SpriteLeft(habit, progress, layout.palette, spriteResolver)
-                WidgetLayout.SPRITE_RIGHT -> SpriteRight(habit, progress, layout.palette, spriteResolver)
-                WidgetLayout.SPRITE_LARGE -> SpriteLarge(habit, progress, layout.palette, spriteResolver)
-                WidgetLayout.TYPOGRAPHIC -> Typographic(habit, progress, layout.palette)
-                WidgetLayout.COMPACT -> Compact(habit, progress, layout.palette, spriteResolver)
-            }
+        when {
+            habit == null -> NoActiveHabits(layout.palette.ink, progress, strip)
+            strip -> Strip(layout, habit, progress)
+            else -> Full(layout, habit, progress, spriteResolver)
         }
+    }
+}
+
+// Below the default size every layout collapses to one row — title, "did it" — and keeps
+// only its palette and title face. At 110×40dp the button, a sprite, a variant line and the
+// progress line cannot share the card with a readable name, and the name and the tap are
+// what have to survive.
+@Composable
+private fun Strip(layout: WidgetLayout, habit: DoableHabit, progress: DayProgress?) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = DoableHabitWidget.stripTitle(habit, progress),
+            style = TextStyle(
+                color = layout.palette.ink,
+                fontSize = 13.sp,
+                fontWeight = layout.titleWeight,
+                fontFamily = layout.titleFamily,
+            ),
+            maxLines = 1,
+            modifier = GlanceModifier.defaultWeight(),
+        )
+        Spacer(GlanceModifier.width(6.dp))
+        DidIt(habit, layout.palette, compact = true, horizontalPadding = 8.dp, verticalPadding = 3.dp)
+    }
+}
+
+// The denser the composition, the less it can give to the card's edge.
+private fun fullPadding(layout: WidgetLayout): Dp = when (layout) {
+    WidgetLayout.SPRITE_LEFT, WidgetLayout.SPRITE_RIGHT -> 16.dp
+    WidgetLayout.SPRITE_LARGE, WidgetLayout.TYPOGRAPHIC -> 12.dp
+    WidgetLayout.COMPACT -> 10.dp
+}
+
+@Composable
+private fun Full(layout: WidgetLayout, habit: DoableHabit, progress: DayProgress?, spriteResolver: SpriteResolver) {
+    when (layout) {
+        WidgetLayout.SPRITE_LEFT -> SpriteLeft(habit, progress, layout.palette, spriteResolver)
+        WidgetLayout.SPRITE_RIGHT -> SpriteRight(habit, progress, layout.palette, spriteResolver)
+        WidgetLayout.SPRITE_LARGE -> SpriteLarge(habit, progress, layout.palette, spriteResolver)
+        WidgetLayout.TYPOGRAPHIC -> Typographic(habit, progress, layout.palette)
+        WidgetLayout.COMPACT -> Compact(habit, progress, layout.palette, spriteResolver)
     }
 }
 
@@ -343,17 +392,19 @@ private fun VariantText(habit: DoableHabit, ink: ColorProvider, size: TextUnit) 
 // The card inverted: label contrast equals the card's text contrast, and the button can never
 // vanish into an accent-coloured surface.
 @Composable
-private fun DidIt(habit: DoableHabit, palette: WidgetPalette, compact: Boolean) {
+private fun DidIt(
+    habit: DoableHabit,
+    palette: WidgetPalette,
+    compact: Boolean,
+    horizontalPadding: Dp = if (compact) 12.dp else 16.dp,
+    verticalPadding: Dp = if (compact) 4.dp else 8.dp,
+) {
     Button(
         text = "did it",
         onClick = actionRunCallback<MarkDoneAction>(MarkDoneAction.parameters(habit)),
         colors = ButtonDefaults.buttonColors(backgroundColor = palette.ink, contentColor = palette.surface),
         style = TextStyle(fontSize = if (compact) 12.sp else 13.sp, fontWeight = FontWeight.Medium),
-        modifier = if (compact) {
-            GlanceModifier.padding(horizontal = 12.dp, vertical = 4.dp)
-        } else {
-            GlanceModifier.padding(horizontal = 16.dp, vertical = 8.dp)
-        },
+        modifier = GlanceModifier.padding(horizontal = horizontalPadding, vertical = verticalPadding),
     )
 }
 
@@ -370,11 +421,18 @@ private fun DayProgressLine(progress: DayProgress, ink: ColorProvider, size: Tex
 
 // The whole widget already opens the Now page, whose empty state leads to the habit editor.
 @Composable
-private fun NoActiveHabits(ink: ColorProvider, size: TextUnit) {
-    Text(
-        text = "no active habits \u00b7 tap to add one",
-        style = TextStyle(color = ink, fontSize = size),
-    )
+private fun NoActiveHabits(ink: ColorProvider, progress: DayProgress?, strip: Boolean) {
+    Column {
+        Text(
+            text = "no active habits \u00b7 tap to add one",
+            style = TextStyle(color = ink, fontSize = if (strip) 13.sp else 16.sp),
+            maxLines = if (strip) 1 else Int.MAX_VALUE,
+        )
+        if (progress != null && !strip) {
+            Spacer(GlanceModifier.height(6.dp))
+            DayProgressLine(progress, ink, 11.sp)
+        }
+    }
 }
 
 @AndroidEntryPoint

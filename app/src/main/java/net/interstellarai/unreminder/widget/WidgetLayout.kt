@@ -32,9 +32,6 @@ internal class WidgetPalette(
     val ink: ColorProvider get() = ColorProvider(day = inkDay, night = inkNight)
 }
 
-/** Where the sprite sits when a composition only has room for a small mark of it. */
-internal enum class SpriteMark { START, END, NONE }
-
 /**
  * The five looks the widget rotates through, one per refresh, never the same one twice in a
  * row. Rotation is independent of [net.interstellarai.unreminder.domain.model.VariantShape]
@@ -45,37 +42,31 @@ internal enum class SpriteMark { START, END, NONE }
  */
 internal enum class WidgetLayout(
     val palette: WidgetPalette,
-    val spriteMark: SpriteMark,
     val titleWeight: FontWeight,
     val titleFamily: FontFamily?,
 ) {
     SPRITE_LEFT(
         palette = WidgetPalette(surfaceDay = SageBg, surfaceNight = SageBgDark, inkDay = SageInk, inkNight = SageInkDark),
-        spriteMark = SpriteMark.START,
         titleWeight = FontWeight.Bold,
         titleFamily = null,
     ),
     SPRITE_RIGHT(
         palette = WidgetPalette(surfaceDay = SageSoft, surfaceNight = SageSoftDark, inkDay = SageInk, inkNight = SageInkDark),
-        spriteMark = SpriteMark.END,
         titleWeight = FontWeight.Medium,
         titleFamily = null,
     ),
     SPRITE_LARGE(
         palette = WidgetPalette(surfaceDay = SageAccent, surfaceNight = SageAccentDark, inkDay = SageBg, inkNight = SageBgDark),
-        spriteMark = SpriteMark.START,
         titleWeight = FontWeight.Medium,
         titleFamily = null,
     ),
     TYPOGRAPHIC(
         palette = WidgetPalette(surfaceDay = SageInk, surfaceNight = SageAccent, inkDay = SageBg, inkNight = SageInkDark),
-        spriteMark = SpriteMark.NONE,
         titleWeight = FontWeight.Bold,
         titleFamily = FontFamily.Serif,
     ),
     COMPACT(
         palette = WidgetPalette(surfaceDay = SageAccentDark, surfaceNight = SageMossDark, inkDay = SageInk, inkNight = SageInkDark),
-        spriteMark = SpriteMark.START,
         titleWeight = FontWeight.Medium,
         titleFamily = null,
     );
