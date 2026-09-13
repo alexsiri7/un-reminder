@@ -27,6 +27,7 @@ import io.sentry.Breadcrumb
 import io.sentry.IScope
 import io.sentry.ScopeCallback
 import io.sentry.Sentry
+import io.sentry.SentryLevel
 import io.sentry.protocol.SentryId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -63,6 +64,7 @@ class LocationReconcilerTest {
     private val fusedLocationClient: FusedLocationProviderClient = mockk()
 
     private val captured = mutableListOf<ScopeCallback>()
+    private val breadcrumbs = mutableListOf<Breadcrumb>()
 
     private class CapturedScope {
         val tags = mutableMapOf<String, String>()
@@ -75,7 +77,7 @@ class LocationReconcilerTest {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().clear().commit()
 
         mockkStatic(Sentry::class)
-        every { Sentry.addBreadcrumb(any<Breadcrumb>()) } just runs
+        every { Sentry.addBreadcrumb(capture(breadcrumbs)) } just runs
         every { Sentry.captureException(any<Throwable>(), any<ScopeCallback>()) } answers {
             captured += secondArg<ScopeCallback>()
             SentryId.EMPTY_ID
@@ -296,6 +298,42 @@ class LocationReconcilerTest {
             "NETWORK_ERROR(${CommonStatusCodes.NETWORK_ERROR})",
             scope.extras["reconciliation_status"],
         )
+    }
+
+    @Test
+    fun `Play Services declining to connect is a breadcrumb, not a captured fault`() = runTest {
+        val error = ApiException(
+            Status(
+                CommonStatusCodes.API_NOT_CONNECTED,
+                "API: LocationServices.API is not available on this device. " +
+                    "Connection failed with: ConnectionResult{statusCode=SERVICE_INVALID, resolution=null, message=null}",
+            ),
+        )
+        currentLocationFailsWith(error)
+        val reconciler = newReconciler(newGeofenceManager())
+
+        val outcome = reconciler.reconcile()
+
+        assertFailedWith(error, outcome)
+        assertTrue(captured.isEmpty())
+        val breadcrumb = breadcrumbs.single { it.message == "Location reconciliation rejected by Play Services" }
+        assertEquals("geofence", breadcrumb.category)
+        assertEquals(SentryLevel.INFO, breadcrumb.level)
+        val label = "API_NOT_CONNECTED(${CommonStatusCodes.API_NOT_CONNECTED})"
+        assertEquals(label, breadcrumb.getData("reconciliation_status"))
+        assertTrue((breadcrumb.getData("status_message") as String).contains("SERVICE_INVALID"))
+        assertEquals(setOf("reconciliation_status", "status_message"), breadcrumb.data.keys)
+        assertEquals(label, reconciler.reconciliationFailure.value)
+    }
+
+    @Test
+    fun `a Play Services rejection with no status message omits the field`() = runTest {
+        currentLocationFailsWith(ApiException(Status(CommonStatusCodes.API_NOT_CONNECTED)))
+
+        newReconciler(newGeofenceManager()).reconcile()
+
+        val breadcrumb = breadcrumbs.single { it.message == "Location reconciliation rejected by Play Services" }
+        assertEquals(setOf("reconciliation_status"), breadcrumb.data.keys)
     }
 
     @Test
