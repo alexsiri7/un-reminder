@@ -12,6 +12,7 @@ import net.interstellarai.unreminder.service.geofence.LocationSettingsChangedRec
 import net.interstellarai.unreminder.service.notification.NotificationHelper
 import net.interstellarai.unreminder.service.sentry.applyOptions
 import net.interstellarai.unreminder.service.sentry.shouldInitSentry
+import net.interstellarai.unreminder.service.worker.GenerationVersionWorker
 import net.interstellarai.unreminder.worker.EveningInvitationScheduler
 import net.interstellarai.unreminder.worker.RandomIntervalWorker
 import net.interstellarai.unreminder.worker.TriggerWatchdogWorker
@@ -60,6 +61,8 @@ class UnReminderApp : Application(), Configuration.Provider {
         // Self-heal (KEEP, 24h periodic): re-enqueues the chain if it ever falls into a
         // terminal state, and reaps stale SCHEDULED rows.
         TriggerWatchdogWorker.enqueue(this)
+        // Daily (KEEP): regenerates pools left behind by a Worker generation version bump.
+        GenerationVersionWorker.enqueue(this)
         // Re-register all geofences on every launch. Android clears geofences on app update,
         // force-stop, or data clear; re-registering with INITIAL_TRIGGER_ENTER gives back the
         // enter transitions, and the reconciliation that follows corrects the set for the ones

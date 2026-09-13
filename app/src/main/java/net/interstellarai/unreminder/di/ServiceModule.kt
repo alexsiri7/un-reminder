@@ -1,6 +1,7 @@
 package net.interstellarai.unreminder.di
 
 import android.content.Context
+import androidx.work.WorkManager
 import com.google.android.gms.location.ActivityRecognition
 import com.google.android.gms.location.ActivityRecognitionClient
 import com.google.android.gms.location.FusedLocationProviderClient
@@ -96,8 +97,8 @@ object ServiceModule {
 
     @Provides
     @Singleton
-    fun provideRefillScheduler(@ApplicationContext context: Context): RefillScheduler =
-        RefillScheduler(context)
+    fun provideRefillScheduler(workManager: WorkManager): RefillScheduler =
+        RefillScheduler(workManager)
 
     @Provides
     @Singleton
