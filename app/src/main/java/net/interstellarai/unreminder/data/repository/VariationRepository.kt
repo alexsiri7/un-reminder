@@ -87,11 +87,12 @@ class VariationRepository @Inject constructor(
      * go first (pre-version rows included) so the pool is never mixed-vintage, consumed rows are
      * pruned, then the batch is inserted — in one transaction, so a reader sees the old pool or
      * the new one and never the gap between. A batch from a Worker that reports no version
-     * only tops up: absent is not "everything is stale".
+     * only tops up: absent is not "everything is stale". An empty batch has nothing to swap in,
+     * so it sweeps nothing: the stale pool stays usable until a real batch lands.
      */
     suspend fun refill(habitId: Long, generationVersion: Int, variants: List<VariationEntity>) =
         db.withTransaction {
-            if (generationVersion != VariationEntity.UNVERSIONED) {
+            if (generationVersion != VariationEntity.UNVERSIONED && variants.isNotEmpty()) {
                 dao.deleteUnusedNotAtVersion(habitId, generationVersion)
             }
             dao.deleteConsumedByHabit(habitId)

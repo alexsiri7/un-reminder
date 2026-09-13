@@ -60,6 +60,16 @@ class VariationRepositoryRefillTest {
         assertEquals((1..8).map { "v2 #$it" }.toSet(), rows.map { it.text }.toSet())
     }
 
+    @Test fun `an empty batch at a new version leaves the existing pool alone`() = runTest {
+        repository.insertAll(pool(version = 1, count = 10))
+
+        repository.refill(habitId, 2, emptyList())
+
+        val rows = unused()
+        assertEquals(10, rows.size)
+        assertEquals(setOf(1), rows.map { it.generationVersion }.toSet())
+    }
+
     @Test fun `the last consumed row survives a version swap and still steers shape rotation`() = runTest {
         repository.insertAll(pool(version = 1, count = 1))
         val fired = repository.pickRandomUnused(habitId, ActivityMode.SITTING)!!
