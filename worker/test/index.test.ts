@@ -282,7 +282,127 @@ describe('un-reminder-worker', () => {
     await waitOnExecutionContext(ctx)
     expect(res.status).toBe(200)
     const body = (await res.json()) as { variants: Array<{ text: string; shape: string; actionUrl?: string }> }
+    expect(body.variants).toEqual(variants.map((v) => ({ ...v, modes: [] })))
+  })
+
+  // ---- supportedModes tests ----
+
+  it('scopes generation to the supported modes and echoes each variant\'s modes', async () => {
+    const variants = [
+      { text: 'Count 20 steps', shape: 'TERSE', modes: ['WALKING'] },
+      { text: 'Breathe for 60 seconds', shape: 'TIMEBOXED', modes: [] },
+      { text: 'Both ways', shape: 'STATEMENT', modes: ['WALKING', 'TRANSPORT'] },
+    ]
+    mockRequestySuccess(variants)
+
+    const req = makeRequest('/v1/generate/batch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-UR-Secret': SECRET,
+      },
+      body: { ...validBody(), supportedModes: ['WALKING', 'TRANSPORT'] },
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, testEnv(), ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { variants: unknown[] }
     expect(body.variants).toEqual(variants)
+
+    const fetchMock = globalThis.fetch as unknown as { mock: { calls: unknown[][] } }
+    const requestInit = fetchMock.mock.calls[0][1] as RequestInit
+    const upstreamBody = JSON.parse(requestInit.body as string) as { messages: { content: string }[] }
+    const prompt = upstreamBody.messages[0].content
+    expect(prompt).toContain('- WALKING:')
+    expect(prompt).toContain('- TRANSPORT:')
+    expect(prompt).not.toContain('- SITTING:')
+    expect(prompt).toContain('"modes": array of strings, each one of WALKING, TRANSPORT')
+  })
+
+  it('warns with counts when a partial batch drops variants tagged for unsupported modes', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      mockRequestySuccess([
+        { text: 'Count 20 steps', shape: 'TERSE', modes: ['WALKING'] },
+        { text: 'Sit up straight', shape: 'STATEMENT', modes: ['SITTING'] },
+        { text: 'Breathe for 60 seconds', shape: 'TIMEBOXED', modes: [] },
+      ])
+
+      const req = makeRequest('/v1/generate/batch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-UR-Secret': SECRET,
+        },
+        body: { ...validBody(), supportedModes: ['SITTING'] },
+      })
+      const ctx = createExecutionContext()
+      const res = await app.fetch(req, testEnv(), ctx)
+      await waitOnExecutionContext(ctx)
+      expect(res.status).toBe(200)
+      const body = (await res.json()) as { variants: Array<{ text: string }> }
+      expect(body.variants.map((v) => v.text)).toEqual(['Sit up straight', 'Breathe for 60 seconds'])
+
+      expect(warn).toHaveBeenCalledWith('[generateBatch] dropped variants tagged for unsupported modes', {
+        requested: 3,
+        returned: 2,
+        dropped: 1,
+        modes: ['SITTING'],
+      })
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it('does not warn when every variant is within the supported modes', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      mockRequestySuccess([
+        { text: 'Sit up straight', shape: 'STATEMENT', modes: ['SITTING'] },
+        { text: 'Breathe for 60 seconds', shape: 'TIMEBOXED', modes: [] },
+      ])
+
+      const req = makeRequest('/v1/generate/batch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-UR-Secret': SECRET,
+        },
+        body: { ...validBody(2), supportedModes: ['SITTING'] },
+      })
+      const ctx = createExecutionContext()
+      const res = await app.fetch(req, testEnv(), ctx)
+      await waitOnExecutionContext(ctx)
+      expect(res.status).toBe(200)
+      expect(warn.mock.calls.map((call) => call[0])).not.toContain('[generateBatch] dropped variants tagged for unsupported modes')
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it('generates across all three modes when the app sends none', async () => {
+    mockRequestySuccess([{ text: 'Stretch!', shape: 'TERSE', modes: ['SITTING'] }])
+
+    const req = makeRequest('/v1/generate/batch', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-UR-Secret': SECRET,
+      },
+      body: validBody(1),
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, testEnv(), ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { variants: unknown[] }
+    expect(body.variants).toEqual([{ text: 'Stretch!', shape: 'TERSE', modes: ['SITTING'] }])
+
+    const fetchMock = globalThis.fetch as unknown as { mock: { calls: unknown[][] } }
+    const requestInit = fetchMock.mock.calls[0][1] as RequestInit
+    const upstreamBody = JSON.parse(requestInit.body as string) as { messages: { content: string }[] }
+    expect(upstreamBody.messages[0].content).toContain('"modes": array of strings, each one of WALKING, SITTING, TRANSPORT')
   })
 
   // ---- personalContext tests ----
@@ -366,7 +486,7 @@ describe('un-reminder-worker', () => {
     expect(prompt).toContain('Available sprites')
     expect(prompt).toContain('cape')
     expect(prompt).toContain('mascot in a superhero cape')
-    expect(prompt).toContain('8. Pair each message with a "spriteTag"')
+    expect(prompt).toContain('9. Pair each message with a "spriteTag"')
   })
 
   it('leaves the prompt sprite-free when sprites are absent', async () => {
@@ -476,7 +596,7 @@ describe('un-reminder-worker', () => {
     await waitOnExecutionContext(ctx)
     expect(res.status).toBe(200)
     const body = (await res.json()) as { variants: Array<{ text: string; shape: string; actionUrl?: string }> }
-    expect(body.variants).toEqual(variants)
+    expect(body.variants).toEqual(variants.map((v) => ({ ...v, modes: [] })))
   })
 
   // ---- Upstream error test ----

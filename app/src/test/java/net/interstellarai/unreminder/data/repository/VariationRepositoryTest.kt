@@ -2,6 +2,7 @@ package net.interstellarai.unreminder.data.repository
 
 import net.interstellarai.unreminder.data.db.VariationDao
 import net.interstellarai.unreminder.data.db.VariationEntity
+import net.interstellarai.unreminder.domain.model.ActivityMode
 import net.interstellarai.unreminder.domain.model.VariantShape
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -25,15 +26,23 @@ class VariationRepositoryTest {
     }
 
     @Test fun `pickRandomUnused returns null on empty pool`() = runTest {
-        coEvery { mockDao.getUnusedForHabit(any(), any()) } returns emptyList()
-        assertNull(repository.pickRandomUnused(1L))
+        coEvery { mockDao.getUnusedForHabit(any(), any(), any()) } returns emptyList()
+        assertNull(repository.pickRandomUnused(1L, ActivityMode.SITTING))
+    }
+
+    @Test fun `pickRandomUnused and peek pass the mode to the DAO as its persisted bit`() = runTest {
+        coEvery { mockDao.getUnusedForHabit(1L, 4, any()) } returns emptyList()
+        assertNull(repository.pickRandomUnused(1L, ActivityMode.TRANSPORT))
+        assertNull(repository.peekUnusedVariation(1L, ActivityMode.TRANSPORT))
+        coVerify(exactly = 1) { mockDao.getUnusedForHabit(1L, 4, 50) }
+        coVerify(exactly = 1) { mockDao.getUnusedForHabit(1L, 4, 1) }
     }
 
     @Test fun `pickRandomUnused marks returned row consumed and returns updated entity`() = runTest {
         val entity = VariationEntity(id = 42L, habitId = 1L, text = "t", promptFingerprint = "fp", generatedAt = Instant.EPOCH, shape = VariantShape.STATEMENT)
-        coEvery { mockDao.getUnusedForHabit(1L, 50) } returns listOf(entity)
+        coEvery { mockDao.getUnusedForHabit(1L, any(), 50) } returns listOf(entity)
         coEvery { mockDao.markConsumed(eq(42L), any()) } returns 1
-        val result = repository.pickRandomUnused(1L)
+        val result = repository.pickRandomUnused(1L, ActivityMode.SITTING)
         assertNotNull(result)
         assertEquals(42L, result!!.id)
         assertEquals("t", result.text)
@@ -44,10 +53,10 @@ class VariationRepositoryTest {
     @Test fun `pickRandomUnused retries next candidate when markConsumed affects 0 rows`() = runTest {
         val stale = VariationEntity(id = 99L, habitId = 1L, text = "stale", promptFingerprint = "fp1", generatedAt = Instant.EPOCH, shape = VariantShape.STATEMENT)
         val good = VariationEntity(id = 100L, habitId = 1L, text = "good", promptFingerprint = "fp2", generatedAt = Instant.EPOCH, shape = VariantShape.STATEMENT)
-        coEvery { mockDao.getUnusedForHabit(1L, 50) } returns listOf(stale, good)
+        coEvery { mockDao.getUnusedForHabit(1L, any(), 50) } returns listOf(stale, good)
         coEvery { mockDao.markConsumed(eq(99L), any()) } returns 0
         coEvery { mockDao.markConsumed(eq(100L), any()) } returns 1
-        val result = repository.pickRandomUnused(1L)
+        val result = repository.pickRandomUnused(1L, ActivityMode.SITTING)
         assertNotNull(result)
         assertEquals(100L, result!!.id)
         coVerify { mockDao.markConsumed(eq(99L), any()) }
@@ -56,9 +65,9 @@ class VariationRepositoryTest {
 
     @Test fun `pickRandomUnused returns null when all candidates are stale`() = runTest {
         val entity = VariationEntity(id = 99L, habitId = 1L, text = "t", promptFingerprint = "fp", generatedAt = Instant.EPOCH, shape = VariantShape.STATEMENT)
-        coEvery { mockDao.getUnusedForHabit(1L, 50) } returns listOf(entity)
+        coEvery { mockDao.getUnusedForHabit(1L, any(), 50) } returns listOf(entity)
         coEvery { mockDao.markConsumed(eq(99L), any()) } returns 0
-        assertNull(repository.pickRandomUnused(1L))
+        assertNull(repository.pickRandomUnused(1L, ActivityMode.SITTING))
     }
 
     @Test fun `needsRefill returns true when below threshold and false when at threshold`() = runTest {
@@ -96,13 +105,13 @@ class VariationRepositoryTest {
             id = 7L, habitId = 1L, text = "preview-me",
             promptFingerprint = "fp", generatedAt = Instant.EPOCH, shape = VariantShape.STATEMENT,
         )
-        coEvery { mockDao.getUnusedForHabit(1L, 1) } returns listOf(entity)
-        assertEquals("preview-me", repository.peekUnused(1L))
+        coEvery { mockDao.getUnusedForHabit(1L, any(), 1) } returns listOf(entity)
+        assertEquals("preview-me", repository.peekUnused(1L, ActivityMode.SITTING))
     }
 
     @Test fun `peekUnused returns null when pool is empty`() = runTest {
-        coEvery { mockDao.getUnusedForHabit(1L, 1) } returns emptyList()
-        assertNull(repository.peekUnused(1L))
+        coEvery { mockDao.getUnusedForHabit(1L, any(), 1) } returns emptyList()
+        assertNull(repository.peekUnused(1L, ActivityMode.SITTING))
     }
 
     @Test fun `peekUnused does not consume the row`() = runTest {
@@ -110,8 +119,8 @@ class VariationRepositoryTest {
             id = 7L, habitId = 1L, text = "x",
             promptFingerprint = "fp", generatedAt = Instant.EPOCH, shape = VariantShape.STATEMENT,
         )
-        coEvery { mockDao.getUnusedForHabit(1L, 1) } returns listOf(entity)
-        repository.peekUnused(1L)
+        coEvery { mockDao.getUnusedForHabit(1L, any(), 1) } returns listOf(entity)
+        repository.peekUnused(1L, ActivityMode.SITTING)
         coVerify(exactly = 0) { mockDao.markConsumed(any(), any()) }
     }
 
@@ -120,15 +129,15 @@ class VariationRepositoryTest {
             id = 7L, habitId = 1L, text = "x",
             promptFingerprint = "fp", generatedAt = Instant.EPOCH, shape = VariantShape.STATEMENT, spriteTag = "wizard_starry_robe",
         )
-        coEvery { mockDao.getUnusedForHabit(1L, 1) } returns listOf(entity)
+        coEvery { mockDao.getUnusedForHabit(1L, any(), 1) } returns listOf(entity)
 
-        assertEquals(entity, repository.peekUnusedVariation(1L))
+        assertEquals(entity, repository.peekUnusedVariation(1L, ActivityMode.SITTING))
         coVerify(exactly = 0) { mockDao.markConsumed(any(), any()) }
     }
 
     @Test fun `peekUnusedVariation returns null when pool is empty`() = runTest {
-        coEvery { mockDao.getUnusedForHabit(1L, 1) } returns emptyList()
-        assertNull(repository.peekUnusedVariation(1L))
+        coEvery { mockDao.getUnusedForHabit(1L, any(), 1) } returns emptyList()
+        assertNull(repository.peekUnusedVariation(1L, ActivityMode.SITTING))
     }
 
     @Test fun `markConsumed stamps the given row`() = runTest {

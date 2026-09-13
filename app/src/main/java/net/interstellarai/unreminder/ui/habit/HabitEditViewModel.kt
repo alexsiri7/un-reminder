@@ -15,6 +15,8 @@ import net.interstellarai.unreminder.data.repository.WindowRepository
 import net.interstellarai.unreminder.domain.AvailabilityStatus
 import net.interstellarai.unreminder.domain.HabitAvailabilityService
 import net.interstellarai.unreminder.domain.model.ActivityMode
+import net.interstellarai.unreminder.domain.model.ActivityState
+import net.interstellarai.unreminder.service.activity.ActivityRecognitionManager
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.service.llm.LlmUnavailableException
@@ -75,6 +77,7 @@ class HabitEditViewModel @Inject constructor(
     private val geofenceManager: GeofenceManager,
     private val triggerRepository: TriggerRepository,
     private val availabilityService: HabitAvailabilityService,
+    private val activityRecognitionManager: ActivityRecognitionManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HabitEditUiState())
@@ -338,7 +341,10 @@ class HabitEditViewModel @Inject constructor(
                     )
                     return@launch
                 }
-                val variation = variationRepository.peekUnused(habitId)
+                // The preview reads as the notification would right now; cycling suppresses
+                // nothing here, so it takes the same sitting fallback as an unknown activity.
+                val mode = (activityRecognitionManager.resolve().state as? ActivityState.Mode)?.mode ?: ActivityMode.SITTING
+                val variation = variationRepository.peekUnused(habitId, mode)
                 if (variation == null) {
                     Log.w(TAG, "previewNotification: no variation available for habit $habitId")
                     _uiState.value = _uiState.value.copy(

@@ -29,7 +29,13 @@ export interface GenerateBatchRequest {
   n: number
   /** Optional user-defined communication style hint (e.g. "use words of encouragement"). */
   personalContext?: string
+  /** Activity modes the habit is done in; absent or empty means all of them. */
+  supportedModes?: ActivityMode[]
 }
+
+/** What the user is physically doing when a notification arrives. */
+export const ACTIVITY_MODES = ['WALKING', 'SITTING', 'TRANSPORT'] as const
+export type ActivityMode = (typeof ACTIVITY_MODES)[number]
 
 /** Structural form of a notification, so consecutive nudges differ in kind and not only in words. */
 export const VARIANT_SHAPES = ['QUESTION', 'STATEMENT', 'CHALLENGE', 'OBSERVATION', 'TERSE', 'TIMEBOXED'] as const
@@ -38,6 +44,8 @@ export type VariantShape = (typeof VARIANT_SHAPES)[number]
 export interface NotificationVariant {
   text: string
   shape: VariantShape
+  /** Modes the text was written for; empty when it reads naturally in any of them. */
+  modes: ActivityMode[]
   actionUrl?: string
   /** Tag of the sprite to pair with this text; absent when no vocabulary was supplied. */
   spriteTag?: string

@@ -94,7 +94,7 @@ Runs as a Cloudflare Worker (Hono framework). Exposes these routes:
 | Route | Auth | Description |
 |---|---|---|
 | `GET /v1/health` | Public | Returns `{ status, spendUsedToday, spendUsedMonth, capDaily, capMonthly }` |
-| `POST /v1/generate/batch` | `X-UR-Secret` header | Accepts `{ habitTitle, habitTags, locationName, timeOfDay, n }`, returns `{ variants: Array<{ text: string, shape: string, actionUrl?: string }> }` via Requesty |
+| `POST /v1/generate/batch` | `X-UR-Secret` header | Accepts `{ habitTitle, habitTags, locationName, timeOfDay, supportedModes?, n }`, returns `{ variants: Array<{ text: string, shape: string, modes: string[], actionUrl?: string }> }` via Requesty |
 | `POST /v1/habit-fields` | `X-UR-Secret` header | Accepts `{ title }`, returns `{ descriptionLadder: string[] }` (6 elements, one per dedication level) via Requesty |
 
 **Local dev:**
@@ -214,6 +214,7 @@ A pre-generated prompt text for a habit, stored in a local pool to avoid LLM lat
 - `generated_at` — when the variation was generated.
 - `consumed_at` — nullable; set when the variation is picked for a notification. Unconsumed variations form the available pool.
 - `action_url` — nullable; optional URL returned by the worker. When non-null, the notification includes a **Watch** action button that opens this URL.
+- `modes` — bitmask of the activity modes the text was written for (same bits as `habits.supported_modes`); `0` means mode-neutral. Selection prefers a variation for the current mode, then a neutral one, then any other, so a habit always has something to say.
 
 ### Location state
 In-memory set of `location_id` values for the geofences the user is currently inside,
@@ -263,7 +264,7 @@ updated by geofence `ENTER`/`EXIT` callbacks. Empty set means no known location.
 Notification texts are pre-generated in batches by the Cloudflare Worker (`/v1/generate/batch`) and stored locally in the `Variation` table. At fire time, `TriggerPipeline` picks an unused variation from the pool — no LLM call on the hot path.
 
 **Pool lifecycle:**
-- **Initial fill:** saving a new habit immediately enqueues `RefillWorker`, which calls `/v1/generate/batch` with `n = POOL_SIZE` (50) and stores the results. The pool starts at up to 50 unused variations.
+- **Initial fill:** saving a new habit immediately enqueues `RefillWorker`, which calls `/v1/generate/batch` with `n = POOL_SIZE` (50) and the habit's supported modes, and stores the results. The pool starts at up to 50 unused variations, tagged with the modes each was written for.
 - **Refill:** when the unused count drops below `REFILL_THRESHOLD` (20 — a 40% buffer over `POOL_SIZE = 50`, sized to outlast multiple WorkManager backoff cycles when refills fail), `TriggerPipeline` enqueues another `RefillWorker` run after each notification fire. Consumed variations are pruned before each batch is inserted, so the pool stays near the 50-variation target.
 - **Prompt change:** if a habit's name or description ladder changes on save, the entire pool is cleared and a fresh 50-variation refill is enqueued.
 
@@ -344,7 +345,7 @@ from the pool, not from a fresh generation.
 ## 8. Database Schema (Room)
 
 ```kotlin
-// DB version 10
+// DB version 15
 @Entity Habit(id, name, dedication_level/*Int 0-5*/, auto_adjust_level/*Boolean*/, daily_limit/*Int, default 1*/, cooldown_minutes/*Int, default 180*/, supported_modes/*Int bitmask, 0 = any*/, active, created_at, updated_at)
 @Entity HabitLevelDescriptionEntity(habit_id → Habit.id CASCADE, level/*0-5*/, description)  // per-level text
 @Entity Window(id, start_time, end_time, days_of_week_bitmask, frequency_per_day, active)
@@ -352,7 +353,7 @@ from the pool, not from a fresh generation.
 @Entity HabitLocationCrossRef(habit_id → Habit.id CASCADE, location_id → Location.id CASCADE)  // junction
 @Entity Trigger(id, window_id?, habit_id?, scheduled_at, fired_at?, status, generated_prompt?, action_url?)
 @Entity PendingFeedback(id, screenshot_path? /* nullable */, description, queued_at)  // offline upload queue
-@Entity Variation(id, habit_id → Habit.id CASCADE, text, prompt_fingerprint, generated_at, consumed_at?, action_url?)  // variation pool
+@Entity Variation(id, habit_id → Habit.id CASCADE, text, prompt_fingerprint, generated_at, consumed_at?, action_url?, shape?, modes/*Int bitmask, 0 = neutral*/)  // variation pool
 ```
 
 ---

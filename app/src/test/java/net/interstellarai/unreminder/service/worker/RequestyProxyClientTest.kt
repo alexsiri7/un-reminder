@@ -1,6 +1,7 @@
 package net.interstellarai.unreminder.service.worker
 
 import kotlinx.coroutines.test.runTest
+import net.interstellarai.unreminder.domain.model.ActivityMode
 import net.interstellarai.unreminder.domain.model.VariantShape
 import net.interstellarai.unreminder.service.notification.MascotSprite
 import net.interstellarai.unreminder.service.notification.MascotSprites
@@ -114,6 +115,7 @@ class RequestyProxyClientTest {
             timeOfDay = "",
             personalContext = "",
             sprites = emptyList(),
+            supportedModes = emptySet(),
             n = 3,
             workerUrl = baseUrl(),
             workerSecret = "secret",
@@ -151,6 +153,7 @@ class RequestyProxyClientTest {
             timeOfDay = "",
             personalContext = "",
             sprites = MascotSprites.entries,
+            supportedModes = emptySet(),
             n = 3,
             workerUrl = baseUrl(),
             workerSecret = "secret",
@@ -181,6 +184,7 @@ class RequestyProxyClientTest {
             timeOfDay = "",
             personalContext = "",
             sprites = sprites,
+            supportedModes = emptySet(),
             n = 1,
             workerUrl = baseUrl(),
             workerSecret = "secret",
@@ -195,6 +199,47 @@ class RequestyProxyClientTest {
     }
 
     @Test
+    fun `generateBatch parses modes and reads a missing array or unknown mode as neutral`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(
+                    """{"variants":[""" +
+                    """{"text":"v1","shape":"STATEMENT","modes":["WALKING","TRANSPORT"]},""" +
+                    """{"text":"v2","shape":"STATEMENT","modes":[]},""" +
+                    """{"text":"v3","shape":"STATEMENT"},""" +
+                    """{"text":"v4","shape":"STATEMENT","modes":["CYCLING"]}]}"""
+                )
+                .addHeader("Content-Type", "application/json")
+        )
+
+        val result = proxyClient.generateBatch("Meditate", emptyList(), "", "", "", emptyList(), emptySet(), 4, baseUrl(), "secret")
+
+        assertEquals(setOf(ActivityMode.WALKING, ActivityMode.TRANSPORT), result[0].modes)
+        assertEquals(emptySet<ActivityMode>(), result[1].modes)
+        assertEquals(emptySet<ActivityMode>(), result[2].modes)
+        assertEquals(emptySet<ActivityMode>(), result[3].modes)
+    }
+
+    @Test
+    fun `generateBatch sends the habit's supported modes by name in the request body`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"variants":[{"text":"v1","shape":"STATEMENT"}]}""")
+                .addHeader("Content-Type", "application/json")
+        )
+
+        proxyClient.generateBatch(
+            "Meditate", emptyList(), "", "", "", emptyList(),
+            setOf(ActivityMode.SITTING, ActivityMode.TRANSPORT), 1, baseUrl(), "secret",
+        )
+
+        val sent = JSONObject(server.takeRequest().body.readUtf8()).getJSONArray("supportedModes")
+        assertEquals(setOf("SITTING", "TRANSPORT"), (0 until sent.length()).map { sent.getString(it) }.toSet())
+    }
+
+    @Test
     fun `generateBatch throws JSONException when a variant has no shape`() = runTest {
         server.enqueue(
             MockResponse()
@@ -204,7 +249,7 @@ class RequestyProxyClientTest {
         )
 
         assertFailsWith<JSONException> {
-            proxyClient.generateBatch("Meditate", emptyList(), "", "", "", emptyList(), 2, baseUrl(), "secret")
+            proxyClient.generateBatch("Meditate", emptyList(), "", "", "", emptyList(), emptySet(), 2, baseUrl(), "secret")
         }
     }
 
@@ -218,7 +263,7 @@ class RequestyProxyClientTest {
         )
 
         assertFailsWith<JSONException> {
-            proxyClient.generateBatch("Meditate", emptyList(), "", "", "", emptyList(), 1, baseUrl(), "secret")
+            proxyClient.generateBatch("Meditate", emptyList(), "", "", "", emptyList(), emptySet(), 1, baseUrl(), "secret")
         }
     }
 
@@ -227,7 +272,7 @@ class RequestyProxyClientTest {
         server.enqueue(MockResponse().setResponseCode(401).setBody("Unauthorized"))
 
         assertFailsWith<WorkerAuthException> {
-            proxyClient.generateBatch("Meditate", emptyList(), "", "", "", emptyList(), 1, baseUrl(), "bad")
+            proxyClient.generateBatch("Meditate", emptyList(), "", "", "", emptyList(), emptySet(), 1, baseUrl(), "bad")
         }
     }
 
@@ -236,7 +281,7 @@ class RequestyProxyClientTest {
         server.enqueue(MockResponse().setResponseCode(402).setBody("""{"error":"cap"}"""))
 
         assertFailsWith<SpendCapExceededException> {
-            proxyClient.generateBatch("Meditate", emptyList(), "", "", "", emptyList(), 1, baseUrl(), "secret")
+            proxyClient.generateBatch("Meditate", emptyList(), "", "", "", emptyList(), emptySet(), 1, baseUrl(), "secret")
         }
     }
 
@@ -245,7 +290,7 @@ class RequestyProxyClientTest {
         server.enqueue(MockResponse().setResponseCode(500).setBody("Internal Server Error"))
 
         val ex = assertFailsWith<WorkerError> {
-            proxyClient.generateBatch("Meditate", emptyList(), "", "", "", emptyList(), 1, baseUrl(), "secret")
+            proxyClient.generateBatch("Meditate", emptyList(), "", "", "", emptyList(), emptySet(), 1, baseUrl(), "secret")
         }
         assertEquals(500, ex.code)
     }
@@ -255,7 +300,7 @@ class RequestyProxyClientTest {
         server.enqueue(MockResponse().setResponseCode(200).setBody(""))
 
         assertFailsWith<Exception> {
-            proxyClient.generateBatch("Meditate", emptyList(), "", "", "", emptyList(), 1, baseUrl(), "secret")
+            proxyClient.generateBatch("Meditate", emptyList(), "", "", "", emptyList(), emptySet(), 1, baseUrl(), "secret")
         }
     }
 }

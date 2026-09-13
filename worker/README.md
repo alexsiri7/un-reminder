@@ -76,20 +76,23 @@ Generates notification text variants. Requires `X-UR-Secret` header.
   "habitTags": ["fitness", "morning"],
   "locationName": "Home",
   "timeOfDay": "morning",
+  "supportedModes": ["WALKING", "SITTING"],
   "n": 3
 }
 ```
+
+`supportedModes` lists the activity modes (`WALKING`, `SITTING`, `TRANSPORT`) the habit is done in; omit it, or send an empty array, for a habit done in any of them.
 
 **Response:**
 
 ```json
 {
   "variants": [
-    { "text": "Got 5 minutes for a full-body stretch?", "shape": "QUESTION" },
-    { "text": "Hold a downward dog for 60 seconds", "shape": "TIMEBOXED", "actionUrl": "https://www.youtube.com/results?search_query=downward+dog+yoga+form" },
-    { "text": "Stretch. Now.", "shape": "TERSE" }
+    { "text": "Got 5 minutes for a full-body stretch?", "shape": "QUESTION", "modes": [] },
+    { "text": "Hold a downward dog for 60 seconds", "shape": "TIMEBOXED", "modes": ["SITTING"], "actionUrl": "https://www.youtube.com/results?search_query=downward+dog+yoga+form" },
+    { "text": "Roll your shoulders 10 times as you walk", "shape": "STATEMENT", "modes": ["WALKING"] }
   ]
 }
 ```
 
-Each variant has a `text` field, a `shape` field and an optional `actionUrl` field. `shape` is one of `QUESTION`, `STATEMENT`, `CHALLENGE`, `OBSERVATION`, `TERSE`, `TIMEBOXED`; the prompt asks for an even spread across all six so the app can rotate shapes between consecutive notifications. When `actionUrl` is present, the Android client renders a "Watch" action button on the notification that opens the URL.
+Each variant has a `text` field, a `shape` field, a `modes` field and an optional `actionUrl` field. `shape` is one of `QUESTION`, `STATEMENT`, `CHALLENGE`, `OBSERVATION`, `TERSE`, `TIMEBOXED`; the prompt asks for an even spread across all six so the app can rotate shapes between consecutive notifications. `modes` lists the supported modes the text was written for, or is empty for a mode-neutral message; the prompt asks for at least half of the batch to be neutral and the rest spread across the supported modes, and a variant tagged with a mode outside `supportedModes` is dropped from the batch. When `actionUrl` is present, the Android client renders a "Watch" action button on the notification that opens the URL.

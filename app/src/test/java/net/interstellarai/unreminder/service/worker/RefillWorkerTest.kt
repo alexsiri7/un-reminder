@@ -23,6 +23,7 @@ import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.PersonalContextRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
+import net.interstellarai.unreminder.domain.model.ActivityMode
 import net.interstellarai.unreminder.domain.model.GeneratedVariant
 import net.interstellarai.unreminder.domain.model.VariantShape
 import net.interstellarai.unreminder.service.notification.MascotSprites
@@ -94,11 +95,11 @@ class RefillWorkerTest {
         val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
         val variants = listOf(
-            GeneratedVariant(text = "variant 1", shape = VariantShape.QUESTION, actionUrl = null, spriteTag = null),
-            GeneratedVariant(text = "variant 2", shape = VariantShape.TIMEBOXED, actionUrl = "https://youtube.com/results?search_query=test", spriteTag = null),
+            GeneratedVariant(text = "variant 1", shape = VariantShape.QUESTION, modes = emptySet(), actionUrl = null, spriteTag = null),
+            GeneratedVariant(text = "variant 2", shape = VariantShape.TIMEBOXED, modes = emptySet(), actionUrl = "https://youtube.com/results?search_query=test", spriteTag = null),
         )
         coEvery {
-            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any())
+            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
         } returns variants
 
         val worker = createWorker()
@@ -115,15 +116,51 @@ class RefillWorkerTest {
     }
 
     @Test
+    fun `doWork sends the habit's supported modes and persists each variant's modes`() = runTest {
+        val habit = HabitEntity(id = 1L, name = "Meditate", supportedModes = setOf(ActivityMode.SITTING, ActivityMode.TRANSPORT))
+        coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
+        val variants = listOf(
+            GeneratedVariant(text = "variant 1", shape = VariantShape.STATEMENT, modes = setOf(ActivityMode.SITTING), actionUrl = null, spriteTag = null),
+            GeneratedVariant(text = "variant 2", shape = VariantShape.STATEMENT, modes = emptySet(), actionUrl = null, spriteTag = null),
+        )
+        coEvery {
+            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } returns variants
+
+        val worker = createWorker()
+        assertEquals(Result.success(), worker.doWork())
+
+        coVerify(exactly = 1) {
+            mockProxyClient.generateBatch(
+                habitTitle = any(),
+                habitTags = any(),
+                locationName = any(),
+                timeOfDay = any(),
+                personalContext = any(),
+                sprites = any(),
+                supportedModes = setOf(ActivityMode.SITTING, ActivityMode.TRANSPORT),
+                n = any(),
+                workerUrl = any(),
+                workerSecret = any(),
+            )
+        }
+        coVerify(exactly = 1) {
+            mockVariationRepository.insertAll(match<List<VariationEntity>> { entities ->
+                entities[0].modes == setOf(ActivityMode.SITTING) && entities[1].modes.isEmpty()
+            })
+        }
+    }
+
+    @Test
     fun `doWork sends the sprite vocabulary and persists the returned tag`() = runTest {
         val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
         val variants = listOf(
-            GeneratedVariant(text = "variant 1", shape = VariantShape.STATEMENT, actionUrl = null, spriteTag = "astronaut_zero_g"),
-            GeneratedVariant(text = "variant 2", shape = VariantShape.STATEMENT, actionUrl = null, spriteTag = null),
+            GeneratedVariant(text = "variant 1", shape = VariantShape.STATEMENT, modes = emptySet(), actionUrl = null, spriteTag = "astronaut_zero_g"),
+            GeneratedVariant(text = "variant 2", shape = VariantShape.STATEMENT, modes = emptySet(), actionUrl = null, spriteTag = null),
         )
         coEvery {
-            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any())
+            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
         } returns variants
 
         val worker = createWorker()
@@ -137,6 +174,7 @@ class RefillWorkerTest {
                 timeOfDay = any(),
                 personalContext = any(),
                 sprites = MascotSprites.entries,
+                supportedModes = any(),
                 n = any(),
                 workerUrl = any(),
                 workerSecret = any(),
@@ -154,11 +192,11 @@ class RefillWorkerTest {
         val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
         val variants = listOf(
-            GeneratedVariant(text = "variant 1", shape = VariantShape.STATEMENT, actionUrl = null, spriteTag = null),
-            GeneratedVariant(text = "variant 2", shape = VariantShape.STATEMENT, actionUrl = null, spriteTag = null),
+            GeneratedVariant(text = "variant 1", shape = VariantShape.STATEMENT, modes = emptySet(), actionUrl = null, spriteTag = null),
+            GeneratedVariant(text = "variant 2", shape = VariantShape.STATEMENT, modes = emptySet(), actionUrl = null, spriteTag = null),
         )
         coEvery {
-            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any())
+            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
         } returns variants
 
         val worker = createWorker()
@@ -175,7 +213,7 @@ class RefillWorkerTest {
         val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
         coEvery {
-            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any())
+            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
         } throws SpendCapExceededException()
 
         val worker = createWorker()
@@ -187,7 +225,7 @@ class RefillWorkerTest {
         val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
         coEvery {
-            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any())
+            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
         } throws WorkerAuthException()
 
         val worker = createWorker()
@@ -199,7 +237,7 @@ class RefillWorkerTest {
         val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
         coEvery {
-            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any())
+            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
         } throws IOException("network error")
 
         val worker = createWorker()
@@ -215,7 +253,7 @@ class RefillWorkerTest {
             val habit = HabitEntity(id = 1L, name = "Meditate")
             coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
             coEvery {
-                mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any())
+                mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
             } throws UnknownHostException("un-reminder-worker.alexsiri7.workers.dev")
 
             val worker = createWorker()
@@ -235,7 +273,7 @@ class RefillWorkerTest {
             val habit = HabitEntity(id = 1L, name = "Meditate")
             coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
             coEvery {
-                mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any())
+                mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
             } throws ConnectException("Failed to connect to un-reminder-worker.alexsiri7.workers.dev/104.21.91.247:443")
 
             val worker = createWorker()
@@ -255,7 +293,7 @@ class RefillWorkerTest {
             val habit = HabitEntity(id = 1L, name = "Meditate")
             coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
             coEvery {
-                mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any())
+                mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
             } throws SocketTimeoutException("connect timed out")
 
             val worker = createWorker()
@@ -275,7 +313,7 @@ class RefillWorkerTest {
             val habit = HabitEntity(id = 1L, name = "Meditate")
             coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
             coEvery {
-                mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any())
+                mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
             } throws InterruptedIOException("Call timeout expired after 90000ms")
 
             val worker = createWorker()
@@ -291,7 +329,7 @@ class RefillWorkerTest {
         val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
         coEvery {
-            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any())
+            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
         } throws WorkerError(500, "Internal Server Error")
 
         val worker = createWorker()
@@ -303,7 +341,7 @@ class RefillWorkerTest {
         val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
         coEvery {
-            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any())
+            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
         } throws WorkerError(400, "Bad Request")
 
         val worker = createWorker()
@@ -315,7 +353,7 @@ class RefillWorkerTest {
         val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
         coEvery {
-            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any())
+            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
         } throws JSONException("Value at 0 is null")
 
         val worker = createWorker()
@@ -327,7 +365,7 @@ class RefillWorkerTest {
         val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
         coEvery {
-            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any())
+            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
         } throws RuntimeException("json error", JSONException("Unexpected token"))
 
         val worker = createWorker()
@@ -343,7 +381,7 @@ class RefillWorkerTest {
             val habit = HabitEntity(id = 1L, name = "Meditate")
             coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
             coEvery {
-                mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any())
+                mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
             } throws RuntimeException("unexpected failure")
 
             val worker = createWorker()

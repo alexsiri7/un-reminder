@@ -11,19 +11,22 @@ import java.time.Instant
 interface VariationDao {
 
     /**
-     * Returns up to [limit] unconsumed variations for [habitId], in random order except that
-     * rows sharing the shape of the habit's most recently consumed variation sort last. The
-     * head of the list is therefore a fresh shape whenever one is available and the tail is
-     * the same-shape fallback for a nearly drained pool.
+     * Returns up to [limit] unconsumed variations for [habitId]: first those written for the
+     * mode [modeBit] names, then mode-neutral ones, then those written for another mode, so
+     * a habit always has something to say even when nothing suits the moment. Within each of
+     * those, rows sharing the shape of the habit's most recently consumed variation sort
+     * last and the rest are in random order, so the head of the list is a fresh shape
+     * whenever one is available and the same shape is the fallback for a nearly drained pool.
      */
     @Query(
         "SELECT * FROM variations WHERE habit_id = :habitId AND consumed_at IS NULL " +
-        "ORDER BY CASE WHEN shape = (" +
+        "ORDER BY CASE WHEN (modes & :modeBit) != 0 THEN 0 WHEN modes = 0 THEN 1 ELSE 2 END, " +
+        "CASE WHEN shape = (" +
         "SELECT shape FROM variations WHERE habit_id = :habitId AND consumed_at IS NOT NULL " +
         "ORDER BY consumed_at DESC LIMIT 1" +
         ") THEN 1 ELSE 0 END, RANDOM() LIMIT :limit"
     )
-    suspend fun getUnusedForHabit(habitId: Long, limit: Int): List<VariationEntity>
+    suspend fun getUnusedForHabit(habitId: Long, modeBit: Int, limit: Int): List<VariationEntity>
 
     /** Returns the number of rows updated (1 on success, 0 if already consumed or deleted). */
     @Query("UPDATE variations SET consumed_at = :at WHERE id = :id AND consumed_at IS NULL")

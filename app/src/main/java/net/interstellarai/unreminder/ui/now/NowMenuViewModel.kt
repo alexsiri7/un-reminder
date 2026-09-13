@@ -21,7 +21,10 @@ import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.domain.DisplayTier
 import net.interstellarai.unreminder.domain.HabitAvailabilityService
+import net.interstellarai.unreminder.domain.model.ActivityMode
+import net.interstellarai.unreminder.domain.model.ActivityState
 import net.interstellarai.unreminder.domain.model.TriggerStatus
+import net.interstellarai.unreminder.service.activity.ActivityRecognitionManager
 import net.interstellarai.unreminder.service.notification.SpriteResolver
 import net.interstellarai.unreminder.service.trigger.DismissalTracker
 import net.interstellarai.unreminder.widget.WidgetRefresher
@@ -59,6 +62,7 @@ class NowMenuViewModel @Inject constructor(
     private val spriteResolver: SpriteResolver,
     private val dismissalTracker: DismissalTracker,
     private val widgetRefresher: WidgetRefresher,
+    private val activityRecognitionManager: ActivityRecognitionManager,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<NowMenuUiState>(NowMenuUiState.Loading)
@@ -130,17 +134,20 @@ class NowMenuViewModel @Inject constructor(
             _uiState.value = NowMenuUiState.NoHabits(allPaused = habits.isNotEmpty())
             return
         }
+        // Cycling suppresses nothing on the menu, so its text takes the same sitting
+        // fallback as an unknown activity.
+        val mode = (activityRecognitionManager.resolve().state as? ActivityState.Mode)?.mode ?: ActivityMode.SITTING
         // A stable sort over a shuffle: random within each tier, tiers in order.
         held = habits.filter { it.id in tiers }
             .shuffled()
             .sortedBy { tiers.getValue(it.id) }
-            .map { menuItem(it, tiers.getValue(it.id)) }
+            .map { menuItem(it, tiers.getValue(it.id), mode) }
         visibleCount = PAGE_SIZE
         publish()
     }
 
-    private suspend fun menuItem(habit: HabitEntity, tier: DisplayTier): NowMenuItem {
-        val variation = variationRepository.peekUnusedVariation(habit.id)
+    private suspend fun menuItem(habit: HabitEntity, tier: DisplayTier, mode: ActivityMode): NowMenuItem {
+        val variation = variationRepository.peekUnusedVariation(habit.id, mode)
         val text = variation?.text
             ?: levelDescriptionRepository.getDescriptionForLevel(habit.id, habit.dedicationLevel)
         return NowMenuItem(

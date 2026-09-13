@@ -2,6 +2,7 @@ package net.interstellarai.unreminder.service.worker
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import net.interstellarai.unreminder.domain.model.ActivityMode
 import net.interstellarai.unreminder.domain.model.AiHabitFields
 import net.interstellarai.unreminder.domain.model.GeneratedVariant
 import net.interstellarai.unreminder.domain.model.VariantShape
@@ -58,6 +59,7 @@ class RequestyProxyClient @Inject constructor(
         timeOfDay: String,
         personalContext: String,
         sprites: List<MascotSprite>,
+        supportedModes: Set<ActivityMode>,
         n: Int,
         workerUrl: String,
         workerSecret: String,
@@ -68,6 +70,7 @@ class RequestyProxyClient @Inject constructor(
             put("locationName", locationName)
             put("timeOfDay", timeOfDay)
             put("personalContext", personalContext)
+            put("supportedModes", JSONArray(supportedModes.map { it.name }))
             put("sprites", JSONArray(sprites.map { sprite ->
                 JSONObject().apply {
                     put("tag", sprite.tag)
@@ -88,10 +91,23 @@ class RequestyProxyClient @Inject constructor(
                         VariantShape.entries.firstOrNull { it.name == raw }
                             ?: throw JSONException("Unknown variant shape: $raw")
                     },
+                    modes = parseModes(obj.optJSONArray("modes")),
                     actionUrl = obj.optString("actionUrl").takeIf { it.isNotEmpty() },
                     spriteTag = obj.optString("spriteTag").takeIf { it.isNotEmpty() }
                 )
             }
         }
+    }
+
+    /**
+     * Absent on a response from a worker deployed before modes existed, and a mode this build
+     * does not know drops out: either way the variant reads as neutral rather than failing
+     * the batch, so app and worker can deploy in either order.
+     */
+    private fun parseModes(arr: JSONArray?): Set<ActivityMode> {
+        arr ?: return emptySet()
+        return (0 until arr.length())
+            .mapNotNull { i -> ActivityMode.entries.firstOrNull { it.name == arr.getString(i) } }
+            .toSet()
     }
 }
