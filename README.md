@@ -93,8 +93,8 @@ Runs as a Cloudflare Worker (Hono framework). Exposes these routes:
 
 | Route | Auth | Description |
 |---|---|---|
-| `GET /v1/health` | Public | Returns `{ status, spendUsedToday, spendUsedMonth, capDaily, capMonthly }` |
-| `POST /v1/generate/batch` | `X-UR-Secret` header | Accepts `{ habitTitle, habitTags, locationName, timeOfDay, supportedModes?, n }`, returns `{ variants: Array<{ text: string, shape: string, modes: string[], actionUrl?: string }> }` via Requesty |
+| `GET /v1/health` | Public | Returns `{ status, spendUsedToday, spendUsedMonth, capDaily, capMonthly, generationVersion }` |
+| `POST /v1/generate/batch` | `X-UR-Secret` header | Accepts `{ habitTitle, habitTags, locationName, timeOfDay, supportedModes?, n }`, returns `{ variants: Array<{ text: string, shape: string, modes: string[], actionUrl?: string }>, generationVersion }` via Requesty |
 | `POST /v1/habit-fields` | `X-UR-Secret` header | Accepts `{ title }`, returns `{ descriptionLadder: string[] }` (6 elements, one per dedication level) via Requesty |
 
 **Local dev:**
@@ -267,6 +267,7 @@ Notification texts are pre-generated in batches by the Cloudflare Worker (`/v1/g
 - **Initial fill:** saving a new habit immediately enqueues `RefillWorker`, which calls `/v1/generate/batch` with `n = POOL_SIZE` (50) and the habit's supported modes, and stores the results. The pool starts at up to 50 unused variations, tagged with the modes each was written for.
 - **Refill:** when the unused count drops below `REFILL_THRESHOLD` (20 — a 40% buffer over `POOL_SIZE = 50`, sized to outlast multiple WorkManager backoff cycles when refills fail), `TriggerPipeline` enqueues another `RefillWorker` run after each notification fire. Consumed variations are pruned before each batch is inserted, so the pool stays near the 50-variation target.
 - **Prompt change:** if a habit's name or description ladder changes on save, the entire pool is cleared and a fresh 50-variation refill is enqueued.
+- **Version bump:** every stored variation carries the Worker's `generationVersion` it was generated under. `GenerationVersionWorker` checks the Worker's `UR_GENERATION_VERSION` daily; each active habit whose pool sits at another version gets a `RefillWorker` run, paced one habit per minute. The old pool keeps firing until the replacement batch lands, and the swap (delete other-version unconsumed rows, insert the batch) is one transaction, so a pool is never empty mid-swap and never mixed-vintage. Bumping the version is how a new model or prompt rolls out (#376).
 
 ### Fallback
 If the variation pool is empty at fire time, the notification uses the `HabitLevelDescriptionEntity`
@@ -345,7 +346,7 @@ from the pool, not from a fresh generation.
 ## 8. Database Schema (Room)
 
 ```kotlin
-// DB version 15
+// DB version 16
 @Entity Habit(id, name, dedication_level/*Int 0-5*/, auto_adjust_level/*Boolean*/, daily_limit/*Int, default 1*/, cooldown_minutes/*Int, default 180*/, supported_modes/*Int bitmask, 0 = any*/, active, created_at, updated_at)
 @Entity HabitLevelDescriptionEntity(habit_id → Habit.id CASCADE, level/*0-5*/, description)  // per-level text
 @Entity Window(id, start_time, end_time, days_of_week_bitmask, frequency_per_day, active)
@@ -353,7 +354,7 @@ from the pool, not from a fresh generation.
 @Entity HabitLocationCrossRef(habit_id → Habit.id CASCADE, location_id → Location.id CASCADE)  // junction
 @Entity Trigger(id, window_id?, habit_id?, scheduled_at, fired_at?, status, generated_prompt?, action_url?)
 @Entity PendingFeedback(id, screenshot_path? /* nullable */, description, queued_at)  // offline upload queue
-@Entity Variation(id, habit_id → Habit.id CASCADE, text, prompt_fingerprint, generated_at, consumed_at?, action_url?, shape?, modes/*Int bitmask, 0 = neutral*/)  // variation pool
+@Entity Variation(id, habit_id → Habit.id CASCADE, text, prompt_fingerprint, generated_at, consumed_at?, action_url?, shape?, modes/*Int bitmask, 0 = neutral*/, generation_version/*Int, default 0 = pre-version rows*/)  // variation pool
 ```
 
 ---

@@ -11,6 +11,7 @@ export interface Env {
   UR_DAILY_CAP_CENTS: string
   UR_MONTHLY_CAP_CENTS: string
   UR_MODEL: string
+  UR_GENERATION_VERSION: string
 }
 
 export interface SpriteOption {
@@ -53,6 +54,8 @@ export interface NotificationVariant {
 
 export interface GenerateBatchResponse {
   variants: NotificationVariant[]
+  /** The version these variants were generated under; the app stamps each stored row with it. */
+  generationVersion: number
 }
 
 export interface HealthResponse {
@@ -61,4 +64,6 @@ export interface HealthResponse {
   spendUsedMonth: number
   capDaily: number
   capMonthly: number
+  /** Pools generated under any other version are stale; the app polls this daily. */
+  generationVersion: number
 }

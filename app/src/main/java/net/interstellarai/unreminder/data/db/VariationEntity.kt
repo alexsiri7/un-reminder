@@ -45,4 +45,18 @@ data class VariationEntity(
     /** The activities the text was written for; empty when it reads naturally in any of them. */
     @ColumnInfo(name = "modes", defaultValue = "0")
     val modes: Set<ActivityMode> = emptySet(),
-)
+    /**
+     * The Worker's generation version this row was produced under. A habit's unconsumed rows
+     * all share one value; a refill at another version replaces them.
+     */
+    @ColumnInfo(name = "generation_version", defaultValue = "0")
+    val generationVersion: Int = UNVERSIONED,
+) {
+    companion object {
+        /**
+         * Stamped on rows generated before the Worker reported a version. A live Worker
+         * version is never 0, so these always read as stale against any real one.
+         */
+        const val UNVERSIONED = 0
+    }
+}

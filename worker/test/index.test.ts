@@ -281,8 +281,42 @@ describe('un-reminder-worker', () => {
     const res = await app.fetch(req, testEnv(), ctx)
     await waitOnExecutionContext(ctx)
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { variants: Array<{ text: string; shape: string; actionUrl?: string }> }
+    const body = (await res.json()) as { variants: Array<{ text: string; shape: string; actionUrl?: string }>; generationVersion: number }
     expect(body.variants).toEqual(variants.map((v) => ({ ...v, modes: [] })))
+    // The toml value flows through ...env; an edit that breaks the >= 1 contract fails here.
+    expect(Number.isInteger(body.generationVersion)).toBe(true)
+    expect(body.generationVersion).toBeGreaterThanOrEqual(1)
+  })
+
+  // ---- generation version tests ----
+
+  it('echoes the configured generation version on a batch', async () => {
+    mockRequestySuccess([{ text: 'Stretch time!', shape: 'TERSE' }])
+
+    const req = makeRequest('/v1/generate/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
+      body: validBody(1),
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, { ...testEnv(), UR_GENERATION_VERSION: '7' }, ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { generationVersion: number }
+    expect(body.generationVersion).toBe(7)
+  })
+
+  it('returns 503 on a batch without calling upstream when the generation version is malformed', async () => {
+    const req = makeRequest('/v1/generate/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
+      body: validBody(1),
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, { ...testEnv(), UR_GENERATION_VERSION: 'abc' }, ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(503)
+    expect(fetchCallIndex).toBe(0)
   })
 
   // ---- supportedModes tests ----
@@ -595,8 +629,42 @@ describe('un-reminder-worker', () => {
     const res = await app.fetch(req, testEnv(), ctx)
     await waitOnExecutionContext(ctx)
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { variants: Array<{ text: string; shape: string; actionUrl?: string }> }
+    const body = (await res.json()) as { variants: Array<{ text: string; shape: string; actionUrl?: string }>; generationVersion: number }
     expect(body.variants).toEqual(variants.map((v) => ({ ...v, modes: [] })))
+    // The toml value flows through ...env; an edit that breaks the >= 1 contract fails here.
+    expect(Number.isInteger(body.generationVersion)).toBe(true)
+    expect(body.generationVersion).toBeGreaterThanOrEqual(1)
+  })
+
+  // ---- generation version tests ----
+
+  it('echoes the configured generation version on a batch', async () => {
+    mockRequestySuccess([{ text: 'Stretch time!', shape: 'TERSE' }])
+
+    const req = makeRequest('/v1/generate/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
+      body: validBody(1),
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, { ...testEnv(), UR_GENERATION_VERSION: '7' }, ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { generationVersion: number }
+    expect(body.generationVersion).toBe(7)
+  })
+
+  it('returns 503 on a batch without calling upstream when the generation version is malformed', async () => {
+    const req = makeRequest('/v1/generate/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
+      body: validBody(1),
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, { ...testEnv(), UR_GENERATION_VERSION: 'abc' }, ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(503)
+    expect(fetchCallIndex).toBe(0)
   })
 
   // ---- Upstream error test ----
@@ -653,9 +721,29 @@ describe('un-reminder-worker', () => {
     const res = await app.fetch(req, testEnv(), ctx)
     await waitOnExecutionContext(ctx)
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { status: string; spendUsedToday: number }
+    const body = (await res.json()) as { status: string; spendUsedToday: number; generationVersion: number }
     expect(body.status).toBe('ok')
     expect(typeof body.spendUsedToday).toBe('number')
+    expect(Number.isInteger(body.generationVersion)).toBe(true)
+    expect(body.generationVersion).toBeGreaterThanOrEqual(1)
+  })
+
+  it('GET /v1/health echoes the configured generation version', async () => {
+    const req = makeRequest('/v1/health')
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, { ...testEnv(), UR_GENERATION_VERSION: '7' }, ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { generationVersion: number }
+    expect(body.generationVersion).toBe(7)
+  })
+
+  it('GET /v1/health returns 503 when the generation version is malformed', async () => {
+    const req = makeRequest('/v1/health')
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, { ...testEnv(), UR_GENERATION_VERSION: 'abc' }, ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(503)
   })
 
   // ---- /v1/habit-fields tests ----

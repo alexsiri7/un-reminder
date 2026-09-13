@@ -5,7 +5,6 @@ import android.util.Log
 import androidx.work.Data
 import androidx.work.ListenableWorker.Result
 import androidx.work.WorkerParameters
-import io.mockk.Ordering
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -24,6 +23,7 @@ import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.PersonalContextRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.domain.model.ActivityMode
+import net.interstellarai.unreminder.domain.model.GeneratedBatch
 import net.interstellarai.unreminder.domain.model.GeneratedVariant
 import net.interstellarai.unreminder.domain.model.VariantShape
 import net.interstellarai.unreminder.service.notification.MascotSprites
@@ -100,14 +100,14 @@ class RefillWorkerTest {
         )
         coEvery {
             mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
-        } returns variants
+        } returns GeneratedBatch(variants, generationVersion = 3)
 
         val worker = createWorker()
         val result = worker.doWork()
 
         assertEquals(Result.success(), result)
         coVerify(exactly = 1) {
-            mockVariationRepository.insertAll(match<List<VariationEntity>> { entities ->
+            mockVariationRepository.refill(1L, 3, match<List<VariationEntity>> { entities ->
                 entities.size == 2
                     && entities[0].text == "variant 1" && entities[0].actionUrl == null && entities[0].shape == VariantShape.QUESTION
                     && entities[1].text == "variant 2" && entities[1].actionUrl == "https://youtube.com/results?search_query=test" && entities[1].shape == VariantShape.TIMEBOXED
@@ -125,7 +125,7 @@ class RefillWorkerTest {
         )
         coEvery {
             mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
-        } returns variants
+        } returns GeneratedBatch(variants, generationVersion = 3)
 
         val worker = createWorker()
         assertEquals(Result.success(), worker.doWork())
@@ -145,7 +145,7 @@ class RefillWorkerTest {
             )
         }
         coVerify(exactly = 1) {
-            mockVariationRepository.insertAll(match<List<VariationEntity>> { entities ->
+            mockVariationRepository.refill(1L, 3, match<List<VariationEntity>> { entities ->
                 entities[0].modes == setOf(ActivityMode.SITTING) && entities[1].modes.isEmpty()
             })
         }
@@ -161,7 +161,7 @@ class RefillWorkerTest {
         )
         coEvery {
             mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
-        } returns variants
+        } returns GeneratedBatch(variants, generationVersion = 3)
 
         val worker = createWorker()
         assertEquals(Result.success(), worker.doWork())
@@ -181,14 +181,14 @@ class RefillWorkerTest {
             )
         }
         coVerify(exactly = 1) {
-            mockVariationRepository.insertAll(match<List<VariationEntity>> { entities ->
+            mockVariationRepository.refill(1L, 3, match<List<VariationEntity>> { entities ->
                 entities[0].spriteTag == "astronaut_zero_g" && entities[1].spriteTag == null
             })
         }
     }
 
     @Test
-    fun `doWork prunes consumed variations before inserting new ones`() = runTest {
+    fun `doWork stamps every row with the response's generation version`() = runTest {
         val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
         val variants = listOf(
@@ -197,14 +197,36 @@ class RefillWorkerTest {
         )
         coEvery {
             mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
-        } returns variants
+        } returns GeneratedBatch(variants, generationVersion = 7)
 
         val worker = createWorker()
-        worker.doWork()
+        assertEquals(Result.success(), worker.doWork())
 
-        coVerify(ordering = Ordering.ORDERED) {
-            mockVariationRepository.deleteConsumedForHabit(1L)
-            mockVariationRepository.insertAll(any())
+        coVerify(exactly = 1) {
+            mockVariationRepository.refill(1L, 7, match<List<VariationEntity>> { entities ->
+                entities.size == 2 && entities.all { it.generationVersion == 7 }
+            })
+        }
+    }
+
+    @Test
+    fun `doWork passes UNVERSIONED through when the worker reports no version`() = runTest {
+        val habit = HabitEntity(id = 1L, name = "Meditate")
+        coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
+        val variants = listOf(
+            GeneratedVariant(text = "variant 1", shape = VariantShape.STATEMENT, modes = emptySet(), actionUrl = null, spriteTag = null),
+        )
+        coEvery {
+            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } returns GeneratedBatch(variants, generationVersion = VariationEntity.UNVERSIONED)
+
+        val worker = createWorker()
+        assertEquals(Result.success(), worker.doWork())
+
+        coVerify(exactly = 1) {
+            mockVariationRepository.refill(1L, VariationEntity.UNVERSIONED, match<List<VariationEntity>> { entities ->
+                entities.single().generationVersion == VariationEntity.UNVERSIONED
+            })
         }
     }
 

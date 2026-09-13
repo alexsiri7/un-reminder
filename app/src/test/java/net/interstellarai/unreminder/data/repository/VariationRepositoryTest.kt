@@ -1,13 +1,19 @@
 package net.interstellarai.unreminder.data.repository
 
+import androidx.room.withTransaction
+import net.interstellarai.unreminder.data.db.AppDatabase
 import net.interstellarai.unreminder.data.db.VariationDao
 import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.domain.model.ActivityMode
 import net.interstellarai.unreminder.domain.model.VariantShape
+import io.mockk.Ordering
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.unmockkStatic
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -19,10 +25,19 @@ import java.time.Instant
 
 class VariationRepositoryTest {
     private val mockDao: VariationDao = mockk(relaxUnitFun = true)
+    private val db: AppDatabase = mockk()
     private lateinit var repository: VariationRepository
 
     @Before fun setup() {
-        repository = VariationRepository(mockDao)
+        repository = VariationRepository(mockDao, db)
+        mockkStatic("androidx.room.RoomDatabaseKt")
+        coEvery { db.withTransaction(captureLambda<suspend () -> Any?>()) } coAnswers {
+            lambda<suspend () -> Any?>().captured.invoke()
+        }
+    }
+
+    @After fun tearDown() {
+        unmockkStatic("androidx.room.RoomDatabaseKt")
     }
 
     @Test fun `pickRandomUnused returns null on empty pool`() = runTest {
@@ -93,6 +108,40 @@ class VariationRepositoryTest {
         )
         repository.insertAll(variants)
         coVerify { mockDao.insert(variants) }
+    }
+
+    @Test fun `refill sweeps other versions, prunes consumed rows, then inserts, inside one transaction`() = runTest {
+        val variants = listOf(
+            VariationEntity(habitId = 1L, text = "a", promptFingerprint = "fp", generatedAt = Instant.EPOCH, shape = VariantShape.STATEMENT, generationVersion = 2),
+        )
+
+        repository.refill(1L, 2, variants)
+
+        coVerify(exactly = 1) { db.withTransaction(any<suspend () -> Any?>()) }
+        coVerify(ordering = Ordering.ORDERED) {
+            mockDao.deleteUnusedNotAtVersion(1L, 2)
+            mockDao.deleteConsumedByHabit(1L)
+            mockDao.insert(variants)
+        }
+    }
+
+    @Test fun `refill from an unversioned worker only tops up`() = runTest {
+        val variants = listOf(
+            VariationEntity(habitId = 1L, text = "a", promptFingerprint = "fp", generatedAt = Instant.EPOCH, shape = VariantShape.STATEMENT),
+        )
+
+        repository.refill(1L, VariationEntity.UNVERSIONED, variants)
+
+        coVerify(exactly = 0) { mockDao.deleteUnusedNotAtVersion(any(), any()) }
+        coVerify(ordering = Ordering.ORDERED) {
+            mockDao.deleteConsumedByHabit(1L)
+            mockDao.insert(variants)
+        }
+    }
+
+    @Test fun `habitIdsNeedingRegeneration delegates to the dao`() = runTest {
+        coEvery { mockDao.activeHabitIdsWithUnusedNotAtVersion(3) } returns listOf(4L, 9L)
+        assertEquals(listOf(4L, 9L), repository.habitIdsNeedingRegeneration(3))
     }
 
     @Test fun `deleteForHabit delegates to dao deleteByHabit`() = runTest {
