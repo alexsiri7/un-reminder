@@ -327,15 +327,20 @@ from the pool, not from a fresh generation.
 7a. **Cloud AI settings screen** — worker URL and shared secret for cloud generation, and a "regenerate all variants" button that generates a fresh batch per active habit and swaps it in only once it lands, keeping the previous variants until then (see "Pool lifecycle" above).
 8. **Onboarding screen** — shown once on first launch. Walks the user through three collapsible steps: (1) granting Notifications and Location permissions, (2) creating a first habit with name/descriptions and weekday schedule, (3) creating a first time window. Includes a "Skip" action in the top bar. Completion (or skip) is persisted via DataStore (`onboarding_done` key) and never shown again. Bottom navigation bar is hidden while onboarding is active.
 9. **Feedback screen** — annotated screenshot tool. Captures the current screen, lets the user draw annotations (red/yellow/green strokes), type a description, and submit as a GitHub issue. Falls back to an offline queue (WorkManager) when connectivity is unavailable.
-10. **Reminder detail screen** — read/act view for a single past or recent trigger, accessible by tapping
-    any row in the Recent Triggers screen or by tapping a live notification body. Shows the AI-generated
+10. **Reminder detail screen** — read/act view for one variant, reached two ways. Keyed on a trigger, by
+    tapping any row in the Recent Triggers screen or a live notification body: shows the trigger's
     prompt text ("reminder" section) and, if the trigger has an associated habit, the habit name and
-    current dedication progress bar ("habit" section).
-    Opening a live (`FIRED`) trigger records `OPENED` and clears its notification. Action chips:
-    **Did it** (records `COMPLETED` and navigates back; if a swipe or Later already resolved the
-    trigger, nothing is recorded and the chip is withdrawn instead), shown only while the trigger
-    is `FIRED` or `OPENED`, and — when the trigger's variant carried an `action_url` — **Watch**, which opens that
-    URL; triggers without one show no video affordance. There is no Dismiss chip: swiping the
+    current dedication progress bar ("habit" section). Opening a live (`FIRED`) trigger records `OPENED`
+    and clears its notification. Keyed on a variant, by tapping a Now page row (anywhere but its `did it`
+    chip) or the home-screen widget card: there is no trigger, so opening records nothing — `OPENED`
+    stays a trigger-keyed signal — and the text section is labelled "doable now" (omitted when there is
+    no text). Action chips:
+    **Did it**, which records `COMPLETED` and navigates back — on a trigger, by upgrading its outcome
+    (shown only while the trigger is `FIRED` or `OPENED`; if a swipe or Later already resolved it,
+    nothing is recorded and the chip is withdrawn instead); on a variant, through `PullCompletionRecorder`
+    exactly as the widget's `did it` does (a new `COMPLETED` trigger with `source = detail`, the shown
+    variant consumed) — and, when the variant carried an `action_url`, **Watch**, which opens that
+    URL; variants without one show no video affordance. There is no Dismiss chip: swiping the
     notification is the only dismissal path. No bottom navigation bar
     (excluded from `showBottomBar` logic in `NavGraph`). Back navigation via "← back" text link or system back.
 
