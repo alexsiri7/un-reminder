@@ -9,15 +9,21 @@ import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** Records a "did it" tap on the widget the same way the Now menu records one. */
+/**
+ * Records a pull-sourced completion — a "did it" on the widget, or on the variant view opened
+ * from the Now page or widget — the same way the Now menu records one.
+ */
 @Singleton
-class WidgetCompletionRecorder @Inject constructor(
+class PullCompletionRecorder @Inject constructor(
     private val triggerRepository: TriggerRepository,
     private val variationRepository: VariationRepository,
     private val dismissalTracker: DismissalTracker,
 ) {
-    /** [variationId] is the variant the widget was showing, so it is consumed and not shown again. */
-    suspend fun complete(habitId: Long, variationId: Long?) {
+    /**
+     * [variationId] is the variant that was showing, so it is consumed and not shown again;
+     * [source] is stamped on the trigger as [TriggerEntity.source].
+     */
+    suspend fun complete(habitId: Long, variationId: Long?, source: String) {
         val now = Instant.now()
         val triggerId = triggerRepository.insert(
             TriggerEntity(
@@ -25,7 +31,7 @@ class WidgetCompletionRecorder @Inject constructor(
                 scheduledAt = now,
                 firedAt = now,
                 status = TriggerStatus.COMPLETED,
-                source = SOURCE_WIDGET,
+                source = source,
             )
         )
         dismissalTracker.onCompleted(triggerId)

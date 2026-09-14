@@ -490,7 +490,7 @@ class MarkDoneAction : ActionCallback {
         val habitId = parameters[HABIT_ID]
         if (habitId != null) {
             try {
-                entryPoint.completionRecorder().complete(habitId, parameters[VARIATION_ID])
+                entryPoint.completionRecorder().complete(habitId, parameters[VARIATION_ID], PullCompletionRecorder.SOURCE_WIDGET)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "Failed to record widget completion for habit $habitId", e)
@@ -517,7 +517,7 @@ class MarkDoneAction : ActionCallback {
 @EntryPoint
 @InstallIn(SingletonComponent::class)
 interface WidgetEntryPoint {
-    fun completionRecorder(): WidgetCompletionRecorder
+    fun completionRecorder(): PullCompletionRecorder
     fun widgetRefresher(): WidgetRefresher
     fun spriteResolver(): SpriteResolver
 }

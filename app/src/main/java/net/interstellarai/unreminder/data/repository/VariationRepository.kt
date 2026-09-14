@@ -78,6 +78,9 @@ class VariationRepository @Inject constructor(
         dao.markConsumed(id, Instant.now().truncatedTo(ChronoUnit.MILLIS))
     }
 
+    /** The variation by [id] whether or not it has been consumed; null once pruned. */
+    suspend fun getById(id: Long): VariationEntity? = dao.getById(id)
+
     suspend fun insertAll(variants: List<VariationEntity>) = dao.insert(variants)
 
     suspend fun deleteForHabit(habitId: Long) = dao.deleteByHabit(habitId)

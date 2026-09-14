@@ -32,6 +32,13 @@ interface VariationDao {
     @Query("UPDATE variations SET consumed_at = :at WHERE id = :id AND consumed_at IS NULL")
     suspend fun markConsumed(id: Long, at: Instant): Int
 
+    /**
+     * The row by [id], consumed or not: the words tapped on the Now page or widget must still
+     * open after a trigger consumed them in the meantime. Null once a refill has pruned it.
+     */
+    @Query("SELECT * FROM variations WHERE id = :id")
+    suspend fun getById(id: Long): VariationEntity?
+
     @Query("SELECT COUNT(*) FROM variations WHERE habit_id = :habitId AND consumed_at IS NULL")
     suspend fun countUnused(habitId: Long): Int
 

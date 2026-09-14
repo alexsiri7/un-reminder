@@ -14,19 +14,19 @@ import net.interstellarai.unreminder.service.trigger.DismissalTracker
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-class WidgetCompletionRecorderTest {
+class PullCompletionRecorderTest {
 
     private val triggerRepository: TriggerRepository = mockk()
     private val variationRepository: VariationRepository = mockk(relaxUnitFun = true)
     private val dismissalTracker: DismissalTracker = mockk(relaxUnitFun = true)
-    private val recorder = WidgetCompletionRecorder(triggerRepository, variationRepository, dismissalTracker)
+    private val recorder = PullCompletionRecorder(triggerRepository, variationRepository, dismissalTracker)
 
     @Test
     fun `inserts a COMPLETED trigger from the widget, runs promotion, then consumes the shown variant`() = runTest {
         val inserted = slot<TriggerEntity>()
         coEvery { triggerRepository.insert(capture(inserted)) } returns 99L
 
-        recorder.complete(5L, 50L)
+        recorder.complete(5L, 50L, PullCompletionRecorder.SOURCE_WIDGET)
 
         assertEquals(5L, inserted.captured.habitId)
         assertEquals(TriggerStatus.COMPLETED, inserted.captured.status)
@@ -44,17 +44,27 @@ class WidgetCompletionRecorderTest {
     fun `a fallback completion consumes nothing`() = runTest {
         coEvery { triggerRepository.insert(any()) } returns 99L
 
-        recorder.complete(5L, null)
+        recorder.complete(5L, null, PullCompletionRecorder.SOURCE_WIDGET)
 
         coVerify(exactly = 0) { variationRepository.markConsumed(any()) }
         coVerify(exactly = 1) { dismissalTracker.onCompleted(99L) }
     }
 
     @Test
+    fun `records the source it is given`() = runTest {
+        val inserted = slot<TriggerEntity>()
+        coEvery { triggerRepository.insert(capture(inserted)) } returns 99L
+
+        recorder.complete(5L, 50L, "detail")
+
+        assertEquals("detail", inserted.captured.source)
+    }
+
+    @Test
     fun `a failed trigger insert consumes nothing`() = runTest {
         coEvery { triggerRepository.insert(any()) } throws IllegalStateException("disk full")
 
-        runCatching { recorder.complete(5L, 50L) }
+        runCatching { recorder.complete(5L, 50L, PullCompletionRecorder.SOURCE_WIDGET) }
 
         coVerify(exactly = 0) { variationRepository.markConsumed(any()) }
     }
