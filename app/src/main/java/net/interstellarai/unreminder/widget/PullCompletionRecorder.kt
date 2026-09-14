@@ -25,7 +25,7 @@ class PullCompletionRecorder @Inject constructor(
      * [variationId] is the variant that was showing, so it is consumed and not shown again;
      * [source] is stamped on the trigger as [TriggerEntity.source].
      *
-     * Throws only when the trigger was not written. A failure after that is logged instead,
+     * Throws when the trigger was not written. A failure after that is logged instead,
      * so a caller that offers a retry never inserts a second COMPLETED trigger for one tap.
      */
     suspend fun complete(habitId: Long, variationId: Long?, source: String) {
