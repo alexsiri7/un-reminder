@@ -1,5 +1,8 @@
 package net.interstellarai.unreminder.ui.now
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
@@ -32,6 +35,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import net.interstellarai.unreminder.domain.DisplayTier
 import net.interstellarai.unreminder.ui.theme.ActionChip
@@ -63,12 +67,25 @@ fun NowMenuScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val daysWithAnyCompletion by viewModel.daysWithAnyCompletion.collectAsStateWithLifecycle()
+    val nowContext by viewModel.nowContext.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) { viewModel.refresh() }
+    LifecycleResumeEffect(Unit) {
+        viewModel.refreshContext()
+        onPauseOrDispose {}
+    }
+
+    val activityPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { viewModel.onActivityPermissionResult() }
 
     NowMenuContent(
         uiState = uiState,
         daysWithAnyCompletion = daysWithAnyCompletion,
+        nowContext = nowContext,
+        onRequestActivityPermission = {
+            activityPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+        },
         onComplete = viewModel::complete,
         onLoadMore = viewModel::loadMore,
         onAddHabit = onAddHabit,
@@ -80,6 +97,8 @@ fun NowMenuScreen(
 internal fun NowMenuContent(
     uiState: NowMenuUiState,
     daysWithAnyCompletion: Int,
+    nowContext: NowContext,
+    onRequestActivityPermission: () -> Unit,
     onComplete: (Long) -> Unit,
     onLoadMore: () -> Unit,
     onAddHabit: () -> Unit,
@@ -91,7 +110,7 @@ internal fun NowMenuContent(
                 .fillMaxSize()
                 .padding(padding),
         ) {
-            NowMenuHeader(daysWithAnyCompletion, onNavigateToFeedback)
+            NowMenuHeader(daysWithAnyCompletion, nowContext, onRequestActivityPermission, onNavigateToFeedback)
 
             when (uiState) {
                 is NowMenuUiState.Loading -> Box(Modifier.fillMaxSize())
@@ -109,7 +128,12 @@ internal fun NowMenuContent(
 }
 
 @Composable
-private fun NowMenuHeader(daysWithAnyCompletion: Int, onNavigateToFeedback: () -> Unit) {
+private fun NowMenuHeader(
+    daysWithAnyCompletion: Int,
+    nowContext: NowContext,
+    onRequestActivityPermission: () -> Unit,
+    onNavigateToFeedback: () -> Unit,
+) {
     Box(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(
@@ -127,6 +151,20 @@ private fun NowMenuHeader(daysWithAnyCompletion: Int, onNavigateToFeedback: () -
                 color = MaterialTheme.colorScheme.onBackground,
             )
             Spacer(Modifier.height(Dimens.sm))
+            val activityDenied = nowContext.activity == ActivityReading.PermissionDenied
+            ContextLine(
+                label = "activity",
+                value = activityLabel(nowContext.activity),
+                attention = activityDenied,
+                onClick = onRequestActivityPermission.takeIf { activityDenied },
+            )
+            Spacer(Modifier.height(Dimens.xs))
+            ContextLine(
+                label = "location",
+                value = locationLabel(nowContext.location),
+                attention = (nowContext.location as? LocationReading.Tracking)?.status?.isFault == true,
+            )
+            Spacer(Modifier.height(Dimens.md))
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
                     text = daysWithAnyCompletion.toString(),
@@ -143,6 +181,30 @@ private fun NowMenuHeader(daysWithAnyCompletion: Int, onNavigateToFeedback: () -
         FeedbackIconButton(
             onClick = onNavigateToFeedback,
             modifier = Modifier.align(Alignment.TopEnd),
+        )
+    }
+}
+
+// What the pipeline currently senses, said as quietly as the context strip above it: a fault
+// takes the error tone so a wrong reading is never mistaken for a normal one.
+@Composable
+private fun ContextLine(
+    label: String,
+    value: String,
+    attention: Boolean,
+    onClick: (() -> Unit)? = null,
+) {
+    Row(
+        modifier = if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        MonoSectionLabel(label, modifier = Modifier.width(Dimens.contextLabel))
+        Text(
+            text = value,
+            style = MonoLabel,
+            color = if (attention) MaterialTheme.colorScheme.error
+            else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+            modifier = Modifier.weight(1f),
         )
     }
 }
@@ -263,6 +325,19 @@ private fun EmptyState(
             modifier = if (onHintClick != null) Modifier.clickable(onClick = onHintClick) else Modifier,
         )
     }
+}
+
+private fun activityLabel(reading: ActivityReading): String = when (reading) {
+    is ActivityReading.Observed -> reading.mode.name.lowercase()
+    is ActivityReading.Assumed -> "${reading.mode.name.lowercase()} (assumed)"
+    ActivityReading.Cycling -> "cycling \u00b7 nudges held"
+    ActivityReading.PermissionDenied -> "activity permission off \u00b7 tap to allow"
+}
+
+private fun locationLabel(reading: LocationReading): String = when (reading) {
+    is LocationReading.Inside -> reading.names.joinToString(" \u00b7 ")
+    LocationReading.Outside -> "not inside any known location"
+    is LocationReading.Tracking -> reading.status.label
 }
 
 /** Why a row ranks below the doable tier; null for the doable tier itself. */

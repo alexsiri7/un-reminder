@@ -1,5 +1,7 @@
 package net.interstellarai.unreminder.ui.now
 
+import android.app.ActivityManager
+import android.content.Context
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.coVerifyOrder
@@ -12,31 +14,44 @@ import io.mockk.unmockkStatic
 import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import net.interstellarai.unreminder.data.db.HabitEntity
+import net.interstellarai.unreminder.data.db.LocationEntity
 import net.interstellarai.unreminder.data.db.TriggerEntity
 import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.data.repository.HabitLevelDescriptionRepository
 import net.interstellarai.unreminder.data.repository.HabitRepository
+import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.domain.DisplayTier
 import net.interstellarai.unreminder.domain.HabitAvailabilityService
+import net.interstellarai.unreminder.domain.model.ActivityBasis
 import net.interstellarai.unreminder.domain.model.ActivityMode
 import net.interstellarai.unreminder.domain.model.ActivityResolution
 import net.interstellarai.unreminder.domain.model.ActivityState
 import net.interstellarai.unreminder.domain.model.TriggerStatus
+import net.interstellarai.unreminder.service.activity.ActivityObservation
 import net.interstellarai.unreminder.service.activity.ActivityRecognitionManager
+import net.interstellarai.unreminder.service.geofence.GeofenceManager
+import net.interstellarai.unreminder.service.geofence.GeofenceRegistration
+import net.interstellarai.unreminder.service.geofence.LocationReconciler
+import net.interstellarai.unreminder.service.geofence.LocationSettingsCheck
+import net.interstellarai.unreminder.service.geofence.RegistrationHealth
 import net.interstellarai.unreminder.service.notification.MascotSprites
 import net.interstellarai.unreminder.service.notification.SpriteResolver
 import net.interstellarai.unreminder.service.trigger.DismissalTracker
+import net.interstellarai.unreminder.ui.settings.LocationTrackingStatus
 import net.interstellarai.unreminder.widget.WidgetRefresher
 import net.interstellarai.unreminder.domain.model.VariantShape
 import org.junit.After
@@ -46,6 +61,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.time.Duration
 import java.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -60,7 +76,17 @@ class NowMenuViewModelTest {
     private val spriteResolver = SpriteResolver()
     private val dismissalTracker: DismissalTracker = mockk(relaxUnitFun = true)
     private val widgetRefresher: WidgetRefresher = mockk(relaxUnitFun = true)
-    private val activityRecognitionManager: ActivityRecognitionManager = mockk()
+    private val activityRecognitionManager: ActivityRecognitionManager = mockk(relaxUnitFun = true)
+    private val geofenceManager: GeofenceManager = mockk()
+    private val locationRepository: LocationRepository = mockk()
+    private val locationReconciler: LocationReconciler = mockk()
+    private val context: Context = mockk()
+    private val activityManager: ActivityManager = mockk()
+
+    private val lastObservation = MutableStateFlow<ActivityObservation?>(null)
+    private val currentLocationIds = MutableStateFlow<Set<Long>>(emptySet())
+    private val registrationHealth = MutableStateFlow<RegistrationHealth?>(null)
+    private val reconciliationFailure = MutableStateFlow<String?>(null)
 
     @Before
     fun setup() {
@@ -72,6 +98,12 @@ class NowMenuViewModelTest {
         coEvery { variationRepository.peekUnusedVariation(any(), any()) } returns null
         every { activityRecognitionManager.resolve() } returns
             ActivityResolution(ActivityState.Mode(ActivityMode.SITTING), null)
+        every { activityRecognitionManager.lastObservation } returns lastObservation.asStateFlow()
+        every { geofenceManager.currentLocationIds } returns currentLocationIds.asStateFlow()
+        every { geofenceManager.registrationHealth } returns registrationHealth.asStateFlow()
+        every { locationReconciler.reconciliationFailure } returns reconciliationFailure.asStateFlow()
+        every { context.getSystemService(ActivityManager::class.java) } returns activityManager
+        every { activityManager.isBackgroundRestricted } returns false
     }
 
     @After
@@ -105,9 +137,28 @@ class NowMenuViewModelTest {
         dismissalTracker,
         widgetRefresher,
         activityRecognitionManager,
+        geofenceManager,
+        locationRepository,
+        locationReconciler,
+        context,
     )
 
     private fun NowMenuViewModel.menu() = uiState.value as NowMenuUiState.Menu
+
+    private fun healthyRegistration(savedCount: Int = 1) = RegistrationHealth(
+        outcomes = (1L..savedCount).map { it to GeofenceRegistration.Registered },
+        fineLocationGranted = true,
+        backgroundLocationGranted = true,
+        locationEnabled = true,
+        locationSettings = LocationSettingsCheck.Available,
+        checkedAt = Instant.EPOCH,
+    )
+
+    private fun TestScope.subscribedContext(vm: NowMenuViewModel): NowContext {
+        backgroundScope.launch { vm.nowContext.collect() }
+        advanceUntilIdle()
+        return vm.nowContext.value
+    }
 
     @Test
     fun `exactly 3 shown when more than 3 are eligible`() = runTest(testDispatcher) {
@@ -667,5 +718,170 @@ class NowMenuViewModelTest {
         advanceUntilIdle()
 
         assertEquals(NowMenuUiState.NoHabits(allPaused = false), vm.uiState.value)
+    }
+
+    // ── context readings ─────────────────────────────────────────────────────
+
+    @Test
+    fun `an observed mode reads as itself`() = runTest(testDispatcher) {
+        every { activityRecognitionManager.resolve() } returns
+            ActivityResolution(ActivityState.Mode(ActivityMode.WALKING), Duration.ofSeconds(30))
+
+        assertEquals(ActivityReading.Observed(ActivityMode.WALKING), subscribedContext(buildViewModel()).activity)
+    }
+
+    @Test
+    fun `the sitting fallback reads as assumed, whether nothing or something stale was observed`() = runTest(testDispatcher) {
+        every { activityRecognitionManager.resolve() } returns
+            ActivityResolution(ActivityState.Mode(ActivityMode.SITTING), null)
+        assertEquals(ActivityReading.Assumed(ActivityMode.SITTING), subscribedContext(buildViewModel()).activity)
+
+        every { activityRecognitionManager.resolve() } returns
+            ActivityResolution(ActivityState.Mode(ActivityMode.SITTING), Duration.ofHours(2), ActivityBasis.ASSUMED)
+        assertEquals(ActivityReading.Assumed(ActivityMode.SITTING), subscribedContext(buildViewModel()).activity)
+    }
+
+    @Test
+    fun `cycling reads as the suppression state`() = runTest(testDispatcher) {
+        every { activityRecognitionManager.resolve() } returns
+            ActivityResolution(ActivityState.Cycling, Duration.ofSeconds(5))
+
+        assertEquals(ActivityReading.Cycling, subscribedContext(buildViewModel()).activity)
+    }
+
+    @Test
+    fun `a denied activity permission reads as denied rather than as sitting`() = runTest(testDispatcher) {
+        every { activityRecognitionManager.resolve() } returns
+            ActivityResolution(ActivityState.Mode(ActivityMode.SITTING), null, ActivityBasis.PERMISSION_DENIED)
+
+        assertEquals(ActivityReading.PermissionDenied, subscribedContext(buildViewModel()).activity)
+    }
+
+    @Test
+    fun `a resume re-reads the activity without touching the menu`() = runTest(testDispatcher) {
+        val habits = listOf(habit(1L), habit(2L))
+        givenHabits(habits, allDoable(habits))
+        val vm = buildViewModel()
+        vm.refresh()
+        val before = subscribedContext(vm)
+        val menuBefore = vm.menu()
+        assertEquals(ActivityReading.Assumed(ActivityMode.SITTING), before.activity)
+
+        every { activityRecognitionManager.resolve() } returns
+            ActivityResolution(ActivityState.Mode(ActivityMode.TRANSPORT), Duration.ofSeconds(1))
+        vm.refreshContext()
+        advanceUntilIdle()
+
+        assertEquals(ActivityReading.Observed(ActivityMode.TRANSPORT), vm.nowContext.value.activity)
+        assertEquals(menuBefore, vm.menu())
+        coVerify(exactly = 1) { availabilityService.computeDisplayTiers(habits) }
+    }
+
+    @Test
+    fun `a landed transition re-reads the activity on its own`() = runTest(testDispatcher) {
+        val vm = buildViewModel()
+        assertEquals(ActivityReading.Assumed(ActivityMode.SITTING), subscribedContext(vm).activity)
+
+        every { activityRecognitionManager.resolve() } returns
+            ActivityResolution(ActivityState.Mode(ActivityMode.WALKING), Duration.ZERO)
+        lastObservation.value = ActivityObservation(activityType = 7, at = Instant.EPOCH)
+        advanceUntilIdle()
+
+        assertEquals(ActivityReading.Observed(ActivityMode.WALKING), vm.nowContext.value.activity)
+    }
+
+    @Test
+    fun `a granted activity permission resubscribes to transitions and re-reads`() = runTest(testDispatcher) {
+        val vm = buildViewModel()
+        subscribedContext(vm)
+        every { activityRecognitionManager.resolve() } returns
+            ActivityResolution(ActivityState.Mode(ActivityMode.WALKING), Duration.ZERO)
+
+        vm.onActivityPermissionResult()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { activityRecognitionManager.requestTransitionUpdates() }
+        assertEquals(ActivityReading.Observed(ActivityMode.WALKING), vm.nowContext.value.activity)
+    }
+
+    @Test
+    fun `inside a registered geofence names the location`() = runTest(testDispatcher) {
+        registrationHealth.value = healthyRegistration(savedCount = 2)
+        currentLocationIds.value = setOf(2L, 1L)
+        coEvery { locationRepository.getByIds(setOf(2L, 1L)) } returns listOf(
+            LocationEntity(id = 2, name = "office", lat = 0.0, lng = 0.0),
+            LocationEntity(id = 1, name = "home", lat = 0.0, lng = 0.0),
+        )
+
+        assertEquals(LocationReading.Inside(listOf("home", "office")), subscribedContext(buildViewModel()).location)
+    }
+
+    @Test
+    fun `outside every registered geofence reads as outside`() = runTest(testDispatcher) {
+        registrationHealth.value = healthyRegistration()
+
+        assertEquals(LocationReading.Outside, subscribedContext(buildViewModel()).location)
+    }
+
+    @Test
+    fun `a recorded id whose location no longer exists reads as outside, not as a blank name`() = runTest(testDispatcher) {
+        registrationHealth.value = healthyRegistration()
+        currentLocationIds.value = setOf(9L)
+        coEvery { locationRepository.getByIds(setOf(9L)) } returns emptyList()
+
+        assertEquals(LocationReading.Outside, subscribedContext(buildViewModel()).location)
+    }
+
+    @Test
+    fun `unhealthy tracking shows the fault instead of a location`() = runTest(testDispatcher) {
+        registrationHealth.value = healthyRegistration().copy(backgroundLocationGranted = false)
+        currentLocationIds.value = setOf(1L)
+
+        assertEquals(
+            LocationReading.Tracking(LocationTrackingStatus.BackgroundLocationMissing),
+            subscribedContext(buildViewModel()).location,
+        )
+    }
+
+    @Test
+    fun `a failed position check shows the fault instead of a location`() = runTest(testDispatcher) {
+        registrationHealth.value = healthyRegistration()
+        reconciliationFailure.value = "TIMEOUT"
+
+        assertEquals(
+            LocationReading.Tracking(LocationTrackingStatus.LocationCheckFailed("TIMEOUT")),
+            subscribedContext(buildViewModel()).location,
+        )
+    }
+
+    @Test
+    fun `no saved locations reads as such rather than as outside`() = runTest(testDispatcher) {
+        registrationHealth.value = healthyRegistration(savedCount = 0)
+
+        assertEquals(LocationReading.Tracking(LocationTrackingStatus.NoLocations), subscribedContext(buildViewModel()).location)
+    }
+
+    @Test
+    fun `the location reading follows registration landing after the page opened`() = runTest(testDispatcher) {
+        val vm = buildViewModel()
+        assertEquals(LocationReading.Tracking(LocationTrackingStatus.Checking), subscribedContext(vm).location)
+
+        registrationHealth.value = healthyRegistration()
+        advanceUntilIdle()
+
+        assertEquals(LocationReading.Outside, vm.nowContext.value.location)
+    }
+
+    @Test
+    fun `a battery restriction read on resume shows as a fault`() = runTest(testDispatcher) {
+        registrationHealth.value = healthyRegistration()
+        val vm = buildViewModel()
+        assertEquals(LocationReading.Outside, subscribedContext(vm).location)
+
+        every { activityManager.isBackgroundRestricted } returns true
+        vm.refreshContext()
+        advanceUntilIdle()
+
+        assertEquals(LocationReading.Tracking(LocationTrackingStatus.BatteryRestricted), vm.nowContext.value.location)
     }
 }

@@ -26,6 +26,7 @@ import io.sentry.ScopeCallback
 import io.sentry.Sentry
 import io.sentry.protocol.SentryId
 import kotlinx.coroutines.test.runTest
+import net.interstellarai.unreminder.domain.model.ActivityBasis
 import net.interstellarai.unreminder.domain.model.ActivityMode
 import net.interstellarai.unreminder.domain.model.ActivityResolution
 import net.interstellarai.unreminder.domain.model.ActivityState
@@ -88,7 +89,10 @@ class ActivityRecognitionManagerTest {
 
     @Test
     fun `no observation resolves to sitting with no age`() {
-        assertEquals(ActivityResolution(sitting, null), ActivityRecognitionManager.resolve(null, now))
+        assertEquals(
+            ActivityResolution(sitting, null, ActivityBasis.ASSUMED),
+            ActivityRecognitionManager.resolve(null, now),
+        )
     }
 
     @Test
@@ -118,10 +122,20 @@ class ActivityRecognitionManagerTest {
     }
 
     @Test
-    fun `unknown and tilting fall back to sitting`() {
+    fun `unknown and tilting fall back to sitting as an assumption`() {
         for (type in listOf(DetectedActivity.UNKNOWN, DetectedActivity.TILTING)) {
-            assertEquals(sitting, ActivityRecognitionManager.resolve(observed(type), now).state)
+            assertEquals(
+                ActivityResolution(sitting, Duration.ZERO, ActivityBasis.ASSUMED),
+                ActivityRecognitionManager.resolve(observed(type), now),
+            )
         }
+    }
+
+    @Test
+    fun `a fresh still observation is sitting on evidence, not assumption`() {
+        val resolution = ActivityRecognitionManager.resolve(observed(DetectedActivity.STILL), now)
+
+        assertEquals(ActivityResolution(sitting, Duration.ZERO, ActivityBasis.OBSERVED), resolution)
     }
 
     @Test
@@ -130,7 +144,7 @@ class ActivityRecognitionManagerTest {
 
         val resolution = ActivityRecognitionManager.resolve(observed(DetectedActivity.ON_BICYCLE, now.minus(age)), now)
 
-        assertEquals(ActivityResolution(sitting, age), resolution)
+        assertEquals(ActivityResolution(sitting, age, ActivityBasis.ASSUMED), resolution)
     }
 
     @Test
@@ -208,7 +222,7 @@ class ActivityRecognitionManagerTest {
         mgr.recordTransition(DetectedActivity.ON_BICYCLE, ActivityTransition.ACTIVITY_TRANSITION_ENTER)
         shadowOf(context as Application).denyPermissions(Manifest.permission.ACTIVITY_RECOGNITION)
 
-        assertEquals(ActivityResolution(sitting, null), mgr.resolve())
+        assertEquals(ActivityResolution(sitting, null, ActivityBasis.PERMISSION_DENIED), mgr.resolve())
     }
 
     @Test

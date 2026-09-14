@@ -18,7 +18,7 @@ The app needs surfaces the user can pull from when they have a moment, a win sma
 
 ## What
 
-**A doable-now menu.** A surface that offers 3 habits the user could act on right now, drawn at random from those currently eligible. A "load more" control draws 3 more from the remaining eligible habits, and stops offering itself once the eligible set is exhausted. When nothing is eligible, the surface says why rather than showing an empty list. Completing a habit from the menu counts exactly as completing it from a notification: same effect on daily limits, cooldowns, dedication level and counters.
+**A doable-now menu.** A surface that offers 3 habits the user could act on right now, drawn at random from those currently eligible. A "load more" control draws 3 more from the remaining eligible habits, and stops offering itself once the eligible set is exhausted. When nothing is eligible, the surface says why rather than showing an empty list. The menu's header states the two sensed inputs that filtered it — the resolved activity mode and the resolved location — read through the same resolution the fire-time pipeline uses, so the list is never filtered by something the user cannot see. An assumed activity (nothing observed, a stale observation, or the permission denied) is marked as such rather than shown as a plain "sitting", cycling is shown as the state that holds nudges back, and where location tracking is unhealthy its fault stands in for a location name. Both readings refresh whenever the page is resumed. Completing a habit from the menu counts exactly as completing it from a notification: same effect on daily limits, cooldowns, dedication level and counters.
 
 **Three growth counters.** Numbers that only ever increase, never reset, and are never broken by a day where nothing happened: (1) the number of days on which any habit was completed, (2) per habit, the number of days on which that habit was completed, (3) per habit, the total number of times it has been completed. Every completion, from any surface, moves the first counter for the day and both of that habit's counters. There are no streaks, no freezes, and no penalty for an empty day. The overall counter is visible on the menu; the per-habit pair is visible on the habit.
 
@@ -38,3 +38,4 @@ The app needs surfaces the user can pull from when they have a moment, a win sma
 - #293 — Doable-now menu screen: 3 random eligible habits with load more
 - #294 — Evening invitation notification on days with no completions
 - #295 — Home-screen widget: one doable habit, one action, 30-minute refresh
+- #399 — Now page: show resolved activity mode and current location

@@ -25,4 +25,5 @@ object Dimens {
     val fabSize = 44.dp
     val navPillWidth = 108.dp
     val navPillHeight = 4.dp
+    val contextLabel = 80.dp
 }

@@ -13,6 +13,7 @@ import com.google.android.gms.location.LocationSettingsStatusCodes
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.db.LocationEntity
 import net.interstellarai.unreminder.domain.DisplayTier
+import net.interstellarai.unreminder.domain.model.ActivityMode
 import net.interstellarai.unreminder.service.geofence.GeofenceRegistration
 import net.interstellarai.unreminder.service.geofence.LocationCheck
 import net.interstellarai.unreminder.service.geofence.LocationSetChangeCause
@@ -25,6 +26,9 @@ import net.interstellarai.unreminder.ui.habit.HabitListContent
 import net.interstellarai.unreminder.ui.location.LocationContent
 import net.interstellarai.unreminder.ui.location.LocationRow
 import net.interstellarai.unreminder.ui.location.RecalculationState
+import net.interstellarai.unreminder.ui.now.ActivityReading
+import net.interstellarai.unreminder.ui.now.LocationReading
+import net.interstellarai.unreminder.ui.now.NowContext
 import net.interstellarai.unreminder.ui.now.NowMenuContent
 import net.interstellarai.unreminder.ui.now.NowMenuItem
 import net.interstellarai.unreminder.ui.now.NowMenuUiState
@@ -133,6 +137,8 @@ class PhoneScreenshotTest {
                 NowMenuContent(
                     uiState = fakeNowMenu,
                     daysWithAnyCompletion = 12,
+                    nowContext = fakeNowContext,
+                    onRequestActivityPermission = {},
                     onComplete = {},
                     onLoadMore = {},
                     onAddHabit = {},
@@ -166,6 +172,8 @@ class PhoneScreenshotTest {
                 NowMenuContent(
                     uiState = fakeRankedLowerNowMenu,
                     daysWithAnyCompletion = 12,
+                    nowContext = fakeFallbackNowContext,
+                    onRequestActivityPermission = {},
                     onComplete = {},
                     onLoadMore = {},
                     onAddHabit = {},
@@ -190,12 +198,71 @@ class PhoneScreenshotTest {
             }
         }
     }
+
+    @Test
+    fun phone_8() {
+        paparazzi.snapshot {
+            UnReminderTheme {
+                NowMenuContent(
+                    uiState = fakeNowMenu,
+                    daysWithAnyCompletion = 12,
+                    nowContext = fakeCyclingNowContext,
+                    onRequestActivityPermission = {},
+                    onComplete = {},
+                    onLoadMore = {},
+                    onAddHabit = {},
+                    onNavigateToFeedback = {},
+                )
+            }
+        }
+    }
+
+    @Test
+    fun phone_9() {
+        paparazzi.snapshot {
+            UnReminderTheme {
+                NowMenuContent(
+                    uiState = fakeNowMenu,
+                    daysWithAnyCompletion = 12,
+                    nowContext = fakePermissionDeniedNowContext,
+                    onRequestActivityPermission = {},
+                    onComplete = {},
+                    onLoadMore = {},
+                    onAddHabit = {},
+                    onNavigateToFeedback = {},
+                )
+            }
+        }
+    }
 }
 
 internal val fakeHabits = listOf(
     HabitEntity(id = 1, name = "meditation", dedicationLevel = 3, active = true),
     HabitEntity(id = 2, name = "exercise", dedicationLevel = 2, active = true),
     HabitEntity(id = 3, name = "reading", dedicationLevel = 1, active = false),
+)
+
+internal val fakeNowContext = NowContext(
+    activity = ActivityReading.Observed(ActivityMode.SITTING),
+    location = LocationReading.Inside(listOf("home")),
+)
+
+// The fallback readings, so the assumed marker and the fault tone are pinned by a golden.
+internal val fakeFallbackNowContext = NowContext(
+    activity = ActivityReading.Assumed(ActivityMode.SITTING),
+    location = LocationReading.Tracking(LocationTrackingStatus.BackgroundLocationMissing),
+)
+
+// The two activity readings that are neither a mode nor its fallback: the cycling hold and
+// the denied permission in the error tone. Phone only — the wording does not vary by device.
+internal val fakeCyclingNowContext = NowContext(
+    activity = ActivityReading.Cycling,
+    location = LocationReading.Outside,
+)
+
+internal val fakePermissionDeniedNowContext = NowContext(
+    activity = ActivityReading.PermissionDenied,
+    location = LocationReading.Inside(listOf("home")),
 )
 
 internal val fakeNowMenu = NowMenuUiState.Menu(

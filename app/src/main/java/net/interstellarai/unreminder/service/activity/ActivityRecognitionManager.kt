@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
+import net.interstellarai.unreminder.domain.model.ActivityBasis
 import net.interstellarai.unreminder.domain.model.ActivityMode
 import net.interstellarai.unreminder.domain.model.ActivityResolution
 import net.interstellarai.unreminder.domain.model.ActivityState
@@ -52,31 +53,26 @@ class ActivityRecognitionManager @Inject constructor(
         // settles must not hold the rest of start-up.
         private const val PLAY_SERVICES_TIMEOUT_MS = 30_000L
 
-        private val TRACKED_ACTIVITIES = listOf(
-            DetectedActivity.WALKING,
-            DetectedActivity.RUNNING,
-            DetectedActivity.STILL,
-            DetectedActivity.IN_VEHICLE,
-            DetectedActivity.ON_BICYCLE,
-        )
-
         private val SITTING = ActivityState.Mode(ActivityMode.SITTING)
+
+        // Also the subscription list, so a subscribed activity can never arrive unrecognised.
+        private val TRACKED_ACTIVITIES: Map<Int, ActivityState> = mapOf(
+            DetectedActivity.WALKING to ActivityState.Mode(ActivityMode.WALKING),
+            DetectedActivity.RUNNING to ActivityState.Mode(ActivityMode.WALKING),
+            DetectedActivity.STILL to SITTING,
+            DetectedActivity.IN_VEHICLE to ActivityState.Mode(ActivityMode.TRANSPORT),
+            DetectedActivity.ON_BICYCLE to ActivityState.Cycling,
+        )
 
         internal fun resolve(observation: ActivityObservation?, now: Instant): ActivityResolution {
             observation ?: return ActivityResolution(SITTING, null)
             val age = maxOf(Duration.ZERO, Duration.between(observation.at, now))
-            if (age > STALENESS_WINDOW) return ActivityResolution(SITTING, age)
-            return ActivityResolution(stateOf(observation.activityType), age)
-        }
-
-        private fun stateOf(activityType: Int): ActivityState = when (activityType) {
-            DetectedActivity.WALKING, DetectedActivity.RUNNING -> ActivityState.Mode(ActivityMode.WALKING)
-            DetectedActivity.STILL -> SITTING
-            DetectedActivity.IN_VEHICLE -> ActivityState.Mode(ActivityMode.TRANSPORT)
-            DetectedActivity.ON_BICYCLE -> ActivityState.Cycling
+            if (age > STALENESS_WINDOW) return ActivityResolution(SITTING, age, ActivityBasis.ASSUMED)
             // Sitting is the common case; a state that matched no habit would make the app
             // look broken rather than quiet whenever the platform is unsure.
-            else -> SITTING
+            val state = TRACKED_ACTIVITIES[observation.activityType]
+                ?: return ActivityResolution(SITTING, age, ActivityBasis.ASSUMED)
+            return ActivityResolution(state, age)
         }
     }
 
@@ -122,7 +118,8 @@ class ActivityRecognitionManager @Inject constructor(
      * observation unreachable rather than merely old, so it answers the fallback outright.
      */
     fun resolve(): ActivityResolution =
-        if (hasPermission()) resolve(_lastObservation.value, Instant.now()) else ActivityResolution(SITTING, null)
+        if (hasPermission()) resolve(_lastObservation.value, Instant.now())
+        else ActivityResolution(SITTING, null, ActivityBasis.PERMISSION_DENIED)
 
     /**
      * Subscribes to enter and exit for every tracked activity. Play Services drops the
@@ -163,7 +160,7 @@ class ActivityRecognitionManager @Inject constructor(
             ActivityTransition.ACTIVITY_TRANSITION_EXIT,
         )
         return ActivityTransitionRequest(
-            TRACKED_ACTIVITIES.flatMap { activity ->
+            TRACKED_ACTIVITIES.keys.flatMap { activity ->
                 transitionTypes.map { transition ->
                     ActivityTransition.Builder()
                         .setActivityType(activity)
