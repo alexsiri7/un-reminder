@@ -7,7 +7,7 @@ sealed interface ReminderDetailTarget {
 
     /**
      * A pull-sourced row from the Now page or the widget. No trigger exists: opening records
-     * nothing, and completing inserts a COMPLETED trigger through [PullCompletionRecorder]
+     * nothing, and completing inserts a COMPLETED trigger through [net.interstellarai.unreminder.widget.PullCompletionRecorder]
      * exactly as "did it" on the row does. A null [variationId] is the level-description
      * fallback row.
      */

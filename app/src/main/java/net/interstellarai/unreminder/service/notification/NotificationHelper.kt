@@ -40,6 +40,11 @@ class NotificationHelper @Inject constructor(
         const val EXTRA_OPEN_TIMER = "open_timer"
         const val EXTRA_OPEN_DETAIL = "open_detail"
         const val EXTRA_OPEN_NOW = "open_now"
+        // The widget's card opens the variant view for the habit it shows; there is no
+        // trigger, so the habit and variation ids travel instead of EXTRA_TRIGGER_ID.
+        const val EXTRA_OPEN_VARIANT = "open_variant"
+        const val EXTRA_HABIT_ID = "habit_id"
+        const val EXTRA_VARIATION_ID = "variation_id"
         // The widget also opens the Now menu; only the invitation's own taps may clear it.
         const val EXTRA_FROM_EVENING_INVITATION = "from_evening_invitation"
         // Content intent base — above the retired * 3 action-intent range.
