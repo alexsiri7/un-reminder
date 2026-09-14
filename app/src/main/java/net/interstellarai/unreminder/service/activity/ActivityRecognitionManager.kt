@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withTimeoutOrNull
+import net.interstellarai.unreminder.domain.model.ActivityBasis
 import net.interstellarai.unreminder.domain.model.ActivityMode
 import net.interstellarai.unreminder.domain.model.ActivityResolution
 import net.interstellarai.unreminder.domain.model.ActivityState
@@ -65,18 +66,20 @@ class ActivityRecognitionManager @Inject constructor(
         internal fun resolve(observation: ActivityObservation?, now: Instant): ActivityResolution {
             observation ?: return ActivityResolution(SITTING, null)
             val age = maxOf(Duration.ZERO, Duration.between(observation.at, now))
-            if (age > STALENESS_WINDOW) return ActivityResolution(SITTING, age)
-            return ActivityResolution(stateOf(observation.activityType), age)
+            if (age > STALENESS_WINDOW) return ActivityResolution(SITTING, age, ActivityBasis.ASSUMED)
+            // Sitting is the common case; a state that matched no habit would make the app
+            // look broken rather than quiet whenever the platform is unsure.
+            val state = stateOf(observation.activityType)
+                ?: return ActivityResolution(SITTING, age, ActivityBasis.ASSUMED)
+            return ActivityResolution(state, age)
         }
 
-        private fun stateOf(activityType: Int): ActivityState = when (activityType) {
+        private fun stateOf(activityType: Int): ActivityState? = when (activityType) {
             DetectedActivity.WALKING, DetectedActivity.RUNNING -> ActivityState.Mode(ActivityMode.WALKING)
             DetectedActivity.STILL -> SITTING
             DetectedActivity.IN_VEHICLE -> ActivityState.Mode(ActivityMode.TRANSPORT)
             DetectedActivity.ON_BICYCLE -> ActivityState.Cycling
-            // Sitting is the common case; a state that matched no habit would make the app
-            // look broken rather than quiet whenever the platform is unsure.
-            else -> SITTING
+            else -> null
         }
     }
 
@@ -122,7 +125,8 @@ class ActivityRecognitionManager @Inject constructor(
      * observation unreachable rather than merely old, so it answers the fallback outright.
      */
     fun resolve(): ActivityResolution =
-        if (hasPermission()) resolve(_lastObservation.value, Instant.now()) else ActivityResolution(SITTING, null)
+        if (hasPermission()) resolve(_lastObservation.value, Instant.now())
+        else ActivityResolution(SITTING, null, ActivityBasis.PERMISSION_DENIED)
 
     /**
      * Subscribes to enter and exit for every tracked activity. Play Services drops the

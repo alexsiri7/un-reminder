@@ -112,6 +112,8 @@ class Tablet7ScreenshotTest {
                 NowMenuContent(
                     uiState = fakeNowMenu,
                     daysWithAnyCompletion = 12,
+                    nowContext = fakeNowContext,
+                    onRequestActivityPermission = {},
                     onComplete = {},
                     onLoadMore = {},
                     onAddHabit = {},
@@ -145,6 +147,8 @@ class Tablet7ScreenshotTest {
                 NowMenuContent(
                     uiState = fakeRankedLowerNowMenu,
                     daysWithAnyCompletion = 12,
+                    nowContext = fakeFallbackNowContext,
+                    onRequestActivityPermission = {},
                     onComplete = {},
                     onLoadMore = {},
                     onAddHabit = {},
