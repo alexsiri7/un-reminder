@@ -55,8 +55,7 @@ class ActivityRecognitionManager @Inject constructor(
 
         private val SITTING = ActivityState.Mode(ActivityMode.SITTING)
 
-        // One table answers both what Play Services is asked to track and what a delivered
-        // type means, so a subscribed activity can never arrive as an unrecognised one.
+        // Also the subscription list, so a subscribed activity can never arrive unrecognised.
         private val TRACKED_ACTIVITIES: Map<Int, ActivityState> = mapOf(
             DetectedActivity.WALKING to ActivityState.Mode(ActivityMode.WALKING),
             DetectedActivity.RUNNING to ActivityState.Mode(ActivityMode.WALKING),
