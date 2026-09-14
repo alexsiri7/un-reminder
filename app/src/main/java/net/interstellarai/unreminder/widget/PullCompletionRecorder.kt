@@ -1,5 +1,7 @@
 package net.interstellarai.unreminder.widget
 
+import android.util.Log
+import kotlinx.coroutines.CancellationException
 import net.interstellarai.unreminder.data.db.TriggerEntity
 import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
@@ -22,6 +24,9 @@ class PullCompletionRecorder @Inject constructor(
     /**
      * [variationId] is the variant that was showing, so it is consumed and not shown again;
      * [source] is stamped on the trigger as [TriggerEntity.source].
+     *
+     * Throws only when the trigger was not written. A failure after that is logged instead,
+     * so a caller that offers a retry never inserts a second COMPLETED trigger for one tap.
      */
     suspend fun complete(habitId: Long, variationId: Long?, source: String) {
         val now = Instant.now()
@@ -34,11 +39,17 @@ class PullCompletionRecorder @Inject constructor(
                 source = source,
             )
         )
-        dismissalTracker.onCompleted(triggerId)
-        variationId?.let { variationRepository.markConsumed(it) }
+        try {
+            dismissalTracker.onCompleted(triggerId)
+            variationId?.let { variationRepository.markConsumed(it) }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Log.e(TAG, "Failed to finish $source completion $triggerId", e)
+        }
     }
 
     companion object {
         const val SOURCE_WIDGET = "widget"
+        private const val TAG = "PullCompletionRecorder"
     }
 }

@@ -5,6 +5,7 @@ import io.mockk.coVerify
 import io.mockk.coVerifyOrder
 import io.mockk.mockk
 import io.mockk.slot
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import net.interstellarai.unreminder.data.db.TriggerEntity
 import net.interstellarai.unreminder.data.repository.TriggerRepository
@@ -12,6 +13,7 @@ import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.trigger.DismissalTracker
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class PullCompletionRecorderTest {
@@ -61,11 +63,24 @@ class PullCompletionRecorderTest {
     }
 
     @Test
-    fun `a failed trigger insert consumes nothing`() = runTest {
+    fun `a failed trigger insert escapes and consumes nothing`() = runTest {
         coEvery { triggerRepository.insert(any()) } throws IllegalStateException("disk full")
 
-        runCatching { recorder.complete(5L, 50L, PullCompletionRecorder.SOURCE_WIDGET) }
+        assertThrows(IllegalStateException::class.java) {
+            runBlocking { recorder.complete(5L, 50L, PullCompletionRecorder.SOURCE_WIDGET) }
+        }
 
+        coVerify(exactly = 0) { dismissalTracker.onCompleted(any()) }
         coVerify(exactly = 0) { variationRepository.markConsumed(any()) }
+    }
+
+    @Test
+    fun `a failure after the trigger is written does not escape as if nothing were written`() = runTest {
+        coEvery { triggerRepository.insert(any()) } returns 99L
+        coEvery { dismissalTracker.onCompleted(99L) } throws IllegalStateException("disk full")
+
+        recorder.complete(5L, 50L, PullCompletionRecorder.SOURCE_WIDGET)
+
+        coVerify(exactly = 1) { triggerRepository.insert(any()) }
     }
 }
