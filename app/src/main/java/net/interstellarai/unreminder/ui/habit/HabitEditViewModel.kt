@@ -232,20 +232,19 @@ class HabitEditViewModel @Inject constructor(
             val existing = existingHabit
             val habitId: Long
             try {
-                habitId = if (existing != null) {
-                    habitRepository.update(
-                        existing.copy(
-                            name = state.name,
-                            descriptionLadder = state.descriptionLadder,
-                            dedicationLevel = state.dedicationLevel,
-                            autoAdjustLevel = state.autoAdjustLevel,
-                            dailyLimit = state.dailyLimit,
-                            cooldownMinutes = state.cooldownMinutes,
-                            supportedModes = state.selectedModes,
-                            active = state.active
-                        )
-                    )
-                    existing.id
+                val updated = existing?.copy(
+                    name = state.name,
+                    descriptionLadder = state.descriptionLadder,
+                    dedicationLevel = state.dedicationLevel,
+                    autoAdjustLevel = state.autoAdjustLevel,
+                    dailyLimit = state.dailyLimit,
+                    cooldownMinutes = state.cooldownMinutes,
+                    supportedModes = state.selectedModes,
+                    active = state.active
+                )
+                habitId = if (updated != null) {
+                    habitRepository.update(updated)
+                    updated.id
                 } else {
                     habitRepository.insert(
                         HabitEntity(
@@ -262,6 +261,9 @@ class HabitEditViewModel @Inject constructor(
                 }
                 habitRepository.setLocations(habitId, state.selectedLocationIds)
                 habitRepository.setWindows(habitId, state.selectedWindowIds)
+                // Advance the snapshot only once the whole save landed, so a retry after a
+                // partial failure still sees the same transitions and schedules the same work.
+                if (updated != null) existingHabit = updated
                 _uiState.value = _uiState.value.copy(isSaved = true)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
@@ -273,9 +275,14 @@ class HabitEditViewModel @Inject constructor(
             // Post-save refill scheduling — best-effort, does not affect isSaved
             try {
                 if (existing != null) {
+                    val reactivated = !existing.active && state.active
                     val promptChanged = existing.name != state.name ||
                         existing.descriptionLadder != state.descriptionLadder
-                    if (promptChanged) {
+                    if (reactivated) {
+                        // Generate-then-swap: the old pool keeps firing until the new batch lands,
+                        // and stays if generation fails — a reactivated habit is never left empty.
+                        refillScheduler.enqueueRegenerate(habitId)
+                    } else if (promptChanged) {
                         variationRepository.deleteForHabit(habitId)
                         refillScheduler.enqueueForHabit(habitId)
                     }

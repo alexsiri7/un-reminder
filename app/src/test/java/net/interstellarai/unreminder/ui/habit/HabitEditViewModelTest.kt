@@ -22,6 +22,8 @@ import net.interstellarai.unreminder.service.worker.RefillScheduler
 import net.interstellarai.unreminder.service.worker.SpendCapExceededException
 import net.interstellarai.unreminder.service.worker.WorkerAuthException
 import net.interstellarai.unreminder.service.worker.WorkerError
+import io.mockk.Runs
+import io.mockk.andThenJust
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -411,6 +413,7 @@ class HabitEditViewModelTest {
 
         coVerify(exactly = 0) { mockVariationRepository.deleteForHabit(any()) }
         coVerify(exactly = 0) { mockRefillScheduler.enqueueForHabit(any()) }
+        coVerify(exactly = 0) { mockRefillScheduler.enqueueRegenerate(any()) }
         assertTrue(viewModel.uiState.value.isSaved)
     }
 
@@ -451,6 +454,122 @@ class HabitEditViewModelTest {
         coVerify(exactly = 0) { mockRefillScheduler.enqueueForHabit(any()) }
         assertTrue(viewModel.uiState.value.isSaved)
     }
+
+    // --- save: regenerate on reactivation ---
+
+    @Test
+    fun `save enqueues regenerate when habit is reactivated`() = runTest(testDispatcher) {
+        coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit.copy(active = false))
+        coEvery { mockHabitRepository.update(any()) } returns Unit
+
+        viewModel.loadHabit(testHabit.id)
+        advanceUntilIdle()
+        viewModel.updateActive(true)
+
+        viewModel.save()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { mockRefillScheduler.enqueueRegenerate(testHabit.id) }
+        coVerify(exactly = 0) { mockVariationRepository.deleteForHabit(any()) }
+        coVerify(exactly = 0) { mockRefillScheduler.enqueueForHabit(any()) }
+        assertTrue(viewModel.uiState.value.isSaved)
+    }
+
+    @Test
+    fun `save does not regenerate when deactivating a habit`() = runTest(testDispatcher) {
+        coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit)
+        coEvery { mockHabitRepository.update(any()) } returns Unit
+
+        viewModel.loadHabit(testHabit.id)
+        advanceUntilIdle()
+        viewModel.updateActive(false)
+
+        viewModel.save()
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { mockRefillScheduler.enqueueRegenerate(any()) }
+        coVerify(exactly = 0) { mockRefillScheduler.enqueueForHabit(any()) }
+        coVerify(exactly = 0) { mockVariationRepository.deleteForHabit(any()) }
+        assertTrue(viewModel.uiState.value.isSaved)
+    }
+
+    @Test
+    fun `save keeps a still-inactive habit's pool untouched`() = runTest(testDispatcher) {
+        coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit.copy(active = false))
+        coEvery { mockHabitRepository.update(any()) } returns Unit
+
+        viewModel.loadHabit(testHabit.id)
+        advanceUntilIdle()
+
+        viewModel.save()
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { mockRefillScheduler.enqueueRegenerate(any()) }
+        coVerify(exactly = 0) { mockRefillScheduler.enqueueForHabit(any()) }
+        coVerify(exactly = 0) { mockVariationRepository.deleteForHabit(any()) }
+        assertTrue(viewModel.uiState.value.isSaved)
+    }
+
+    @Test
+    fun `save regenerates instead of deleting the pool when reactivation and prompt change coincide`() =
+        runTest(testDispatcher) {
+            coEvery { mockHabitRepository.getById(testHabit.id) } returns
+                flowOf(testHabit.copy(name = "OLD NAME", active = false))
+            coEvery { mockHabitRepository.update(any()) } returns Unit
+
+            viewModel.loadHabit(testHabit.id)
+            advanceUntilIdle()
+            viewModel.updateActive(true)
+            viewModel.updateName("meditation")
+
+            viewModel.save()
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { mockRefillScheduler.enqueueRegenerate(testHabit.id) }
+            coVerify(exactly = 0) { mockVariationRepository.deleteForHabit(any()) }
+            coVerify(exactly = 0) { mockRefillScheduler.enqueueForHabit(any()) }
+            assertTrue(viewModel.uiState.value.isSaved)
+        }
+
+    @Test
+    fun `second save after reactivation does not regenerate again`() = runTest(testDispatcher) {
+        coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit.copy(active = false))
+        coEvery { mockHabitRepository.update(any()) } returns Unit
+
+        viewModel.loadHabit(testHabit.id)
+        advanceUntilIdle()
+        viewModel.updateActive(true)
+
+        viewModel.save()
+        advanceUntilIdle()
+        viewModel.save()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { mockRefillScheduler.enqueueRegenerate(testHabit.id) }
+        coVerify(exactly = 0) { mockVariationRepository.deleteForHabit(any()) }
+    }
+
+    @Test
+    fun `save keeps the transition pending when setWindows fails before the snapshot advances`() =
+        runTest(testDispatcher) {
+            coEvery { mockHabitRepository.getById(testHabit.id) } returns flowOf(testHabit.copy(active = false))
+            coEvery { mockHabitRepository.update(any()) } returns Unit
+            coEvery { mockHabitRepository.setWindows(any(), any()) } throws RuntimeException("db error") andThenJust Runs
+
+            viewModel.loadHabit(testHabit.id)
+            advanceUntilIdle()
+            viewModel.updateActive(true)
+
+            viewModel.save()
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.isSaved)
+            coVerify(exactly = 0) { mockRefillScheduler.enqueueRegenerate(any()) }
+
+            viewModel.save()
+            advanceUntilIdle()
+            assertTrue(viewModel.uiState.value.isSaved)
+            coVerify(exactly = 1) { mockRefillScheduler.enqueueRegenerate(testHabit.id) }
+        }
 
     @Test
     fun `loadHabit sets errorMessage when repository throws`() = runTest(testDispatcher) {
