@@ -62,9 +62,10 @@ class RefillWorkerTest {
         every { personalContext } returns flowOf("")
     }
 
-    private fun createWorker(habitId: Long = 1L): RefillWorker {
+    private fun createWorker(habitId: Long = 1L, replace: Boolean = false): RefillWorker {
         val inputData = Data.Builder()
             .putLong(RefillWorker.KEY_HABIT_ID, habitId)
+            .putBoolean(RefillWorker.KEY_REPLACE, replace)
             .build()
         every { mockWorkerParams.inputData } returns inputData
         return RefillWorker(
@@ -111,8 +112,24 @@ class RefillWorkerTest {
                 entities.size == 2
                     && entities[0].text == "variant 1" && entities[0].actionUrl == null && entities[0].shape == VariantShape.QUESTION
                     && entities[1].text == "variant 2" && entities[1].actionUrl == "https://youtube.com/results?search_query=test" && entities[1].shape == VariantShape.TIMEBOXED
-            })
+            }, false)
         }
+    }
+
+    @Test
+    fun `doWork passes the replace flag through to the repository`() = runTest {
+        coEvery { mockHabitRepository.getByIdOnce(1L) } returns HabitEntity(id = 1L, name = "Meditate")
+        coEvery {
+            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } returns GeneratedBatch(
+            listOf(GeneratedVariant(text = "variant 1", shape = VariantShape.QUESTION, modes = emptySet(), actionUrl = null, spriteTag = null)),
+            generationVersion = 3,
+        )
+
+        val result = createWorker(replace = true).doWork()
+
+        assertEquals(Result.success(), result)
+        coVerify(exactly = 1) { mockVariationRepository.refill(1L, 3, any(), true) }
     }
 
     @Test

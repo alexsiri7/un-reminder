@@ -57,6 +57,10 @@ interface VariationDao {
     @Query("DELETE FROM variations WHERE habit_id = :habitId AND consumed_at IS NULL AND generation_version != :version")
     suspend fun deleteUnusedNotAtVersion(habitId: Long, version: Int)
 
+    /** Removes the whole unconsumed pool for [habitId], whatever version it was generated under. */
+    @Query("DELETE FROM variations WHERE habit_id = :habitId AND consumed_at IS NULL")
+    suspend fun deleteUnusedByHabit(habitId: Long)
+
     /**
      * Active habits whose pool — its unconsumed rows — holds anything generated under a
      * version other than [version]. Consumed rows are history, not the pool, so a habit

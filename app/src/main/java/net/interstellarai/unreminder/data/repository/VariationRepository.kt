@@ -89,15 +89,28 @@ class VariationRepository @Inject constructor(
      * the new one and never the gap between. A batch from a Worker that reports no version
      * only tops up: absent is not "everything is stale". An empty batch has nothing to swap in,
      * so it sweeps nothing: the stale pool stays usable until a real batch lands.
+     *
+     * With [replace] (a manual regenerate, #402) the whole unconsumed pool goes regardless of
+     * version — still only for a non-empty batch, still in the same transaction. The most
+     * recently consumed row survives either way, so a new row repeating its text under the same
+     * fingerprint is dropped by the unique index; at most one of the batch, and tolerable.
      */
-    suspend fun refill(habitId: Long, generationVersion: Int, variants: List<VariationEntity>) =
-        db.withTransaction {
-            if (generationVersion != VariationEntity.UNVERSIONED && variants.isNotEmpty()) {
+    suspend fun refill(
+        habitId: Long,
+        generationVersion: Int,
+        variants: List<VariationEntity>,
+        replace: Boolean = false,
+    ) = db.withTransaction {
+        if (variants.isNotEmpty()) {
+            if (replace) {
+                dao.deleteUnusedByHabit(habitId)
+            } else if (generationVersion != VariationEntity.UNVERSIONED) {
                 dao.deleteUnusedNotAtVersion(habitId, generationVersion)
             }
-            dao.deleteConsumedByHabit(habitId)
-            dao.insert(variants)
         }
+        dao.deleteConsumedByHabit(habitId)
+        dao.insert(variants)
+    }
 
     /** Active habits whose pool was generated under a version other than [generationVersion]. */
     suspend fun habitIdsNeedingRegeneration(generationVersion: Int): List<Long> =
