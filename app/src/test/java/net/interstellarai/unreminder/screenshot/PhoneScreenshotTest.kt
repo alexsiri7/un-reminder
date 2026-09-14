@@ -198,6 +198,42 @@ class PhoneScreenshotTest {
             }
         }
     }
+
+    @Test
+    fun phone_8() {
+        paparazzi.snapshot {
+            UnReminderTheme {
+                NowMenuContent(
+                    uiState = fakeNowMenu,
+                    daysWithAnyCompletion = 12,
+                    nowContext = fakeCyclingNowContext,
+                    onRequestActivityPermission = {},
+                    onComplete = {},
+                    onLoadMore = {},
+                    onAddHabit = {},
+                    onNavigateToFeedback = {},
+                )
+            }
+        }
+    }
+
+    @Test
+    fun phone_9() {
+        paparazzi.snapshot {
+            UnReminderTheme {
+                NowMenuContent(
+                    uiState = fakeNowMenu,
+                    daysWithAnyCompletion = 12,
+                    nowContext = fakePermissionDeniedNowContext,
+                    onRequestActivityPermission = {},
+                    onComplete = {},
+                    onLoadMore = {},
+                    onAddHabit = {},
+                    onNavigateToFeedback = {},
+                )
+            }
+        }
+    }
 }
 
 internal val fakeHabits = listOf(
@@ -215,6 +251,18 @@ internal val fakeNowContext = NowContext(
 internal val fakeFallbackNowContext = NowContext(
     activity = ActivityReading.Assumed(ActivityMode.SITTING),
     location = LocationReading.Tracking(LocationTrackingStatus.BackgroundLocationMissing),
+)
+
+// The two activity readings that are neither a mode nor its fallback: the cycling hold and
+// the denied permission in the error tone. Phone only — the wording does not vary by device.
+internal val fakeCyclingNowContext = NowContext(
+    activity = ActivityReading.Cycling,
+    location = LocationReading.Outside,
+)
+
+internal val fakePermissionDeniedNowContext = NowContext(
+    activity = ActivityReading.PermissionDenied,
+    location = LocationReading.Inside(listOf("home")),
 )
 
 internal val fakeNowMenu = NowMenuUiState.Menu(
