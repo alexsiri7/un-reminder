@@ -13,11 +13,16 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.db.TriggerEntity
+import net.interstellarai.unreminder.data.db.VariationEntity
+import net.interstellarai.unreminder.data.repository.HabitLevelDescriptionRepository
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.TriggerRepository
+import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
+import net.interstellarai.unreminder.domain.model.VariantShape
 import net.interstellarai.unreminder.service.notification.NotificationHelper
 import net.interstellarai.unreminder.service.trigger.DismissalTracker
+import net.interstellarai.unreminder.widget.PullCompletionRecorder
 import net.interstellarai.unreminder.widget.WidgetRefresher
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -34,9 +39,12 @@ class ReminderDetailViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var triggerRepository: TriggerRepository
     private lateinit var habitRepository: HabitRepository
+    private lateinit var variationRepository: VariationRepository
+    private lateinit var levelDescriptionRepository: HabitLevelDescriptionRepository
     private lateinit var dismissalTracker: DismissalTracker
     private lateinit var notificationHelper: NotificationHelper
     private lateinit var widgetRefresher: WidgetRefresher
+    private lateinit var completionRecorder: PullCompletionRecorder
     private lateinit var viewModel: ReminderDetailViewModel
 
     @Before
@@ -44,12 +52,23 @@ class ReminderDetailViewModelTest {
         Dispatchers.setMain(testDispatcher)
         triggerRepository = mockk(relaxUnitFun = true)
         habitRepository = mockk(relaxUnitFun = true)
+        variationRepository = mockk(relaxUnitFun = true)
+        levelDescriptionRepository = mockk(relaxUnitFun = true)
         dismissalTracker = mockk(relaxUnitFun = true)
         notificationHelper = mockk(relaxUnitFun = true)
         widgetRefresher = mockk(relaxUnitFun = true)
+        completionRecorder = mockk(relaxUnitFun = true)
         coEvery { triggerRepository.recordOutcome(any(), any()) } returns true
         viewModel = ReminderDetailViewModel(
-            triggerRepository, habitRepository, dismissalTracker, notificationHelper, widgetRefresher, testDispatcher
+            triggerRepository,
+            habitRepository,
+            variationRepository,
+            levelDescriptionRepository,
+            dismissalTracker,
+            notificationHelper,
+            widgetRefresher,
+            completionRecorder,
+            testDispatcher,
         )
     }
 
@@ -74,6 +93,21 @@ class ReminderDetailViewModelTest {
 
     private fun makeHabit(id: Long = 1L, name: String = "Meditate", level: Int = 3) =
         HabitEntity(id = id, name = name, dedicationLevel = level)
+
+    private fun makeVariation(
+        text: String = "breathe slowly",
+        actionUrl: String? = null,
+        consumedAt: Instant? = null,
+    ) = VariationEntity(
+        id = 11L,
+        habitId = 1L,
+        text = text,
+        promptFingerprint = "fp",
+        generatedAt = Instant.EPOCH,
+        consumedAt = consumedAt,
+        actionUrl = actionUrl,
+        shape = VariantShape.STATEMENT,
+    )
 
     @Test
     fun `init loads prompt and habit name into uiState`() = runTest {
@@ -184,6 +218,7 @@ class ReminderDetailViewModelTest {
         coVerify(exactly = 1) { dismissalTracker.onCompleted(42L) }
         coVerify { notificationHelper.cancelNotification(42L) }
         verify(exactly = 1) { widgetRefresher.refresh() }
+        coVerify(exactly = 0) { completionRecorder.complete(any(), any(), any()) }
         assertTrue(viewModel.uiState.value.isDone)
     }
 
@@ -223,11 +258,117 @@ class ReminderDetailViewModelTest {
     fun `markCompleted before init completes does not record outcome for invalid id`() = runTest {
         coEvery { triggerRepository.getById(42L) } returns makeTrigger()
         coEvery { habitRepository.getByIdOnce(1L) } returns makeHabit()
-        // Do NOT advance — init coroutine is still in-flight; triggerId is still -1L
+        // Do NOT advance — init coroutine is still in-flight; the target is still unset
         viewModel.init(42L)
         viewModel.markCompleted()
         advanceUntilIdle()
-        // With the -1L guard, recordOutcome should never be called with -1L
-        coVerify(exactly = 0) { triggerRepository.recordOutcome(-1L, any()) }
+        coVerify(exactly = 0) { triggerRepository.recordOutcome(any(), any()) }
+        coVerify(exactly = 0) { completionRecorder.complete(any(), any(), any()) }
+    }
+
+    @Test
+    fun `initVariant shows the variation's text, the habit and its video, and records nothing`() = runTest {
+        val url = "https://www.youtube.com/results?search_query=box+breathing"
+        coEvery { habitRepository.getByIdOnce(1L) } returns makeHabit(name = "Meditation")
+        coEvery { variationRepository.getById(11L) } returns makeVariation(text = "four counts in", actionUrl = url)
+        viewModel.initVariant(1L, 11L)
+        advanceUntilIdle()
+        val state = viewModel.uiState.value
+        assertEquals("four counts in", state.promptText)
+        assertEquals("Meditation", state.habitName)
+        assertEquals(3, state.dedicationLevel)
+        assertEquals(url, state.videoUrl)
+        assertFalse(state.isLoading)
+        assertTrue(state.canComplete)
+        coVerify(exactly = 0) { triggerRepository.recordOutcome(any(), any()) }
+        coVerify(exactly = 0) { triggerRepository.insert(any()) }
+        verify(exactly = 0) { notificationHelper.cancelNotification(any()) }
+        coVerify(exactly = 0) { dismissalTracker.onCompleted(any()) }
+        coVerify(exactly = 0) { dismissalTracker.onDismissed(any()) }
+    }
+
+    @Test
+    fun `initVariant on a fallback row uses the level description and has no video`() = runTest {
+        coEvery { habitRepository.getByIdOnce(1L) } returns makeHabit(level = 3)
+        coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 3) } returns "sit for two minutes"
+        viewModel.initVariant(1L, null)
+        advanceUntilIdle()
+        assertEquals("sit for two minutes", viewModel.uiState.value.promptText)
+        assertNull(viewModel.uiState.value.videoUrl)
+        assertTrue(viewModel.uiState.value.canComplete)
+        coVerify(exactly = 0) { variationRepository.getById(any()) }
+    }
+
+    @Test
+    fun `initVariant on a consumed variation still shows its words`() = runTest {
+        coEvery { habitRepository.getByIdOnce(1L) } returns makeHabit()
+        coEvery { variationRepository.getById(11L) } returns makeVariation(text = "already claimed", consumedAt = Instant.EPOCH)
+        viewModel.initVariant(1L, 11L)
+        advanceUntilIdle()
+        assertEquals("already claimed", viewModel.uiState.value.promptText)
+    }
+
+    @Test
+    fun `initVariant whose variation was pruned falls back to the level description`() = runTest {
+        coEvery { habitRepository.getByIdOnce(1L) } returns makeHabit(level = 3)
+        coEvery { variationRepository.getById(11L) } returns null
+        coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 3) } returns "sit for two minutes"
+        viewModel.initVariant(1L, 11L)
+        advanceUntilIdle()
+        assertEquals("sit for two minutes", viewModel.uiState.value.promptText)
+        assertTrue(viewModel.uiState.value.canComplete)
+    }
+
+    @Test
+    fun `initVariant for a deleted habit hides Did it`() = runTest {
+        coEvery { habitRepository.getByIdOnce(1L) } returns null
+        coEvery { variationRepository.getById(11L) } returns null
+        viewModel.initVariant(1L, 11L)
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertFalse(viewModel.uiState.value.canComplete)
+    }
+
+    @Test
+    fun `markCompleted on a variant completes through the pull recorder with the detail source`() = runTest {
+        coEvery { habitRepository.getByIdOnce(1L) } returns makeHabit()
+        coEvery { variationRepository.getById(11L) } returns makeVariation()
+        viewModel.initVariant(1L, 11L)
+        advanceUntilIdle()
+        viewModel.markCompleted()
+        advanceUntilIdle()
+        coVerify(exactly = 1) { completionRecorder.complete(1L, 11L, "detail") }
+        verify(exactly = 1) { widgetRefresher.refresh() }
+        coVerify(exactly = 0) { triggerRepository.recordOutcome(any(), any()) }
+        verify(exactly = 0) { notificationHelper.cancelNotification(any()) }
+        assertTrue(viewModel.uiState.value.isDone)
+        assertFalse(viewModel.uiState.value.isProcessing)
+    }
+
+    @Test
+    fun `markCompleted on a fallback row passes no variation`() = runTest {
+        coEvery { habitRepository.getByIdOnce(1L) } returns makeHabit()
+        coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 3) } returns "sit for two minutes"
+        viewModel.initVariant(1L, null)
+        advanceUntilIdle()
+        viewModel.markCompleted()
+        advanceUntilIdle()
+        coVerify(exactly = 1) { completionRecorder.complete(1L, null, "detail") }
+        assertTrue(viewModel.uiState.value.isDone)
+    }
+
+    @Test
+    fun `markCompleted on a variant whose write fails stays on screen`() = runTest {
+        coEvery { habitRepository.getByIdOnce(1L) } returns makeHabit()
+        coEvery { variationRepository.getById(11L) } returns makeVariation()
+        coEvery { completionRecorder.complete(any(), any(), any()) } throws IllegalStateException("disk full")
+        viewModel.initVariant(1L, 11L)
+        advanceUntilIdle()
+        viewModel.markCompleted()
+        advanceUntilIdle()
+        verify(exactly = 0) { widgetRefresher.refresh() }
+        assertFalse(viewModel.uiState.value.isDone)
+        assertFalse(viewModel.uiState.value.isProcessing)
+        assertTrue(viewModel.uiState.value.canComplete)
     }
 }
