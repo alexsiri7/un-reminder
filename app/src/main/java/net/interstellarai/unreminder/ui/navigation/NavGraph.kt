@@ -46,6 +46,7 @@ import net.interstellarai.unreminder.ui.feedback.FeedbackScreen
 import net.interstellarai.unreminder.ui.now.NowMenuScreen
 import net.interstellarai.unreminder.ui.recent.RecentTriggersScreen
 import net.interstellarai.unreminder.ui.reminder.ReminderDetailScreen
+import net.interstellarai.unreminder.ui.reminder.ReminderDetailTarget
 import net.interstellarai.unreminder.ui.settings.CloudSettingsScreen
 import net.interstellarai.unreminder.ui.settings.SettingsScreen
 import net.interstellarai.unreminder.ui.timer.TimerScreen
@@ -62,6 +63,10 @@ sealed class Screen(val route: String, val label: String, val icon: ImageVector)
 
 val bottomNavItems = listOf(Screen.Now, Screen.Habits, Screen.Windows, Screen.Recent, Screen.Settings)
 
+/** The variant view for a pull-sourced row; a fallback row (no variation) travels as -1. */
+internal fun variantDetailRoute(habitId: Long, variationId: Long?): String =
+    "variant_detail/$habitId/${variationId ?: -1L}"
+
 @Composable
 fun NavGraph(
     navViewModel: NavViewModel = hiltViewModel(),
@@ -70,6 +75,8 @@ fun NavGraph(
     onTimerNavigated: () -> Unit = {},
     pendingDetailTriggerId: Long? = null,
     onDetailNavigated: () -> Unit = {},
+    pendingVariant: ReminderDetailTarget.Variant? = null,
+    onVariantNavigated: () -> Unit = {},
     pendingOpenNow: Boolean = false,
     onNowNavigated: () -> Unit = {},
 ) {
@@ -95,6 +102,12 @@ fun NavGraph(
         val id = pendingDetailTriggerId ?: return@LaunchedEffect
         navController.navigate("reminder_detail/$id")
         onDetailNavigated()
+    }
+
+    LaunchedEffect(pendingVariant) {
+        val variant = pendingVariant ?: return@LaunchedEffect
+        navController.navigate(variantDetailRoute(variant.habitId, variant.variationId))
+        onVariantNavigated()
     }
 
     LaunchedEffect(pendingOpenNow) {
@@ -139,6 +152,7 @@ fun NavGraph(
     val showBottomBar = currentDestination?.route != "onboarding"
         && currentDestination?.route?.startsWith("timer/") != true
         && currentDestination?.route?.startsWith("reminder_detail/") != true
+        && currentDestination?.route?.startsWith("variant_detail/") != true
 
     Scaffold(
         containerColor = androidx.compose.material3.MaterialTheme.colorScheme.background,
@@ -190,6 +204,9 @@ fun NavGraph(
                 NowMenuScreen(
                     onAddHabit = { navController.navigate("habit_add") },
                     onNavigateToFeedback = { captureAndNavigate("feedback") },
+                    onOpenVariant = { habitId, variationId ->
+                        navController.navigate(variantDetailRoute(habitId, variationId))
+                    },
                 )
             }
             composable(Screen.Habits.route) {
@@ -307,7 +324,21 @@ fun NavGraph(
             ) { backStackEntry ->
                 val triggerId = backStackEntry.arguments?.getLong("triggerId") ?: -1L
                 ReminderDetailScreen(
-                    triggerId = triggerId,
+                    target = ReminderDetailTarget.Trigger(triggerId),
+                    onNavigateBack = { navController.popBackStack() },
+                )
+            }
+            composable(
+                route = "variant_detail/{habitId}/{variationId}",
+                arguments = listOf(
+                    navArgument("habitId") { type = NavType.LongType },
+                    navArgument("variationId") { type = NavType.LongType },
+                )
+            ) { backStackEntry ->
+                val habitId = backStackEntry.arguments?.getLong("habitId") ?: -1L
+                val variationId = backStackEntry.arguments?.getLong("variationId")?.takeIf { it != -1L }
+                ReminderDetailScreen(
+                    target = ReminderDetailTarget.Variant(habitId, variationId),
                     onNavigateBack = { navController.popBackStack() },
                 )
             }

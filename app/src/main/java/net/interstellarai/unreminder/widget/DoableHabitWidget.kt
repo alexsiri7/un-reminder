@@ -3,6 +3,7 @@ package net.interstellarai.unreminder.widget
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.datastore.preferences.core.MutablePreferences
@@ -74,8 +75,9 @@ import kotlin.random.Random
 data class DayProgress(val completedToday: Boolean, val daysWithAnyCompletion: Int)
 
 /**
- * Home-screen widget: one habit, its peeked variant and sprite, and a "did it" button — or,
- * with no active habit to offer, a prompt to add one — plus a one-line day progress indicator,
+ * Home-screen widget: one habit, its peeked variant and sprite, and a "did it" button — the
+ * card itself opens that variant's view — or, with no active habit to offer, a prompt to add
+ * one that opens the Now page — plus a one-line day progress indicator,
  * drawn in whichever of the five [WidgetLayout]s the last refresh rolled. The variant is the
  * card's headline and the habit name its small label above it. Below its default
  * size it collapses to a single strip. It only renders what [WidgetRefresher] last stored;
@@ -183,12 +185,30 @@ class DoableHabitWidget : GlanceAppWidget() {
         internal fun habitLabel(habit: DoableHabit): String? =
             if (habit.text == null) null else "${habit.emoji} ${habit.name}"
 
-        /** Tapping anywhere but "did it" opens the app on the Now menu. */
+        /** With no habit to show, tapping the card opens the app on the Now menu. */
         internal fun openNowIntent(context: Context): Intent =
             Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 putExtra(NotificationHelper.EXTRA_OPEN_NOW, true)
             }
+
+        /**
+         * Tapping anywhere but "did it" opens the variant view for the shown habit. PendingIntent
+         * matching ignores extras, so two placed widgets showing different habits would collapse
+         * to one without the per-habit data URI; MainActivity reads only the extras.
+         */
+        internal fun openVariantIntent(context: Context, habit: DoableHabit): Intent =
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                data = Uri.parse("unreminder://variant/${habit.id}/${habit.variationId ?: -1L}")
+                putExtra(NotificationHelper.EXTRA_OPEN_VARIANT, true)
+                putExtra(NotificationHelper.EXTRA_HABIT_ID, habit.id)
+                putExtra(NotificationHelper.EXTRA_VARIATION_ID, habit.variationId ?: -1L)
+            }
+
+        /** What the card opens: the shown habit's variant, or the Now menu when there is none. */
+        internal fun cardIntent(context: Context, habit: DoableHabit?): Intent =
+            if (habit == null) openNowIntent(context) else openVariantIntent(context, habit)
     }
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
@@ -209,13 +229,14 @@ private fun WidgetContent(
     progress: DayProgress?,
     spriteResolver: SpriteResolver,
 ) {
-    val openNow = DoableHabitWidget.openNowIntent(LocalContext.current)
+    val context = LocalContext.current
+    val open = DoableHabitWidget.cardIntent(context, habit)
     val strip = LocalSize.current.height < DoableHabitWidget.FULL.height
     val card = GlanceModifier
         .fillMaxSize()
         .background(layout.palette.surface)
         .cornerRadius(16.dp)
-        .clickable(actionStartActivity(openNow))
+        .clickable(actionStartActivity(open))
     Box(
         modifier = if (strip) card.padding(horizontal = 10.dp, vertical = 5.dp) else card.padding(fullPadding(layout)),
         contentAlignment = Alignment.CenterStart,
@@ -490,7 +511,7 @@ class MarkDoneAction : ActionCallback {
         val habitId = parameters[HABIT_ID]
         if (habitId != null) {
             try {
-                entryPoint.completionRecorder().complete(habitId, parameters[VARIATION_ID])
+                entryPoint.completionRecorder().complete(habitId, parameters[VARIATION_ID], PullCompletionRecorder.SOURCE_WIDGET)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "Failed to record widget completion for habit $habitId", e)
@@ -517,7 +538,7 @@ class MarkDoneAction : ActionCallback {
 @EntryPoint
 @InstallIn(SingletonComponent::class)
 interface WidgetEntryPoint {
-    fun completionRecorder(): WidgetCompletionRecorder
+    fun completionRecorder(): PullCompletionRecorder
     fun widgetRefresher(): WidgetRefresher
     fun spriteResolver(): SpriteResolver
 }

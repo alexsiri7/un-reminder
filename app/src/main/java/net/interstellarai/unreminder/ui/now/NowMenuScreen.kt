@@ -53,8 +53,9 @@ import net.interstellarai.unreminder.ui.theme.UnReminderShapes
 
 // ─────────────────────────────────────────────────────────────────────────
 // Doable-now menu — the pull surface: three things you could do right now,
-// each with a freshly worded ask, its mascot sprite and a single "did it"
-// action. Doable habits come first; the rest follow, each saying why it
+// each with a freshly worded ask and its mascot sprite. The row opens the
+// variant view (its video included); its "did it" chip completes in one
+// tap. Doable habits come first; the rest follow, each saying why it
 // ranks lower. The shuffle and the peeked variants are held by the
 // ViewModel and only redrawn on a fresh entry to the screen.
 // ─────────────────────────────────────────────────────────────────────────
@@ -63,6 +64,7 @@ import net.interstellarai.unreminder.ui.theme.UnReminderShapes
 fun NowMenuScreen(
     onAddHabit: () -> Unit,
     onNavigateToFeedback: () -> Unit = {},
+    onOpenVariant: (habitId: Long, variationId: Long?) -> Unit,
     viewModel: NowMenuViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -90,6 +92,7 @@ fun NowMenuScreen(
         onLoadMore = viewModel::loadMore,
         onAddHabit = onAddHabit,
         onNavigateToFeedback = onNavigateToFeedback,
+        onOpen = { item -> onOpenVariant(item.habitId, item.variationId) },
     )
 }
 
@@ -103,6 +106,7 @@ internal fun NowMenuContent(
     onLoadMore: () -> Unit,
     onAddHabit: () -> Unit,
     onNavigateToFeedback: () -> Unit,
+    onOpen: (NowMenuItem) -> Unit = {},
 ) {
     Scaffold(containerColor = MaterialTheme.colorScheme.background) { padding ->
         Column(
@@ -119,7 +123,7 @@ internal fun NowMenuContent(
                     hint = "add one to get started",
                     onHintClick = onAddHabit,
                 )
-                is NowMenuUiState.Menu -> MenuList(uiState, onComplete, onLoadMore)
+                is NowMenuUiState.Menu -> MenuList(uiState, onComplete, onLoadMore, onOpen)
             }
 
             NavPill()
@@ -214,13 +218,14 @@ private fun MenuList(
     state: NowMenuUiState.Menu,
     onComplete: (Long) -> Unit,
     onLoadMore: () -> Unit,
+    onOpen: (NowMenuItem) -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = Dimens.sm),
     ) {
         items(state.items, key = { it.habitId }) { item ->
-            MenuRow(item = item, onComplete = { onComplete(item.habitId) })
+            MenuRow(item = item, onComplete = { onComplete(item.habitId) }, onOpen = { onOpen(item) })
             HorizontalDivider(
                 color = MaterialTheme.colorScheme.surfaceVariant,
                 thickness = Dimens.hairline,
@@ -243,13 +248,15 @@ private fun MenuList(
 
 // A row ranked below the doable tier is toned down and its chip outlined rather than filled,
 // but nothing about it is disabled: doing a blocked habit anyway is a completion like any other.
+// The whole row opens the variant view; the chip, clickable in its own right, keeps the tap.
 @Composable
-private fun MenuRow(item: NowMenuItem, onComplete: () -> Unit) {
+private fun MenuRow(item: NowMenuItem, onComplete: () -> Unit, onOpen: () -> Unit) {
     val rankedLowerBecause = tierLabel(item.tier)
     val textAlpha = if (rankedLowerBecause == null) 1f else 0.7f
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(onClick = onOpen)
             .padding(horizontal = Dimens.lg, vertical = Dimens.md + 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

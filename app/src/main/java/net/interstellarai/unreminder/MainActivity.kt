@@ -1,5 +1,6 @@
 package net.interstellarai.unreminder
 
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -22,6 +23,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import net.interstellarai.unreminder.service.notification.NotificationHelper
 import net.interstellarai.unreminder.service.update.InAppUpdateManager
 import net.interstellarai.unreminder.ui.navigation.NavGraph
+import net.interstellarai.unreminder.ui.reminder.ReminderDetailTarget
 import net.interstellarai.unreminder.ui.theme.UnReminderTheme
 import javax.inject.Inject
 
@@ -30,6 +32,18 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         private const val TAG = "MainActivity"
+
+        /** The variant the widget's card asked to open, or null when [intent] asks for nothing of the kind. */
+        internal fun variantTargetOf(intent: Intent): ReminderDetailTarget.Variant? {
+            if (!intent.getBooleanExtra(NotificationHelper.EXTRA_OPEN_VARIANT, false)) return null
+            val habitId = intent.getLongExtra(NotificationHelper.EXTRA_HABIT_ID, -1L)
+            if (habitId == -1L) {
+                Log.w(TAG, "variantTargetOf: EXTRA_OPEN_VARIANT set but EXTRA_HABIT_ID missing")
+                return null
+            }
+            val variationId = intent.getLongExtra(NotificationHelper.EXTRA_VARIATION_ID, -1L).takeIf { it != -1L }
+            return ReminderDetailTarget.Variant(habitId, variationId)
+        }
     }
 
     @Inject lateinit var inAppUpdateManager: InAppUpdateManager
@@ -38,6 +52,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var updateLauncher: ActivityResultLauncher<IntentSenderRequest>
     private var pendingTimerTriggerId by mutableStateOf<Long?>(null)
     private var pendingDetailTriggerId by mutableStateOf<Long?>(null)
+    private var pendingVariant by mutableStateOf<ReminderDetailTarget.Variant?>(null)
     private var pendingOpenNow by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -45,6 +60,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         handleTimerIntent(intent)
         handleDetailIntent(intent)
+        handleVariantIntent(intent)
         handleNowIntent(intent)
 
         updateLauncher = registerForActivityResult(
@@ -81,6 +97,8 @@ class MainActivity : ComponentActivity() {
                     onTimerNavigated = { pendingTimerTriggerId = null },
                     pendingDetailTriggerId = pendingDetailTriggerId,
                     onDetailNavigated = { pendingDetailTriggerId = null },
+                    pendingVariant = pendingVariant,
+                    onVariantNavigated = { pendingVariant = null },
                     pendingOpenNow = pendingOpenNow,
                     onNowNavigated = { pendingOpenNow = false },
                 )
@@ -88,27 +106,33 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onNewIntent(intent: android.content.Intent) {
+    override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleTimerIntent(intent)
         handleDetailIntent(intent)
+        handleVariantIntent(intent)
         handleNowIntent(intent)
     }
 
-    private fun handleTimerIntent(intent: android.content.Intent?) {
+    private fun handleTimerIntent(intent: Intent?) {
         if (intent?.getBooleanExtra(NotificationHelper.EXTRA_OPEN_TIMER, false) != true) return
         val id = intent.getLongExtra(NotificationHelper.EXTRA_TRIGGER_ID, -1L)
         if (id != -1L) pendingTimerTriggerId = id
     }
 
-    private fun handleDetailIntent(intent: android.content.Intent?) {
+    private fun handleDetailIntent(intent: Intent?) {
         if (intent?.getBooleanExtra(NotificationHelper.EXTRA_OPEN_DETAIL, false) != true) return
         val id = intent.getLongExtra(NotificationHelper.EXTRA_TRIGGER_ID, -1L)
         if (id != -1L) pendingDetailTriggerId = id
         else Log.w(TAG, "handleDetailIntent: EXTRA_OPEN_DETAIL set but EXTRA_TRIGGER_ID missing")
     }
 
-    private fun handleNowIntent(intent: android.content.Intent?) {
+    private fun handleVariantIntent(intent: Intent?) {
+        val target = intent?.let(::variantTargetOf) ?: return
+        pendingVariant = target
+    }
+
+    private fun handleNowIntent(intent: Intent?) {
         if (intent?.getBooleanExtra(NotificationHelper.EXTRA_OPEN_NOW, false) != true) return
         notificationHelper.cancelEveningInvitationIfOpenedFrom(intent)
         pendingOpenNow = true

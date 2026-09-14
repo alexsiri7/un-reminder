@@ -42,14 +42,19 @@ import net.interstellarai.unreminder.ui.theme.SansBody
 
 @Composable
 fun ReminderDetailScreen(
-    triggerId: Long,
+    target: ReminderDetailTarget,
     onNavigateBack: () -> Unit,
     viewModel: ReminderDetailViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
-    LaunchedEffect(triggerId) { viewModel.init(triggerId) }
+    LaunchedEffect(target) {
+        when (target) {
+            is ReminderDetailTarget.Trigger -> viewModel.init(target.triggerId)
+            is ReminderDetailTarget.Variant -> viewModel.initVariant(target.habitId, target.variationId)
+        }
+    }
     LaunchedEffect(uiState.isDone) { if (uiState.isDone) onNavigateBack() }
 
     if (uiState.isLoading) {
@@ -78,19 +83,24 @@ fun ReminderDetailScreen(
 
         Spacer(Modifier.height(Dimens.lg))
 
-        MonoSectionLabel("reminder")
-        HorizontalDivider(
-            thickness = Dimens.hairline,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.15f),
-        )
-        Spacer(Modifier.height(Dimens.sm))
-        Text(
-            uiState.promptText,
-            style = SansBody,
-            color = MaterialTheme.colorScheme.onBackground,
-        )
-
-        Spacer(Modifier.height(Dimens.xl))
+        // A fallback row whose habit has no level description reads as just its name on the
+        // Now page, so it gets no empty heading here either.
+        if (uiState.promptText.isNotBlank()) {
+            // The Now page's own heading over a row opened from it, so nothing implies a
+            // notification fired.
+            MonoSectionLabel(if (target is ReminderDetailTarget.Variant) "doable now" else "reminder")
+            HorizontalDivider(
+                thickness = Dimens.hairline,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.15f),
+            )
+            Spacer(Modifier.height(Dimens.sm))
+            Text(
+                uiState.promptText,
+                style = SansBody,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            Spacer(Modifier.height(Dimens.xl))
+        }
 
         if (uiState.habitName.isNotBlank()) {
             MonoSectionLabel("habit")

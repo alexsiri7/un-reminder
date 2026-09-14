@@ -76,6 +76,17 @@ class VariationDaoTest {
         assertEquals(0, variationDao.markConsumed(row.id, Instant.now()))
     }
 
+    @Test fun `getById returns a consumed row and null for an unknown id`() = runTest {
+        val hId = insertHabit()
+        variationDao.insert(listOf(VariationEntity(habitId = hId, text = "v1", promptFingerprint = "fp1", generatedAt = Instant.EPOCH, shape = VariantShape.STATEMENT)))
+        val row = variationDao.getUnusedForHabit(hId, ActivityMode.SITTING.bit, 50).first()
+        variationDao.markConsumed(row.id, Instant.EPOCH.plusSeconds(60))
+        val consumed = variationDao.getById(row.id)
+        assertEquals("v1", consumed?.text)
+        assertEquals(Instant.EPOCH.plusSeconds(60), consumed?.consumedAt)
+        assertNull(variationDao.getById(9999L))
+    }
+
     @Test fun `countUnused equals inserted minus consumed`() = runTest {
         val hId = insertHabit()
         variationDao.insert(listOf(
