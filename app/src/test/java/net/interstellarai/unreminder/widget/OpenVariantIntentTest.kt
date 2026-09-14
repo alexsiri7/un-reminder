@@ -50,6 +50,23 @@ class OpenVariantIntentTest {
     }
 
     @Test
+    fun `the card opens the shown habit's variant`() {
+        val intent = DoableHabitWidget.cardIntent(context, habit)
+
+        assertEquals(ReminderDetailTarget.Variant(5L, 50L), MainActivity.variantTargetOf(intent))
+        assertFalse(intent.getBooleanExtra(NotificationHelper.EXTRA_OPEN_NOW, false))
+    }
+
+    @Test
+    fun `the card with no habit opens the Now menu`() {
+        val intent = DoableHabitWidget.cardIntent(context, null)
+
+        assertTrue(intent.getBooleanExtra(NotificationHelper.EXTRA_OPEN_NOW, false))
+        assertTrue(intent.filterEquals(DoableHabitWidget.openNowIntent(context)))
+        assertNull(MainActivity.variantTargetOf(intent))
+    }
+
+    @Test
     fun `two habits produce intents that filterEquals tells apart`() {
         val a = DoableHabitWidget.openVariantIntent(context, habit)
         val b = DoableHabitWidget.openVariantIntent(context, habit.copy(id = 6L, variationId = 60L))

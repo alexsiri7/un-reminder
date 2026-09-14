@@ -205,6 +205,10 @@ class DoableHabitWidget : GlanceAppWidget() {
                 putExtra(NotificationHelper.EXTRA_HABIT_ID, habit.id)
                 putExtra(NotificationHelper.EXTRA_VARIATION_ID, habit.variationId ?: -1L)
             }
+
+        /** What the card opens: the shown habit's variant, or the Now menu when there is none. */
+        internal fun cardIntent(context: Context, habit: DoableHabit?): Intent =
+            if (habit == null) openNowIntent(context) else openVariantIntent(context, habit)
     }
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
@@ -226,7 +230,7 @@ private fun WidgetContent(
     spriteResolver: SpriteResolver,
 ) {
     val context = LocalContext.current
-    val open = if (habit == null) DoableHabitWidget.openNowIntent(context) else DoableHabitWidget.openVariantIntent(context, habit)
+    val open = DoableHabitWidget.cardIntent(context, habit)
     val strip = LocalSize.current.height < DoableHabitWidget.FULL.height
     val card = GlanceModifier
         .fillMaxSize()
