@@ -30,11 +30,11 @@ private fun Response.throwOnError(): Nothing = when (code) {
 class RequestyProxyClient @Inject constructor(
     private val okHttpClient: OkHttpClient,
 ) {
-    private fun post(path: String, payload: JSONObject, workerUrl: String, secret: String): JSONObject =
+    private fun post(path: String, payload: JSONObject, workerUrl: String, token: String): JSONObject =
         execute(
             Request.Builder()
                 .url("${workerUrl.trimEnd('/')}/$path")
-                .addHeader("X-UR-Secret", secret)
+                .addHeader("Authorization", "Bearer $token")
                 .addHeader("Accept", "application/json")
                 .post(payload.toString().toRequestBody("application/json".toMediaType()))
                 .build()
@@ -66,9 +66,9 @@ class RequestyProxyClient @Inject constructor(
     suspend fun habitFields(
         title: String,
         workerUrl: String,
-        secret: String,
+        workerToken: String,
     ): AiHabitFields = withContext(Dispatchers.IO) {
-        val body = post("v1/habit-fields", JSONObject().apply { put("title", title) }, workerUrl, secret)
+        val body = post("v1/habit-fields", JSONObject().apply { put("title", title) }, workerUrl, workerToken)
         val arr = body.optJSONArray("descriptionLadder")
             ?: throw WorkerError(200, "Missing descriptionLadder in response")
         AiHabitFields(descriptionLadder = (0 until arr.length()).map { arr.getString(it) })
@@ -84,7 +84,7 @@ class RequestyProxyClient @Inject constructor(
         supportedModes: Set<ActivityMode>,
         n: Int,
         workerUrl: String,
-        workerSecret: String,
+        workerToken: String,
     ): GeneratedBatch {
         val payload = JSONObject().apply {
             put("habitTitle", habitTitle)
@@ -102,7 +102,7 @@ class RequestyProxyClient @Inject constructor(
             put("n", n)
         }
         return withContext(Dispatchers.IO) {
-            val body = post("v1/generate/batch", payload, workerUrl, workerSecret)
+            val body = post("v1/generate/batch", payload, workerUrl, workerToken)
             val arr = body.optJSONArray("variants")
                 ?: throw WorkerError(200, "Missing 'variants' array in response")
             val variants = (0 until arr.length()).map { i ->

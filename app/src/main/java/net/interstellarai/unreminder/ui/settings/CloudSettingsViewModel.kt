@@ -19,7 +19,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.transformWhile
 import kotlinx.coroutines.launch
 import net.interstellarai.unreminder.data.repository.HabitRepository
+import net.interstellarai.unreminder.data.repository.WorkerTokenRepository
 import net.interstellarai.unreminder.service.worker.RefillScheduler
+import net.interstellarai.unreminder.service.worker.WorkerToken
 import java.util.UUID
 import javax.inject.Inject
 
@@ -32,6 +34,10 @@ data class CloudSettingsUiState(
     val errorMessage: String? = null,
     /** Non-null while a regeneration started from this screen has work outstanding. */
     val regeneration: RegenerationProgress? = null,
+    /** The `ur1_<id>` prefix of the stored token, or null when none has been entered. */
+    val tokenId: String? = null,
+    val tokenInput: String = "",
+    val tokenInputError: String? = null,
 )
 
 @HiltViewModel
@@ -39,16 +45,55 @@ class CloudSettingsViewModel @Inject constructor(
     private val refillScheduler: RefillScheduler,
     private val habitRepository: HabitRepository,
     private val workManager: WorkManager,
+    private val workerTokenRepository: WorkerTokenRepository,
 ) : ViewModel() {
 
     companion object {
         private const val TAG = "CloudSettingsVM"
+        const val TOKEN_FORMAT_ERROR = "not an un-reminder token — expected ur1_…"
     }
 
     private val _uiState = MutableStateFlow(CloudSettingsUiState())
     val uiState: StateFlow<CloudSettingsUiState> = _uiState.asStateFlow()
 
     private var regenerateJob: Job? = null
+
+    init {
+        viewModelScope.launch {
+            workerTokenRepository.token.collect { token ->
+                _uiState.value = _uiState.value.copy(
+                    tokenId = token.takeIf { it.isNotBlank() }?.let(WorkerToken::displayId),
+                )
+            }
+        }
+    }
+
+    fun setTokenInput(value: String) {
+        _uiState.value = _uiState.value.copy(tokenInput = value, tokenInputError = null)
+    }
+
+    /** Persists the pasted token only if it is well-formed; a malformed one is rejected inline. */
+    fun saveToken() {
+        val token = _uiState.value.tokenInput.trim()
+        if (!WorkerToken.isWellFormed(token)) {
+            _uiState.value = _uiState.value.copy(tokenInputError = TOKEN_FORMAT_ERROR)
+            return
+        }
+        viewModelScope.launch {
+            try {
+                workerTokenRepository.setToken(token)
+                _uiState.value = _uiState.value.copy(
+                    tokenInput = "",
+                    tokenInputError = null,
+                    errorMessage = "Token saved.",
+                )
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                Log.e(TAG, "saveToken: failed to persist token", e)
+                _uiState.value = _uiState.value.copy(errorMessage = "Failed to save token.")
+            }
+        }
+    }
 
     /**
      * Enqueues a replace-mode refill per active habit and never touches the pools itself: each

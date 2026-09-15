@@ -68,7 +68,6 @@ jobs:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           WORKER_URL: ${{ secrets.WORKER_URL }}
-          WORKER_SECRET: ${{ secrets.WORKER_SECRET }}
         run: ./gradlew bundleRelease --stacktrace
 
       - name: Publish to Play Store internal track (non-tag)
@@ -111,7 +110,6 @@ jobs:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           WORKER_URL: ${{ secrets.WORKER_URL }}
-          WORKER_SECRET: ${{ secrets.WORKER_SECRET }}
         run: ./gradlew assembleRelease --stacktrace
 
       - name: Upload AAB artifact

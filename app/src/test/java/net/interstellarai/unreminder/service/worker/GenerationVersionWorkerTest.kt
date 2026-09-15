@@ -18,8 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.data.repository.VariationRepository
-import net.interstellarai.unreminder.service.llm.AiStatus
-import net.interstellarai.unreminder.service.llm.PromptGenerator
+import net.interstellarai.unreminder.data.repository.WorkerTokenRepository
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -30,9 +29,9 @@ class GenerationVersionWorkerTest {
 
     private val mockContext: Context = mockk(relaxed = true)
     private val mockWorkerParams: WorkerParameters = mockk(relaxed = true)
-    private val aiStatus = MutableStateFlow<AiStatus>(AiStatus.Ready)
-    private val mockPromptGenerator: PromptGenerator = mockk {
-        every { aiStatus } returns this@GenerationVersionWorkerTest.aiStatus
+    private val token = MutableStateFlow("ur1_0123456789abcdef_" + "f".repeat(64))
+    private val mockWorkerTokenRepository: WorkerTokenRepository = mockk {
+        every { token } returns this@GenerationVersionWorkerTest.token
     }
     private val mockProxyClient: RequestyProxyClient = mockk()
     private val mockVariationRepository: VariationRepository = mockk()
@@ -41,7 +40,7 @@ class GenerationVersionWorkerTest {
     private val worker = GenerationVersionWorker(
         mockContext,
         mockWorkerParams,
-        mockPromptGenerator,
+        mockWorkerTokenRepository,
         mockProxyClient,
         mockVariationRepository,
         mockRefillScheduler,
@@ -63,8 +62,8 @@ class GenerationVersionWorkerTest {
     }
 
     @Test
-    fun `does nothing when the cloud worker is not configured`() = runTest {
-        aiStatus.value = AiStatus.Unavailable
+    fun `does nothing when no token has been entered`() = runTest {
+        token.value = ""
 
         assertEquals(Result.success(), worker.doWork())
 

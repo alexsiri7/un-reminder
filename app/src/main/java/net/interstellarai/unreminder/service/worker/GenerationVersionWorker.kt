@@ -14,11 +14,11 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import io.sentry.Sentry
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
 import net.interstellarai.unreminder.BuildConfig
 import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.data.repository.VariationRepository
-import net.interstellarai.unreminder.service.llm.AiStatus
-import net.interstellarai.unreminder.service.llm.PromptGenerator
+import net.interstellarai.unreminder.data.repository.WorkerTokenRepository
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
@@ -30,7 +30,7 @@ import java.util.concurrent.TimeUnit
 class GenerationVersionWorker @AssistedInject constructor(
     @Assisted appContext: Context,
     @Assisted workerParams: WorkerParameters,
-    private val promptGenerator: PromptGenerator,
+    private val workerTokenRepository: WorkerTokenRepository,
     private val requestyProxyClient: RequestyProxyClient,
     private val variationRepository: VariationRepository,
     private val refillScheduler: RefillScheduler,
@@ -56,9 +56,9 @@ class GenerationVersionWorker @AssistedInject constructor(
     }
 
     override suspend fun doWork(): Result {
-        // Unlike the event-driven RefillWorker this runs on every install, so an unconfigured
-        // Worker URL must be a quiet no-op rather than a daily Sentry event.
-        if (promptGenerator.aiStatus.value is AiStatus.Unavailable) return Result.success()
+        // Unlike the event-driven RefillWorker this runs on every install, so an install with
+        // no token entered yet must be a quiet no-op rather than a daily Sentry event.
+        if (workerTokenRepository.token.first().isBlank()) return Result.success()
 
         return try {
             val version = requestyProxyClient.generationVersion(BuildConfig.WORKER_URL)

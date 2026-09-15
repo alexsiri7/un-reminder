@@ -302,7 +302,7 @@ class HabitEditViewModel @Inject constructor(
             try {
                 block()
             } catch (e: WorkerAuthException) {
-                _uiState.value = _uiState.value.copy(errorMessage = "Wrong worker secret — check Settings.")
+                _uiState.value = _uiState.value.copy(errorMessage = "Worker rejected the token — check Cloud AI settings.")
             } catch (e: SpendCapExceededException) {
                 // showSpendCapLink snackbar carries the message+action; errorMessage intentionally not set
                 _uiState.value = _uiState.value.copy(showSpendCapLink = true)

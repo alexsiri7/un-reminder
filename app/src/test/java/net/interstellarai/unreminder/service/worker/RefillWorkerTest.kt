@@ -22,6 +22,7 @@ import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.PersonalContextRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
+import net.interstellarai.unreminder.data.repository.WorkerTokenRepository
 import net.interstellarai.unreminder.domain.model.ActivityMode
 import net.interstellarai.unreminder.domain.model.GeneratedBatch
 import net.interstellarai.unreminder.domain.model.GeneratedVariant
@@ -39,6 +40,10 @@ import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 
 class RefillWorkerTest {
+
+    private companion object {
+        const val TOKEN = "ur1_0123456789abcdef_" + "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    }
 
     private val mockContext: Context = mockk(relaxed = true)
 
@@ -61,6 +66,9 @@ class RefillWorkerTest {
     private val mockPersonalContextRepository: PersonalContextRepository = mockk {
         every { personalContext } returns flowOf("")
     }
+    private val mockWorkerTokenRepository: WorkerTokenRepository = mockk {
+        every { token } returns flowOf(TOKEN)
+    }
 
     private fun createWorker(habitId: Long = 1L, replace: Boolean = false): RefillWorker {
         val inputData = Data.Builder()
@@ -75,7 +83,21 @@ class RefillWorkerTest {
             mockVariationRepository,
             mockProxyClient,
             mockPersonalContextRepository,
+            mockWorkerTokenRepository,
         )
+    }
+
+    @Test
+    fun `doWork returns failure and never calls the proxy when no token is stored`() = runTest {
+        every { mockWorkerTokenRepository.token } returns flowOf("")
+        coEvery { mockHabitRepository.getByIdOnce(1L) } returns HabitEntity(id = 1L, name = "Meditate")
+
+        assertEquals(Result.failure(), createWorker().doWork())
+
+        coVerify(exactly = 0) {
+            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        }
+        coVerify(exactly = 0) { mockVariationRepository.refill(any(), any(), any(), any()) }
     }
 
     @Test
@@ -107,6 +129,20 @@ class RefillWorkerTest {
         val result = worker.doWork()
 
         assertEquals(Result.success(), result)
+        coVerify(exactly = 1) {
+            mockProxyClient.generateBatch(
+                habitTitle = "Meditate",
+                habitTags = any(),
+                locationName = any(),
+                timeOfDay = any(),
+                personalContext = any(),
+                sprites = any(),
+                supportedModes = any(),
+                n = any(),
+                workerUrl = any(),
+                workerToken = TOKEN,
+            )
+        }
         coVerify(exactly = 1) {
             mockVariationRepository.refill(1L, 3, match<List<VariationEntity>> { entities ->
                 entities.size == 2
@@ -158,7 +194,7 @@ class RefillWorkerTest {
                 supportedModes = setOf(ActivityMode.SITTING, ActivityMode.TRANSPORT),
                 n = any(),
                 workerUrl = any(),
-                workerSecret = any(),
+                workerToken = any(),
             )
         }
         coVerify(exactly = 1) {
@@ -194,7 +230,7 @@ class RefillWorkerTest {
                 supportedModes = any(),
                 n = any(),
                 workerUrl = any(),
-                workerSecret = any(),
+                workerToken = any(),
             )
         }
         coVerify(exactly = 1) {

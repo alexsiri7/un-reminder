@@ -4,6 +4,7 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.WorkQuery
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -20,6 +21,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
+import net.interstellarai.unreminder.data.repository.WorkerTokenRepository
 import net.interstellarai.unreminder.service.worker.RefillScheduler
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -37,6 +39,11 @@ class CloudSettingsViewModelTest {
     private val mockHabitRepository: HabitRepository = mockk()
     private val workManager: WorkManager = mockk()
     private val workInfos = MutableStateFlow<List<WorkInfo>>(emptyList())
+    private val storedToken = MutableStateFlow("")
+    private val mockWorkerTokenRepository: WorkerTokenRepository = mockk {
+        every { token } returns storedToken
+        coEvery { setToken(any()) } answers { storedToken.value = firstArg() }
+    }
 
     private val habits = listOf(
         HabitEntity(id = 1L, name = "A"),
@@ -57,7 +64,7 @@ class CloudSettingsViewModelTest {
     }
 
     private fun createViewModel(): CloudSettingsViewModel =
-        CloudSettingsViewModel(mockRefillScheduler, mockHabitRepository, workManager)
+        CloudSettingsViewModel(mockRefillScheduler, mockHabitRepository, workManager, mockWorkerTokenRepository)
 
     private fun mockInfo(state: WorkInfo.State): WorkInfo = mockk {
         every { this@mockk.state } returns state
@@ -296,6 +303,81 @@ class CloudSettingsViewModelTest {
 
         assertEquals("Failed to regenerate variants.", vm.uiState.value.errorMessage)
         assertNull(vm.uiState.value.regeneration)
+    }
+
+    // --- token entry ---
+
+    private val token = "ur1_0123456789abcdef_" + "f".repeat(64)
+
+    @Test
+    fun `tokenId shows the stored token's prefix and is null when none is stored`() = runTest(testDispatcher) {
+        val vm = createViewModel()
+        advanceUntilIdle()
+        assertNull(vm.uiState.value.tokenId)
+
+        storedToken.value = token
+        advanceUntilIdle()
+        assertEquals("ur1_0123456789abcdef", vm.uiState.value.tokenId)
+    }
+
+    @Test
+    fun `saveToken persists a well-formed token, clears the input and confirms`() = runTest(testDispatcher) {
+        val vm = createViewModel()
+        vm.setTokenInput(token)
+        vm.saveToken()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { mockWorkerTokenRepository.setToken(token) }
+        assertEquals("", vm.uiState.value.tokenInput)
+        assertNull(vm.uiState.value.tokenInputError)
+        assertEquals("Token saved.", vm.uiState.value.errorMessage)
+        assertEquals("ur1_0123456789abcdef", vm.uiState.value.tokenId)
+    }
+
+    @Test
+    fun `saveToken trims whitespace before validating`() = runTest(testDispatcher) {
+        val vm = createViewModel()
+        vm.setTokenInput("  $token\n")
+        vm.saveToken()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { mockWorkerTokenRepository.setToken(token) }
+    }
+
+    @Test
+    fun `saveToken rejects a malformed token inline and never touches the repository`() = runTest(testDispatcher) {
+        val vm = createViewModel()
+        vm.setTokenInput("ur1_not-a-token")
+        vm.saveToken()
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { mockWorkerTokenRepository.setToken(any()) }
+        assertEquals(CloudSettingsViewModel.TOKEN_FORMAT_ERROR, vm.uiState.value.tokenInputError)
+        assertEquals("ur1_not-a-token", vm.uiState.value.tokenInput)
+        assertNull(vm.uiState.value.errorMessage)
+    }
+
+    @Test
+    fun `editing the input clears the inline error`() = runTest(testDispatcher) {
+        val vm = createViewModel()
+        vm.setTokenInput("nope")
+        vm.saveToken()
+        vm.setTokenInput("nope2")
+
+        assertNull(vm.uiState.value.tokenInputError)
+    }
+
+    @Test
+    fun `saveToken reports a persistence failure`() = runTest(testDispatcher) {
+        coEvery { mockWorkerTokenRepository.setToken(any()) } throws RuntimeException("disk full")
+
+        val vm = createViewModel()
+        vm.setTokenInput(token)
+        vm.saveToken()
+        advanceUntilIdle()
+
+        assertEquals("Failed to save token.", vm.uiState.value.errorMessage)
+        assertEquals(token, vm.uiState.value.tokenInput)
     }
 
     @Test

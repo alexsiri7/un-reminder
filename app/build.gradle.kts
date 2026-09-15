@@ -42,10 +42,8 @@ android {
         println("[gradle] FEEDBACK_ENDPOINT_URL resolved at configuration: ${resolvedFeedbackUrl.take(60)}…")
         println("[gradle] SENTRY_DSN resolved at configuration: ${if (resolvedSentryDsn.isBlank()) "empty" else "set"}")
         val resolvedWorkerUrl = envOrDefault("WORKER_URL", "")
-        val resolvedWorkerSecret = envOrDefault("WORKER_SECRET", "")
 
         println("[gradle] WORKER_URL resolved at configuration: ${if (resolvedWorkerUrl.isBlank()) "empty" else "set"}")
-        println("[gradle] WORKER_SECRET resolved at configuration: ${if (resolvedWorkerSecret.isBlank()) "empty" else "set"}")
 
         buildConfigField(
             "String",
@@ -59,7 +57,6 @@ android {
         )
         buildConfigField("String", "SENTRY_DSN", "\"${resolvedSentryDsn}\"")
         buildConfigField("String", "WORKER_URL", "\"${resolvedWorkerUrl}\"")
-        buildConfigField("String", "WORKER_SECRET", "\"${resolvedWorkerSecret}\"")
 
     }
 

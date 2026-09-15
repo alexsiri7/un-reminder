@@ -14,6 +14,7 @@ import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.PersonalContextRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
+import net.interstellarai.unreminder.data.repository.WorkerTokenRepository
 import net.interstellarai.unreminder.service.notification.MascotSprites
 import io.sentry.Sentry
 import java.io.IOException
@@ -32,6 +33,7 @@ class RefillWorker @AssistedInject constructor(
     private val variationRepository: VariationRepository,
     private val requestyProxyClient: RequestyProxyClient,
     private val personalContextRepository: PersonalContextRepository,
+    private val workerTokenRepository: WorkerTokenRepository,
 ) : CoroutineWorker(appContext, workerParams) {
 
     companion object {
@@ -51,7 +53,11 @@ class RefillWorker @AssistedInject constructor(
         }
 
         val url = BuildConfig.WORKER_URL
-        val secret = BuildConfig.WORKER_SECRET
+        val token = workerTokenRepository.token.first()
+        if (token.isBlank()) {
+            Log.w(TAG, "No worker token configured, skipping refill for habit $habitId")
+            return Result.failure()
+        }
 
         val habit = habitRepository.getByIdOnce(habitId)
         if (habit == null) {
@@ -74,7 +80,7 @@ class RefillWorker @AssistedInject constructor(
                 supportedModes = habit.supportedModes,
                 n = VariationRepository.POOL_SIZE,
                 workerUrl = url,
-                workerSecret = secret,
+                workerToken = token,
             )
             val now = Instant.now()
             val entities = batch.variants.map { variant ->
