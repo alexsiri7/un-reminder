@@ -327,8 +327,8 @@ class TriggerDaoTest {
         val withoutVideo = triggerDao.insert(TriggerEntity(scheduledAt = Instant.ofEpochMilli(midnightMillis)))
         val url = "https://www.youtube.com/results?search_query=C+major+vocal+scale"
 
-        triggerDao.updateFired(withVideo, TriggerStatus.FIRED.name, midnightMillis, habitId, "Sing the scale", url, NotificationStyle.SPRITE.name)
-        triggerDao.updateFired(withoutVideo, TriggerStatus.FIRED.name, midnightMillis, habitId, "Breathe", null, NotificationStyle.SPRITE.name)
+        triggerDao.updateFired(withVideo, TriggerStatus.FIRED.name, midnightMillis, habitId, "Sing the scale", url, NotificationStyle.SPRITE.name, null)
+        triggerDao.updateFired(withoutVideo, TriggerStatus.FIRED.name, midnightMillis, habitId, "Breathe", null, NotificationStyle.SPRITE.name, null)
 
         val fired = triggerDao.getById(withVideo)
         assertEquals("Sing the scale", fired?.generatedPrompt)
@@ -343,12 +343,25 @@ class TriggerDaoTest {
         val later = triggerDao.insert(TriggerEntity(scheduledAt = Instant.ofEpochMilli(midnightMillis)))
         val earlier = triggerDao.insert(TriggerEntity(scheduledAt = Instant.ofEpochMilli(midnightMillis)))
 
-        triggerDao.updateFired(later, TriggerStatus.FIRED.name, midnightMillis + 2_000L, habitId, "Breathe", null, NotificationStyle.BIG_PICTURE.name)
-        triggerDao.updateFired(earlier, TriggerStatus.FIRED.name, midnightMillis + 1_000L, habitId, "Stretch", null, NotificationStyle.TEXT_ONLY.name)
+        triggerDao.updateFired(later, TriggerStatus.FIRED.name, midnightMillis + 2_000L, habitId, "Breathe", null, NotificationStyle.BIG_PICTURE.name, null)
+        triggerDao.updateFired(earlier, TriggerStatus.FIRED.name, midnightMillis + 1_000L, habitId, "Stretch", null, NotificationStyle.TEXT_ONLY.name, null)
 
         assertEquals(NotificationStyle.BIG_PICTURE, triggerDao.getById(later)?.style)
         assertEquals(NotificationStyle.TEXT_ONLY, triggerDao.getById(earlier)?.style)
         assertEquals(NotificationStyle.BIG_PICTURE, triggerDao.getLastStyleForHabit(habitId))
+    }
+
+    @Test
+    fun `updateFired stores the sprite tag delivered with the prompt`() = runTest {
+        val habitId = insertHabit("hSprite")
+        val tagged = triggerDao.insert(TriggerEntity(scheduledAt = Instant.ofEpochMilli(midnightMillis)))
+        val untagged = triggerDao.insert(TriggerEntity(scheduledAt = Instant.ofEpochMilli(midnightMillis)))
+
+        triggerDao.updateFired(tagged, TriggerStatus.FIRED.name, midnightMillis, habitId, "Breathe", null, NotificationStyle.SPRITE.name, "wizard_starry_robe")
+        triggerDao.updateFired(untagged, TriggerStatus.FIRED.name, midnightMillis, habitId, "Stretch", null, NotificationStyle.SPRITE.name, null)
+
+        assertEquals("wizard_starry_robe", triggerDao.getById(tagged)?.spriteTag)
+        assertNull(triggerDao.getById(untagged)?.spriteTag)
     }
 
     @Test

@@ -26,10 +26,10 @@ class TriggerRepositoryTest {
 
     @Test
     fun `updateFired freezes the chosen style by name alongside the prompt and action url`() = runTest {
-        coJustRun { triggerDao.updateFired(any(), any(), any(), any(), any(), any(), any()) }
+        coJustRun { triggerDao.updateFired(any(), any(), any(), any(), any(), any(), any(), any()) }
 
         for (style in NotificationStyle.entries) {
-            repo.updateFired(id = 42L, habitId = 1L, prompt = "p", actionUrl = "https://v", style = style)
+            repo.updateFired(id = 42L, habitId = 1L, prompt = "p", actionUrl = "https://v", style = style, spriteTag = "wizard_starry_robe")
 
             coVerify(exactly = 1) {
                 triggerDao.updateFired(
@@ -40,6 +40,7 @@ class TriggerRepositoryTest {
                     prompt = "p",
                     actionUrl = "https://v",
                     style = style.name,
+                    spriteTag = "wizard_starry_robe",
                 )
             }
         }

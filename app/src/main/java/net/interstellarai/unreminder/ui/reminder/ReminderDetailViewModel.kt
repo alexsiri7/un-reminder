@@ -1,6 +1,7 @@
 package net.interstellarai.unreminder.ui.reminder
 
 import android.util.Log
+import androidx.annotation.DrawableRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -18,6 +19,7 @@ import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.di.IoDispatcher
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.service.notification.NotificationHelper
+import net.interstellarai.unreminder.service.notification.SpriteResolver
 import net.interstellarai.unreminder.service.trigger.DismissalTracker
 import net.interstellarai.unreminder.widget.PullCompletionRecorder
 import net.interstellarai.unreminder.widget.WidgetRefresher
@@ -28,6 +30,9 @@ data class ReminderDetailUiState(
     val habitName: String = "",
     val dedicationLevel: Int = 0,
     val videoUrl: String? = null,
+    /** The mascot that led here; null when the row it was read from is gone. */
+    @DrawableRes val spriteRes: Int? = null,
+    val layout: ReminderDetailLayout = ReminderDetailLayout.SPRITE_TOP,
     /** Set once a load finishes; null until then, so nothing can be completed. */
     val target: ReminderDetailTarget? = null,
     val isLoading: Boolean = true,
@@ -46,6 +51,7 @@ class ReminderDetailViewModel @Inject constructor(
     private val notificationHelper: NotificationHelper,
     private val widgetRefresher: WidgetRefresher,
     private val completionRecorder: PullCompletionRecorder,
+    private val spriteResolver: SpriteResolver,
     @IoDispatcher private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
@@ -53,6 +59,7 @@ class ReminderDetailViewModel @Inject constructor(
     val uiState: StateFlow<ReminderDetailUiState> = _uiState.asStateFlow()
 
     fun init(triggerId: Long) {
+        val target = ReminderDetailTarget.Trigger(triggerId)
         viewModelScope.launch(ioDispatcher) {
             try {
                 val trigger = triggerRepository.getById(triggerId)
@@ -70,18 +77,22 @@ class ReminderDetailViewModel @Inject constructor(
                     else -> false
                 }
                 _uiState.value = ReminderDetailUiState(
-                    target = ReminderDetailTarget.Trigger(triggerId),
+                    target = target,
                     promptText = trigger?.generatedPrompt ?: "",
                     habitName = habit?.name ?: "",
                     dedicationLevel = habit?.dedicationLevel ?: 0,
                     videoUrl = videoUrlOf(trigger?.actionUrl),
+                    // The same call, with the same seed, the notification made when it was
+                    // posted, so the mascot is the one that led here.
+                    spriteRes = trigger?.let { spriteResolver.resolve(it.spriteTag, rotationSeed = triggerId) },
+                    layout = ReminderDetailLayout.forTarget(target),
                     isLoading = false,
                     canComplete = canComplete,
                 )
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "Failed to load trigger $triggerId", e)
-                _uiState.value = _uiState.value.copy(isLoading = false)
+                _uiState.value = _uiState.value.copy(isLoading = false, layout = ReminderDetailLayout.forTarget(target))
             }
         }
     }
@@ -91,6 +102,7 @@ class ReminderDetailViewModel @Inject constructor(
      * notification path's signal (#378), and no trigger is synthesised for a pull.
      */
     fun initVariant(habitId: Long, variationId: Long?) {
+        val target = ReminderDetailTarget.Variant(habitId, variationId)
         viewModelScope.launch(ioDispatcher) {
             try {
                 val habit = habitRepository.getByIdOnce(habitId)
@@ -99,18 +111,22 @@ class ReminderDetailViewModel @Inject constructor(
                     ?: habit?.let { levelDescriptionRepository.getDescriptionForLevel(habitId, it.dedicationLevel) }
                     ?: ""
                 _uiState.value = ReminderDetailUiState(
-                    target = ReminderDetailTarget.Variant(habitId, variationId),
+                    target = target,
                     promptText = promptText,
                     habitName = habit?.name ?: "",
                     dedicationLevel = habit?.dedicationLevel ?: 0,
                     videoUrl = videoUrlOf(variation?.actionUrl),
+                    // Seeded by habit id like the Now row and the widget, so the mascot agrees
+                    // with the row that was tapped.
+                    spriteRes = habit?.let { spriteResolver.resolve(variation?.spriteTag, rotationSeed = habitId) },
+                    layout = ReminderDetailLayout.forTarget(target),
                     isLoading = false,
                     canComplete = habit != null,
                 )
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "Failed to load variant $variationId for habit $habitId", e)
-                _uiState.value = _uiState.value.copy(isLoading = false)
+                _uiState.value = _uiState.value.copy(isLoading = false, layout = ReminderDetailLayout.forTarget(target))
             }
         }
     }

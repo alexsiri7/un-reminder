@@ -21,6 +21,9 @@ val SageBgDark = Color(0xFF171C14)
 val SageInkDark = Color(0xFFE0E8CC)
 val SageAccentDark = Color(0xFFA8C485)
 val SageSoftDark = Color(0xFF252D1F)
+// The fifth dark surface the four-surface handoff lacks: the widget and the reminder
+// detail screen each rotate five layouts, and each wants its own surface.
+val SageMossDark = Color(0xFF33422A)
 
 // Status colours for triggers — kept for recent-triggers chip styling,
 // re-tuned to harmonise with the sage palette.

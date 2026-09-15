@@ -201,6 +201,7 @@ A scheduled notification event.
 - `generated_prompt` — the AI-generated text actually shown in the notification.
 - `action_url` — nullable; the variant's video URL as delivered, frozen at fire time like `generated_prompt`.
 - `style` — nullable; the presentation style the notification was posted with (`SPRITE`, `BIG_PICTURE`, `TEXT_ONLY`, `ACCENT`), frozen at fire time; null on rows fired before styles existed.
+- `sprite_tag` — nullable; the sprite tag the notification was posted with, frozen at fire time like `action_url`; null on rows fired before it was recorded.
 
 ### Location
 A named geofence the user has registered. Each location has:
@@ -328,13 +329,23 @@ from the pool, not from a fresh generation.
 8. **Onboarding screen** — shown once on first launch. Walks the user through three collapsible steps: (1) granting Notifications and Location permissions, (2) creating a first habit with name/descriptions and weekday schedule, (3) creating a first time window. Includes a "Skip" action in the top bar. Completion (or skip) is persisted via DataStore (`onboarding_done` key) and never shown again. Bottom navigation bar is hidden while onboarding is active.
 9. **Feedback screen** — annotated screenshot tool. Captures the current screen, lets the user draw annotations (red/yellow/green strokes), type a description, and submit as a GitHub issue. Falls back to an offline queue (WorkManager) when connectivity is unavailable.
 10. **Reminder detail screen** — read/act view for one variant, reached two ways. Keyed on a trigger, by
-    tapping any row in the Recent Triggers screen or a live notification body: shows the trigger's
-    prompt text ("reminder" section) and, if the trigger has an associated habit, the habit name and
-    current dedication progress bar ("habit" section). Opening a live (`FIRED`) trigger records `OPENED`
-    and clears its notification. Keyed on a variant, by tapping a Now page row (anywhere but its `did it`
-    chip) or the home-screen widget card: there is no trigger, so opening records nothing — `OPENED`
-    stays a trigger-keyed signal — and the text section is labelled "doable now" (omitted when there is
-    no text). Action chips:
+    tapping any row in the Recent Triggers screen or a live notification body: shows the mascot the
+    notification was posted with (resolved from the trigger's frozen `sprite_tag`, seeded by trigger id
+    exactly as the notification resolved it), the trigger's prompt text as the headline and, if the
+    trigger has an associated habit, the habit name as its label and the habit's current dedication
+    progress bar; the header caption reads "reminder" whenever there is a prompt or a habit to label
+    (a trigger dismissed before it fired has neither). Opening a live
+    (`FIRED`) trigger records `OPENED` and clears its notification. Keyed on
+    a variant, by tapping a Now page row (anywhere but its `did it` chip) or the home-screen widget
+    card: there is no trigger, so opening records nothing — `OPENED` stays a trigger-keyed signal — the
+    mascot is the variant's sprite seeded by habit id as the Now row and widget resolve it, and the
+    caption reads "doable now". When there is no variant text the habit name is promoted into the
+    headline. The screen rotates through five layouts — `SPRITE_TOP`, `SPRITE_LEFT`, `BACKDROP`,
+    `TEXT_DOMINANT`, `SPRITE_BOTTOM` — each with its own surface colour, headline scale and sprite
+    placement, independent of the notification style, the widget layout and the variant shape. The
+    layout is chosen deterministically from the variation id (the habit id for a fallback row, the
+    trigger id for a trigger), so the same variant always opens to the same look and any five
+    consecutively generated variants of a habit get five different ones. Action chips:
     **Did it**, which records `COMPLETED` and navigates back — on a trigger, by upgrading its outcome
     (shown only while the trigger is `FIRED` or `OPENED`; if a swipe or Later already resolved it,
     nothing is recorded and the chip is withdrawn instead); on a variant, through `PullCompletionRecorder`
