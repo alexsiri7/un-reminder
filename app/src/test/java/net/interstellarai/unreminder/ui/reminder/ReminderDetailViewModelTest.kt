@@ -20,7 +20,9 @@ import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.domain.model.TriggerStatus
 import net.interstellarai.unreminder.domain.model.VariantShape
+import net.interstellarai.unreminder.service.notification.MascotSprites
 import net.interstellarai.unreminder.service.notification.NotificationHelper
+import net.interstellarai.unreminder.service.notification.SpriteResolver
 import net.interstellarai.unreminder.service.trigger.DismissalTracker
 import net.interstellarai.unreminder.widget.PullCompletionRecorder
 import net.interstellarai.unreminder.widget.WidgetRefresher
@@ -68,6 +70,7 @@ class ReminderDetailViewModelTest {
             notificationHelper,
             widgetRefresher,
             completionRecorder,
+            SpriteResolver(),
             testDispatcher,
         )
     }
@@ -82,6 +85,7 @@ class ReminderDetailViewModelTest {
         prompt: String = "test prompt",
         actionUrl: String? = null,
         status: TriggerStatus = TriggerStatus.SCHEDULED,
+        spriteTag: String? = null,
     ) = TriggerEntity(
         id = 42L,
         habitId = habitId,
@@ -89,6 +93,7 @@ class ReminderDetailViewModelTest {
         status = status,
         generatedPrompt = prompt,
         actionUrl = actionUrl,
+        spriteTag = spriteTag,
     )
 
     private fun makeHabit(id: Long = 1L, name: String = "Meditate", level: Int = 3) =
@@ -98,6 +103,7 @@ class ReminderDetailViewModelTest {
         text: String = "breathe slowly",
         actionUrl: String? = null,
         consumedAt: Instant? = null,
+        spriteTag: String? = null,
     ) = VariationEntity(
         id = 11L,
         habitId = 1L,
@@ -106,8 +112,11 @@ class ReminderDetailViewModelTest {
         generatedAt = Instant.EPOCH,
         consumedAt = consumedAt,
         actionUrl = actionUrl,
+        spriteTag = spriteTag,
         shape = VariantShape.STATEMENT,
     )
+
+    private val taggedSprite = MascotSprites.entries.first { it.tag == "wizard_starry_robe" }.drawableRes
 
     @Test
     fun `init loads prompt and habit name into uiState`() = runTest {
@@ -128,7 +137,26 @@ class ReminderDetailViewModelTest {
         advanceUntilIdle()
         assertEquals("", viewModel.uiState.value.promptText)
         assertEquals("", viewModel.uiState.value.habitName)
+        assertNull(viewModel.uiState.value.spriteRes)
         assertFalse(viewModel.uiState.value.isLoading)
+    }
+
+    @Test
+    fun `init resolves the sprite the notification was posted with`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns makeTrigger(spriteTag = "wizard_starry_robe")
+        coEvery { habitRepository.getByIdOnce(1L) } returns makeHabit()
+        viewModel.init(42L)
+        advanceUntilIdle()
+        assertEquals(taggedSprite, viewModel.uiState.value.spriteRes)
+    }
+
+    @Test
+    fun `init on a pre-migration trigger rotates the sprite by trigger id`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns makeTrigger(spriteTag = null)
+        coEvery { habitRepository.getByIdOnce(1L) } returns makeHabit()
+        viewModel.init(42L)
+        advanceUntilIdle()
+        assertEquals(SpriteResolver().resolve(null, 42L), viewModel.uiState.value.spriteRes)
     }
 
     @Test
@@ -320,6 +348,45 @@ class ReminderDetailViewModelTest {
     }
 
     @Test
+    fun `initVariant resolves the variation's sprite by habit id`() = runTest {
+        coEvery { habitRepository.getByIdOnce(1L) } returns makeHabit()
+        coEvery { variationRepository.getById(11L) } returns makeVariation(spriteTag = "wizard_starry_robe")
+        viewModel.initVariant(1L, 11L)
+        advanceUntilIdle()
+        assertEquals(taggedSprite, viewModel.uiState.value.spriteRes)
+    }
+
+    @Test
+    fun `initVariant on a pruned variation rotates the sprite by habit id`() = runTest {
+        coEvery { habitRepository.getByIdOnce(1L) } returns makeHabit(level = 3)
+        coEvery { variationRepository.getById(11L) } returns null
+        coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 3) } returns "sit for two minutes"
+        viewModel.initVariant(1L, 11L)
+        advanceUntilIdle()
+        assertEquals(SpriteResolver().resolve(null, 1L), viewModel.uiState.value.spriteRes)
+    }
+
+    @Test
+    fun `the layout is keyed on the target`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns makeTrigger()
+        coEvery { habitRepository.getByIdOnce(1L) } returns makeHabit(level = 3)
+        coEvery { variationRepository.getById(11L) } returns makeVariation()
+        coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 3) } returns "sit for two minutes"
+
+        viewModel.init(42L)
+        advanceUntilIdle()
+        assertEquals(ReminderDetailLayout.forTarget(ReminderDetailTarget.Trigger(42L)), viewModel.uiState.value.layout)
+
+        viewModel.initVariant(1L, 11L)
+        advanceUntilIdle()
+        assertEquals(ReminderDetailLayout.forTarget(ReminderDetailTarget.Variant(1L, 11L)), viewModel.uiState.value.layout)
+
+        viewModel.initVariant(1L, null)
+        advanceUntilIdle()
+        assertEquals(ReminderDetailLayout.forTarget(ReminderDetailTarget.Variant(1L, null)), viewModel.uiState.value.layout)
+    }
+
+    @Test
     fun `initVariant for a deleted habit hides Did it`() = runTest {
         coEvery { habitRepository.getByIdOnce(1L) } returns null
         coEvery { variationRepository.getById(11L) } returns null
@@ -327,6 +394,7 @@ class ReminderDetailViewModelTest {
         advanceUntilIdle()
         assertFalse(viewModel.uiState.value.isLoading)
         assertFalse(viewModel.uiState.value.canComplete)
+        assertNull(viewModel.uiState.value.spriteRes)
     }
 
     @Test

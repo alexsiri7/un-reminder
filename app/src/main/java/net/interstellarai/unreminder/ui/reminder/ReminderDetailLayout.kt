@@ -22,7 +22,7 @@ import net.interstellarai.unreminder.ui.theme.Sans
  * A screen surface and the one ink drawn on it, as raw colours so a plain JVM test can check
  * the contrast of every pairing before it is handed to the theme.
  */
-internal class ReminderDetailPalette(
+class ReminderDetailPalette(
     val surfaceDay: Color,
     val surfaceNight: Color,
     val inkDay: Color,
@@ -50,7 +50,7 @@ private val SansHeadline = TextStyle(
  * derived from the target, never drawn: the screen can be reopened, and the same variant
  * must look the same each time.
  */
-internal enum class ReminderDetailLayout(
+enum class ReminderDetailLayout(
     val palette: ReminderDetailPalette,
     val headline: TextStyle,
 ) {
