@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { TOKEN_PATTERN, hashToken, parseTokenId, tokenKey, verifyToken } from './tokens'
 import tokenFormatFixture from '../../test/fixtures/token-format.txt?raw'
 import {
+  applyCaps,
   createTokenRecord,
   hashToken as mintSideHashToken,
   mintToken,
@@ -77,6 +78,34 @@ describe('minting side (scripts/tokenRecord.mjs) agrees with the verifying side'
     const capped = await createTokenRecord(TOKEN, 'alex', new Date('2026-09-15T00:00:00Z'), { dailyCapCents: 100 })
     expect(capped.dailyCapCents).toBe(100)
     expect(capped).not.toHaveProperty('monthlyCapCents')
+  })
+})
+
+describe('applyCaps (the `caps` subcommand)', () => {
+  const capped = () =>
+    createTokenRecord(TOKEN, 'alex', new Date('2026-09-15T00:00:00Z'), {
+      integrityExempt: true,
+      dailyCapCents: 100,
+      monthlyCapCents: 900,
+    })
+
+  it('replaces the overrides rather than merging: an omitted cap is cleared', async () => {
+    const record = applyCaps(await capped(), { dailyCapCents: 50 })
+    expect(record.dailyCapCents).toBe(50)
+    expect(record).not.toHaveProperty('monthlyCapCents')
+  })
+
+  it('clears both overrides when given none', async () => {
+    const record = applyCaps(await capped(), {})
+    expect(record).not.toHaveProperty('dailyCapCents')
+    expect(record).not.toHaveProperty('monthlyCapCents')
+  })
+
+  it('leaves everything but the caps untouched', async () => {
+    const before = await capped()
+    const { dailyCapCents: _daily, monthlyCapCents: _monthly, ...rest } = before
+    expect(applyCaps(before, { monthlyCapCents: 300 })).toEqual({ ...rest, monthlyCapCents: 300 })
+    expect(before).toMatchObject({ dailyCapCents: 100, monthlyCapCents: 900 })
   })
 })
 

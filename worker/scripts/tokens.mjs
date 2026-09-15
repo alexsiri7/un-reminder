@@ -14,7 +14,7 @@
 import { execFileSync } from 'node:child_process'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createTokenRecord, mintToken, tokenKey } from './tokenRecord.mjs'
+import { applyCaps, createTokenRecord, mintToken, tokenKey } from './tokenRecord.mjs'
 
 const workerDir = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const wranglerBin = resolve(workerDir, 'node_modules/.bin/wrangler')
@@ -92,8 +92,8 @@ switch (command) {
     const [id, ...flags] = rest
     if (!id || id.startsWith('--')) usage()
     const caps = capsFromArgs(flags)
-    const { dailyCapCents: _daily, monthlyCapCents: _monthly, ...record } = getRecord(id)
-    putRecord(id, { ...record, ...caps })
+    const record = getRecord(id)
+    putRecord(id, applyCaps(record, caps))
     console.log(`Token ${id} ("${record.label}") caps ${describeCaps(caps)}.`)
     break
   }

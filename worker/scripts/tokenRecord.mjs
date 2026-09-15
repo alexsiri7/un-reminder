@@ -32,3 +32,9 @@ export async function createTokenRecord(token, label, now, { integrityExempt = f
     ...(monthlyCapCents !== undefined && { monthlyCapCents }),
   }
 }
+
+/** The record with its cap overrides replaced by exactly [caps]; an omitted cap goes back to the Worker default. */
+export function applyCaps(record, caps) {
+  const { dailyCapCents: _daily, monthlyCapCents: _monthly, ...rest } = record
+  return { ...rest, ...caps }
+}
