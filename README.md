@@ -201,6 +201,7 @@ A scheduled notification event.
 - `generated_prompt` — the AI-generated text actually shown in the notification.
 - `action_url` — nullable; the variant's video URL as delivered, frozen at fire time like `generated_prompt`.
 - `style` — nullable; the presentation style the notification was posted with (`SPRITE`, `BIG_PICTURE`, `TEXT_ONLY`, `ACCENT`), frozen at fire time; null on rows fired before styles existed.
+- `sprite_tag` — nullable; the sprite tag the notification was posted with, frozen at fire time like `action_url`; null on rows fired before it was recorded.
 
 ### Location
 A named geofence the user has registered. Each location has:

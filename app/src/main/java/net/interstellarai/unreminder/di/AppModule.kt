@@ -26,6 +26,7 @@ import net.interstellarai.unreminder.data.db.MIGRATION_13_14
 import net.interstellarai.unreminder.data.db.MIGRATION_14_15
 import net.interstellarai.unreminder.data.db.MIGRATION_15_16
 import net.interstellarai.unreminder.data.db.MIGRATION_16_17
+import net.interstellarai.unreminder.data.db.MIGRATION_17_18
 import net.interstellarai.unreminder.data.db.HabitLevelDescriptionDao
 import net.interstellarai.unreminder.data.db.HabitWindowCrossRefDao
 import net.interstellarai.unreminder.data.db.PendingFeedbackDao
@@ -61,7 +62,7 @@ object AppModule {
             context,
             AppDatabase::class.java,
             "unreminder.db"
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17).build()
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18).build()
     }
 
     @Provides

@@ -33,6 +33,7 @@ class TriggerRepository @Inject constructor(
         prompt: String,
         actionUrl: String?,
         style: NotificationStyle,
+        spriteTag: String?,
     ) {
         triggerDao.updateFired(
             id = id,
@@ -42,6 +43,7 @@ class TriggerRepository @Inject constructor(
             prompt = prompt,
             actionUrl = actionUrl,
             style = style.name,
+            spriteTag = spriteTag,
         )
     }
 

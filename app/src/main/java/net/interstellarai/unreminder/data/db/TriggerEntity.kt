@@ -28,6 +28,9 @@ data class TriggerEntity(
     /** The look the notification was posted with, frozen like action_url so a style can be read against its outcome. Null on rows fired before styles existed. */
     @ColumnInfo(name = "style")
     val style: NotificationStyle? = null,
+    /** The sprite tag the notification was posted with, frozen like action_url so the detail screen shows the same mascot. Null on rows fired before it was recorded. */
+    @ColumnInfo(name = "sprite_tag")
+    val spriteTag: String? = null,
     @ColumnInfo(name = "source")
     val source: String? = null
 )

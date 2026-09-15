@@ -115,7 +115,8 @@ class TriggerPipeline @Inject constructor(
 
             // Presentation rotates on its own axis (#386): independent of the variant's shape
             // and of the sprite, and frozen with the fired row so a look can be read against
-            // its outcome.
+            // its outcome. The sprite tag is frozen alongside so the detail screen can show
+            // the same mascot the notification carried.
             val style = NotificationStyle.next(triggerRepository.getLastStyleForHabit(habit.id))
 
             triggerRepository.updateFired(
@@ -124,6 +125,7 @@ class TriggerPipeline @Inject constructor(
                 prompt = resolvedPrompt.text,
                 actionUrl = resolvedPrompt.actionUrl,
                 style = style,
+                spriteTag = resolvedPrompt.spriteTag,
             )
 
             notificationHelper.postTriggerNotification(
