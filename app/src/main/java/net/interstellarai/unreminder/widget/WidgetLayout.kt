@@ -11,12 +11,10 @@ import net.interstellarai.unreminder.ui.theme.SageBg
 import net.interstellarai.unreminder.ui.theme.SageBgDark
 import net.interstellarai.unreminder.ui.theme.SageInk
 import net.interstellarai.unreminder.ui.theme.SageInkDark
+import net.interstellarai.unreminder.ui.theme.SageMossDark
 import net.interstellarai.unreminder.ui.theme.SageSoft
 import net.interstellarai.unreminder.ui.theme.SageSoftDark
 import kotlin.random.Random
-
-// Widget-only: the Sage handoff has four distinct dark surfaces and five layouts want five.
-private val SageMossDark = Color(0xFF33422A)
 
 /**
  * A card surface and the one ink drawn on it. The raw colours are the source of truth so a
