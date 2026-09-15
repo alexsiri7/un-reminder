@@ -56,6 +56,17 @@ class ReminderDetailLayoutTest {
         assertEquals(forTarget(Trigger(42)), forTarget(Trigger(42)))
     }
 
+    // The look is persisted by id, so the id-to-layout mapping is part of the contract: reordering
+    // the enum would reshuffle every already-seen variant and trigger.
+    @Test
+    fun `known ids are pinned to named layouts`() {
+        assertEquals(ReminderDetailLayout.SPRITE_TOP, forTarget(Trigger(0)))
+        assertEquals(ReminderDetailLayout.SPRITE_LEFT, forTarget(Trigger(1)))
+        assertEquals(ReminderDetailLayout.BACKDROP, forTarget(Trigger(2)))
+        assertEquals(ReminderDetailLayout.TEXT_DOMINANT, forTarget(Trigger(3)))
+        assertEquals(ReminderDetailLayout.SPRITE_BOTTOM, forTarget(Trigger(4)))
+    }
+
     @Test
     fun `a negative id still resolves`() {
         assertTrue(forTarget(Trigger(-1)) in ReminderDetailLayout.entries)
