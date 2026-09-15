@@ -327,8 +327,8 @@ class TriggerDaoTest {
         val withoutVideo = triggerDao.insert(TriggerEntity(scheduledAt = Instant.ofEpochMilli(midnightMillis)))
         val url = "https://www.youtube.com/results?search_query=C+major+vocal+scale"
 
-        triggerDao.updateFired(withVideo, TriggerStatus.FIRED.name, midnightMillis, habitId, "Sing the scale", url, NotificationStyle.SPRITE.name, null)
-        triggerDao.updateFired(withoutVideo, TriggerStatus.FIRED.name, midnightMillis, habitId, "Breathe", null, NotificationStyle.SPRITE.name, null)
+        triggerDao.updateFired(withVideo, TriggerStatus.FIRED.name, midnightMillis, habitId, "Sing the scale", url, NotificationStyle.SPRITE.name, null, null)
+        triggerDao.updateFired(withoutVideo, TriggerStatus.FIRED.name, midnightMillis, habitId, "Breathe", null, NotificationStyle.SPRITE.name, null, null)
 
         val fired = triggerDao.getById(withVideo)
         assertEquals("Sing the scale", fired?.generatedPrompt)
@@ -336,19 +336,17 @@ class TriggerDaoTest {
         assertNull(triggerDao.getById(withoutVideo)?.actionUrl)
     }
 
-    // The later fire is inserted first so the read is proven to order by fired_at, not by id.
     @Test
-    fun `updateFired stores the style and getLastStyleForHabit reads the most recent one`() = runTest {
+    fun `updateFired stores the style`() = runTest {
         val habitId = insertHabit("hStyle")
-        val later = triggerDao.insert(TriggerEntity(scheduledAt = Instant.ofEpochMilli(midnightMillis)))
-        val earlier = triggerDao.insert(TriggerEntity(scheduledAt = Instant.ofEpochMilli(midnightMillis)))
+        val bigPicture = triggerDao.insert(TriggerEntity(scheduledAt = Instant.ofEpochMilli(midnightMillis)))
+        val textOnly = triggerDao.insert(TriggerEntity(scheduledAt = Instant.ofEpochMilli(midnightMillis)))
 
-        triggerDao.updateFired(later, TriggerStatus.FIRED.name, midnightMillis + 2_000L, habitId, "Breathe", null, NotificationStyle.BIG_PICTURE.name, null)
-        triggerDao.updateFired(earlier, TriggerStatus.FIRED.name, midnightMillis + 1_000L, habitId, "Stretch", null, NotificationStyle.TEXT_ONLY.name, null)
+        triggerDao.updateFired(bigPicture, TriggerStatus.FIRED.name, midnightMillis + 2_000L, habitId, "Breathe", null, NotificationStyle.BIG_PICTURE.name, null, null)
+        triggerDao.updateFired(textOnly, TriggerStatus.FIRED.name, midnightMillis + 1_000L, habitId, "Stretch", null, NotificationStyle.TEXT_ONLY.name, null, null)
 
-        assertEquals(NotificationStyle.BIG_PICTURE, triggerDao.getById(later)?.style)
-        assertEquals(NotificationStyle.TEXT_ONLY, triggerDao.getById(earlier)?.style)
-        assertEquals(NotificationStyle.BIG_PICTURE, triggerDao.getLastStyleForHabit(habitId))
+        assertEquals(NotificationStyle.BIG_PICTURE, triggerDao.getById(bigPicture)?.style)
+        assertEquals(NotificationStyle.TEXT_ONLY, triggerDao.getById(textOnly)?.style)
     }
 
     @Test
@@ -357,26 +355,23 @@ class TriggerDaoTest {
         val tagged = triggerDao.insert(TriggerEntity(scheduledAt = Instant.ofEpochMilli(midnightMillis)))
         val untagged = triggerDao.insert(TriggerEntity(scheduledAt = Instant.ofEpochMilli(midnightMillis)))
 
-        triggerDao.updateFired(tagged, TriggerStatus.FIRED.name, midnightMillis, habitId, "Breathe", null, NotificationStyle.SPRITE.name, "wizard_starry_robe")
-        triggerDao.updateFired(untagged, TriggerStatus.FIRED.name, midnightMillis, habitId, "Stretch", null, NotificationStyle.SPRITE.name, null)
+        triggerDao.updateFired(tagged, TriggerStatus.FIRED.name, midnightMillis, habitId, "Breathe", null, NotificationStyle.SPRITE.name, "wizard_starry_robe", null)
+        triggerDao.updateFired(untagged, TriggerStatus.FIRED.name, midnightMillis, habitId, "Stretch", null, NotificationStyle.SPRITE.name, null, null)
 
         assertEquals("wizard_starry_robe", triggerDao.getById(tagged)?.spriteTag)
         assertNull(triggerDao.getById(untagged)?.spriteTag)
     }
 
     @Test
-    fun `getLastStyleForHabit is null for a habit that has never fired`() = runTest {
-        val habitId = insertHabit("hNeverFired")
+    fun `updateFired stores the variation id delivered with the prompt`() = runTest {
+        val habitId = insertHabit("hVariation")
+        val fromPool = triggerDao.insert(TriggerEntity(scheduledAt = Instant.ofEpochMilli(midnightMillis)))
+        val fallback = triggerDao.insert(TriggerEntity(scheduledAt = Instant.ofEpochMilli(midnightMillis)))
 
-        assertNull(triggerDao.getLastStyleForHabit(habitId))
-    }
+        triggerDao.updateFired(fromPool, TriggerStatus.FIRED.name, midnightMillis, habitId, "Breathe", null, NotificationStyle.SPRITE.name, null, 77L)
+        triggerDao.updateFired(fallback, TriggerStatus.FIRED.name, midnightMillis, habitId, "Stretch", null, NotificationStyle.SPRITE.name, null, null)
 
-    // The first fire after the update reads a row from before the column existed.
-    @Test
-    fun `getLastStyleForHabit is null for a row fired before styles existed`() = runTest {
-        val habitId = insertHabit("hPreStyle")
-        insertTrigger(habitId, TriggerStatus.FIRED, midnightMillis)
-
-        assertNull(triggerDao.getLastStyleForHabit(habitId))
+        assertEquals(77L, triggerDao.getById(fromPool)?.variationId)
+        assertNull(triggerDao.getById(fallback)?.variationId)
     }
 }

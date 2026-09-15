@@ -1,13 +1,10 @@
 package net.interstellarai.unreminder.widget
 
 import androidx.datastore.preferences.core.mutablePreferencesOf
-import androidx.datastore.preferences.core.stringPreferencesKey
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
-import kotlin.random.Random
 
 class DoableHabitWidgetStateTest {
 
@@ -25,7 +22,7 @@ class DoableHabitWidgetStateTest {
     fun `a stored habit reads back whole`() {
         val prefs = mutablePreferencesOf()
 
-        DoableHabitWidget.store(prefs, habit, progress, WidgetLayout.SPRITE_LEFT)
+        DoableHabitWidget.store(prefs, habit, progress)
 
         assertEquals(habit, DoableHabitWidget.stored(prefs))
     }
@@ -33,14 +30,13 @@ class DoableHabitWidgetStateTest {
     @Test
     fun `storing no habit removes every key of the previous habit`() {
         val prefs = mutablePreferencesOf()
-        DoableHabitWidget.store(prefs, habit, progress, WidgetLayout.SPRITE_LEFT)
+        DoableHabitWidget.store(prefs, habit, progress)
 
-        DoableHabitWidget.store(prefs, null, progress, WidgetLayout.SPRITE_LEFT)
+        DoableHabitWidget.store(prefs, null, progress)
 
         assertNull(DoableHabitWidget.stored(prefs))
-        assertEquals(3, prefs.asMap().size)
+        assertEquals(2, prefs.asMap().size)
         assertEquals(progress, DoableHabitWidget.storedDayProgress(prefs))
-        assertEquals(WidgetLayout.SPRITE_LEFT, DoableHabitWidget.storedLayout(prefs))
     }
 
     @Test
@@ -48,7 +44,7 @@ class DoableHabitWidgetStateTest {
         val prefs = mutablePreferencesOf()
         val fallback = habit.copy(text = "five minutes", variationId = null, spriteTag = null)
 
-        DoableHabitWidget.store(prefs, fallback, progress, WidgetLayout.SPRITE_LEFT)
+        DoableHabitWidget.store(prefs, fallback, progress)
 
         assertEquals(fallback, DoableHabitWidget.stored(prefs))
     }
@@ -56,10 +52,10 @@ class DoableHabitWidgetStateTest {
     @Test
     fun `storing a fallback over a variant drops the variant's id and tag`() {
         val prefs = mutablePreferencesOf()
-        DoableHabitWidget.store(prefs, habit, progress, WidgetLayout.SPRITE_LEFT)
+        DoableHabitWidget.store(prefs, habit, progress)
         val fallback = habit.copy(text = null, variationId = null, spriteTag = null)
 
-        DoableHabitWidget.store(prefs, fallback, progress, WidgetLayout.SPRITE_LEFT)
+        DoableHabitWidget.store(prefs, fallback, progress)
 
         assertEquals(fallback, DoableHabitWidget.stored(prefs))
     }
@@ -74,7 +70,7 @@ class DoableHabitWidgetStateTest {
         val prefs = mutablePreferencesOf()
         val done = DayProgress(completedToday = true, daysWithAnyCompletion = 12)
 
-        DoableHabitWidget.store(prefs, habit, done, WidgetLayout.SPRITE_LEFT)
+        DoableHabitWidget.store(prefs, habit, done)
 
         assertEquals(habit, DoableHabitWidget.stored(prefs))
         assertEquals(done, DoableHabitWidget.storedDayProgress(prefs))
@@ -83,9 +79,9 @@ class DoableHabitWidgetStateTest {
     @Test
     fun `a refresh after completing flips the progress the same write that changes the habit`() {
         val prefs = mutablePreferencesOf()
-        DoableHabitWidget.store(prefs, habit, progress, WidgetLayout.SPRITE_LEFT)
+        DoableHabitWidget.store(prefs, habit, progress)
 
-        DoableHabitWidget.store(prefs, null, progress.copy(completedToday = true, daysWithAnyCompletion = 5), WidgetLayout.SPRITE_LEFT)
+        DoableHabitWidget.store(prefs, null, progress.copy(completedToday = true, daysWithAnyCompletion = 5))
 
         assertNull(DoableHabitWidget.stored(prefs))
         assertEquals(DayProgress(completedToday = true, daysWithAnyCompletion = 5), DoableHabitWidget.storedDayProgress(prefs))
@@ -123,55 +119,23 @@ class DoableHabitWidgetStateTest {
     }
 
     @Test
-    fun `the stored layout reads back`() {
+    fun `the layout is the stored variant's`() {
         val prefs = mutablePreferencesOf()
+        DoableHabitWidget.store(prefs, habit.copy(variationId = 11L), progress)
 
-        DoableHabitWidget.store(prefs, habit, progress, WidgetLayout.TYPOGRAPHIC)
-
-        assertEquals(WidgetLayout.TYPOGRAPHIC, DoableHabitWidget.storedLayout(prefs))
+        assertEquals(WidgetLayout.forSeed(11L), DoableHabitWidget.layoutFor(DoableHabitWidget.stored(prefs)))
     }
 
     @Test
-    fun `no stored layout reads as null`() {
-        assertNull(DoableHabitWidget.storedLayout(mutablePreferencesOf()))
+    fun `a fallback habit's layout is keyed on the habit id`() {
+        val fallback = habit.copy(text = null, variationId = null, spriteTag = null)
+
+        assertEquals(WidgetLayout.forSeed(7L), DoableHabitWidget.layoutFor(fallback))
     }
 
     @Test
-    fun `an unknown stored layout name reads as null`() {
-        val prefs = mutablePreferencesOf()
-        prefs[stringPreferencesKey("layout")] = "SPRITE_TOP"
-
-        assertNull(DoableHabitWidget.storedLayout(prefs))
-    }
-
-    @Test
-    fun `the next layout is never the one just shown`() {
-        val prefs = mutablePreferencesOf()
-        DoableHabitWidget.store(prefs, habit, progress, WidgetLayout.COMPACT)
-
-        repeat(200) { assertNotEquals(WidgetLayout.COMPACT, DoableHabitWidget.nextLayout(prefs, Random(it))) }
-    }
-
-    @Test
-    fun `a widget with no stored layout can start on any of the five`() {
-        val seen = (0 until 200).map { DoableHabitWidget.nextLayout(mutablePreferencesOf(), Random(it)) }.toSet()
-
-        assertEquals(WidgetLayout.entries.toSet(), seen)
-    }
-
-    // The refresher's exact expression: the roll must read the previous layout before the
-    // write replaces it, or a widget could repeat itself.
-    @Test
-    fun `rolling into the same write never repeats the previous refresh's layout`() {
-        val prefs = mutablePreferencesOf()
-        var previous: WidgetLayout? = null
-
-        repeat(200) {
-            DoableHabitWidget.store(prefs, habit, progress, DoableHabitWidget.nextLayout(prefs, Random(it)))
-            val current = DoableHabitWidget.storedLayout(prefs)
-            assertNotEquals("refresh $it repeated $previous", previous, current)
-            previous = current
-        }
+    fun `no habit shows the original look`() {
+        assertEquals(WidgetLayout.SPRITE_LEFT, DoableHabitWidget.layoutFor(null))
     }
 
     @Test

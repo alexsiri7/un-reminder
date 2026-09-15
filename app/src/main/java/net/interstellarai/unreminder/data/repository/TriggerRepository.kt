@@ -34,6 +34,7 @@ class TriggerRepository @Inject constructor(
         actionUrl: String?,
         style: NotificationStyle,
         spriteTag: String?,
+        variationId: Long?,
     ) {
         triggerDao.updateFired(
             id = id,
@@ -44,6 +45,7 @@ class TriggerRepository @Inject constructor(
             actionUrl = actionUrl,
             style = style.name,
             spriteTag = spriteTag,
+            variationId = variationId,
         )
     }
 
@@ -82,8 +84,6 @@ class TriggerRepository @Inject constructor(
         triggerDao.getLastNForHabit(habitId, n)
 
     suspend fun getLastFiredForHabit(habitId: Long): Long? = triggerDao.getLastFiredForHabit(habitId)
-
-    suspend fun getLastStyleForHabit(habitId: Long): NotificationStyle? = triggerDao.getLastStyleForHabit(habitId)
 
     suspend fun getCompletionsSince(habitId: Long, sinceMillis: Long): List<TriggerEntity> =
         triggerDao.getCompletionsSince(habitId, sinceMillis)

@@ -103,7 +103,7 @@ class EveningInvitationNotificationTest {
     @Test
     fun `cancelEveningInvitation clears the invitation and nothing else`() {
         posted()
-        helper.postTriggerNotification(triggerId = 3L, promptText = "prompt", habitName = "stretch", style = NotificationStyle.SPRITE)
+        helper.postTriggerNotification(triggerId = 3L, promptText = "prompt", habitName = "stretch", style = NotificationStyle.SPRITE, treatmentSeed = 3L)
         val triggerNotificationId = 3L.toRequestCode()
 
         helper.cancelEveningInvitation()
@@ -115,7 +115,7 @@ class EveningInvitationNotificationTest {
     @Test
     fun `dismiss receiver clears the invitation and nothing else`() {
         posted()
-        helper.postTriggerNotification(triggerId = 3L, promptText = "prompt", habitName = "stretch", style = NotificationStyle.SPRITE)
+        helper.postTriggerNotification(triggerId = 3L, promptText = "prompt", habitName = "stretch", style = NotificationStyle.SPRITE, treatmentSeed = 3L)
         val triggerNotificationId = 3L.toRequestCode()
 
         EveningInvitationDismissReceiver().onReceive(context, Intent())

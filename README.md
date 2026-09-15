@@ -202,6 +202,7 @@ A scheduled notification event.
 - `action_url` — nullable; the variant's video URL as delivered, frozen at fire time like `generated_prompt`.
 - `style` — nullable; the presentation style the notification was posted with (`SPRITE`, `BIG_PICTURE`, `TEXT_ONLY`, `ACCENT`), frozen at fire time; null on rows fired before styles existed.
 - `sprite_tag` — nullable; the sprite tag the notification was posted with, frozen at fire time like `action_url`; null on rows fired before it was recorded.
+- `variation_id` — nullable; the variation that fired, so every surface can derive the same look from it. An id, not a foreign key: the row may be pruned on refill. Null on a level-description fallback and on rows fired before it was recorded.
 
 ### Location
 A named geofence the user has registered. Each location has:
@@ -257,7 +258,7 @@ updated by geofence `ENTER`/`EXIT` callbacks. Empty set means no known location.
    `minutesSince` is minutes since the habit was last fired (cap: 1440 min = 24 h). A habit
    never fired receives the maximum weight (~13×). If the eligible set is empty, skip silently.
 4. Pick an unused variation from the cloud-generated pool (see Variation entity). If the pool is empty, use the level description fallback (see Fallback below).
-5. Post the notification with the generated text, then cancel any notification that was still awaiting an outcome and record its trigger as `EXPIRED`, so at most one unanswered nudge stands at a time. The replacement goes up first so a post that fails leaves the standing notification answerable, and an outcome the user recorded in the meantime is never overwritten. Action buttons: **Open**, **Later**. The notification is dressed in one of four presentation styles (sprite, big picture, text-only, accent), chosen to differ from the habit's previous style and independently of the variant's shape; the video indicator and the two actions are identical in every style. When the variation includes an `actionUrl`, the notification's header sub-text carries a video indicator (`▶ video`); the video itself is watched from the detail screen. Swiping the notification away records `DISMISSED`. Tapping **Open** or the notification body opens the **Reminder Detail screen** for that trigger.
+5. Post the notification with the generated text, then cancel any notification that was still awaiting an outcome and record its trigger as `EXPIRED`, so at most one unanswered nudge stands at a time. The replacement goes up first so a post that fails leaves the standing notification answerable, and an outcome the user recorded in the meantime is never overwritten. Action buttons: **Open**, **Later**. The notification is dressed in one of four presentation styles (sprite, big picture, text-only, accent), derived from the variant's id (the habit id for a fallback) so the same variant always posts in the same style, independently of its shape; variant selection prefers a variant whose look differs from the last one consumed, the way it already prefers a fresh shape. The video indicator and the two actions are identical in every style. When the variation includes an `actionUrl`, the notification's header sub-text carries a video indicator (`▶ video`); the video itself is watched from the detail screen. Swiping the notification away records `DISMISSED`. Tapping **Open** or the notification body opens the **Reminder Detail screen** for that trigger.
 6. Record the trigger row with the generated prompt and the outcome when the user responds.
    - **Open (OPENED):** resolves the trigger and clears the notification. The cooldown applies as after any nudge; `dedication_level` never moves. Upgraded to `COMPLETED` if the user taps **Did it** on the detail screen, otherwise it stays `OPENED`. This is the only outcome ever replaced by another; every other recorded outcome is final.
    - **Did it (COMPLETED):** recorded from the detail screen. The habit is excluded from the rest of today's triggers (step 2 above). When `auto_adjust_level` is true, consecutive completions promote `dedication_level` (up to max 5).
@@ -342,10 +343,11 @@ from the pool, not from a fresh generation.
     caption reads "doable now". When there is no variant text the habit name is promoted into the
     headline. The screen rotates through five layouts — `SPRITE_TOP`, `SPRITE_LEFT`, `BACKDROP`,
     `TEXT_DOMINANT`, `SPRITE_BOTTOM` — each with its own surface colour, headline scale and sprite
-    placement, independent of the notification style, the widget layout and the variant shape. The
-    layout is chosen deterministically from the variation id (the habit id for a fallback row, the
-    trigger id for a trigger), so the same variant always opens to the same look and any five
-    consecutively generated variants of a habit get five different ones. Action chips:
+    placement, independent of the variant shape. The layout, the notification style and the widget
+    layout all derive from the same seed — the variation id, or the habit id for a fallback row, read
+    from the trigger's frozen `variation_id` on the notification path (`VariantTreatment`) — so a
+    variant is recognisably itself on every surface, the same variant always opens to the same look,
+    and any five consecutively generated variants of a habit get five different ones. Action chips:
     **Did it**, which records `COMPLETED` and navigates back — on a trigger, by upgrading its outcome
     (shown only while the trigger is `FIRED` or `OPENED`; if a swipe or Later already resolved it,
     nothing is recorded and the chip is withdrawn instead); on a variant, through `PullCompletionRecorder`
@@ -376,7 +378,7 @@ from the pool, not from a fresh generation.
 @Entity Window(id, start_time, end_time, days_of_week_bitmask, frequency_per_day, active)
 @Entity Location(id, name /* user-defined, e.g. "Home", "Gym", "Office" */, lat, lng, radius_m)
 @Entity HabitLocationCrossRef(habit_id → Habit.id CASCADE, location_id → Location.id CASCADE)  // junction
-@Entity Trigger(id, window_id?, habit_id?, scheduled_at, fired_at?, status, generated_prompt?, action_url?, style?)
+@Entity Trigger(id, window_id?, habit_id?, scheduled_at, fired_at?, status, generated_prompt?, action_url?, style?, sprite_tag?, variation_id?)
 @Entity PendingFeedback(id, screenshot_path? /* nullable */, description, queued_at)  // offline upload queue
 @Entity Variation(id, habit_id → Habit.id CASCADE, text, prompt_fingerprint, generated_at, consumed_at?, action_url?, shape?, modes/*Int bitmask, 0 = neutral*/, generation_version/*Int, default 0 = pre-version rows*/)  // variation pool
 ```

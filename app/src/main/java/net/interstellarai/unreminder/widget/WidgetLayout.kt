@@ -14,7 +14,7 @@ import net.interstellarai.unreminder.ui.theme.SageInkDark
 import net.interstellarai.unreminder.ui.theme.SageMossDark
 import net.interstellarai.unreminder.ui.theme.SageSoft
 import net.interstellarai.unreminder.ui.theme.SageSoftDark
-import kotlin.random.Random
+import net.interstellarai.unreminder.domain.model.VariantTreatment
 
 /**
  * A card surface and the one ink drawn on it. The raw colours are the source of truth so a
@@ -31,12 +31,12 @@ internal class WidgetPalette(
 }
 
 /**
- * The five looks the widget rotates through, one per refresh, never the same one twice in a
- * row. Rotation is independent of [net.interstellarai.unreminder.domain.model.VariantShape]
- * and of the notification style. Each layout owns its palette rather than rotating colours
- * separately, so every surface/ink pairing that can ever render is contrast-checked. The
- * widget deliberately does not use `GlanceTheme`: its default is wallpaper-derived Material
- * You, which the app's own theme turned off.
+ * The five looks the widget draws, one per shown variant: the look is derived from the
+ * variant's [VariantTreatment] seed, independent of
+ * [net.interstellarai.unreminder.domain.model.VariantShape]. Each layout owns its palette
+ * rather than rotating colours separately, so every surface/ink pairing that can ever render
+ * is contrast-checked. The widget deliberately does not use `GlanceTheme`: its default is
+ * wallpaper-derived Material You, which the app's own theme turned off.
  */
 internal enum class WidgetLayout(
     val palette: WidgetPalette,
@@ -70,10 +70,6 @@ internal enum class WidgetLayout(
     );
 
     companion object {
-        fun next(previous: WidgetLayout?, random: Random = Random.Default): WidgetLayout =
-            entries.filter { it != previous }.random(random)
-
-        /** Tolerates a missing or unknown stored name: a rename must not crash a placed widget. */
-        fun fromName(name: String?): WidgetLayout? = entries.firstOrNull { it.name == name }
+        fun forSeed(seed: Long): WidgetLayout = VariantTreatment.pick(entries, seed)
     }
 }

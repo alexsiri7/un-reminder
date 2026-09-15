@@ -15,16 +15,25 @@ interface VariationDao {
      * mode [modeBit] names, then mode-neutral ones, then those written for another mode, so
      * a habit always has something to say even when nothing suits the moment. Within each of
      * those, rows sharing the shape of the habit's most recently consumed variation sort
-     * last and the rest are in random order, so the head of the list is a fresh shape
-     * whenever one is available and the same shape is the fallback for a nearly drained pool.
+     * last, so the head of the list is a fresh shape whenever one is available and the same
+     * shape is the fallback for a nearly drained pool. Within a shape rank, rows that would
+     * repeat that variation's look on any surface sort last: a look is `id mod n` over the
+     * surface's entries (VariantTreatment), where 4 is the notification's style count and 5
+     * the widget's and detail screen's layout count, each pinned by its enum's test. The rest
+     * is random order. Both tiers read the one last consumed row [deleteConsumedByHabit] keeps,
+     * joined so that with nothing consumed the comparisons are NULL and rank nothing.
      */
     @Query(
-        "SELECT * FROM variations WHERE habit_id = :habitId AND consumed_at IS NULL " +
-        "ORDER BY CASE WHEN (modes & :modeBit) != 0 THEN 0 WHEN modes = 0 THEN 1 ELSE 2 END, " +
-        "CASE WHEN shape = (" +
-        "SELECT shape FROM variations WHERE habit_id = :habitId AND consumed_at IS NOT NULL " +
-        "ORDER BY consumed_at DESC LIMIT 1" +
-        ") THEN 1 ELSE 0 END, RANDOM() LIMIT :limit"
+        "WITH last_consumed AS (" +
+        "SELECT shape AS last_shape, id AS last_id FROM variations " +
+        "WHERE habit_id = :habitId AND consumed_at IS NOT NULL ORDER BY consumed_at DESC LIMIT 1" +
+        ") " +
+        "SELECT v.* FROM variations v LEFT JOIN last_consumed ON 1 = 1 " +
+        "WHERE v.habit_id = :habitId AND v.consumed_at IS NULL " +
+        "ORDER BY CASE WHEN (v.modes & :modeBit) != 0 THEN 0 WHEN v.modes = 0 THEN 1 ELSE 2 END, " +
+        "CASE WHEN v.shape = last_shape THEN 1 ELSE 0 END, " +
+        "CASE WHEN v.id % 4 = last_id % 4 OR v.id % 5 = last_id % 5 THEN 1 ELSE 0 END, " +
+        "RANDOM() LIMIT :limit"
     )
     suspend fun getUnusedForHabit(habitId: Long, modeBit: Int, limit: Int): List<VariationEntity>
 
@@ -47,7 +56,7 @@ interface VariationDao {
 
     /**
      * Prunes consumed variations for [habitId] except the most recently consumed one, which
-     * [getUnusedForHabit] still needs as the shape to rotate away from after a refill.
+     * [getUnusedForHabit] still needs as the shape and look to rotate away from after a refill.
      */
     @Query(
         "DELETE FROM variations WHERE habit_id = :habitId AND consumed_at IS NOT NULL AND id != (" +

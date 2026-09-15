@@ -62,6 +62,25 @@ class VariationRepositoryRotationTest {
         assertEquals(0, db.variationDao().countUnused(habitId))
     }
 
+    // A look is id mod 4 (notification style) or id mod 5 (widget and detail layout).
+    @Test fun `consecutive picks differ in look while another look is still unused`() = runTest {
+        repository.insertAll((1..24).map { i ->
+            VariationEntity(habitId = habitId, text = "s $i", promptFingerprint = "fp", generatedAt = Instant.EPOCH, shape = VariantShape.STATEMENT)
+        })
+
+        var previous = repository.pickRandomUnused(habitId, ActivityMode.SITTING)!!.id
+        repeat(16) {
+            val freshAvailable = db.variationDao().getUnusedForHabit(habitId, ActivityMode.SITTING.bit, 50)
+                .any { it.id % 4 != previous % 4 && it.id % 5 != previous % 5 }
+            val picked = repository.pickRandomUnused(habitId, ActivityMode.SITTING)!!.id
+            if (freshAvailable) {
+                assertNotEquals(previous % 4, picked % 4)
+                assertNotEquals(previous % 5, picked % 5)
+            }
+            previous = picked
+        }
+    }
+
     @Test fun `peek for the widget avoids the shape the last notification used`() = runTest {
         repository.insertAll(balancedPool(perShape = 3))
         val fired = repository.pickRandomUnused(habitId, ActivityMode.SITTING)!!.shape

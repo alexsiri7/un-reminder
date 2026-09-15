@@ -81,11 +81,12 @@ class ReminderDetailViewModelTest {
     }
 
     private fun makeTrigger(
-        habitId: Long = 1L,
+        habitId: Long? = 1L,
         prompt: String = "test prompt",
         actionUrl: String? = null,
         status: TriggerStatus = TriggerStatus.SCHEDULED,
         spriteTag: String? = null,
+        variationId: Long? = null,
     ) = TriggerEntity(
         id = 42L,
         habitId = habitId,
@@ -94,6 +95,7 @@ class ReminderDetailViewModelTest {
         generatedPrompt = prompt,
         actionUrl = actionUrl,
         spriteTag = spriteTag,
+        variationId = variationId,
     )
 
     private fun makeHabit(id: Long = 1L, name: String = "Meditate", level: Int = 3) =
@@ -136,6 +138,7 @@ class ReminderDetailViewModelTest {
         viewModel.init(99L)
         advanceUntilIdle()
         assertEquals("", viewModel.uiState.value.promptText)
+        assertEquals(ReminderDetailLayout.forSeed(99L), viewModel.uiState.value.layout)
         assertEquals("", viewModel.uiState.value.habitName)
         assertNull(viewModel.uiState.value.spriteRes)
         assertFalse(viewModel.uiState.value.isLoading)
@@ -366,24 +369,82 @@ class ReminderDetailViewModelTest {
         assertEquals(SpriteResolver().resolve(null, 1L), viewModel.uiState.value.spriteRes)
     }
 
+    // The same variant opens to the same layout whether it arrived from a notification or was
+    // tapped on the Now page or widget (#416).
     @Test
-    fun `the layout is keyed on the target`() = runTest {
-        coEvery { triggerRepository.getById(42L) } returns makeTrigger()
+    fun `the layout is the variant's on both paths`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns makeTrigger(variationId = 11L)
         coEvery { habitRepository.getByIdOnce(1L) } returns makeHabit(level = 3)
         coEvery { variationRepository.getById(11L) } returns makeVariation()
-        coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 3) } returns "sit for two minutes"
 
         viewModel.init(42L)
         advanceUntilIdle()
-        assertEquals(ReminderDetailLayout.forTarget(ReminderDetailTarget.Trigger(42L)), viewModel.uiState.value.layout)
+        assertEquals(ReminderDetailLayout.forSeed(11L), viewModel.uiState.value.layout)
 
         viewModel.initVariant(1L, 11L)
         advanceUntilIdle()
-        assertEquals(ReminderDetailLayout.forTarget(ReminderDetailTarget.Variant(1L, 11L)), viewModel.uiState.value.layout)
+        assertEquals(ReminderDetailLayout.forSeed(11L), viewModel.uiState.value.layout)
+    }
 
-        viewModel.initVariant(1L, null)
+    @Test
+    fun `a fallback firing and a fallback row are keyed on the habit id`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns makeTrigger(habitId = 3L, variationId = null)
+        coEvery { habitRepository.getByIdOnce(3L) } returns makeHabit(id = 3L, level = 3)
+        coEvery { levelDescriptionRepository.getDescriptionForLevel(3L, 3) } returns "sit for two minutes"
+
+        viewModel.init(42L)
         advanceUntilIdle()
-        assertEquals(ReminderDetailLayout.forTarget(ReminderDetailTarget.Variant(1L, null)), viewModel.uiState.value.layout)
+        assertEquals(ReminderDetailLayout.forSeed(3L), viewModel.uiState.value.layout)
+
+        viewModel.initVariant(3L, null)
+        advanceUntilIdle()
+        assertEquals(ReminderDetailLayout.forSeed(3L), viewModel.uiState.value.layout)
+    }
+
+    // The layout must survive a failure after the row loaded, or the screen opened from a
+    // notification would stop matching it exactly when something else went wrong.
+    @Test
+    fun `init keeps the variant's layout when a later step fails`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns makeTrigger(status = TriggerStatus.FIRED, variationId = 11L)
+        coEvery { habitRepository.getByIdOnce(1L) } returns makeHabit()
+        coEvery { triggerRepository.recordOutcome(42L, TriggerStatus.OPENED) } throws RuntimeException("boom")
+
+        viewModel.init(42L)
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertEquals(ReminderDetailLayout.forSeed(11L), viewModel.uiState.value.layout)
+    }
+
+    @Test
+    fun `init keeps the variant's layout when the habit fails to load`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns makeTrigger(variationId = 11L)
+        coEvery { habitRepository.getByIdOnce(1L) } throws RuntimeException("boom")
+
+        viewModel.init(42L)
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertEquals(ReminderDetailLayout.forSeed(11L), viewModel.uiState.value.layout)
+    }
+
+    // A trigger the gate rejected before a habit was assigned never fired and has no variant;
+    // the row itself is the only identity left to key on.
+    @Test
+    fun `a trigger with no habit is keyed on its own id`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns makeTrigger(habitId = null, variationId = null)
+
+        viewModel.init(42L)
+        advanceUntilIdle()
+        assertEquals(ReminderDetailLayout.forSeed(42L), viewModel.uiState.value.layout)
+    }
+
+    @Test
+    fun `a trigger that failed to load is keyed on its own id`() = runTest {
+        coEvery { triggerRepository.getById(42L) } throws RuntimeException("boom")
+
+        viewModel.init(42L)
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertEquals(ReminderDetailLayout.forSeed(42L), viewModel.uiState.value.layout)
     }
 
     @Test

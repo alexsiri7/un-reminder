@@ -115,7 +115,7 @@ class TriggerGateStaysStrictTest {
 
         assertEquals(emptyList<HabitEntity>(), habitRepository.getEligibleHabits(emptySet(), ActivityMode.SITTING))
         assertEquals(TriggerStatus.DISMISSED, triggerRepository.getById(triggerId)!!.status)
-        verify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any(), any(), any(), any()) }
+        verify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any(), any(), any(), any(), any()) }
         verify(exactly = 0) { widgetRefresher.refresh() }
     }
 
@@ -135,7 +135,7 @@ class TriggerGateStaysStrictTest {
 
         assertEquals(emptyList<HabitEntity>(), habitRepository.getEligibleHabits(emptySet(), ActivityMode.WALKING))
         assertEquals(TriggerStatus.DISMISSED, triggerRepository.getById(triggerId)!!.status)
-        verify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any(), any(), any(), any()) }
+        verify(exactly = 0) { notificationHelper.postTriggerNotification(any(), any(), any(), any(), any(), any(), any()) }
         verify(exactly = 0) { widgetRefresher.refresh() }
     }
 }
