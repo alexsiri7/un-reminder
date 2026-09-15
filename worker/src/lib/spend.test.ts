@@ -24,8 +24,7 @@ describe('getSpend', () => {
   })
 
   it('returns parsed values when KV has data', async () => {
-    // Spelled out rather than taken from spendKeys: this is the one place the `day:`/`month:`
-    // key format is pinned, and the README's `--prefix user:<id>:` example depends on it.
+    // Pins the literal `day:`/`month:` key format that operators list by prefix (worker/README.md).
     const d = new Date()
     const dayKey = `day:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
     const monthKey = `month:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
