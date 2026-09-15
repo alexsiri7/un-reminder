@@ -14,7 +14,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import net.interstellarai.unreminder.domain.model.ActivityMode
+import net.interstellarai.unreminder.domain.model.NotificationStyle
 import net.interstellarai.unreminder.domain.model.VariantShape
+import net.interstellarai.unreminder.ui.reminder.ReminderDetailLayout
+import net.interstellarai.unreminder.widget.WidgetLayout
 import java.time.Instant
 
 @RunWith(RobolectricTestRunner::class)
@@ -278,6 +281,15 @@ class VariationDaoTest {
         repeat(20) {
             assertEquals(40L, variationDao.getUnusedForHabit(hId, ActivityMode.SITTING.bit, 1).single().id)
         }
+    }
+
+    // The look tier's `id % 4` and `id % 5` literals in getUnusedForHabit mirror these enum
+    // sizes (VariantTreatment.pick). Growing an enum without editing the query would leave the
+    // tier mis-ranking that surface silently, so the sizes are pinned here, beside the SQL.
+    @Test fun `the look tier's moduli are the surfaces' entry counts`() {
+        assertEquals(4, NotificationStyle.entries.size)
+        assertEquals(5, WidgetLayout.entries.size)
+        assertEquals(5, ReminderDetailLayout.entries.size)
     }
 
     @Test fun `getUnusedForHabit with nothing consumed does not rank by look`() = runTest {
