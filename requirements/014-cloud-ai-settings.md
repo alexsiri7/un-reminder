@@ -2,13 +2,13 @@
 id: "014"
 title: "Cloud AI settings screen"
 status: "done"
-updated: 2026-09-14
+updated: 2026-09-15
 ---
 
 ## Why
 
-The worker URL and secret are user-configurable at runtime, allowing the user to point to their own worker instance or rotate the secret without a new build.
+Each user holds their own Worker token (req 019), issued out of band, so it has to be entered on the device rather than built into the APK.
 
 ## What
 
-Settings screen showing worker URL and shared secret fields with save. "Regenerate all variants" button generates a fresh batch for every active habit and swaps it in only once it has landed; a failed generation leaves the habit's previous variants in place, and the button shows in-flight / done / failed counts while work is outstanding.
+Settings screen with a masked field to paste the Worker token and a save that rejects anything not shaped like one; the non-secret `ur1_<id>` prefix of the stored token is shown so a user can tell Alex which one to revoke. "Regenerate all variants" button generates a fresh batch for every active habit and swaps it in only once it has landed; a failed generation leaves the habit's previous variants in place, and the button shows in-flight / done / failed counts while work is outstanding.

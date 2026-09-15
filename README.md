@@ -48,7 +48,7 @@ Solo user (the author). Single-device, single-user. Personal productivity / well
 | Testing | JUnit + Compose UI tests | |
 | CF Worker | **Hono** on **Cloudflare Workers** | Remote LLM generation via Requesty.ai. Handles auth, spend cap, and parallel Gemini Flash fan-out. Deployed via Wrangler. |
 
-**Target device for MVP:** Any Android device with min SDK 31. Cloud worker URL and secret are configured at build time or at runtime via Cloud AI settings.
+**Target device for MVP:** Any Android device with min SDK 31. The cloud worker URL is configured at build time; each user pastes their own Worker token in Cloud AI settings.
 
 ### Screenshot tests
 
@@ -97,8 +97,8 @@ Runs as a Cloudflare Worker (Hono framework). Exposes these routes:
 | Route | Auth | Description |
 |---|---|---|
 | `GET /v1/health` | Public | Returns `{ status, spendUsedToday, spendUsedMonth, capDaily, capMonthly, generationVersion }` |
-| `POST /v1/generate/batch` | `X-UR-Secret` header | Accepts `{ habitTitle, habitTags, locationName, timeOfDay, supportedModes?, n }`, returns `{ variants: Array<{ text: string, shape: string, modes: string[], actionUrl?: string }>, generationVersion }` via Requesty |
-| `POST /v1/habit-fields` | `X-UR-Secret` header | Accepts `{ title }`, returns `{ descriptionLadder: string[] }` (6 elements, one per dedication level) via Requesty |
+| `POST /v1/generate/batch` | `Authorization: Bearer <token>` | Accepts `{ habitTitle, habitTags, locationName, timeOfDay, supportedModes?, n }`, returns `{ variants: Array<{ text: string, shape: string, modes: string[], actionUrl?: string }>, generationVersion }` via Requesty |
+| `POST /v1/habit-fields` | `Authorization: Bearer <token>` | Accepts `{ title }`, returns `{ descriptionLadder: string[] }` (6 elements, one per dedication level) via Requesty |
 
 **Local dev:**
 ```sh
@@ -108,10 +108,11 @@ wrangler dev
 
 **Deploy:**
 ```sh
-wrangler secret put UR_SHARED_SECRET
 wrangler secret put UR_REQUESTY_KEY
-wrangler kv namespace create UR_SPEND  # copy the returned ID into worker/wrangler.toml
+wrangler kv namespace create UR_SPEND   # copy the returned ID into worker/wrangler.toml
+wrangler kv namespace create UR_TOKENS  # likewise
 wrangler deploy
+npm run tokens -- mint --label <name>   # one token per user; see worker/README.md
 ```
 
 ### Build Configuration / GitHub Secrets
@@ -123,8 +124,7 @@ The following repository secrets are required for CI release builds and Worker d
 | `KEYSTORE_*` / `KEY_*` | APK signing | See Android release signing docs |
 | `GITHUB_FEEDBACK_TOKEN` | In-app feedback submission | GitHub PAT with `issues:write` scope |
 | `SENTRY_DSN` | Automated crash reporting (optional — blank value disables Sentry) | Sentry DSN URL, e.g. `https://key@org.ingest.sentry.io/projectid` |
-| `WORKER_URL` | Default URL for cloud AI variant generation worker (optional — configurable at runtime via Cloud AI settings) | Full URL, e.g. `https://un-reminder-worker.yourname.workers.dev` |
-| `WORKER_SECRET` | Default shared secret baked into BuildConfig (optional — blank disables default) | Must match worker's `UR_SHARED_SECRET` |
+| `WORKER_URL` | URL of the cloud AI variant generation worker (optional — blank disables cloud AI) | Full URL, e.g. `https://un-reminder-worker.yourname.workers.dev` |
 | `CLOUDFLARE_API_TOKEN` | Used by `.github/workflows/deploy-worker.yml` to deploy the Cloudflare Worker | User-owned token from dash.cloudflare.com/profile/api-tokens — see required scopes in `worker/wrangler.toml` header comment |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account that owns the Worker | Account ID from the Cloudflare dashboard |
 
@@ -136,7 +136,7 @@ The following must be set via `wrangler secret put` before deploying the CF Work
 
 | Secret / Config | Purpose | How to set |
 |---|---|---|
-| `UR_SHARED_SECRET` | Shared auth secret validated in `X-UR-Secret` header | `wrangler secret put UR_SHARED_SECRET` |
+| `UR_TOKENS` namespace ID | KV namespace of per-user auth tokens, stored as salted hashes | `wrangler kv namespace create UR_TOKENS` → paste ID into `worker/wrangler.toml`, then `npm run tokens -- mint --label <name>` |
 | `UR_REQUESTY_KEY` | Requesty.ai API key for Gemini Flash calls | `wrangler secret put UR_REQUESTY_KEY` |
 | `UR_SPEND` namespace ID | KV namespace for spend tracking | `wrangler kv namespace create UR_SPEND` → paste ID into `worker/wrangler.toml` |
 
@@ -326,7 +326,7 @@ from the pool, not from a fresh generation.
    reading reactively from `WorkManager.getWorkInfosForUniqueWorkFlow(RandomIntervalWorker.WORK_NAME)`.
    Includes a "Send Feedback" button in the top bar.
 7. **Settings screen** — notification permission status, background location permission status, a manual "Test trigger now" button, a button to regenerate tomorrow's scheduled triggers, a link to Cloud AI settings, and a "Send Feedback" button.
-7a. **Cloud AI settings screen** — worker URL and shared secret for cloud generation, and a "regenerate all variants" button that generates a fresh batch per active habit and swaps it in only once it lands, keeping the previous variants until then (see "Pool lifecycle" above).
+7a. **Cloud AI settings screen** — a field to paste the per-user Worker token Alex issues, showing the non-secret `ur1_<id>` prefix of the stored one, and a "regenerate all variants" button that generates a fresh batch per active habit and swaps it in only once it lands, keeping the previous variants until then (see "Pool lifecycle" above).
 8. **Onboarding screen** — shown once on first launch. Walks the user through three collapsible steps: (1) granting Notifications and Location permissions, (2) creating a first habit with name/descriptions and weekday schedule, (3) creating a first time window. Includes a "Skip" action in the top bar. Completion (or skip) is persisted via DataStore (`onboarding_done` key) and never shown again. Bottom navigation bar is hidden while onboarding is active.
 9. **Feedback screen** — annotated screenshot tool. Captures the current screen, lets the user draw annotations (red/yellow/green strokes), type a description, and submit as a GitHub issue. Falls back to an offline queue (WorkManager) when connectivity is unavailable.
 10. **Reminder detail screen** — read/act view for one variant, reached two ways. Keyed on a trigger, by
