@@ -41,7 +41,8 @@ Copy each returned `id` into `wrangler.toml` under the matching `[[kv_namespaces
 ### 2. Set secrets
 
 ```bash
-wrangler secret put UR_REQUESTY_KEY    # Requesty.ai API key
+wrangler secret put UR_REQUESTY_KEY                 # Requesty.ai API key
+wrangler secret put UR_PLAY_INTEGRITY_SA_KEY < key.json   # service-account key, see "Play Integrity" below
 ```
 
 ### 3. Tokens
@@ -52,6 +53,7 @@ minted; keep it or mint another.
 
 ```bash
 npm run tokens -- mint --label <name>   # prints ur1_<id>_<secret> once and stores its hash
+npm run tokens -- mint --label <name> --integrity-exempt   # same, but skips the Play Integrity gate
 npm run tokens -- disable <id>          # revoke: the token answers 401 from the next request
 npm run tokens -- enable <id>
 npx wrangler kv key list --binding UR_TOKENS --remote   # ids of every minted token
@@ -60,7 +62,79 @@ npx wrangler kv key list --binding UR_TOKENS --remote   # ids of every minted to
 `<id>` is the 16-hex-character middle part of the token; the app shows the stored token's
 `ur1_<id>` prefix so a user can tell you which one to revoke without revealing the secret.
 
-### 4. Environment variables
+`--integrity-exempt` is for debug builds and sideloaded APKs, which Play never recognises
+(see "Play Integrity" below). The flag is fixed at mint time; to change it, mint a new token.
+
+### 4. Play Integrity
+
+Every request to a generation route must also carry `X-Play-Integrity-Token`, a Play Integrity
+*standard* token bound to the SHA-256 of the request body, unless the bearer token is
+integrity-exempt. The Worker decodes the token on Google's servers, so it needs a service
+account with access to the Play Integrity API of the Cloud project linked to the app.
+
+Owner steps, in order:
+
+1. Play Console → the app → *Test and release* → *App integrity* → *Play Integrity API* →
+   *Link a Cloud project*. Pick the Cloud project that already holds the Play-publishing service
+   account so there is only one project to look after.
+2. In that Cloud project confirm the *Google Play Integrity API* is enabled (linking normally
+   enables it).
+3. Create a **new** service account with no roles (e.g. `un-reminder-worker`), create a JSON
+   key for it, and store it as the Worker secret:
+
+   ```bash
+   npx wrangler secret put UR_PLAY_INTEGRITY_SA_KEY < key.json
+   rm key.json
+   ```
+
+   Do not reuse the publishing account's key: a leaked Worker secret must not be able to publish
+   to Play. If the first decode answers `403 PERMISSION_DENIED`, grant the account
+   `roles/serviceusage.serviceUsageConsumer` on the project.
+4. Copy the Cloud project **number** (not the id) into the `PLAY_CLOUD_PROJECT_NUMBER` GitHub
+   secret so release builds bake it into `BuildConfig`.
+5. Mint an exempt token for your own debug builds: `npm run tokens -- mint --label alex-dev --integrity-exempt`.
+
+Do these before merging a Worker that enforces the gate: with the secret unset every
+non-exempt request answers `503`.
+
+**What is enforced.** The gate runs after the bearer token is verified and before the spend
+gate, so an unauthenticated request never costs a decode and a rejected build never reads spend.
+
+| Verdict | Outcome |
+|---------|---------|
+| Header missing on a non-exempt token | `403 { "reason": "missing" }` — no Google call |
+| Google cannot decode the token (400) | `403 { "reason": "invalid" }` |
+| `requestDetails.requestHash` ≠ SHA-256 of the body received | `403 { "reason": "hash-mismatch" }` |
+| `requestDetails.timestampMillis` more than 10 minutes from now | `403 { "reason": "stale" }` |
+| `appIntegrity.appRecognitionVerdict` ≠ `PLAY_RECOGNIZED` | `403 { "reason": "unrecognized-app" }` |
+| `accountDetails.appLicensingVerdict` ≠ `LICENSED` | `403 { "reason": "unlicensed" }` |
+| `deviceIntegrity.deviceRecognitionVerdict` — anything, including empty | **Logged only**, never blocks |
+| `UR_PLAY_INTEGRITY_SA_KEY` unset, or Google refuses the service account | `503 { "error": "Service misconfigured" }` |
+| Google answers 429 or 5xx, or is unreachable | `503 { "error": "Integrity check unavailable" }` |
+
+Every `403` body is `{ "error": "Play Integrity check failed", "reason": <reason> }`; `401`
+stays "who are you" (bearer token), `403` is "you, but not from a Play build".
+
+Device integrity is deliberately not a gate: blocking on it would lock out friends on custom
+ROMs or unlocked bootloaders and buys nothing at this scale. The verdict is logged with the
+token label and set as the `device_integrity` Sentry tag so a pattern can still be seen.
+
+**Degrade mode.** The Worker is the sole enforcer and fails closed. When Google cannot be asked
+it answers `503` after exactly one decode attempt (Google clears the verdicts of a token
+decoded twice, so retrying the same token could only fail); the app already treats `5xx` as
+"try again later", pools are pre-generated, and both the daily quotas (10 000 token requests
+and 10 000 decodes per Cloud project) and outages end on their own, so nothing is permanent.
+Failing open here was rejected: the decode runs for any presented token string, so a stolen
+bearer token could exhaust the decode quota with garbage and then walk through.
+
+On the device, the app always sends the request and attaches the token when it can get one.
+An install that cannot obtain a token — no Play Services, an outdated Play Store, a build with
+no `PLAY_CLOUD_PROJECT_NUMBER`, the sideload APK from `release.yml`, a debug build — sends no
+header and gets `403 missing`; the app retries only when the local failure was transient. Such
+an install cannot generate without an integrity-exempt token, and that is the gate working as
+intended.
+
+### 5. Environment variables
 
 Configured in `wrangler.toml` under `[vars]`:
 
@@ -85,7 +159,7 @@ model or prompt that produced it. Pricing constants in `src/lib/requesty.ts` fol
 | `1` | `google/gemini-3-flash-preview` | `buildPrompt` as of #391 (shapes #373, mode tags #374) | 2026-04 | Initial model, never revisited since the first Worker deploy |
 | `2` | `google/gemini-3.6-flash`, `reasoning_effort: low` | Unchanged from `1` | 2026-09 | #376 model upgrade; thinking bounded and reserved inside `max_tokens` |
 
-### 5. Rate limiting (optional)
+### 6. Rate limiting (optional)
 
 Configure rate limiting rules at the Cloudflare zone dashboard level (not in Worker code).
 
@@ -97,7 +171,8 @@ Returns worker status, current daily spend and the deployed `generationVersion`.
 
 ### `POST /v1/generate/batch`
 
-Generates notification text variants. Requires `Authorization: Bearer <token>`.
+Generates notification text variants. Requires `Authorization: Bearer <token>` and, unless the
+token is integrity-exempt, `X-Play-Integrity-Token` (see "Play Integrity" above).
 
 **Request body:**
 
