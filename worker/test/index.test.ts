@@ -5,8 +5,17 @@ import {
 } from 'cloudflare:test'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import app from '../src/index'
+import { parseTokenId, tokenKey } from '../src/lib/tokens'
+import { createTokenRecord } from '../scripts/tokenRecord.mjs'
 
-const SECRET = 'test-secret-value'
+const TOKEN_A = 'ur1_000000000000000a_' + 'a'.repeat(64)
+const TOKEN_B = 'ur1_000000000000000b_' + 'b'.repeat(64)
+const bearer = (token: string) => ({ Authorization: `Bearer ${token}` })
+
+async function seedToken(token: string, label: string, enabled = true) {
+  const record = await createTokenRecord(token, label, new Date('2026-09-15T00:00:00Z'))
+  await env.UR_TOKENS.put(tokenKey(parseTokenId(token)!), JSON.stringify({ ...record, enabled }))
+}
 
 const originalFetch = globalThis.fetch
 
@@ -63,7 +72,6 @@ function mockRequestyMalformed() {
 function testEnv() {
   return {
     ...env,
-    UR_SHARED_SECRET: SECRET,
     UR_REQUESTY_KEY: 'test-requesty-key',
     UR_MODEL: 'google/gemini-3.6-flash',
     UR_DAILY_CAP_CENTS: '50',
@@ -96,6 +104,10 @@ describe('un-reminder-worker', () => {
     } catch {
       // Miniflare KV is in-memory; a workerd restart clears it automatically
     }
+
+    // Outside the silent catch above: a seed failure must surface as itself, not as 401s
+    await seedToken(TOKEN_A, 'alex')
+    await seedToken(TOKEN_B, 'friend')
   })
 
   afterEach(() => {
@@ -104,7 +116,7 @@ describe('un-reminder-worker', () => {
 
   // ---- Auth tests ----
 
-  it('returns 401 on missing secret', async () => {
+  it('returns 401 on missing Authorization', async () => {
     const req = makeRequest('/v1/generate/batch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -116,12 +128,12 @@ describe('un-reminder-worker', () => {
     expect(res.status).toBe(401)
   })
 
-  it('returns 401 on wrong secret', async () => {
+  it('returns 401 on the wrong secret for a known id', async () => {
     const req = makeRequest('/v1/generate/batch', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-UR-Secret': 'wrong-secret',
+        ...bearer('ur1_000000000000000a_' + 'c'.repeat(64)),
       },
       body: validBody(),
     })
@@ -129,6 +141,86 @@ describe('un-reminder-worker', () => {
     const res = await app.fetch(req, testEnv(), ctx)
     await waitOnExecutionContext(ctx)
     expect(res.status).toBe(401)
+  })
+
+  it.each([
+    ['a malformed token', { Authorization: 'Bearer not-a-token' }],
+    ['a non-Bearer scheme', { Authorization: `Basic ${TOKEN_A}` }],
+    ['a well-formed token nobody minted', bearer('ur1_00000000000000ff_' + 'f'.repeat(64))],
+  ])('returns 401 on %s', async (_name, headers) => {
+    const req = makeRequest('/v1/generate/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: validBody(),
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, testEnv(), ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(401)
+    expect(fetchCallIndex).toBe(0)
+  })
+
+  it('accepts two users\' tokens and tells them apart', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      for (const token of [TOKEN_A, TOKEN_B]) {
+        mockRequestySuccess({ descriptionLadder: Array(6).fill('A description.') })
+        const req = makeRequest('/v1/habit-fields', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...bearer(token) },
+          body: { title: 'Meditate' },
+        })
+        const ctx = createExecutionContext()
+        const res = await app.fetch(req, testEnv(), ctx)
+        await waitOnExecutionContext(ctx)
+        expect(res.status).toBe(200)
+      }
+      expect(log).toHaveBeenCalledWith('[auth] authenticated', { id: '000000000000000a', label: 'alex' })
+      expect(log).toHaveBeenCalledWith('[auth] authenticated', { id: '000000000000000b', label: 'friend' })
+    } finally {
+      log.mockRestore()
+    }
+  })
+
+  it('rejects a disabled token while the others keep working', async () => {
+    await seedToken(TOKEN_B, 'friend', false)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      mockRequestySuccess({ descriptionLadder: Array(6).fill('A description.') })
+      for (const [token, status] of [[TOKEN_B, 401], [TOKEN_A, 200]] as const) {
+        const req = makeRequest('/v1/habit-fields', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...bearer(token) },
+          body: { title: 'Meditate' },
+        })
+        const ctx = createExecutionContext()
+        const res = await app.fetch(req, testEnv(), ctx)
+        await waitOnExecutionContext(ctx)
+        expect(res.status).toBe(status)
+      }
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it('returns 503 without calling upstream when the token store is unreachable', async () => {
+    const get = vi.spyOn(env.UR_TOKENS, 'get').mockRejectedValue(new Error('kv down'))
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const req = makeRequest('/v1/generate/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_A) },
+        body: validBody(),
+      })
+      const ctx = createExecutionContext()
+      const res = await app.fetch(req, testEnv(), ctx)
+      await waitOnExecutionContext(ctx)
+      expect(res.status).toBe(503)
+      expect(fetchCallIndex).toBe(0)
+    } finally {
+      get.mockRestore()
+      error.mockRestore()
+    }
   })
 
   // ---- Validation tests ----
@@ -139,7 +231,7 @@ describe('un-reminder-worker', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-UR-Secret': SECRET,
+        ...bearer(TOKEN_A),
       },
       body: '{ not valid json',
     })
@@ -154,7 +246,7 @@ describe('un-reminder-worker', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-UR-Secret': SECRET,
+        ...bearer(TOKEN_A),
       },
       body: { habitTags: ['x'], locationName: 'Home', timeOfDay: 'morning', n: 3 },
     })
@@ -169,7 +261,7 @@ describe('un-reminder-worker', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-UR-Secret': SECRET,
+        ...bearer(TOKEN_A),
       },
       body: { ...validBody(), n: 51 },
     })
@@ -184,7 +276,7 @@ describe('un-reminder-worker', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-UR-Secret': SECRET,
+        ...bearer(TOKEN_A),
       },
       body: { ...validBody(), n: 0 },
     })
@@ -199,7 +291,7 @@ describe('un-reminder-worker', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-UR-Secret': SECRET,
+        ...bearer(TOKEN_A),
       },
       body: { ...validBody(), n: 1.5 },
     })
@@ -221,7 +313,7 @@ describe('un-reminder-worker', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-UR-Secret': SECRET,
+        ...bearer(TOKEN_A),
       },
       body: validBody(),
     })
@@ -245,7 +337,7 @@ describe('un-reminder-worker', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-UR-Secret': SECRET,
+        ...bearer(TOKEN_A),
       },
       body: validBody(),
     })
@@ -273,7 +365,7 @@ describe('un-reminder-worker', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-UR-Secret': SECRET,
+        ...bearer(TOKEN_A),
       },
       body: validBody(3),
     })
@@ -295,7 +387,7 @@ describe('un-reminder-worker', () => {
 
     const req = makeRequest('/v1/generate/batch', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
+      headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_A) },
       body: validBody(1),
     })
     const ctx = createExecutionContext()
@@ -309,7 +401,7 @@ describe('un-reminder-worker', () => {
   it('returns 503 on a batch without calling upstream when the generation version is malformed', async () => {
     const req = makeRequest('/v1/generate/batch', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
+      headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_A) },
       body: validBody(1),
     })
     const ctx = createExecutionContext()
@@ -333,7 +425,7 @@ describe('un-reminder-worker', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-UR-Secret': SECRET,
+        ...bearer(TOKEN_A),
       },
       body: { ...validBody(), supportedModes: ['WALKING', 'TRANSPORT'] },
     })
@@ -367,7 +459,7 @@ describe('un-reminder-worker', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-UR-Secret': SECRET,
+          ...bearer(TOKEN_A),
         },
         body: { ...validBody(), supportedModes: ['SITTING'] },
       })
@@ -401,7 +493,7 @@ describe('un-reminder-worker', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-UR-Secret': SECRET,
+          ...bearer(TOKEN_A),
         },
         body: { ...validBody(2), supportedModes: ['SITTING'] },
       })
@@ -422,7 +514,7 @@ describe('un-reminder-worker', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-UR-Secret': SECRET,
+        ...bearer(TOKEN_A),
       },
       body: validBody(1),
     })
@@ -449,7 +541,7 @@ describe('un-reminder-worker', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-UR-Secret': SECRET,
+          ...bearer(TOKEN_A),
         },
         body: validBody(n),
       })
@@ -475,7 +567,7 @@ describe('un-reminder-worker', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-UR-Secret': SECRET,
+        ...bearer(TOKEN_A),
       },
       body: { ...validBody(), personalContext: 'use words of encouragement' },
     })
@@ -500,7 +592,7 @@ describe('un-reminder-worker', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-UR-Secret': SECRET,
+        ...bearer(TOKEN_A),
       },
       body: validBody(),
     })
@@ -527,7 +619,7 @@ describe('un-reminder-worker', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-UR-Secret': SECRET,
+        ...bearer(TOKEN_A),
       },
       body: { ...validBody(), sprites: [{ tag: 'cape', description: 'mascot in a superhero cape' }] },
     })
@@ -557,7 +649,7 @@ describe('un-reminder-worker', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-UR-Secret': SECRET,
+        ...bearer(TOKEN_A),
       },
       body: validBody(),
     })
@@ -586,7 +678,7 @@ describe('un-reminder-worker', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-UR-Secret': SECRET,
+        ...bearer(TOKEN_A),
       },
       body: validBody(),
     })
@@ -606,7 +698,7 @@ describe('un-reminder-worker', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-UR-Secret': SECRET,
+        ...bearer(TOKEN_A),
       },
       body: validBody(3),
     })
@@ -626,7 +718,7 @@ describe('un-reminder-worker', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-UR-Secret': SECRET,
+        ...bearer(TOKEN_A),
       },
       body: validBody(3),
     })
@@ -647,7 +739,7 @@ describe('un-reminder-worker', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-UR-Secret': SECRET,
+        ...bearer(TOKEN_A),
       },
       body: validBody(),
     })
@@ -669,7 +761,7 @@ describe('un-reminder-worker', () => {
 
     const req = makeRequest('/v1/generate/batch', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
+      headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_A) },
       body: validBody(1),
     })
     const ctx = createExecutionContext()
@@ -683,7 +775,7 @@ describe('un-reminder-worker', () => {
   it('returns 503 on a batch without calling upstream when the generation version is malformed', async () => {
     const req = makeRequest('/v1/generate/batch', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
+      headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_A) },
       body: validBody(1),
     })
     const ctx = createExecutionContext()
@@ -703,7 +795,7 @@ describe('un-reminder-worker', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-UR-Secret': SECRET,
+        ...bearer(TOKEN_A),
       },
       body: validBody(),
     })
@@ -724,7 +816,7 @@ describe('un-reminder-worker', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-UR-Secret': SECRET,
+        ...bearer(TOKEN_A),
       },
       body: validBody(1),
     })
@@ -774,7 +866,7 @@ describe('un-reminder-worker', () => {
 
   // ---- /v1/habit-fields tests ----
 
-  it('returns 401 without secret on /v1/habit-fields', async () => {
+  it('returns 401 without Authorization on /v1/habit-fields', async () => {
     const req = makeRequest('/v1/habit-fields', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -794,7 +886,7 @@ describe('un-reminder-worker', () => {
 
     const req = makeRequest('/v1/habit-fields', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
+      headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_A) },
       body: { title: 'Meditate' },
     })
     const ctx = createExecutionContext()
@@ -815,7 +907,7 @@ describe('un-reminder-worker', () => {
 
     const req = makeRequest('/v1/habit-fields', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
+      headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_A) },
       body: { title: 'Meditate' },
     })
     const ctx = createExecutionContext()
@@ -841,7 +933,7 @@ describe('un-reminder-worker', () => {
 
     const req = makeRequest('/v1/habit-fields', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
+      headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_A) },
       body: { title: 'Meditate' },
     })
     const ctx = createExecutionContext()
@@ -859,7 +951,7 @@ describe('un-reminder-worker', () => {
 
     const req = makeRequest('/v1/habit-fields', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
+      headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_A) },
       body: { title: 'Meditate' },
     })
     const ctx = createExecutionContext()
@@ -874,7 +966,7 @@ describe('un-reminder-worker', () => {
 
     const req = makeRequest('/v1/habit-fields', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
+      headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_A) },
       body: { title: 'Meditate' },
     })
     const ctx = createExecutionContext()
@@ -889,7 +981,7 @@ describe('un-reminder-worker', () => {
 
     const req = makeRequest('/v1/habit-fields', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
+      headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_A) },
       body: { title: 'Meditate' },
     })
     const ctx = createExecutionContext()
@@ -904,7 +996,7 @@ describe('un-reminder-worker', () => {
 
     const req = makeRequest('/v1/habit-fields', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
+      headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_A) },
       body: { title: 'Meditate' },
     })
     const ctx = createExecutionContext()
@@ -919,7 +1011,7 @@ describe('un-reminder-worker', () => {
 
     const req = makeRequest('/v1/habit-fields', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
+      headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_A) },
       body: { title: 'Meditate' },
     })
     const ctx = createExecutionContext()
@@ -931,7 +1023,7 @@ describe('un-reminder-worker', () => {
   it('returns 400 on /v1/habit-fields with empty title', async () => {
     const req = makeRequest('/v1/habit-fields', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
+      headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_A) },
       body: { title: '' },
     })
     const ctx = createExecutionContext()
@@ -946,7 +1038,7 @@ describe('un-reminder-worker', () => {
     const e = testEnv()
     const req = makeRequest('/v1/habit-fields', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
+      headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_A) },
       body: { title: 'Meditate' },
     })
     const ctx = createExecutionContext()
@@ -966,7 +1058,7 @@ describe('un-reminder-worker', () => {
 
     const req = makeRequest('/v1/habit-fields', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
+      headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_A) },
       body: { title: 'Meditate' },
     })
     const ctx = createExecutionContext()
@@ -981,7 +1073,7 @@ describe('un-reminder-worker', () => {
 
     const req = makeRequest('/v1/habit-fields', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-UR-Secret': SECRET },
+      headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_A) },
       body: { title: 'Meditate' },
     })
     const ctx = createExecutionContext()

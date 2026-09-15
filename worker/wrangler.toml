@@ -1,7 +1,8 @@
 # Required Worker secrets (set via wrangler secret put):
 #   SENTRY_DSN       — (optional) Sentry DSN for error tracking
-#   UR_SHARED_SECRET — shared auth secret for X-UR-Secret header
 #   UR_REQUESTY_KEY  — Requesty.ai API key for LLM calls
+# Per-user auth tokens live as salted hashes in the UR_TOKENS namespace below;
+# mint and revoke them with `npm run tokens` (see README.md).
 #
 # CI deploy (.github/workflows/deploy-worker.yml) needs CLOUDFLARE_API_TOKEN
 # (a *user-owned* token from dash.cloudflare.com/profile/api-tokens) with:
@@ -31,6 +32,12 @@ UR_GENERATION_VERSION = "2"
 [[kv_namespaces]]
 binding = "UR_SPEND"
 id      = "ba35d7eb3c4b4e46b18707a20ce89d1e"
+
+# Run `npx wrangler kv namespace create UR_TOKENS` and paste the returned id here before
+# merging; the placeholder makes `wrangler deploy` fail rather than deploy without an auth store.
+[[kv_namespaces]]
+binding = "UR_TOKENS"
+id      = "REPLACE_WITH_ID_FROM_wrangler_kv_namespace_create_UR_TOKENS"
 
 [[ratelimits]]
 name         = "REQUEST_LIMITER"

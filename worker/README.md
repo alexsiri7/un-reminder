@@ -29,22 +29,38 @@ npm run deploy
 
 ## Setup
 
-### 1. Create KV namespace
+### 1. Create KV namespaces
 
 ```bash
-wrangler kv namespace create UR_SPEND
+wrangler kv namespace create UR_SPEND    # spend counters
+wrangler kv namespace create UR_TOKENS   # per-user auth tokens
 ```
 
-Copy the returned `id` into `wrangler.toml` under `[[kv_namespaces]]`.
+Copy each returned `id` into `wrangler.toml` under the matching `[[kv_namespaces]]` block.
 
 ### 2. Set secrets
 
 ```bash
-wrangler secret put UR_SHARED_SECRET   # shared secret for X-UR-Secret auth
 wrangler secret put UR_REQUESTY_KEY    # Requesty.ai API key
 ```
 
-### 3. Environment variables
+### 3. Tokens
+
+Every user of the app holds their own token, which they paste into the app's Cloud AI settings.
+The Worker stores only a salted SHA-256 hash of it, so the token is printed exactly once when
+minted; keep it or mint another.
+
+```bash
+npm run tokens -- mint --label <name>   # prints ur1_<id>_<secret> once and stores its hash
+npm run tokens -- disable <id>          # revoke: the token answers 401 from the next request
+npm run tokens -- enable <id>
+npx wrangler kv key list --binding UR_TOKENS --remote   # ids of every minted token
+```
+
+`<id>` is the 16-hex-character middle part of the token; the app shows the stored token's
+`ur1_<id>` prefix so a user can tell you which one to revoke without revealing the secret.
+
+### 4. Environment variables
 
 Configured in `wrangler.toml` under `[vars]`:
 
@@ -69,7 +85,7 @@ model or prompt that produced it. Pricing constants in `src/lib/requesty.ts` fol
 | `1` | `google/gemini-3-flash-preview` | `buildPrompt` as of #391 (shapes #373, mode tags #374) | 2026-04 | Initial model, never revisited since the first Worker deploy |
 | `2` | `google/gemini-3.6-flash`, `reasoning_effort: low` | Unchanged from `1` | 2026-09 | #376 model upgrade; thinking bounded and reserved inside `max_tokens` |
 
-### 4. Rate limiting (optional)
+### 5. Rate limiting (optional)
 
 Configure rate limiting rules at the Cloudflare zone dashboard level (not in Worker code).
 
@@ -81,7 +97,7 @@ Returns worker status, current daily spend and the deployed `generationVersion`.
 
 ### `POST /v1/generate/batch`
 
-Generates notification text variants. Requires `X-UR-Secret` header.
+Generates notification text variants. Requires `Authorization: Bearer <token>`.
 
 **Request body:**
 
