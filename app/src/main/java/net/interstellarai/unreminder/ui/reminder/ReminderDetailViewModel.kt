@@ -62,12 +62,14 @@ class ReminderDetailViewModel @Inject constructor(
     fun init(triggerId: Long) {
         val target = ReminderDetailTarget.Trigger(triggerId)
         viewModelScope.launch(ioDispatcher) {
+            // The variant the notification showed, once the row is read; a row with no habit
+            // never fired and has nothing to key on. Kept outside the try so a failure after
+            // the read still leaves the screen in the notification's layout.
+            var seed = triggerId
             try {
                 val trigger = triggerRepository.getById(triggerId)
                 val habit = trigger?.habitId?.let { habitRepository.getByIdOnce(it) }
-                // The variant the notification showed; a row with no habit never fired and has
-                // nothing to key on.
-                val seed = trigger?.let { t -> t.habitId?.let { VariantTreatment.seed(t.variationId, it) } } ?: triggerId
+                seed = trigger?.let { t -> t.habitId?.let { VariantTreatment.seed(t.variationId, it) } } ?: triggerId
                 val canComplete = when (trigger?.status) {
                     TriggerStatus.FIRED -> {
                         // Opened from a live notification. The Open action does not auto-cancel it,
@@ -96,7 +98,7 @@ class ReminderDetailViewModel @Inject constructor(
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "Failed to load trigger $triggerId", e)
-                _uiState.value = _uiState.value.copy(isLoading = false, layout = ReminderDetailLayout.forSeed(triggerId))
+                _uiState.value = _uiState.value.copy(isLoading = false, layout = ReminderDetailLayout.forSeed(seed))
             }
         }
     }
