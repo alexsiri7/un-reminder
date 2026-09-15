@@ -128,13 +128,23 @@ class RequestyProxyClientTest {
     @Test
     fun `403 after a permanent local integrity failure is not retryable`() = runTest {
         integrity.result = IntegrityTokenResult.Unavailable(retryable = false, errorCode = -6)
-        server.enqueue(MockResponse().setResponseCode(403).setBody("Forbidden"))
+        server.enqueue(MockResponse().setResponseCode(403).setBody("""{"error":"Play Integrity check failed"}"""))
 
         val ex = assertFailsWith<WorkerIntegrityException> {
             proxyClient.habitFields("Meditate", baseUrl(), "secret")
         }
         assertEquals("unknown", ex.reason)
         assertFalse(ex.retryable)
+    }
+
+    @Test
+    fun `a 403 that is not the Worker's integrity rejection stays a WorkerError`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(403).setBody("Forbidden by a Cloudflare rule"))
+
+        val ex = assertFailsWith<WorkerError> {
+            proxyClient.habitFields("Meditate", baseUrl(), "secret")
+        }
+        assertEquals(403, ex.code)
     }
 
     @Test

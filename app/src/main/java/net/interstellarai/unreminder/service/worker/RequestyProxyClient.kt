@@ -24,14 +24,25 @@ import javax.inject.Singleton
 /** Mirrors `INTEGRITY_HEADER` in worker/src/lib/integrity.ts — keep in sync. */
 const val INTEGRITY_HEADER = "X-Play-Integrity-Token"
 
-private fun Response.throwOnError(integrity: IntegrityTokenResult?): Nothing = when (code) {
-    401 -> throw WorkerAuthException()
-    402 -> throw SpendCapExceededException()
-    403 -> throw WorkerIntegrityException(
-        reason = runCatching { JSONObject(body?.string() ?: "").optString("reason") }.getOrDefault("").ifEmpty { "unknown" },
-        retryable = integrity is IntegrityTokenResult.Unavailable && integrity.retryable,
-    )
-    else -> throw WorkerError(code, body?.string() ?: "")
+/** The Worker's own 403 body; any other 403 (a Cloudflare rule, say) stays a plain [WorkerError]. */
+private const val INTEGRITY_REJECTED = "Play Integrity check failed"
+
+private fun Response.throwOnError(integrity: IntegrityTokenResult?): Nothing {
+    val text = body?.string() ?: ""
+    when (code) {
+        401 -> throw WorkerAuthException()
+        402 -> throw SpendCapExceededException()
+        403 -> {
+            val json = runCatching { JSONObject(text) }.getOrNull()
+            if (json?.optString("error") == INTEGRITY_REJECTED) {
+                throw WorkerIntegrityException(
+                    reason = json.optString("reason").ifEmpty { "unknown" },
+                    retryable = integrity is IntegrityTokenResult.Unavailable && integrity.retryable,
+                )
+            }
+        }
+    }
+    throw WorkerError(code, text)
 }
 
 @Singleton
