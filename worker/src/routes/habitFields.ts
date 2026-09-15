@@ -74,7 +74,7 @@ export async function habitFieldsHandler(c: Context<AppEnv>): Promise<Response> 
   const spendDollars =
     result.outputTokens * COST_PER_OUTPUT_TOKEN + result.inputTokens * COST_PER_INPUT_TOKEN
   c.executionCtx.waitUntil(
-    addSpend(c.env.UR_SPEND, spendDollars).catch((err) =>
+    addSpend(c.env.UR_SPEND, spendDollars, c.get('tokenIdentity').id).catch((err) =>
       console.error('[habitFields] addSpend failed:', err, { spendDollars }),
     ),
   )

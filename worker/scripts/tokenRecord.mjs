@@ -18,8 +18,23 @@ export async function hashToken(salt, token) {
   return hex(new Uint8Array(digest))
 }
 
-export async function createTokenRecord(token, label, now, { integrityExempt = false } = {}) {
+/** Cap overrides are in cents; a record without one falls back to the Worker's UR_USER_*_CAP_CENTS. */
+export async function createTokenRecord(token, label, now, { integrityExempt = false, dailyCapCents, monthlyCapCents } = {}) {
   const salt = randomHex(16)
-  const record = { hash: await hashToken(salt, token), salt, label, createdAt: now.toISOString(), enabled: true }
-  return integrityExempt ? { ...record, integrityExempt: true } : record
+  return {
+    hash: await hashToken(salt, token),
+    salt,
+    label,
+    createdAt: now.toISOString(),
+    enabled: true,
+    ...(integrityExempt && { integrityExempt: true }),
+    ...(dailyCapCents !== undefined && { dailyCapCents }),
+    ...(monthlyCapCents !== undefined && { monthlyCapCents }),
+  }
+}
+
+/** The record with its cap overrides replaced by exactly [caps]; an omitted cap goes back to the Worker default. */
+export function applyCaps(record, caps) {
+  const { dailyCapCents: _daily, monthlyCapCents: _monthly, ...rest } = record
+  return { ...rest, ...caps }
 }

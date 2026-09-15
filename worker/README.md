@@ -54,9 +54,12 @@ minted; keep it or mint another.
 ```bash
 npm run tokens -- mint --label <name>   # prints ur1_<id>_<secret> once and stores its hash
 npm run tokens -- mint --label <name> --integrity-exempt   # same, but skips the Play Integrity gate
+npm run tokens -- mint --label <name> --daily-cap-cents 50 --monthly-cap-cents 500   # own spend caps
 npm run tokens -- disable <id>          # revoke: the token answers 401 from the next request
 npm run tokens -- enable <id>
+npm run tokens -- caps <id> --daily-cap-cents 50   # replace the token's cap overrides; omitted ⇒ default
 npx wrangler kv key list --binding UR_TOKENS --remote   # ids of every minted token
+npx wrangler kv key list --binding UR_SPEND --remote --prefix user:<id>:   # one token's spend counters
 ```
 
 `<id>` is the 16-hex-character middle part of the token; the app shows the stored token's
@@ -64,6 +67,12 @@ npx wrangler kv key list --binding UR_TOKENS --remote   # ids of every minted to
 
 `--integrity-exempt` is for debug builds and sideloaded APKs, which Play never recognises
 (see "Play Integrity" below). The flag is fixed at mint time; to change it, mint a new token.
+
+Each token spends against its own daily and monthly counters, capped by `UR_USER_DAILY_CAP_CENTS` /
+`UR_USER_MONTHLY_CAP_CENTS` unless the record carries its own `--daily-cap-cents` /
+`--monthly-cap-cents`. Unlike the exemption, caps can be changed later: `caps <id>` replaces the
+token's overrides with exactly the flags given, so `caps <id>` alone puts it back on the defaults.
+A record whose cap is not a positive integer is malformed and answers 401 until fixed.
 
 ### 4. Play Integrity
 
@@ -141,8 +150,10 @@ Configured in `wrangler.toml` under `[vars]`:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `UR_MODEL` | `google/gemini-3.6-flash` | Model to use via Requesty |
-| `UR_DAILY_CAP_CENTS` | `50` | Max daily spend in cents |
-| `UR_MONTHLY_CAP_CENTS` | `500` | Max monthly spend in cents |
+| `UR_DAILY_CAP_CENTS` | `50` | Max daily spend in cents across every token — the backstop on the bill |
+| `UR_MONTHLY_CAP_CENTS` | `500` | Max monthly spend in cents across every token |
+| `UR_USER_DAILY_CAP_CENTS` | `20` | Max daily spend in cents per token, unless its record overrides it (`npm run tokens -- caps`) |
+| `UR_USER_MONTHLY_CAP_CENTS` | `200` | Max monthly spend in cents per token, unless its record overrides it |
 | `UR_GENERATION_VERSION` | `2` | Integer ≥ 1 identifying the current model + prompt; echoed on `/v1/health` and `/v1/generate/batch` |
 
 **Rolling out a new model or prompt:** bump `UR_GENERATION_VERSION` in the same deploy that changes
@@ -167,12 +178,18 @@ Configure rate limiting rules at the Cloudflare zone dashboard level (not in Wor
 
 ### `GET /v1/health`
 
-Returns worker status, current daily spend and the deployed `generationVersion`.
+Returns worker status, the service-wide daily and monthly spend and caps (no per-token figures:
+the route is unauthenticated) and the deployed `generationVersion`.
 
 ### `POST /v1/generate/batch`
 
 Generates notification text variants. Requires `Authorization: Bearer <token>` and, unless the
 token is integrity-exempt, `X-Play-Integrity-Token` (see "Play Integrity" above).
+
+Answers `402` once a spend cap is reached, with `{ "error", "capType", "capScope" }`: `capType` is
+`daily` or `monthly`; `capScope` is `user` when the caller's own counter ran out and `global` when
+the service-wide one did. A caller over both hears `user`. The literals are pinned in
+`test/fixtures/spend-wire.txt`. `/v1/habit-fields` answers the same way.
 
 **Request body:**
 
