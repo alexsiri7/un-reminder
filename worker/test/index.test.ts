@@ -101,6 +101,8 @@ function testEnv() {
     UR_MODEL: 'google/gemini-3.6-flash',
     UR_DAILY_CAP_CENTS: '50',
     UR_MONTHLY_CAP_CENTS: '500',
+    UR_USER_DAILY_CAP_CENTS: '20',
+    UR_USER_MONTHLY_CAP_CENTS: '200',
   }
 }
 

@@ -185,7 +185,7 @@ export async function generateBatchHandler(c: Context<AppEnv>): Promise<Response
   const spendDollars =
     result.outputTokens * COST_PER_OUTPUT_TOKEN + result.inputTokens * COST_PER_INPUT_TOKEN
   c.executionCtx.waitUntil(
-    addSpend(c.env.UR_SPEND, spendDollars).catch((err) => {
+    addSpend(c.env.UR_SPEND, spendDollars, c.get('tokenIdentity').id).catch((err) => {
       console.error('[generateBatch] addSpend failed:', err, { spendDollars })
       Sentry.captureException(err instanceof Error ? err : new Error(String(err)), {
         tags: { component: 'generate-batch', failure: 'add-spend' },

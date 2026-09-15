@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import { getSpend, addSpend } from './spend'
 
+const ID = '0123456789abcdef'
+
 function mockKV(store: Map<string, string> = new Map()): KVNamespace {
   return {
     get: vi.fn((key: string) => Promise.resolve(store.get(key) ?? null)),
@@ -39,8 +41,8 @@ describe('addSpend', () => {
   it('accumulates spend correctly across sequential calls', async () => {
     const store = new Map<string, string>()
     const kv = mockKV(store)
-    await addSpend(kv, 0.05)
-    await addSpend(kv, 0.10)
+    await addSpend(kv, 0.05, ID)
+    await addSpend(kv, 0.10, ID)
     const { daily } = await getSpend(kv)
     expect(daily).toBeCloseTo(0.15, 5)
   })
@@ -48,7 +50,7 @@ describe('addSpend', () => {
   it('writes both daily and monthly keys', async () => {
     const store = new Map<string, string>()
     const kv = mockKV(store)
-    await addSpend(kv, 0.01)
+    await addSpend(kv, 0.01, ID)
     const d = new Date()
     const dailyKey = `day:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
     const monthlyKey = `month:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
@@ -60,7 +62,7 @@ describe('addSpend', () => {
   // This is intentional (soft cap per PRD). Test documents the known behavior:
   it('KNOWN LIMITATION: concurrent writes may under-count spend', async () => {
     const kv = mockKV()
-    await Promise.all([addSpend(kv, 0.10), addSpend(kv, 0.10)])
+    await Promise.all([addSpend(kv, 0.10, ID), addSpend(kv, 0.10, ID)])
     const { daily } = await getSpend(kv)
     // In real CF KV, result is likely 0.10 not 0.20 due to race.
     // In mock (synchronous Map), either value is acceptable.

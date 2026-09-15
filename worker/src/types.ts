@@ -13,8 +13,12 @@ export interface Env {
   // Service-account JSON key that decodes Play Integrity tokens; absent ⇒ non-exempt requests get 503
   UR_PLAY_INTEGRITY_SA_KEY?: string
   // Vars (from wrangler.toml [vars])
+  // Service-wide spend ceiling — the backstop on the bill across every token
   UR_DAILY_CAP_CENTS: string
   UR_MONTHLY_CAP_CENTS: string
+  // Per-token spend cap a token gets unless its record overrides it (TokenRecord.dailyCapCents / monthlyCapCents)
+  UR_USER_DAILY_CAP_CENTS: string
+  UR_USER_MONTHLY_CAP_CENTS: string
   UR_MODEL: string
   UR_GENERATION_VERSION: string
 }
@@ -64,6 +68,28 @@ export interface GenerateBatchResponse {
   variants: NotificationVariant[]
   /** The version these variants were generated under; the app stamps each stored row with it. */
   generationVersion: number
+}
+
+/**
+ * Body of a 402 from spendGate. `capScope` says whose budget ran out — the caller's own or the
+ * whole service's — and `capType` how long until it refills. Every literal is pinned in
+ * test/fixtures/spend-wire.txt, which the app's error handling (#422) asserts against too.
+ */
+export const SPEND_CAP_TYPES = ['daily', 'monthly'] as const
+export type SpendCapType = (typeof SPEND_CAP_TYPES)[number]
+
+export const SPEND_CAP_SCOPES = ['user', 'global'] as const
+export type SpendCapScope = (typeof SPEND_CAP_SCOPES)[number]
+
+export interface SpendCapResponse {
+  error: string
+  capType: SpendCapType
+  capScope: SpendCapScope
+}
+
+export const SPEND_CAP_ERRORS: Record<SpendCapScope, Record<SpendCapType, string>> = {
+  user: { daily: 'Daily spend cap reached', monthly: 'Monthly spend cap reached' },
+  global: { daily: 'Service daily spend cap reached', monthly: 'Service monthly spend cap reached' },
 }
 
 export interface HealthResponse {
