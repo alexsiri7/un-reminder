@@ -1,6 +1,6 @@
 import { serviceAccountAccessToken } from './googleAuth'
 
-/** Mirrors `INTEGRITY_HEADER` in app/.../service/worker/RequestyProxyClient.kt — keep in sync. */
+/** Mirrors `INTEGRITY_HEADER` in app/.../service/worker/RequestyProxyClient.kt; worker/test/fixtures/integrity-wire.txt pins both. */
 export const INTEGRITY_HEADER = 'X-Play-Integrity-Token'
 export const PACKAGE_NAME = 'net.interstellarai.unreminder'
 export const MAX_TOKEN_AGE_MS = 10 * 60 * 1000

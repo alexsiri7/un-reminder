@@ -22,6 +22,7 @@ export const integrityMiddleware: MiddlewareHandler<AppEnv> = async (c, next) =>
   const reject = (reason: IntegrityFailure, extra: Record<string, unknown> = {}) => {
     console.warn('[integrity] rejected', { id, label, reason, ...extra })
     Sentry.setTag('integrity', reason)
+    // The app matches this exact `error` string (RequestyProxyClient.kt); test/fixtures/integrity-wire.txt pins both.
     return c.json({ error: 'Play Integrity check failed', reason }, 403)
   }
 

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, vi } from 'vitest'
 import {
+  INTEGRITY_HEADER,
   IntegrityDecodeError,
   MAX_TOKEN_AGE_MS,
   decodeIntegrityToken,
@@ -9,6 +10,7 @@ import {
 } from './integrity'
 import { hashToken } from './tokens'
 import { generateTestServiceAccount } from '../../test/serviceAccount'
+import { integrityWire } from '../../test/integrityWire'
 
 const NOW = Date.parse('2026-09-15T12:00:00Z')
 const HASH = 'a'.repeat(64)
@@ -22,6 +24,12 @@ function goodPayload(overrides: Partial<TokenPayload> = {}): TokenPayload {
     ...overrides,
   }
 }
+
+describe('INTEGRITY_HEADER', () => {
+  it('is the header name the app sends', () => {
+    expect(INTEGRITY_HEADER).toBe(integrityWire.header)
+  })
+})
 
 describe('sha256Hex', () => {
   it('formats like hashToken', async () => {

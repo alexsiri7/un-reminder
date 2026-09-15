@@ -106,7 +106,7 @@ android {
     }
 
     sourceSets {
-        // Token-format cases the Worker's tests also assert against; see WorkerTokenTest.
+        // Wire-format fixtures the Worker's tests also assert against; see WorkerTokenTest and RequestyProxyClientTest.
         getByName("test").resources.srcDir("../worker/test/fixtures")
     }
 

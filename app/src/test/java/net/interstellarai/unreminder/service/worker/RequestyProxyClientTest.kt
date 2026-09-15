@@ -56,6 +56,24 @@ class RequestyProxyClientTest {
 
     private fun baseUrl(): String = server.url("/").toString().trimEnd('/')
 
+    /**
+     * worker/test/fixtures/integrity-wire.txt, on the test classpath via build.gradle.kts and
+     * asserted against by the Worker's integrity.test.ts and index.test.ts too; each line is a key, a
+     * tab, then the value.
+     */
+    private val wire: Map<String, String> =
+        checkNotNull(javaClass.getResourceAsStream("/integrity-wire.txt")) { "integrity-wire.txt is not on the test classpath" }
+            .bufferedReader().readLines()
+            .filter { it.isNotEmpty() && !it.startsWith("#") }
+            .associate { line -> line.split("\t", limit = 2).let { it[0] to it[1] } }
+    private val wireHeader = wire.getValue("header")
+    private val wireRejectedError = wire.getValue("rejected-error")
+
+    private fun integrityRejection(reason: String? = null): MockResponse {
+        val body = JSONObject().put("error", wireRejectedError).apply { if (reason != null) put("reason", reason) }
+        return MockResponse().setResponseCode(403).setBody(body.toString())
+    }
+
     private fun sha256Hex(text: String): String =
         MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
 
@@ -73,7 +91,7 @@ class RequestyProxyClientTest {
         proxyClient.habitFields("Meditate", baseUrl(), "secret")
 
         val recorded = server.takeRequest()
-        assertEquals("play-token", recorded.getHeader(INTEGRITY_HEADER))
+        assertEquals("play-token", recorded.getHeader(wireHeader))
         assertEquals(listOf(sha256Hex(recorded.body.readUtf8())), integrity.requestedHashes)
     }
 
@@ -89,7 +107,7 @@ class RequestyProxyClientTest {
 
         proxyClient.habitFields("Meditate", baseUrl(), "secret")
 
-        assertNull(server.takeRequest().getHeader(INTEGRITY_HEADER))
+        assertNull(server.takeRequest().getHeader(wireHeader))
     }
 
     @Test
@@ -98,13 +116,13 @@ class RequestyProxyClientTest {
 
         proxyClient.generationVersion(baseUrl())
 
-        assertNull(server.takeRequest().getHeader(INTEGRITY_HEADER))
+        assertNull(server.takeRequest().getHeader(wireHeader))
         assertTrue(integrity.requestedHashes.isEmpty())
     }
 
     @Test
     fun `403 with a reason becomes a non-retryable WorkerIntegrityException when a token was sent`() = runTest {
-        server.enqueue(MockResponse().setResponseCode(403).setBody("""{"error":"Play Integrity check failed","reason":"unlicensed"}"""))
+        server.enqueue(integrityRejection(reason = "unlicensed"))
 
         val ex = assertFailsWith<WorkerIntegrityException> {
             proxyClient.generateBatch("Meditate", emptyList(), "", "", "", emptyList(), emptySet(), 1, baseUrl(), "secret")
@@ -116,7 +134,7 @@ class RequestyProxyClientTest {
     @Test
     fun `403 after a transient local integrity failure is retryable`() = runTest {
         integrity.result = IntegrityTokenResult.Unavailable(retryable = true, errorCode = -3)
-        server.enqueue(MockResponse().setResponseCode(403).setBody("""{"error":"Play Integrity check failed","reason":"missing"}"""))
+        server.enqueue(integrityRejection(reason = "missing"))
 
         val ex = assertFailsWith<WorkerIntegrityException> {
             proxyClient.habitFields("Meditate", baseUrl(), "secret")
@@ -128,7 +146,7 @@ class RequestyProxyClientTest {
     @Test
     fun `403 after a permanent local integrity failure is not retryable`() = runTest {
         integrity.result = IntegrityTokenResult.Unavailable(retryable = false, errorCode = -6)
-        server.enqueue(MockResponse().setResponseCode(403).setBody("""{"error":"Play Integrity check failed"}"""))
+        server.enqueue(integrityRejection())
 
         val ex = assertFailsWith<WorkerIntegrityException> {
             proxyClient.habitFields("Meditate", baseUrl(), "secret")

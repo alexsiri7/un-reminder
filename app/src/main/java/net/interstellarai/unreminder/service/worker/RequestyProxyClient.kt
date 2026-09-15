@@ -21,10 +21,13 @@ import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** Mirrors `INTEGRITY_HEADER` in worker/src/lib/integrity.ts — keep in sync. */
+/** Mirrors `INTEGRITY_HEADER` in worker/src/lib/integrity.ts; worker/test/fixtures/integrity-wire.txt pins both. */
 const val INTEGRITY_HEADER = "X-Play-Integrity-Token"
 
-/** The Worker's own 403 body; any other 403 (a Cloudflare rule, say) stays a plain [WorkerError]. */
+/**
+ * The `error` of the Worker's own 403 body (worker/src/middleware/integrity.ts; integrity-wire.txt pins
+ * both); any other 403 (a Cloudflare rule, say) stays a plain [WorkerError].
+ */
 private const val INTEGRITY_REJECTED = "Play Integrity check failed"
 
 private fun Response.throwOnError(integrity: IntegrityTokenResult?): Nothing {

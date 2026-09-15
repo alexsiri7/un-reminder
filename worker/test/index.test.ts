@@ -5,10 +5,11 @@ import {
 } from 'cloudflare:test'
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest'
 import app from '../src/index'
-import { INTEGRITY_HEADER, sha256Hex, type TokenPayload } from '../src/lib/integrity'
+import { sha256Hex, type TokenPayload } from '../src/lib/integrity'
 import { parseTokenId, tokenKey } from '../src/lib/tokens'
 import { createTokenRecord } from '../scripts/tokenRecord.mjs'
 import { generateTestServiceAccount } from './serviceAccount'
+import { integrityWire } from './integrityWire'
 
 // A and B are integrity-exempt so the generation tests exercise only the route under test;
 // C is a Play user whose requests must carry a verified integrity token.
@@ -282,7 +283,7 @@ describe('un-reminder-worker', () => {
       mockRequestySuccess([{ text: 'Stretch!', shape: 'TERSE' }])
       const req = makeRequest('/v1/generate/batch', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_C), [INTEGRITY_HEADER]: 'play-token' },
+        headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_C), [integrityWire.header]: 'play-token' },
         body,
       })
       const ctx = createExecutionContext()
@@ -315,7 +316,7 @@ describe('un-reminder-worker', () => {
       const res = await app.fetch(req, testEnv(), ctx)
       await waitOnExecutionContext(ctx)
       expect(res.status).toBe(403)
-      expect(await res.json()).toEqual({ error: 'Play Integrity check failed', reason: 'missing' })
+      expect(await res.json()).toEqual({ error: integrityWire.rejectedError, reason: 'missing' })
       expect(fetchCallIndex).toBe(0)
       expect(warn).toHaveBeenCalledWith('[integrity] rejected', { id: '000000000000000c', label: 'play-user', reason: 'missing' })
     } finally {
@@ -333,14 +334,14 @@ describe('un-reminder-worker', () => {
       await mockIntegrityDecode(body, overrides)
       const req = makeRequest('/v1/generate/batch', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_C), [INTEGRITY_HEADER]: 'play-token' },
+        headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_C), [integrityWire.header]: 'play-token' },
         body,
       })
       const ctx = createExecutionContext()
       const res = await app.fetch(req, testEnv(), ctx)
       await waitOnExecutionContext(ctx)
       expect(res.status).toBe(403)
-      expect(await res.json()).toEqual({ error: 'Play Integrity check failed', reason })
+      expect(await res.json()).toEqual({ error: integrityWire.rejectedError, reason })
       expect(fetchCallIndex).toBe(2)
     } finally {
       warn.mockRestore()
@@ -353,14 +354,14 @@ describe('un-reminder-worker', () => {
       await mockIntegrityDecode({ ...validBody(1), habitTitle: 'Something else' })
       const req = makeRequest('/v1/generate/batch', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_C), [INTEGRITY_HEADER]: 'play-token' },
+        headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_C), [integrityWire.header]: 'play-token' },
         body: validBody(1),
       })
       const ctx = createExecutionContext()
       const res = await app.fetch(req, testEnv(), ctx)
       await waitOnExecutionContext(ctx)
       expect(res.status).toBe(403)
-      expect(await res.json()).toEqual({ error: 'Play Integrity check failed', reason: 'hash-mismatch' })
+      expect(await res.json()).toEqual({ error: integrityWire.rejectedError, reason: 'hash-mismatch' })
       expect(fetchCallIndex).toBe(2)
     } finally {
       warn.mockRestore()
@@ -373,7 +374,7 @@ describe('un-reminder-worker', () => {
     mockRequestySuccess([{ text: 'Stretch!', shape: 'TERSE' }])
     const req = makeRequest('/v1/generate/batch', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_C), [INTEGRITY_HEADER]: 'play-token' },
+      headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_C), [integrityWire.header]: 'play-token' },
       body,
     })
     const ctx = createExecutionContext()
@@ -389,14 +390,14 @@ describe('un-reminder-worker', () => {
       enqueueResponse(400, JSON.stringify({ error: { message: 'Integrity token cannot be decoded' } }))
       const req = makeRequest('/v1/generate/batch', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_C), [INTEGRITY_HEADER]: 'garbage' },
+        headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_C), [integrityWire.header]: 'garbage' },
         body: validBody(1),
       })
       const ctx = createExecutionContext()
       const res = await app.fetch(req, testEnv(), ctx)
       await waitOnExecutionContext(ctx)
       expect(res.status).toBe(403)
-      expect(await res.json()).toEqual({ error: 'Play Integrity check failed', reason: 'invalid' })
+      expect(await res.json()).toEqual({ error: integrityWire.rejectedError, reason: 'invalid' })
       expect(fetchCallIndex).toBe(2)
     } finally {
       warn.mockRestore()
@@ -410,7 +411,7 @@ describe('un-reminder-worker', () => {
       enqueueResponse(status, 'quota or outage')
       const req = makeRequest('/v1/generate/batch', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_C), [INTEGRITY_HEADER]: 'play-token' },
+        headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_C), [integrityWire.header]: 'play-token' },
         body: validBody(1),
       })
       const ctx = createExecutionContext()
@@ -429,7 +430,7 @@ describe('un-reminder-worker', () => {
     try {
       const req = makeRequest('/v1/generate/batch', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_C), [INTEGRITY_HEADER]: 'play-token' },
+        headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_C), [integrityWire.header]: 'play-token' },
         body: validBody(1),
       })
       const ctx = createExecutionContext()
@@ -455,7 +456,7 @@ describe('un-reminder-worker', () => {
       const res = await app.fetch(req, testEnv(), ctx)
       await waitOnExecutionContext(ctx)
       expect(res.status).toBe(403)
-      expect(await res.json()).toEqual({ error: 'Play Integrity check failed', reason: 'missing' })
+      expect(await res.json()).toEqual({ error: integrityWire.rejectedError, reason: 'missing' })
       expect(fetchCallIndex).toBe(0)
     } finally {
       warn.mockRestore()
