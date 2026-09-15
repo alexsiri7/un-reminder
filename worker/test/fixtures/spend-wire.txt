@@ -1,0 +1,12 @@
+# Wire-format literals of the 402 body the Worker (worker/src/types.ts, worker/src/middleware/spendGate.ts)
+# sends when a spend cap is reached and the app must agree on byte for byte; worker/src/types.test.ts and
+# worker/test/index.test.ts assert against it, and the app's error handling (#422) will read the same file.
+# One entry per line: the key, a tab, then the value verbatim.
+cap-type-daily	daily
+cap-type-monthly	monthly
+cap-scope-user	user
+cap-scope-global	global
+cap-error-user-daily	Daily spend cap reached
+cap-error-user-monthly	Monthly spend cap reached
+cap-error-global-daily	Service daily spend cap reached
+cap-error-global-monthly	Service monthly spend cap reached

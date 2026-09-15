@@ -2,6 +2,15 @@ import { describe, it, expect, vi } from 'vitest'
 import { getSpend, addSpend } from './spend'
 
 const ID = '0123456789abcdef'
+const OTHER_ID = 'fedcba9876543210'
+
+function todayKeys(tokenId?: string) {
+  const d = new Date()
+  const day = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+  const month = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+  const prefix = tokenId === undefined ? '' : `user:${tokenId}:`
+  return { daily: `${prefix}day:${day}`, monthly: `${prefix}month:${month}` }
+}
 
 function mockKV(store: Map<string, string> = new Map()): KVNamespace {
   return {
@@ -35,6 +44,19 @@ describe('getSpend', () => {
     expect(result.daily).toBeCloseTo(0.123456, 5)
     expect(result.monthly).toBeCloseTo(1.234567, 5)
   })
+
+  it('reads one token\'s counters, not the Worker-wide ones', async () => {
+    const user = todayKeys(ID)
+    const global = todayKeys()
+    const kv = mockKV(new Map([
+      [user.daily, '0.1'],
+      [user.monthly, '0.2'],
+      [global.daily, '5'],
+      [global.monthly, '6'],
+    ]))
+    expect(await getSpend(kv, ID)).toEqual({ daily: 0.1, monthly: 0.2 })
+    expect(await getSpend(kv)).toEqual({ daily: 5, monthly: 6 })
+  })
 })
 
 describe('addSpend', () => {
@@ -51,11 +73,18 @@ describe('addSpend', () => {
     const store = new Map<string, string>()
     const kv = mockKV(store)
     await addSpend(kv, 0.01, ID)
-    const d = new Date()
-    const dailyKey = `day:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
-    const monthlyKey = `month:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
-    expect(store.has(dailyKey)).toBe(true)
-    expect(store.has(monthlyKey)).toBe(true)
+    const user = todayKeys(ID)
+    const global = todayKeys()
+    expect([...store.keys()].sort()).toEqual([user.daily, user.monthly, global.daily, global.monthly].sort())
+  })
+
+  it('counts each token apart while the Worker-wide counter sums them', async () => {
+    const kv = mockKV()
+    await addSpend(kv, 0.05, ID)
+    await addSpend(kv, 0.10, OTHER_ID)
+    expect((await getSpend(kv, ID)).daily).toBeCloseTo(0.05, 5)
+    expect((await getSpend(kv, OTHER_ID)).daily).toBeCloseTo(0.10, 5)
+    expect((await getSpend(kv)).daily).toBeCloseTo(0.15, 5)
   })
 
   // NOTE: KV lacks atomic CAS — concurrent calls can under-count spend.
