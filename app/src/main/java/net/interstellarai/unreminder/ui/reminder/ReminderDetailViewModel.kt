@@ -63,13 +63,13 @@ class ReminderDetailViewModel @Inject constructor(
         val target = ReminderDetailTarget.Trigger(triggerId)
         viewModelScope.launch(ioDispatcher) {
             // The variant the notification showed, once the row is read; a row with no habit
-            // never fired and has nothing to key on. Kept outside the try so a failure after
-            // the read still leaves the screen in the notification's layout.
+            // never fired and has nothing to key on. Assigned before anything else can fail so
+            // the catch still leaves the screen in the notification's layout.
             var seed = triggerId
             try {
                 val trigger = triggerRepository.getById(triggerId)
-                val habit = trigger?.habitId?.let { habitRepository.getByIdOnce(it) }
                 seed = trigger?.let { t -> t.habitId?.let { VariantTreatment.seed(t.variationId, it) } } ?: triggerId
+                val habit = trigger?.habitId?.let { habitRepository.getByIdOnce(it) }
                 val canComplete = when (trigger?.status) {
                     TriggerStatus.FIRED -> {
                         // Opened from a live notification. The Open action does not auto-cancel it,

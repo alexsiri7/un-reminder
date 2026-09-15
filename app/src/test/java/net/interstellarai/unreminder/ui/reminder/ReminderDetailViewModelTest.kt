@@ -415,6 +415,17 @@ class ReminderDetailViewModelTest {
         assertEquals(ReminderDetailLayout.forSeed(11L), viewModel.uiState.value.layout)
     }
 
+    @Test
+    fun `init keeps the variant's layout when the habit fails to load`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns makeTrigger(variationId = 11L)
+        coEvery { habitRepository.getByIdOnce(1L) } throws RuntimeException("boom")
+
+        viewModel.init(42L)
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.isLoading)
+        assertEquals(ReminderDetailLayout.forSeed(11L), viewModel.uiState.value.layout)
+    }
+
     // A trigger the gate rejected before a habit was assigned never fired and has no variant;
     // the row itself is the only identity left to key on.
     @Test
