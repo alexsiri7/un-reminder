@@ -142,7 +142,7 @@ The following must be set via `wrangler secret put` before deploying the CF Work
 | `UR_PLAY_INTEGRITY_SA_KEY` | Service-account JSON key the Worker uses to decode Play Integrity tokens; unset ⇒ every non-exempt request answers 503 | `wrangler secret put UR_PLAY_INTEGRITY_SA_KEY < key.json` — setup in `worker/README.md` "Play Integrity" |
 | `UR_SPEND` namespace ID | KV namespace for spend tracking | `wrangler kv namespace create UR_SPEND` → paste ID into `worker/wrangler.toml` |
 
-`UR_DAILY_CAP_CENTS` (default `50`, i.e. $0.50) and `UR_MONTHLY_CAP_CENTS` (default `500`, i.e. $5.00) are plain vars in `worker/wrangler.toml` and can be edited directly. Note the unit is **cents**, not dollars.
+`UR_DAILY_CAP_CENTS` (default `50`, i.e. $0.50) and `UR_MONTHLY_CAP_CENTS` (default `500`, i.e. $5.00) are the service-wide backstop; `UR_USER_DAILY_CAP_CENTS` / `UR_USER_MONTHLY_CAP_CENTS` (defaults `20` / `200`) cap each token individually and bind first. All four are plain vars in `worker/wrangler.toml` and can be edited directly — see `worker/README.md` "Environment variables" for per-token overrides via `npm run tokens -- caps`. Note the unit is **cents**, not dollars.
 
 ---
 
