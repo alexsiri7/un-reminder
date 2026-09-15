@@ -114,4 +114,21 @@ class ReminderDetailScreenTest {
 
         compose.onAllNodesWithText("meditation").assertCountEquals(1)
     }
+
+    // A habit deleted after its trigger fired leaves the frozen prompt with no habit behind it;
+    // the caption labels the prompt, so it stays.
+    @Test
+    fun `the caption stays over a trigger whose habit is gone`() {
+        show(state.copy(target = ReminderDetailTarget.Trigger(42), habitName = ""))
+
+        compose.onNodeWithText(promptText).assertIsDisplayed()
+        compose.onNodeWithText("REMINDER").assertIsDisplayed()
+    }
+
+    @Test
+    fun `the caption is omitted when there is nothing to label`() {
+        show(state.copy(target = ReminderDetailTarget.Trigger(42), promptText = "", habitName = ""))
+
+        compose.onNodeWithText("REMINDER").assertDoesNotExist()
+    }
 }

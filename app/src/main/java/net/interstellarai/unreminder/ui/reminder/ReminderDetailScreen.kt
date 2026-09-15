@@ -143,7 +143,7 @@ internal fun ReminderDetailContent(
                     color = ink.copy(alpha = 0.7f),
                     modifier = Modifier.clickable(onClick = onNavigateBack),
                 )
-                if (uiState.habitName.isNotBlank()) {
+                if (uiState.promptText.isNotBlank() || uiState.habitName.isNotBlank()) {
                     // The Now page's own heading over a row opened from it, so nothing implies a
                     // notification fired.
                     MonoSectionLabel(if (uiState.target is ReminderDetailTarget.Variant) "doable now" else "reminder")

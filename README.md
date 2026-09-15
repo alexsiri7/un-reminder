@@ -331,9 +331,11 @@ from the pool, not from a fresh generation.
 10. **Reminder detail screen** — read/act view for one variant, reached two ways. Keyed on a trigger, by
     tapping any row in the Recent Triggers screen or a live notification body: shows the mascot the
     notification was posted with (resolved from the trigger's frozen `sprite_tag`, seeded by trigger id
-    exactly as the notification resolved it), the trigger's prompt text as the headline with the habit
-    name as its label, and the habit's current dedication progress bar; the header caption reads
-    "reminder". Opening a live (`FIRED`) trigger records `OPENED` and clears its notification. Keyed on
+    exactly as the notification resolved it), the trigger's prompt text as the headline and, if the
+    trigger has an associated habit, the habit name as its label and the habit's current dedication
+    progress bar; the header caption reads "reminder" whenever there is a prompt or a habit to label
+    (a trigger dismissed before it fired has neither). Opening a live
+    (`FIRED`) trigger records `OPENED` and clears its notification. Keyed on
     a variant, by tapping a Now page row (anywhere but its `did it` chip) or the home-screen widget
     card: there is no trigger, so opening records nothing — `OPENED` stays a trigger-keyed signal — the
     mascot is the variant's sprite seeded by habit id as the Now row and widget resolve it, and the
