@@ -42,8 +42,10 @@ android {
         println("[gradle] FEEDBACK_ENDPOINT_URL resolved at configuration: ${resolvedFeedbackUrl.take(60)}…")
         println("[gradle] SENTRY_DSN resolved at configuration: ${if (resolvedSentryDsn.isBlank()) "empty" else "set"}")
         val resolvedWorkerUrl = envOrDefault("WORKER_URL", "")
+        val resolvedPlayCloudProjectNumber = envOrDefault("PLAY_CLOUD_PROJECT_NUMBER", "")
 
         println("[gradle] WORKER_URL resolved at configuration: ${if (resolvedWorkerUrl.isBlank()) "empty" else "set"}")
+        println("[gradle] PLAY_CLOUD_PROJECT_NUMBER resolved at configuration: ${if (resolvedPlayCloudProjectNumber.isBlank()) "empty" else "set"}")
 
         buildConfigField(
             "String",
@@ -57,6 +59,7 @@ android {
         )
         buildConfigField("String", "SENTRY_DSN", "\"${resolvedSentryDsn}\"")
         buildConfigField("String", "WORKER_URL", "\"${resolvedWorkerUrl}\"")
+        buildConfigField("String", "PLAY_CLOUD_PROJECT_NUMBER", "\"${resolvedPlayCloudProjectNumber}\"")
 
     }
 
@@ -194,6 +197,7 @@ dependencies {
     // Play Services Location (geofencing)
     implementation(libs.play.services.location)
     implementation(libs.play.app.update)
+    implementation(libs.play.integrity)
     implementation(libs.osmdroid.android)
 
     // DataStore

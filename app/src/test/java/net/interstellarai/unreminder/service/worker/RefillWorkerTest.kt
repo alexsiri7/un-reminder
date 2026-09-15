@@ -308,6 +308,40 @@ class RefillWorkerTest {
     }
 
     @Test
+    fun `doWork retries a retryable WorkerIntegrityException without reporting to Sentry`() = runTest {
+        mockkStatic(Sentry::class)
+        try {
+            every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
+            coEvery { mockHabitRepository.getByIdOnce(1L) } returns HabitEntity(id = 1L, name = "Meditate")
+            coEvery {
+                mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+            } throws WorkerIntegrityException(reason = "missing", retryable = true)
+
+            assertEquals(Result.retry(), createWorker().doWork())
+            verify(exactly = 0) { Sentry.captureException(any(), any<ScopeCallback>()) }
+        } finally {
+            unmockkStatic(Sentry::class)
+        }
+    }
+
+    @Test
+    fun `doWork gives up on a non-retryable WorkerIntegrityException without reporting to Sentry`() = runTest {
+        mockkStatic(Sentry::class)
+        try {
+            every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
+            coEvery { mockHabitRepository.getByIdOnce(1L) } returns HabitEntity(id = 1L, name = "Meditate")
+            coEvery {
+                mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+            } throws WorkerIntegrityException(reason = "unrecognized-app", retryable = false)
+
+            assertEquals(Result.failure(), createWorker().doWork())
+            verify(exactly = 0) { Sentry.captureException(any(), any<ScopeCallback>()) }
+        } finally {
+            unmockkStatic(Sentry::class)
+        }
+    }
+
+    @Test
     fun `doWork returns retry on IOException`() = runTest {
         val habit = HabitEntity(id = 1L, name = "Meditate")
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit

@@ -106,6 +106,9 @@ class RefillWorker @AssistedInject constructor(
         } catch (e: WorkerAuthException) {
             Log.w(TAG, "Auth failed for habit $habitId", e)
             Result.failure()
+        } catch (e: WorkerIntegrityException) {
+            Log.w(TAG, "Integrity check failed (${e.reason}) for habit $habitId, ${if (e.retryable) "will retry" else "giving up"}", e)
+            if (e.retryable) Result.retry() else Result.failure()
         } catch (e: WorkerError) {
             if (e.isServerError()) {
                 Log.w(TAG, "Server error ${e.code} for habit $habitId, will retry", e)

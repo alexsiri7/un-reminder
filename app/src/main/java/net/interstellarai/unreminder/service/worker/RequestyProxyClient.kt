@@ -17,28 +17,40 @@ import okhttp3.Response
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
+import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
 
-private fun Response.throwOnError(): Nothing = when (code) {
+/** Mirrors `INTEGRITY_HEADER` in worker/src/lib/integrity.ts — keep in sync. */
+const val INTEGRITY_HEADER = "X-Play-Integrity-Token"
+
+private fun Response.throwOnError(integrity: IntegrityTokenResult?): Nothing = when (code) {
     401 -> throw WorkerAuthException()
     402 -> throw SpendCapExceededException()
+    403 -> throw WorkerIntegrityException(
+        reason = runCatching { JSONObject(body?.string() ?: "").optString("reason") }.getOrDefault("").ifEmpty { "unknown" },
+        retryable = integrity is IntegrityTokenResult.Unavailable && integrity.retryable,
+    )
     else -> throw WorkerError(code, body?.string() ?: "")
 }
 
 @Singleton
 class RequestyProxyClient @Inject constructor(
     private val okHttpClient: OkHttpClient,
+    private val integrityTokenProvider: IntegrityTokenProvider,
 ) {
-    private fun post(path: String, payload: JSONObject, workerUrl: String, token: String): JSONObject =
-        execute(
-            Request.Builder()
-                .url("${workerUrl.trimEnd('/')}/$path")
-                .addHeader("Authorization", "Bearer $token")
-                .addHeader("Accept", "application/json")
-                .post(payload.toString().toRequestBody("application/json".toMediaType()))
-                .build()
-        )
+    private suspend fun post(path: String, payload: JSONObject, workerUrl: String, token: String): JSONObject {
+        val body = payload.toString()
+        val integrity = integrityTokenProvider.token(sha256Hex(body))
+        val request = Request.Builder()
+            .url("${workerUrl.trimEnd('/')}/$path")
+            .addHeader("Authorization", "Bearer $token")
+            .addHeader("Accept", "application/json")
+            .apply { if (integrity is IntegrityTokenResult.Token) addHeader(INTEGRITY_HEADER, integrity.value) }
+            .post(body.toRequestBody("application/json".toMediaType()))
+            .build()
+        return execute(request, integrity)
+    }
 
     private fun get(path: String, workerUrl: String): JSONObject =
         execute(
@@ -46,14 +58,21 @@ class RequestyProxyClient @Inject constructor(
                 .url("${workerUrl.trimEnd('/')}/$path")
                 .addHeader("Accept", "application/json")
                 .get()
-                .build()
+                .build(),
+            integrity = null,
         )
 
-    private fun execute(request: Request): JSONObject =
+    private fun execute(request: Request, integrity: IntegrityTokenResult?): JSONObject =
         okHttpClient.newCall(request).execute().use { response ->
-            if (response.code !in 200..299) response.throwOnError()
+            if (response.code !in 200..299) response.throwOnError(integrity)
             JSONObject(response.body?.string() ?: throw RuntimeException("Worker returned empty body"))
         }
+
+    /** The Worker hashes the exact bytes it receives the same way (worker/src/lib/integrity.ts). */
+    private fun sha256Hex(body: String): String =
+        MessageDigest.getInstance("SHA-256")
+            .digest(body.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
 
     /**
      * The Worker's current generation version from the public `/v1/health` route, or

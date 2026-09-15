@@ -22,6 +22,7 @@ import net.interstellarai.unreminder.service.worker.RefillScheduler
 import net.interstellarai.unreminder.service.worker.SpendCapExceededException
 import net.interstellarai.unreminder.service.worker.WorkerAuthException
 import net.interstellarai.unreminder.service.worker.WorkerError
+import net.interstellarai.unreminder.service.worker.WorkerIntegrityException
 import io.mockk.Runs
 import io.mockk.andThenJust
 import io.mockk.coEvery
@@ -363,6 +364,36 @@ class HabitEditViewModelTest {
             assertEquals("Worker rejected the token — check Cloud AI settings.", state.errorMessage)
             assertFalse(state.isGeneratingFields)
             assertFalse(state.showSpendCapLink)
+        }
+
+    // --- WorkerIntegrityException ---
+
+    @Test
+    fun `autofillWithAi points a non-Play build at the Play Store on WorkerIntegrityException`() =
+        runTest(testDispatcher) {
+            coEvery {
+                mockPromptGenerator.generateHabitFields(any())
+            } throws WorkerIntegrityException(reason = "unrecognized-app", retryable = false)
+
+            viewModel.autofillWithAi()
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertEquals("This build isn't recognised by Google Play — install it from the Play Store.", state.errorMessage)
+            assertFalse(state.isGeneratingFields)
+        }
+
+    @Test
+    fun `autofillWithAi asks for a retry on a retryable WorkerIntegrityException`() =
+        runTest(testDispatcher) {
+            coEvery {
+                mockPromptGenerator.generateHabitFields(any())
+            } throws WorkerIntegrityException(reason = "missing", retryable = true)
+
+            viewModel.autofillWithAi()
+            advanceUntilIdle()
+
+            assertEquals("Play Integrity check unavailable — please try again.", viewModel.uiState.value.errorMessage)
         }
 
     // --- save: refill scheduling ---

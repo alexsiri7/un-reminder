@@ -25,6 +25,7 @@ import net.interstellarai.unreminder.service.worker.RefillScheduler
 import net.interstellarai.unreminder.service.worker.SpendCapExceededException
 import net.interstellarai.unreminder.service.worker.WorkerAuthException
 import net.interstellarai.unreminder.service.worker.WorkerError
+import net.interstellarai.unreminder.service.worker.WorkerIntegrityException
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.sentry.Sentry
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -303,6 +304,11 @@ class HabitEditViewModel @Inject constructor(
                 block()
             } catch (e: WorkerAuthException) {
                 _uiState.value = _uiState.value.copy(errorMessage = "Worker rejected the token — check Cloud AI settings.")
+            } catch (e: WorkerIntegrityException) {
+                _uiState.value = _uiState.value.copy(
+                    errorMessage = if (e.retryable) "Play Integrity check unavailable — please try again."
+                    else "This build isn't recognised by Google Play — install it from the Play Store."
+                )
             } catch (e: SpendCapExceededException) {
                 // showSpendCapLink snackbar carries the message+action; errorMessage intentionally not set
                 _uiState.value = _uiState.value.copy(showSpendCapLink = true)
