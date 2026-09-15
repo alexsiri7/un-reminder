@@ -34,6 +34,10 @@ import net.interstellarai.unreminder.ui.now.NowMenuItem
 import net.interstellarai.unreminder.ui.now.NowMenuUiState
 import net.interstellarai.unreminder.ui.onboarding.OnboardingContent
 import net.interstellarai.unreminder.ui.onboarding.OnboardingUiState
+import net.interstellarai.unreminder.ui.reminder.ReminderDetailContent
+import net.interstellarai.unreminder.ui.reminder.ReminderDetailLayout
+import net.interstellarai.unreminder.ui.reminder.ReminderDetailTarget
+import net.interstellarai.unreminder.ui.reminder.ReminderDetailUiState
 import net.interstellarai.unreminder.ui.settings.LocationTrackingSection
 import net.interstellarai.unreminder.ui.settings.LocationTrackingStatus
 import net.interstellarai.unreminder.ui.theme.Dimens
@@ -234,6 +238,76 @@ class PhoneScreenshotTest {
             }
         }
     }
+
+    @Test
+    fun phone_10() {
+        paparazzi.snapshot {
+            UnReminderTheme {
+                ReminderDetailContent(
+                    uiState = fakeReminderDetail.copy(layout = ReminderDetailLayout.SPRITE_TOP),
+                    onNavigateBack = {},
+                    onComplete = {},
+                    onWatch = {},
+                )
+            }
+        }
+    }
+
+    @Test
+    fun phone_11() {
+        paparazzi.snapshot {
+            UnReminderTheme {
+                ReminderDetailContent(
+                    uiState = fakeReminderDetail.copy(layout = ReminderDetailLayout.SPRITE_LEFT),
+                    onNavigateBack = {},
+                    onComplete = {},
+                    onWatch = {},
+                )
+            }
+        }
+    }
+
+    @Test
+    fun phone_12() {
+        paparazzi.snapshot {
+            UnReminderTheme {
+                ReminderDetailContent(
+                    uiState = fakeReminderDetail.copy(layout = ReminderDetailLayout.BACKDROP),
+                    onNavigateBack = {},
+                    onComplete = {},
+                    onWatch = {},
+                )
+            }
+        }
+    }
+
+    @Test
+    fun phone_13() {
+        paparazzi.snapshot {
+            UnReminderTheme {
+                ReminderDetailContent(
+                    uiState = fakeReminderDetail.copy(layout = ReminderDetailLayout.TEXT_DOMINANT),
+                    onNavigateBack = {},
+                    onComplete = {},
+                    onWatch = {},
+                )
+            }
+        }
+    }
+
+    @Test
+    fun phone_14() {
+        paparazzi.snapshot {
+            UnReminderTheme {
+                ReminderDetailContent(
+                    uiState = fakeReminderDetail.copy(layout = ReminderDetailLayout.SPRITE_BOTTOM),
+                    onNavigateBack = {},
+                    onComplete = {},
+                    onWatch = {},
+                )
+            }
+        }
+    }
 }
 
 internal val fakeHabits = listOf(
@@ -286,6 +360,19 @@ internal val fakeNowMenu = NowMenuUiState.Menu(
         NowMenuItem(habitId = 3, name = "reading", text = null, variationId = null, spriteRes = MascotSprites.entries[2].drawableRes, tier = DisplayTier.DOABLE),
     ),
     canLoadMore = true,
+)
+
+// One per reminder detail layout, in enum order, so every surface, headline scale and sprite
+// placement is pinned by a golden.
+internal val fakeReminderDetail = ReminderDetailUiState(
+    promptText = "Two minutes of stillness before the next thing — the astronaut kind, drifting.",
+    habitName = "meditation",
+    dedicationLevel = 3,
+    videoUrl = "https://www.youtube.com/results?search_query=box+breathing",
+    target = ReminderDetailTarget.Variant(1, 11),
+    isLoading = false,
+    canComplete = true,
+    spriteRes = MascotSprites.entries[0].drawableRes,
 )
 
 // One row per tier below DOABLE, in display order, so every reason line and the
