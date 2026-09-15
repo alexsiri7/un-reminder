@@ -44,7 +44,7 @@ export async function hashToken(salt: string, token: string): Promise<string> {
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('')
 }
 
-const isCapCents = (value: unknown) => value === undefined || (Number.isInteger(value) && (value as number) > 0)
+const isCapCents = (value: unknown) => value === undefined || (typeof value === 'number' && Number.isInteger(value) && value > 0)
 
 function isTokenRecord(value: unknown): value is TokenRecord {
   if (typeof value !== 'object' || value === null) return false
