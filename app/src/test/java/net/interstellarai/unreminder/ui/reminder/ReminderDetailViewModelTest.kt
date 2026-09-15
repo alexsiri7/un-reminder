@@ -86,6 +86,7 @@ class ReminderDetailViewModelTest {
         actionUrl: String? = null,
         status: TriggerStatus = TriggerStatus.SCHEDULED,
         spriteTag: String? = null,
+        variationId: Long? = null,
     ) = TriggerEntity(
         id = 42L,
         habitId = habitId,
@@ -94,6 +95,7 @@ class ReminderDetailViewModelTest {
         generatedPrompt = prompt,
         actionUrl = actionUrl,
         spriteTag = spriteTag,
+        variationId = variationId,
     )
 
     private fun makeHabit(id: Long = 1L, name: String = "Meditate", level: Int = 3) =
@@ -366,24 +368,36 @@ class ReminderDetailViewModelTest {
         assertEquals(SpriteResolver().resolve(null, 1L), viewModel.uiState.value.spriteRes)
     }
 
+    // The same variant opens to the same layout whether it arrived from a notification or was
+    // tapped on the Now page or widget (#416).
     @Test
-    fun `the layout is keyed on the target`() = runTest {
-        coEvery { triggerRepository.getById(42L) } returns makeTrigger()
+    fun `the layout is the variant's on both paths`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns makeTrigger(variationId = 11L)
         coEvery { habitRepository.getByIdOnce(1L) } returns makeHabit(level = 3)
         coEvery { variationRepository.getById(11L) } returns makeVariation()
-        coEvery { levelDescriptionRepository.getDescriptionForLevel(1L, 3) } returns "sit for two minutes"
 
         viewModel.init(42L)
         advanceUntilIdle()
-        assertEquals(ReminderDetailLayout.forTarget(ReminderDetailTarget.Trigger(42L)), viewModel.uiState.value.layout)
+        assertEquals(ReminderDetailLayout.forSeed(11L), viewModel.uiState.value.layout)
 
         viewModel.initVariant(1L, 11L)
         advanceUntilIdle()
-        assertEquals(ReminderDetailLayout.forTarget(ReminderDetailTarget.Variant(1L, 11L)), viewModel.uiState.value.layout)
+        assertEquals(ReminderDetailLayout.forSeed(11L), viewModel.uiState.value.layout)
+    }
 
-        viewModel.initVariant(1L, null)
+    @Test
+    fun `a fallback firing and a fallback row are keyed on the habit id`() = runTest {
+        coEvery { triggerRepository.getById(42L) } returns makeTrigger(habitId = 3L, variationId = null)
+        coEvery { habitRepository.getByIdOnce(3L) } returns makeHabit(id = 3L, level = 3)
+        coEvery { levelDescriptionRepository.getDescriptionForLevel(3L, 3) } returns "sit for two minutes"
+
+        viewModel.init(42L)
         advanceUntilIdle()
-        assertEquals(ReminderDetailLayout.forTarget(ReminderDetailTarget.Variant(1L, null)), viewModel.uiState.value.layout)
+        assertEquals(ReminderDetailLayout.forSeed(3L), viewModel.uiState.value.layout)
+
+        viewModel.initVariant(3L, null)
+        advanceUntilIdle()
+        assertEquals(ReminderDetailLayout.forSeed(3L), viewModel.uiState.value.layout)
     }
 
     @Test

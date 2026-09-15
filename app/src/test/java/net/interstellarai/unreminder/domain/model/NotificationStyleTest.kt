@@ -1,9 +1,7 @@
 package net.interstellarai.unreminder.domain.model
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
 import org.junit.Test
-import kotlin.random.Random
 
 class NotificationStyleTest {
 
@@ -20,28 +18,14 @@ class NotificationStyleTest {
         )
     }
 
+    // The look is derived from a persisted id, so the seed-to-style mapping is part of the
+    // contract: reordering the enum would restyle every variant already seen.
     @Test
-    fun `next never repeats the previous style`() {
-        for (previous in NotificationStyle.entries) {
-            repeat(100) { assertNotEquals(previous, NotificationStyle.next(previous, Random(it))) }
-        }
-    }
-
-    // A fixed successor order would pass the test above and still give every habit the same
-    // predictable cycle.
-    @Test
-    fun `from any previous style next can land on each of the other three`() {
-        for (previous in NotificationStyle.entries) {
-            val seen = (0 until 200).map { NotificationStyle.next(previous, Random(it)) }.toSet()
-
-            assertEquals(NotificationStyle.entries.toSet() - previous, seen)
-        }
-    }
-
-    @Test
-    fun `next with no previous reaches every style`() {
-        val seen = (0 until 200).map { NotificationStyle.next(null, Random(it)) }.toSet()
-
-        assertEquals(NotificationStyle.entries.toSet(), seen)
+    fun `seeds 0 to 3 map to the four styles in order and 4 wraps to SPRITE`() {
+        assertEquals(NotificationStyle.SPRITE, NotificationStyle.forSeed(0))
+        assertEquals(NotificationStyle.BIG_PICTURE, NotificationStyle.forSeed(1))
+        assertEquals(NotificationStyle.TEXT_ONLY, NotificationStyle.forSeed(2))
+        assertEquals(NotificationStyle.ACCENT, NotificationStyle.forSeed(3))
+        assertEquals(NotificationStyle.SPRITE, NotificationStyle.forSeed(4))
     }
 }

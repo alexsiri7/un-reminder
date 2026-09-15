@@ -63,10 +63,10 @@ import dagger.hilt.components.SingletonComponent
 import io.sentry.Sentry
 import kotlinx.coroutines.CancellationException
 import net.interstellarai.unreminder.MainActivity
+import net.interstellarai.unreminder.domain.model.VariantTreatment
 import net.interstellarai.unreminder.service.notification.NotificationHelper
 import net.interstellarai.unreminder.service.notification.SpriteResolver
 import javax.inject.Inject
-import kotlin.random.Random
 
 /**
  * The widget's ambient progress line: whether today already counts and the same
@@ -78,7 +78,7 @@ data class DayProgress(val completedToday: Boolean, val daysWithAnyCompletion: I
  * Home-screen widget: one habit, its peeked variant and sprite, and a "did it" button — the
  * card itself opens that variant's view — or, with no active habit to offer, a prompt to add
  * one that opens the Now page — plus a one-line day progress indicator,
- * drawn in whichever of the five [WidgetLayout]s the last refresh rolled. The variant is the
+ * drawn in the [WidgetLayout] its variant derives. The variant is the
  * card's headline and the habit name its small label above it. Below its default
  * size it collapses to a single strip. It only renders what [WidgetRefresher] last stored;
  * every recompute goes through the refresher.
@@ -108,12 +108,10 @@ class DoableHabitWidget : GlanceAppWidget() {
         private val SPRITE_TAG = stringPreferencesKey("sprite_tag")
         private val COMPLETED_TODAY = booleanPreferencesKey("completed_today")
         private val DAYS_WITH_ANY_COMPLETION = intPreferencesKey("days_with_any_completion")
-        private val LAYOUT = stringPreferencesKey("layout")
 
-        // One write for all three so the habit can never land without the progress that goes
-        // with it — a completion from the widget must flip the indicator in the same refresh —
-        // and the look changes in the same redraw as the content.
-        internal fun store(prefs: MutablePreferences, habit: DoableHabit?, progress: DayProgress, layout: WidgetLayout) {
+        // One write for both so the habit can never land without the progress that goes
+        // with it — a completion from the widget must flip the indicator in the same refresh.
+        internal fun store(prefs: MutablePreferences, habit: DoableHabit?, progress: DayProgress) {
             if (habit == null) {
                 prefs.remove(HABIT_ID)
                 prefs.remove(HABIT_NAME)
@@ -131,14 +129,11 @@ class DoableHabitWidget : GlanceAppWidget() {
             }
             prefs[COMPLETED_TODAY] = progress.completedToday
             prefs[DAYS_WITH_ANY_COMPLETION] = progress.daysWithAnyCompletion
-            prefs[LAYOUT] = layout.name
         }
 
-        internal fun storedLayout(prefs: Preferences): WidgetLayout? = WidgetLayout.fromName(prefs[LAYOUT])
-
-        /** The layout for the next refresh: any of the five but the one this widget last showed. */
-        internal fun nextLayout(prefs: Preferences, random: Random = Random.Default): WidgetLayout =
-            WidgetLayout.next(storedLayout(prefs), random)
+        /** The shown variant's look; with no habit the add-a-habit prompt keeps the original one. */
+        internal fun layoutFor(habit: DoableHabit?): WidgetLayout =
+            habit?.let { WidgetLayout.forSeed(VariantTreatment.seed(it.variationId, it.id)) } ?: WidgetLayout.SPRITE_LEFT
 
         internal fun stored(prefs: Preferences): DoableHabit? {
             val id = prefs[HABIT_ID] ?: return null
@@ -215,9 +210,8 @@ class DoableHabitWidget : GlanceAppWidget() {
         val spriteResolver = EntryPointAccessors.fromApplication(context, WidgetEntryPoint::class.java).spriteResolver()
         provideContent {
             val state = currentState<Preferences>()
-            // A widget that has not refreshed since the update keeps today's look until its tick.
-            val layout = storedLayout(state) ?: WidgetLayout.SPRITE_LEFT
-            WidgetContent(layout, stored(state), storedDayProgress(state), spriteResolver)
+            val habit = stored(state)
+            WidgetContent(layoutFor(habit), habit, storedDayProgress(state), spriteResolver)
         }
     }
 }

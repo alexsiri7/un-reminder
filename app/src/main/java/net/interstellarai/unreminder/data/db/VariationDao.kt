@@ -15,14 +15,26 @@ interface VariationDao {
      * mode [modeBit] names, then mode-neutral ones, then those written for another mode, so
      * a habit always has something to say even when nothing suits the moment. Within each of
      * those, rows sharing the shape of the habit's most recently consumed variation sort
-     * last and the rest are in random order, so the head of the list is a fresh shape
-     * whenever one is available and the same shape is the fallback for a nearly drained pool.
+     * last, so the head of the list is a fresh shape whenever one is available and the same
+     * shape is the fallback for a nearly drained pool. Within a shape rank, rows that would
+     * repeat that variation's look on any surface sort last: a look is `id mod n` over the
+     * surface's entries (VariantTreatment), where 4 is the notification's style count and 5
+     * the widget's and detail screen's layout count, each pinned by its enum's test. The rest
+     * is random order. The same last consumed row [deleteConsumedByHabit] keeps for the shape
+     * tier serves this one; with nothing consumed both comparisons are NULL and rank nothing.
      */
     @Query(
         "SELECT * FROM variations WHERE habit_id = :habitId AND consumed_at IS NULL " +
         "ORDER BY CASE WHEN (modes & :modeBit) != 0 THEN 0 WHEN modes = 0 THEN 1 ELSE 2 END, " +
         "CASE WHEN shape = (" +
         "SELECT shape FROM variations WHERE habit_id = :habitId AND consumed_at IS NOT NULL " +
+        "ORDER BY consumed_at DESC LIMIT 1" +
+        ") THEN 1 ELSE 0 END, " +
+        "CASE WHEN id % 4 = (" +
+        "SELECT id % 4 FROM variations WHERE habit_id = :habitId AND consumed_at IS NOT NULL " +
+        "ORDER BY consumed_at DESC LIMIT 1" +
+        ") OR id % 5 = (" +
+        "SELECT id % 5 FROM variations WHERE habit_id = :habitId AND consumed_at IS NOT NULL " +
         "ORDER BY consumed_at DESC LIMIT 1" +
         ") THEN 1 ELSE 0 END, RANDOM() LIMIT :limit"
     )
@@ -47,7 +59,7 @@ interface VariationDao {
 
     /**
      * Prunes consumed variations for [habitId] except the most recently consumed one, which
-     * [getUnusedForHabit] still needs as the shape to rotate away from after a refill.
+     * [getUnusedForHabit] still needs as the shape and look to rotate away from after a refill.
      */
     @Query(
         "DELETE FROM variations WHERE habit_id = :habitId AND consumed_at IS NOT NULL AND id != (" +

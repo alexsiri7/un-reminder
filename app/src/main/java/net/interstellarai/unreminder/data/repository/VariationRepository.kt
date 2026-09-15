@@ -30,8 +30,9 @@ class VariationRepository @Inject constructor(
      * Picks an unconsumed variation for [habitId], marks it consumed, and returns it. The
      * draw prefers a variation written for [mode], then a mode-neutral one, and only then one
      * written for another mode; within that it is random among variations whose shape
-     * differs from the last one consumed for the habit, so consecutive nudges change shape
-     * and the same shape is only a last resort.
+     * differs from the last one consumed for the habit, and within that among those whose
+     * look (VariantTreatment) differs, so consecutive nudges change shape and look and the
+     * same ones are only a last resort.
      * Returns null when no variation could be claimed — either the pool is empty
      * or all candidates were concurrently consumed (race-safe via optimistic UPDATE).
      * Callers should treat null as "nothing available; consider triggering a refill".
@@ -62,7 +63,7 @@ class VariationRepository @Inject constructor(
 
     /**
      * An unconsumed variation for [habitId], left unconsumed and drawn with the same mode
-     * preference and shape rotation as [pickRandomUnused]. The menu and widget display
+     * preference and shape and look rotation as [pickRandomUnused]. The menu and widget display
      * through this so that looking never drains the pool; consumption only happens when a
      * trigger fires or a habit is completed ([markConsumed]).
      */

@@ -41,12 +41,14 @@ class TriggerNotificationTest {
         actionUrl: String? = null,
         style: NotificationStyle = NotificationStyle.SPRITE,
         promptText: String = "body",
+        treatmentSeed: Long = triggerId,
     ): Notification {
         helper.postTriggerNotification(
             triggerId = triggerId,
             promptText = promptText,
             habitName = "meditation",
             style = style,
+            treatmentSeed = treatmentSeed,
             actionUrl = actionUrl,
             spriteTag = spriteTag,
         )
@@ -294,13 +296,14 @@ class TriggerNotificationTest {
         assertEquals(NotificationHelper.SAGE_ACCENT, notification.color)
     }
 
+    // The trigger id is held fixed so the colour is proven to follow the variant's seed.
     @Test
-    fun `ACCENT keeps the sprite and rotates the header colour by trigger id`() {
-        val colours = listOf(1L, 2L, 3L).map { id ->
-            val notification = posted(triggerId = id, spriteTag = null, style = NotificationStyle.ACCENT)
+    fun `ACCENT keeps the sprite and keys the header colour on the variant's seed`() {
+        val colours = listOf(1L, 2L, 3L).map { seed ->
+            val notification = posted(triggerId = 42L, spriteTag = null, style = NotificationStyle.ACCENT, treatmentSeed = seed)
             assertEquals(Notification.BigTextStyle::class.java.name, templateOf(notification))
-            assertEquals(resolver.resolve(null, rotationSeed = id), largeIconRes(notification))
-            assertEquals(NotificationHelper.ACCENT_PALETTE[id.mod(NotificationHelper.ACCENT_PALETTE.size)], notification.color)
+            assertEquals(resolver.resolve(null, rotationSeed = 42L), largeIconRes(notification))
+            assertEquals(NotificationHelper.ACCENT_PALETTE[seed.mod(NotificationHelper.ACCENT_PALETTE.size)], notification.color)
             notification.color
         }
 
@@ -309,8 +312,8 @@ class TriggerNotificationTest {
     }
 
     @Test
-    fun `a negative trigger id still picks an accent`() {
-        val notification = posted(triggerId = -7L, spriteTag = null, style = NotificationStyle.ACCENT)
+    fun `a negative seed still picks an accent`() {
+        val notification = posted(triggerId = 42L, spriteTag = null, style = NotificationStyle.ACCENT, treatmentSeed = -7L)
 
         assertTrue(notification.color in NotificationHelper.ACCENT_PALETTE)
     }

@@ -2,12 +2,9 @@ package net.interstellarai.unreminder.widget
 
 import androidx.compose.ui.graphics.Color
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.pow
-import kotlin.random.Random
 
 class WidgetLayoutTest {
 
@@ -37,35 +34,15 @@ class WidgetLayoutTest {
         assertEquals(5, WidgetLayout.entries.map { it.palette.surfaceNight }.toSet().size)
     }
 
+    // The look is derived from a persisted id, so the seed-to-layout mapping is part of the
+    // contract: reordering the enum would redraw every variant already seen.
     @Test
-    fun `next never repeats the previous layout`() {
-        for (previous in WidgetLayout.entries) {
-            repeat(100) { assertNotEquals(previous, WidgetLayout.next(previous, Random(it))) }
-        }
-    }
-
-    @Test
-    fun `next reaches every layout`() {
-        val seen = (0 until 200).map { WidgetLayout.next(null, Random(it)) }.toSet()
-
-        assertEquals(WidgetLayout.entries.toSet(), seen)
-    }
-
-    // A placed widget always has a previous layout, so a fixed successor order would pass the
-    // two tests above and still show every widget the same predictable cycle.
-    @Test
-    fun `from any previous layout next can land on each of the other four`() {
-        for (previous in WidgetLayout.entries) {
-            val seen = (0 until 200).map { WidgetLayout.next(previous, Random(it)) }.toSet()
-
-            assertEquals("after $previous", WidgetLayout.entries.toSet() - previous, seen)
-        }
-    }
-
-    @Test
-    fun `an unknown name resolves to no layout`() {
-        assertNull(WidgetLayout.fromName("SPRITE_TOP"))
-        assertNull(WidgetLayout.fromName(null))
-        assertEquals(WidgetLayout.COMPACT, WidgetLayout.fromName("COMPACT"))
+    fun `seeds 0 to 4 map to the five layouts in order`() {
+        assertEquals(WidgetLayout.SPRITE_LEFT, WidgetLayout.forSeed(0))
+        assertEquals(WidgetLayout.SPRITE_RIGHT, WidgetLayout.forSeed(1))
+        assertEquals(WidgetLayout.SPRITE_LARGE, WidgetLayout.forSeed(2))
+        assertEquals(WidgetLayout.TYPOGRAPHIC, WidgetLayout.forSeed(3))
+        assertEquals(WidgetLayout.COMPACT, WidgetLayout.forSeed(4))
+        assertEquals(WidgetLayout.SPRITE_LEFT, WidgetLayout.forSeed(5))
     }
 }

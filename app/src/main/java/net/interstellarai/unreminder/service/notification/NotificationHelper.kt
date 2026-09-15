@@ -104,6 +104,7 @@ class NotificationHelper @Inject constructor(
         promptText: String,
         habitName: String,
         style: NotificationStyle,
+        treatmentSeed: Long,
         actionUrl: String? = null,
         spriteTag: String? = null,
     ) {
@@ -169,8 +170,9 @@ class NotificationHelper @Inject constructor(
                 .setStyle(NotificationCompat.BigTextStyle())
             NotificationStyle.ACCENT -> builder
                 .setLargeIcon(sprite)
-                // .mod() (not %) keeps the index non-negative for a negative id.
-                .setColor(ACCENT_PALETTE[triggerId.mod(ACCENT_PALETTE.size)])
+                // The tint is part of the variant's look, so it keys on the seed, not the
+                // trigger id. .mod() (not %) keeps the index non-negative for a negative seed.
+                .setColor(ACCENT_PALETTE[treatmentSeed.mod(ACCENT_PALETTE.size)])
                 .setStyle(NotificationCompat.BigTextStyle())
         }
 

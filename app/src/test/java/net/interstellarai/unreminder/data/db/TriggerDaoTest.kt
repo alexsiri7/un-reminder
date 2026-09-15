@@ -336,19 +336,17 @@ class TriggerDaoTest {
         assertNull(triggerDao.getById(withoutVideo)?.actionUrl)
     }
 
-    // The later fire is inserted first so the read is proven to order by fired_at, not by id.
     @Test
-    fun `updateFired stores the style and getLastStyleForHabit reads the most recent one`() = runTest {
+    fun `updateFired stores the style`() = runTest {
         val habitId = insertHabit("hStyle")
-        val later = triggerDao.insert(TriggerEntity(scheduledAt = Instant.ofEpochMilli(midnightMillis)))
-        val earlier = triggerDao.insert(TriggerEntity(scheduledAt = Instant.ofEpochMilli(midnightMillis)))
+        val bigPicture = triggerDao.insert(TriggerEntity(scheduledAt = Instant.ofEpochMilli(midnightMillis)))
+        val textOnly = triggerDao.insert(TriggerEntity(scheduledAt = Instant.ofEpochMilli(midnightMillis)))
 
-        triggerDao.updateFired(later, TriggerStatus.FIRED.name, midnightMillis + 2_000L, habitId, "Breathe", null, NotificationStyle.BIG_PICTURE.name, null, null)
-        triggerDao.updateFired(earlier, TriggerStatus.FIRED.name, midnightMillis + 1_000L, habitId, "Stretch", null, NotificationStyle.TEXT_ONLY.name, null, null)
+        triggerDao.updateFired(bigPicture, TriggerStatus.FIRED.name, midnightMillis + 2_000L, habitId, "Breathe", null, NotificationStyle.BIG_PICTURE.name, null, null)
+        triggerDao.updateFired(textOnly, TriggerStatus.FIRED.name, midnightMillis + 1_000L, habitId, "Stretch", null, NotificationStyle.TEXT_ONLY.name, null, null)
 
-        assertEquals(NotificationStyle.BIG_PICTURE, triggerDao.getById(later)?.style)
-        assertEquals(NotificationStyle.TEXT_ONLY, triggerDao.getById(earlier)?.style)
-        assertEquals(NotificationStyle.BIG_PICTURE, triggerDao.getLastStyleForHabit(habitId))
+        assertEquals(NotificationStyle.BIG_PICTURE, triggerDao.getById(bigPicture)?.style)
+        assertEquals(NotificationStyle.TEXT_ONLY, triggerDao.getById(textOnly)?.style)
     }
 
     @Test
@@ -375,21 +373,5 @@ class TriggerDaoTest {
 
         assertEquals(77L, triggerDao.getById(fromPool)?.variationId)
         assertNull(triggerDao.getById(fallback)?.variationId)
-    }
-
-    @Test
-    fun `getLastStyleForHabit is null for a habit that has never fired`() = runTest {
-        val habitId = insertHabit("hNeverFired")
-
-        assertNull(triggerDao.getLastStyleForHabit(habitId))
-    }
-
-    // The first fire after the update reads a row from before the column existed.
-    @Test
-    fun `getLastStyleForHabit is null for a row fired before styles existed`() = runTest {
-        val habitId = insertHabit("hPreStyle")
-        insertTrigger(habitId, TriggerStatus.FIRED, midnightMillis)
-
-        assertNull(triggerDao.getLastStyleForHabit(habitId))
     }
 }

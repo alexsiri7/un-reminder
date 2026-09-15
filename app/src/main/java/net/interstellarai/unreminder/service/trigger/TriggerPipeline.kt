@@ -12,6 +12,7 @@ import net.interstellarai.unreminder.domain.model.ActivityState
 import net.interstellarai.unreminder.domain.model.NotificationStyle
 import net.interstellarai.unreminder.domain.model.NotificationVariant
 import net.interstellarai.unreminder.domain.model.TriggerStatus
+import net.interstellarai.unreminder.domain.model.VariantTreatment
 import net.interstellarai.unreminder.service.activity.ActivityRecognitionManager
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.geofence.LocationReconciler
@@ -113,11 +114,12 @@ class TriggerPipeline @Inject constructor(
             // cannot contain the notification this run is about to post.
             val outstandingIds = triggerRepository.getFiredIds()
 
-            // Presentation rotates on its own axis (#386): independent of the variant's shape
-            // and of the sprite, and frozen with the fired row so a look can be read against
-            // its outcome. The sprite tag is frozen alongside so the detail screen can show
-            // the same mascot the notification carried.
-            val style = NotificationStyle.next(triggerRepository.getLastStyleForHabit(habit.id))
+            // The look is the variant's (#416), derived from its id so every surface agrees,
+            // and frozen with the fired row so a style can still be read against its outcome.
+            // The sprite tag is frozen alongside so the detail screen can show the same mascot
+            // the notification carried.
+            val seed = VariantTreatment.seed(resolvedPrompt.variationId, habit.id)
+            val style = NotificationStyle.forSeed(seed)
 
             triggerRepository.updateFired(
                 id = triggerId,
@@ -134,6 +136,7 @@ class TriggerPipeline @Inject constructor(
                 promptText = resolvedPrompt.text,
                 habitName = habit.name,
                 style = style,
+                treatmentSeed = seed,
                 actionUrl = resolvedPrompt.actionUrl,
                 spriteTag = resolvedPrompt.spriteTag,
             )

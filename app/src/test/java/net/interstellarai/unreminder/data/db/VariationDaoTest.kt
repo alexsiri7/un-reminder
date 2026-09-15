@@ -247,6 +247,48 @@ class VariationDaoTest {
         assertEquals(3, variationDao.countUnused(hId))
     }
 
+    // Explicit ids, so which rows share a look with the consumed one is known: a look is
+    // id % 4 (notification style) or id % 5 (widget and detail layout).
+    private fun withId(id: Long, habitId: Long, shape: VariantShape) = VariationEntity(
+        id = id, habitId = habitId, text = "$shape $id", promptFingerprint = "fp",
+        generatedAt = Instant.EPOCH, shape = shape,
+    )
+
+    // One shape only, so the shape tier is uniform and the order is the look tier's alone.
+    // Consumed id 20 is 0 on both moduli, so 4, 8, 12, 16, 5, 10 and 15 repeat its look.
+    @Test fun `getUnusedForHabit sorts rows that would repeat the last consumed look after the rest`() = runTest {
+        val hId = insertHabit()
+        variationDao.insert((1L..20L).map { withId(it, hId, VariantShape.STATEMENT) })
+        assertEquals(1, variationDao.markConsumed(20L, Instant.now()))
+
+        repeat(20) {
+            val ordered = variationDao.getUnusedForHabit(hId, ActivityMode.SITTING.bit, 50)
+            assertEquals(19, ordered.size)
+            assertEquals(List(12) { false } + List(7) { true }, ordered.map { it.id % 4 == 0L || it.id % 5 == 0L })
+        }
+    }
+
+    // Ids 1 to 3 are fresh on both moduli; 40 repeats the consumed look on both. The fresh
+    // shape still wins, so #373's guarantee is untouched.
+    @Test fun `getUnusedForHabit ranks a fresh shape above a fresh look`() = runTest {
+        val hId = insertHabit()
+        variationDao.insert((1L..3L).map { withId(it, hId, VariantShape.QUESTION) } + withId(20L, hId, VariantShape.QUESTION) + withId(40L, hId, VariantShape.STATEMENT))
+        assertEquals(1, variationDao.markConsumed(20L, Instant.now()))
+
+        repeat(20) {
+            assertEquals(40L, variationDao.getUnusedForHabit(hId, ActivityMode.SITTING.bit, 1).single().id)
+        }
+    }
+
+    @Test fun `getUnusedForHabit with nothing consumed does not rank by look`() = runTest {
+        val hId = insertHabit()
+        variationDao.insert((1L..20L).map { withId(it, hId, VariantShape.STATEMENT) })
+
+        assertEquals(20, variationDao.getUnusedForHabit(hId, ActivityMode.SITTING.bit, 50).size)
+        val heads = (1..20).map { variationDao.getUnusedForHabit(hId, ActivityMode.SITTING.bit, 1).single().id }.toSet()
+        assertTrue(heads.size > 1)
+    }
+
     private fun tagged(habitId: Long, modes: Set<ActivityMode>, shape: VariantShape, index: Int) = VariationEntity(
         habitId = habitId, text = "${modes.joinToString("+").ifEmpty { "neutral" }} $shape $index",
         promptFingerprint = "fp", generatedAt = Instant.EPOCH, shape = shape, modes = modes,

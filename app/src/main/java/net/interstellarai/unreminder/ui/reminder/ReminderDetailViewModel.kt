@@ -18,6 +18,7 @@ import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.di.IoDispatcher
 import net.interstellarai.unreminder.domain.model.TriggerStatus
+import net.interstellarai.unreminder.domain.model.VariantTreatment
 import net.interstellarai.unreminder.service.notification.NotificationHelper
 import net.interstellarai.unreminder.service.notification.SpriteResolver
 import net.interstellarai.unreminder.service.trigger.DismissalTracker
@@ -64,6 +65,9 @@ class ReminderDetailViewModel @Inject constructor(
             try {
                 val trigger = triggerRepository.getById(triggerId)
                 val habit = trigger?.habitId?.let { habitRepository.getByIdOnce(it) }
+                // The variant the notification showed; a row with no habit never fired and has
+                // nothing to key on.
+                val seed = trigger?.let { t -> t.habitId?.let { VariantTreatment.seed(t.variationId, it) } } ?: triggerId
                 val canComplete = when (trigger?.status) {
                     TriggerStatus.FIRED -> {
                         // Opened from a live notification. The Open action does not auto-cancel it,
@@ -85,14 +89,14 @@ class ReminderDetailViewModel @Inject constructor(
                     // The same call, with the same seed, the notification made when it was
                     // posted, so the mascot is the one that led here.
                     spriteRes = trigger?.let { spriteResolver.resolve(it.spriteTag, rotationSeed = triggerId) },
-                    layout = ReminderDetailLayout.forTarget(target),
+                    layout = ReminderDetailLayout.forSeed(seed),
                     isLoading = false,
                     canComplete = canComplete,
                 )
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "Failed to load trigger $triggerId", e)
-                _uiState.value = _uiState.value.copy(isLoading = false, layout = ReminderDetailLayout.forTarget(target))
+                _uiState.value = _uiState.value.copy(isLoading = false, layout = ReminderDetailLayout.forSeed(triggerId))
             }
         }
     }
@@ -103,6 +107,7 @@ class ReminderDetailViewModel @Inject constructor(
      */
     fun initVariant(habitId: Long, variationId: Long?) {
         val target = ReminderDetailTarget.Variant(habitId, variationId)
+        val layout = ReminderDetailLayout.forSeed(VariantTreatment.seed(variationId, habitId))
         viewModelScope.launch(ioDispatcher) {
             try {
                 val habit = habitRepository.getByIdOnce(habitId)
@@ -119,14 +124,14 @@ class ReminderDetailViewModel @Inject constructor(
                     // Seeded by habit id like the Now row and the widget, so the mascot agrees
                     // with the row that was tapped.
                     spriteRes = habit?.let { spriteResolver.resolve(variation?.spriteTag, rotationSeed = habitId) },
-                    layout = ReminderDetailLayout.forTarget(target),
+                    layout = layout,
                     isLoading = false,
                     canComplete = habit != null,
                 )
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.e(TAG, "Failed to load variant $variationId for habit $habitId", e)
-                _uiState.value = _uiState.value.copy(isLoading = false, layout = ReminderDetailLayout.forTarget(target))
+                _uiState.value = _uiState.value.copy(isLoading = false, layout = layout)
             }
         }
     }

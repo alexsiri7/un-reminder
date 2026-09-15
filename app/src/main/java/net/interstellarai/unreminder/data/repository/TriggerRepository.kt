@@ -85,8 +85,6 @@ class TriggerRepository @Inject constructor(
 
     suspend fun getLastFiredForHabit(habitId: Long): Long? = triggerDao.getLastFiredForHabit(habitId)
 
-    suspend fun getLastStyleForHabit(habitId: Long): NotificationStyle? = triggerDao.getLastStyleForHabit(habitId)
-
     suspend fun getCompletionsSince(habitId: Long, sinceMillis: Long): List<TriggerEntity> =
         triggerDao.getCompletionsSince(habitId, sinceMillis)
 
