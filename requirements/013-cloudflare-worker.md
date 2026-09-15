@@ -2,7 +2,7 @@
 id: "013"
 title: "Cloudflare Worker (LLM proxy)"
 status: "done"
-updated: 2026-05-12
+updated: 2026-09-15
 ---
 
 ## Why
@@ -11,4 +11,4 @@ Calling an LLM API directly from the app would expose the API key in the APK. A 
 
 ## What
 
-Hono-based Cloudflare Worker with three routes: `GET /v1/health` (spend status), `POST /v1/generate/batch` (variant generation), `POST /v1/habit-fields` (description autofill). Auth via `X-UR-Secret` header. Daily and monthly spend caps tracked in KV. Deployed via Wrangler.
+Hono-based Cloudflare Worker with three routes: `GET /v1/health` (spend status), `POST /v1/generate/batch` (variant generation), `POST /v1/habit-fields` (description autofill). Auth via per-user bearer tokens stored as salted hashes in KV (req 019). Daily and monthly spend caps tracked in KV. Deployed via Wrangler.

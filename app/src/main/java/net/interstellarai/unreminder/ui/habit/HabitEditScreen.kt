@@ -187,7 +187,7 @@ fun HabitEditScreen(
             }
 
             val aiHelper: String? = when {
-                aiStatus is AiStatus.Unavailable -> "AI unavailable on this build"
+                aiStatus is AiStatus.Unavailable -> "AI unavailable — check cloud settings"
                 aiStatus is AiStatus.Empty -> "pool empty — AI variants being regenerated"
                 else -> null
             }

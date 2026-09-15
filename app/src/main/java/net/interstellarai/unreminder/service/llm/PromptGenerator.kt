@@ -15,7 +15,7 @@ interface PromptGenerator {
 }
 
 sealed interface AiStatus {
-    /** Worker URL / secret not configured — AI permanently off. */
+    /** Worker URL not built in, or no token entered in Cloud AI settings — AI off. */
     object Unavailable : AiStatus
 
     /** Cloud worker configured — generation calls will work. */

@@ -1,0 +1,24 @@
+// Minting half of the per-user token scheme; the verifying half is src/lib/tokens.ts. Both
+// store hex SHA-256 of `salt + token` under `token:<id>`, and src/lib/tokens.test.ts fails if
+// they drift. Plain JavaScript so tokens.mjs runs under `node` without a TypeScript loader.
+
+const hex = (bytes) => Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+const randomHex = (byteLength) => hex(crypto.getRandomValues(new Uint8Array(byteLength)))
+
+export const tokenKey = (id) => `token:${id}`
+
+/** `ur1_<id>_<secret>`: 64 bits to look the record up by, 256 bits of secret. */
+export function mintToken() {
+  const id = randomHex(8)
+  return { id, token: `ur1_${id}_${randomHex(32)}` }
+}
+
+export async function hashToken(salt, token) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(salt + token))
+  return hex(new Uint8Array(digest))
+}
+
+export async function createTokenRecord(token, label, now) {
+  const salt = randomHex(16)
+  return { hash: await hashToken(salt, token), salt, label, createdAt: now.toISOString(), enabled: true }
+}

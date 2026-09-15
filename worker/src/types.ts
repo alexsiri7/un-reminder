@@ -1,10 +1,11 @@
 export interface Env {
   // KV namespace for spend tracking
   UR_SPEND: KVNamespace
+  // KV namespace of per-user auth tokens: `token:<id>` → salted-hash record (src/lib/tokens.ts)
+  UR_TOKENS: KVNamespace
   // Rate limit binding
   REQUEST_LIMITER: RateLimit
   // Secrets (set via `wrangler secret put`)
-  UR_SHARED_SECRET: string
   UR_REQUESTY_KEY: string
   SENTRY_DSN?: string
   // Vars (from wrangler.toml [vars])

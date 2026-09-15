@@ -1,0 +1,16 @@
+# Token strings the Worker's TOKEN_PATTERN (worker/src/lib/tokens.ts) and the app's
+# WorkerToken.PATTERN (app/.../service/worker/WorkerToken.kt) must classify identically;
+# worker/src/lib/tokens.test.ts and WorkerTokenTest.kt both assert against this file.
+# One case per line: `ok` or `bad <reason>`, a tab, then the token verbatim.
+ok	ur1_0123456789abcdef_ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+ok	ur1_0000000000000000_0000000000000000000000000000000000000000000000000000000000000000
+bad wrong prefix	ur2_0123456789abcdef_ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+bad uppercase hex	ur1_0123456789ABCDEF_ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+bad short id	ur1_123456789abcdef_ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+bad long id	ur1_0123456789abcdef0_ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+bad short secret	ur1_0123456789abcdef_fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+bad long secret	ur1_0123456789abcdef_fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+bad non-hex secret	ur1_0123456789abcdef_fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffg
+bad missing separator	ur1_0123456789abcdefffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+bad leading whitespace	 ur1_0123456789abcdef_ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+bad empty	

@@ -113,7 +113,6 @@ jobs:
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           WORKER_URL: ${{ secrets.WORKER_URL }}
-          WORKER_SECRET: ${{ secrets.WORKER_SECRET }}
         run: ./gradlew assembleRelease --stacktrace
 
       # Unit tests run unminified and a missing keep rule still builds, so this is the only

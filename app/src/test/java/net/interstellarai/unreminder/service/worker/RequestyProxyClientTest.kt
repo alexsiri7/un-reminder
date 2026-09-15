@@ -119,7 +119,7 @@ class RequestyProxyClientTest {
             supportedModes = emptySet(),
             n = 3,
             workerUrl = baseUrl(),
-            workerSecret = "secret",
+            workerToken = "secret",
         )
         val result = batch.variants
         assertEquals(3, result.size)
@@ -136,7 +136,7 @@ class RequestyProxyClientTest {
         val recorded = server.takeRequest()
         assertEquals("POST", recorded.method)
         assertEquals("/v1/generate/batch", recorded.path)
-        assertEquals("secret", recorded.getHeader("X-UR-Secret"))
+        assertEquals("Bearer secret", recorded.getHeader("Authorization"))
     }
 
     @Test
@@ -158,7 +158,7 @@ class RequestyProxyClientTest {
             supportedModes = emptySet(),
             n = 3,
             workerUrl = baseUrl(),
-            workerSecret = "secret",
+            workerToken = "secret",
         )
 
         assertEquals("astronaut_zero_g", result.variants[0].spriteTag)
@@ -189,7 +189,7 @@ class RequestyProxyClientTest {
             supportedModes = emptySet(),
             n = 1,
             workerUrl = baseUrl(),
-            workerSecret = "secret",
+            workerToken = "secret",
         )
 
         val body = JSONObject(server.takeRequest().body.readUtf8())
@@ -344,7 +344,7 @@ class RequestyProxyClientTest {
         val recorded = server.takeRequest()
         assertEquals("GET", recorded.method)
         assertEquals("/v1/health", recorded.path)
-        assertNull(recorded.getHeader("X-UR-Secret"))
+        assertNull(recorded.getHeader("Authorization"))
     }
 
     @Test

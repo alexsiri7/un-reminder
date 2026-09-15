@@ -360,7 +360,7 @@ class HabitEditViewModelTest {
             advanceUntilIdle()
 
             val state = viewModel.uiState.value
-            assertEquals("Wrong worker secret — check Settings.", state.errorMessage)
+            assertEquals("Worker rejected the token — check Cloud AI settings.", state.errorMessage)
             assertFalse(state.isGeneratingFields)
             assertFalse(state.showSpendCapLink)
         }
