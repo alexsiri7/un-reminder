@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:test'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { TOKEN_PATTERN, hashToken, parseTokenId, tokenKey, verifyToken } from './tokens'
+import tokenFormatFixture from '../../test/fixtures/token-format.txt?raw'
 import {
   createTokenRecord,
   hashToken as mintSideHashToken,
@@ -19,23 +20,28 @@ async function seed(token: string, label: string, enabled = true) {
   return record
 }
 
+/** The app's WorkerTokenTest asserts its regex against the same lines. */
+const tokenFormatCases = tokenFormatFixture
+  .split('\n')
+  .filter((line) => line !== '' && !line.startsWith('#'))
+  .map((line) => {
+    const [verdict, token] = line.split('\t')
+    return { verdict, token, accepted: verdict === 'ok' }
+  })
+
 describe('TOKEN_PATTERN / parseTokenId', () => {
   it('returns the id of a well-formed token', () => {
     expect(parseTokenId(TOKEN)).toBe(ID)
   })
 
-  it.each([
-    ['wrong prefix', `ur2_${ID}_${SECRET}`],
-    ['uppercase hex', `ur1_${ID.toUpperCase()}_${SECRET}`],
-    ['short id', `ur1_${ID.slice(1)}_${SECRET}`],
-    ['short secret', `ur1_${ID}_${SECRET.slice(1)}`],
-    ['long secret', `ur1_${ID}_${SECRET}f`],
-    ['missing separator', `ur1_${ID}${SECRET}`],
-    ['surrounding whitespace', ` ${TOKEN}`],
-    ['empty', ''],
-  ])('rejects %s', (_name, token) => {
-    expect(parseTokenId(token)).toBeNull()
-    expect(TOKEN_PATTERN.test(token)).toBe(false)
+  it('shares its fixture with the app', () => {
+    expect(tokenFormatCases.filter((c) => c.accepted).length).toBeGreaterThan(0)
+    expect(tokenFormatCases.filter((c) => !c.accepted).length).toBeGreaterThan(0)
+  })
+
+  it.each(tokenFormatCases)('$verdict', ({ token, accepted }) => {
+    expect(TOKEN_PATTERN.test(token)).toBe(accepted)
+    expect(parseTokenId(token) !== null).toBe(accepted)
   })
 })
 

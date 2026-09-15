@@ -102,6 +102,11 @@ android {
         buildConfig = true
     }
 
+    sourceSets {
+        // Token-format cases the Worker's tests also assert against; see WorkerTokenTest.
+        getByName("test").resources.srcDir("../worker/test/fixtures")
+    }
+
     testOptions {
         unitTests.isReturnDefaultValues = true
         unitTests.isIncludeAndroidResources = true
