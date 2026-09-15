@@ -37,9 +37,12 @@ class GenerationVersionWorkerTest {
     private val mockVariationRepository: VariationRepository = mockk()
     private val mockRefillScheduler: RefillScheduler = mockk(relaxUnitFun = true)
 
-    private val worker = GenerationVersionWorker(
+    private val worker = createWorker(workerUrl = "https://worker.example")
+
+    private fun createWorker(workerUrl: String) = GenerationVersionWorker(
         mockContext,
         mockWorkerParams,
+        workerUrl,
         mockWorkerTokenRepository,
         mockProxyClient,
         mockVariationRepository,
@@ -59,6 +62,15 @@ class GenerationVersionWorkerTest {
     fun tearDown() {
         unmockkStatic(Log::class)
         unmockkStatic(Sentry::class)
+    }
+
+    @Test
+    fun `does nothing when the build has no worker URL`() = runTest {
+        assertEquals(Result.success(), createWorker(workerUrl = "").doWork())
+
+        coVerify(exactly = 0) { mockProxyClient.generationVersion(any()) }
+        verify(exactly = 0) { mockRefillScheduler.enqueuePaced(any()) }
+        verify(exactly = 0) { Sentry.captureException(any(), any<ScopeCallback>()) }
     }
 
     @Test

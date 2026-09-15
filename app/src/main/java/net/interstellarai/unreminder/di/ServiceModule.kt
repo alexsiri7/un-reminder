@@ -8,6 +8,7 @@ import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.SettingsClient
+import net.interstellarai.unreminder.BuildConfig
 import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.service.worker.RefillScheduler
 import net.interstellarai.unreminder.service.activity.ActivityRecognitionManager
@@ -106,4 +107,7 @@ object ServiceModule {
         promptGenerator: CloudPromptGenerator,
     ): PromptGenerator = promptGenerator
 
+    @Provides
+    @WorkerUrl
+    fun provideWorkerUrl(): String = BuildConfig.WORKER_URL
 }

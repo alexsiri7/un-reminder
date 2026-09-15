@@ -15,10 +15,10 @@ import dagger.assisted.AssistedInject
 import io.sentry.Sentry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
-import net.interstellarai.unreminder.BuildConfig
 import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.data.repository.WorkerTokenRepository
+import net.interstellarai.unreminder.di.WorkerUrl
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit
 class GenerationVersionWorker @AssistedInject constructor(
     @Assisted appContext: Context,
     @Assisted workerParams: WorkerParameters,
+    @WorkerUrl private val workerUrl: String,
     private val workerTokenRepository: WorkerTokenRepository,
     private val requestyProxyClient: RequestyProxyClient,
     private val variationRepository: VariationRepository,
@@ -56,12 +57,13 @@ class GenerationVersionWorker @AssistedInject constructor(
     }
 
     override suspend fun doWork(): Result {
-        // Unlike the event-driven RefillWorker this runs on every install, so an install with
-        // no token entered yet must be a quiet no-op rather than a daily Sentry event.
-        if (workerTokenRepository.token.first().isBlank()) return Result.success()
+        // Unlike the event-driven RefillWorker this runs on every install, so a build with no
+        // Worker URL or an install with no token entered yet must be a quiet no-op rather than
+        // a daily Sentry event.
+        if (workerUrl.isBlank() || workerTokenRepository.token.first().isBlank()) return Result.success()
 
         return try {
-            val version = requestyProxyClient.generationVersion(BuildConfig.WORKER_URL)
+            val version = requestyProxyClient.generationVersion(workerUrl)
             if (version != VariationEntity.UNVERSIONED) {
                 refillScheduler.enqueuePaced(variationRepository.habitIdsNeedingRegeneration(version))
             }
