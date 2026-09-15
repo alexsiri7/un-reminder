@@ -31,6 +31,13 @@ data class TriggerEntity(
     /** The sprite tag the notification was posted with, frozen like action_url so the detail screen shows the same mascot. Null on rows fired before it was recorded. */
     @ColumnInfo(name = "sprite_tag")
     val spriteTag: String? = null,
+    /**
+     * The variation that fired, so every surface can derive the same look from it
+     * (VariantTreatment). An id, not a foreign key: the row may be pruned on refill. Null on a
+     * level-description fallback and on rows fired before it was recorded.
+     */
+    @ColumnInfo(name = "variation_id")
+    val variationId: Long? = null,
     @ColumnInfo(name = "source")
     val source: String? = null
 )

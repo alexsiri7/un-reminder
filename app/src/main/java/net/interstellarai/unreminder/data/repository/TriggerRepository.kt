@@ -34,6 +34,7 @@ class TriggerRepository @Inject constructor(
         actionUrl: String?,
         style: NotificationStyle,
         spriteTag: String?,
+        variationId: Long?,
     ) {
         triggerDao.updateFired(
             id = id,
@@ -44,6 +45,7 @@ class TriggerRepository @Inject constructor(
             actionUrl = actionUrl,
             style = style.name,
             spriteTag = spriteTag,
+            variationId = variationId,
         )
     }
 

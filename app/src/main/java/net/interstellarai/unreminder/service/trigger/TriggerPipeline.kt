@@ -126,6 +126,7 @@ class TriggerPipeline @Inject constructor(
                 actionUrl = resolvedPrompt.actionUrl,
                 style = style,
                 spriteTag = resolvedPrompt.spriteTag,
+                variationId = resolvedPrompt.variationId,
             )
 
             notificationHelper.postTriggerNotification(
@@ -194,7 +195,8 @@ class TriggerPipeline @Inject constructor(
             return NotificationVariant(
                 text = variation.text,
                 actionUrl = variation.actionUrl,
-                spriteTag = variation.spriteTag
+                spriteTag = variation.spriteTag,
+                variationId = variation.id,
             )
         }
 

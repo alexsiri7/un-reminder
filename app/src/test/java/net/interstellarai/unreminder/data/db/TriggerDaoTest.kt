@@ -327,8 +327,8 @@ class TriggerDaoTest {
         val withoutVideo = triggerDao.insert(TriggerEntity(scheduledAt = Instant.ofEpochMilli(midnightMillis)))
         val url = "https://www.youtube.com/results?search_query=C+major+vocal+scale"
 
-        triggerDao.updateFired(withVideo, TriggerStatus.FIRED.name, midnightMillis, habitId, "Sing the scale", url, NotificationStyle.SPRITE.name, null)
-        triggerDao.updateFired(withoutVideo, TriggerStatus.FIRED.name, midnightMillis, habitId, "Breathe", null, NotificationStyle.SPRITE.name, null)
+        triggerDao.updateFired(withVideo, TriggerStatus.FIRED.name, midnightMillis, habitId, "Sing the scale", url, NotificationStyle.SPRITE.name, null, null)
+        triggerDao.updateFired(withoutVideo, TriggerStatus.FIRED.name, midnightMillis, habitId, "Breathe", null, NotificationStyle.SPRITE.name, null, null)
 
         val fired = triggerDao.getById(withVideo)
         assertEquals("Sing the scale", fired?.generatedPrompt)
@@ -343,8 +343,8 @@ class TriggerDaoTest {
         val later = triggerDao.insert(TriggerEntity(scheduledAt = Instant.ofEpochMilli(midnightMillis)))
         val earlier = triggerDao.insert(TriggerEntity(scheduledAt = Instant.ofEpochMilli(midnightMillis)))
 
-        triggerDao.updateFired(later, TriggerStatus.FIRED.name, midnightMillis + 2_000L, habitId, "Breathe", null, NotificationStyle.BIG_PICTURE.name, null)
-        triggerDao.updateFired(earlier, TriggerStatus.FIRED.name, midnightMillis + 1_000L, habitId, "Stretch", null, NotificationStyle.TEXT_ONLY.name, null)
+        triggerDao.updateFired(later, TriggerStatus.FIRED.name, midnightMillis + 2_000L, habitId, "Breathe", null, NotificationStyle.BIG_PICTURE.name, null, null)
+        triggerDao.updateFired(earlier, TriggerStatus.FIRED.name, midnightMillis + 1_000L, habitId, "Stretch", null, NotificationStyle.TEXT_ONLY.name, null, null)
 
         assertEquals(NotificationStyle.BIG_PICTURE, triggerDao.getById(later)?.style)
         assertEquals(NotificationStyle.TEXT_ONLY, triggerDao.getById(earlier)?.style)
@@ -357,11 +357,24 @@ class TriggerDaoTest {
         val tagged = triggerDao.insert(TriggerEntity(scheduledAt = Instant.ofEpochMilli(midnightMillis)))
         val untagged = triggerDao.insert(TriggerEntity(scheduledAt = Instant.ofEpochMilli(midnightMillis)))
 
-        triggerDao.updateFired(tagged, TriggerStatus.FIRED.name, midnightMillis, habitId, "Breathe", null, NotificationStyle.SPRITE.name, "wizard_starry_robe")
-        triggerDao.updateFired(untagged, TriggerStatus.FIRED.name, midnightMillis, habitId, "Stretch", null, NotificationStyle.SPRITE.name, null)
+        triggerDao.updateFired(tagged, TriggerStatus.FIRED.name, midnightMillis, habitId, "Breathe", null, NotificationStyle.SPRITE.name, "wizard_starry_robe", null)
+        triggerDao.updateFired(untagged, TriggerStatus.FIRED.name, midnightMillis, habitId, "Stretch", null, NotificationStyle.SPRITE.name, null, null)
 
         assertEquals("wizard_starry_robe", triggerDao.getById(tagged)?.spriteTag)
         assertNull(triggerDao.getById(untagged)?.spriteTag)
+    }
+
+    @Test
+    fun `updateFired stores the variation id delivered with the prompt`() = runTest {
+        val habitId = insertHabit("hVariation")
+        val fromPool = triggerDao.insert(TriggerEntity(scheduledAt = Instant.ofEpochMilli(midnightMillis)))
+        val fallback = triggerDao.insert(TriggerEntity(scheduledAt = Instant.ofEpochMilli(midnightMillis)))
+
+        triggerDao.updateFired(fromPool, TriggerStatus.FIRED.name, midnightMillis, habitId, "Breathe", null, NotificationStyle.SPRITE.name, null, 77L)
+        triggerDao.updateFired(fallback, TriggerStatus.FIRED.name, midnightMillis, habitId, "Stretch", null, NotificationStyle.SPRITE.name, null, null)
+
+        assertEquals(77L, triggerDao.getById(fromPool)?.variationId)
+        assertNull(triggerDao.getById(fallback)?.variationId)
     }
 
     @Test
