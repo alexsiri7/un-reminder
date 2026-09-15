@@ -1,5 +1,5 @@
 import type { Context } from 'hono'
-import type { Env } from '../types'
+import type { AppEnv } from '../types'
 import { addSpend } from '../lib/spend'
 import { callRequestyWithSchemaRetry, COST_PER_OUTPUT_TOKEN, COST_PER_INPUT_TOKEN } from '../lib/requesty'
 
@@ -47,7 +47,7 @@ function validate(parsed: unknown): HabitFieldsResult | null {
   return { descriptionLadder: p.descriptionLadder as string[] }
 }
 
-export async function habitFieldsHandler(c: Context<{ Bindings: Env }>): Promise<Response> {
+export async function habitFieldsHandler(c: Context<AppEnv>): Promise<Response> {
   let body: HabitFieldsRequest
   try {
     body = await c.req.json<HabitFieldsRequest>()

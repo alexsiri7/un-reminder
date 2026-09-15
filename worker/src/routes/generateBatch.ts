@@ -1,5 +1,5 @@
 import type { Context } from 'hono'
-import type { ActivityMode, Env, GenerateBatchRequest, GenerateBatchResponse, NotificationVariant, SpriteOption, VariantShape } from '../types'
+import type { ActivityMode, AppEnv, GenerateBatchRequest, GenerateBatchResponse, NotificationVariant, SpriteOption, VariantShape } from '../types'
 import { ACTIVITY_MODES, VARIANT_SHAPES } from '../types'
 import { addSpend } from '../lib/spend'
 import { readGenerationVersion } from '../lib/generationVersion'
@@ -113,7 +113,7 @@ export function validateVariants(
   return result.length > 0 ? result : null
 }
 
-export async function generateBatchHandler(c: Context<{ Bindings: Env }>): Promise<Response> {
+export async function generateBatchHandler(c: Context<AppEnv>): Promise<Response> {
   const generationVersion = readGenerationVersion(c.env)
   if (generationVersion === null) {
     console.error('[generateBatch] UR_GENERATION_VERSION missing or not an integer >= 1')

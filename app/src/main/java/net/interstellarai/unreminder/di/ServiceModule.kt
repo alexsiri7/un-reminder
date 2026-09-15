@@ -8,8 +8,11 @@ import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.SettingsClient
+import com.google.android.play.core.integrity.IntegrityManagerFactory
 import net.interstellarai.unreminder.BuildConfig
 import net.interstellarai.unreminder.data.repository.LocationRepository
+import net.interstellarai.unreminder.service.worker.IntegrityTokenProvider
+import net.interstellarai.unreminder.service.worker.PlayIntegrityTokenProvider
 import net.interstellarai.unreminder.service.worker.RefillScheduler
 import net.interstellarai.unreminder.service.activity.ActivityRecognitionManager
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
@@ -110,4 +113,12 @@ object ServiceModule {
     @Provides
     @WorkerUrl
     fun provideWorkerUrl(): String = BuildConfig.WORKER_URL
+
+    @Provides
+    @Singleton
+    fun provideIntegrityTokenProvider(@ApplicationContext context: Context): IntegrityTokenProvider =
+        PlayIntegrityTokenProvider(
+            IntegrityManagerFactory.createStandard(context),
+            BuildConfig.PLAY_CLOUD_PROJECT_NUMBER.toLongOrNull(),
+        )
 }

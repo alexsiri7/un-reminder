@@ -18,7 +18,8 @@ export async function hashToken(salt, token) {
   return hex(new Uint8Array(digest))
 }
 
-export async function createTokenRecord(token, label, now) {
+export async function createTokenRecord(token, label, now, { integrityExempt = false } = {}) {
   const salt = randomHex(16)
-  return { hash: await hashToken(salt, token), salt, label, createdAt: now.toISOString(), enabled: true }
+  const record = { hash: await hashToken(salt, token), salt, label, createdAt: now.toISOString(), enabled: true }
+  return integrityExempt ? { ...record, integrityExempt: true } : record
 }

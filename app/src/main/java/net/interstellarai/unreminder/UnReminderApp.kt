@@ -13,6 +13,7 @@ import net.interstellarai.unreminder.service.notification.NotificationHelper
 import net.interstellarai.unreminder.service.sentry.applyOptions
 import net.interstellarai.unreminder.service.sentry.shouldInitSentry
 import net.interstellarai.unreminder.service.worker.GenerationVersionWorker
+import net.interstellarai.unreminder.service.worker.IntegrityTokenProvider
 import net.interstellarai.unreminder.worker.EveningInvitationScheduler
 import net.interstellarai.unreminder.worker.RandomIntervalWorker
 import net.interstellarai.unreminder.worker.TriggerWatchdogWorker
@@ -45,6 +46,9 @@ class UnReminderApp : Application(), Configuration.Provider {
     @Inject
     lateinit var eveningInvitationScheduler: EveningInvitationScheduler
 
+    @Inject
+    lateinit var integrityTokenProvider: IntegrityTokenProvider
+
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
             .setWorkerFactory(workerFactory)
@@ -73,6 +77,8 @@ class UnReminderApp : Application(), Configuration.Provider {
             locationReconciler.reconcile()
             activityRecognitionManager.requestTransitionUpdates()
             eveningInvitationScheduler.ensureScheduled()
+            // Prepares the Play Integrity provider ahead of the first generation call.
+            integrityTokenProvider.warmUp()
         }
         // Registration is also redone whenever system Location or a provider is toggled.
         LocationSettingsChangedReceiver.register(this, geofenceManager)

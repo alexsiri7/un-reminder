@@ -1,8 +1,8 @@
 import type { MiddlewareHandler } from 'hono'
-import type { Env } from '../types'
+import type { AppEnv } from '../types'
 import { getSpend } from '../lib/spend'
 
-export const spendGate: MiddlewareHandler<{ Bindings: Env }> = async (c, next) => {
+export const spendGate: MiddlewareHandler<AppEnv> = async (c, next) => {
   const capDailyCents = parseInt(c.env.UR_DAILY_CAP_CENTS, 10)
   const capMonthlyCents = parseInt(c.env.UR_MONTHLY_CAP_CENTS, 10)
 

@@ -3,19 +3,27 @@ import {
   createExecutionContext,
   waitOnExecutionContext,
 } from 'cloudflare:test'
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest'
 import app from '../src/index'
+import { sha256Hex, type TokenPayload } from '../src/lib/integrity'
 import { parseTokenId, tokenKey } from '../src/lib/tokens'
 import { createTokenRecord } from '../scripts/tokenRecord.mjs'
+import { generateTestServiceAccount } from './serviceAccount'
+import { integrityWire } from './integrityWire'
 
+// A and B are integrity-exempt so the generation tests exercise only the route under test;
+// C is a Play user whose requests must carry a verified integrity token.
 const TOKEN_A = 'ur1_000000000000000a_' + 'a'.repeat(64)
 const TOKEN_B = 'ur1_000000000000000b_' + 'b'.repeat(64)
+const TOKEN_C = 'ur1_000000000000000c_' + 'c'.repeat(64)
 const bearer = (token: string) => ({ Authorization: `Bearer ${token}` })
 
-async function seedToken(token: string, label: string, enabled = true) {
-  const record = await createTokenRecord(token, label, new Date('2026-09-15T00:00:00Z'))
+async function seedToken(token: string, label: string, enabled = true, integrityExempt = true) {
+  const record = await createTokenRecord(token, label, new Date('2026-09-15T00:00:00Z'), { integrityExempt })
   await env.UR_TOKENS.put(tokenKey(parseTokenId(token)!), JSON.stringify({ ...record, enabled }))
 }
+
+let saKeyJson: string
 
 const originalFetch = globalThis.fetch
 
@@ -69,10 +77,27 @@ function mockRequestyMalformed() {
   )
 }
 
+/** Google's answer to a decode, vouching for a Play install that sent exactly [body]. */
+async function mockIntegrityDecode(body: unknown, overrides: Partial<TokenPayload> = {}, exchangeStatus = 200) {
+  enqueueResponse(exchangeStatus, JSON.stringify({ access_token: 'ya29.test' }))
+  const payload: TokenPayload = {
+    requestDetails: { requestPackageName: 'net.interstellarai.unreminder', requestHash: await sha256Hex(JSON.stringify(body)), timestampMillis: String(Date.now()) },
+    appIntegrity: { appRecognitionVerdict: 'PLAY_RECOGNIZED', packageName: 'net.interstellarai.unreminder', versionCode: '42' },
+    deviceIntegrity: { deviceRecognitionVerdict: ['MEETS_DEVICE_INTEGRITY'] },
+    accountDetails: { appLicensingVerdict: 'LICENSED' },
+    ...overrides,
+  }
+  enqueueResponse(200, JSON.stringify({ tokenPayloadExternal: payload }))
+}
+
 function testEnv() {
   return {
     ...env,
+    // The real binding keys on the (absent) client IP and this file sends more than 60
+    // requests a minute; the limiter is Cloudflare's, not under test here.
+    REQUEST_LIMITER: { limit: async () => ({ success: true }) } as RateLimit,
     UR_REQUESTY_KEY: 'test-requesty-key',
+    UR_PLAY_INTEGRITY_SA_KEY: saKeyJson,
     UR_MODEL: 'google/gemini-3.6-flash',
     UR_DAILY_CAP_CENTS: '50',
     UR_MONTHLY_CAP_CENTS: '500',
@@ -80,6 +105,10 @@ function testEnv() {
 }
 
 describe('un-reminder-worker', () => {
+  beforeAll(async () => {
+    saKeyJson = (await generateTestServiceAccount()).keyJson
+  })
+
   beforeEach(async () => {
     fetchCallIndex = 0
     fetchResponses.length = 0
@@ -108,6 +137,7 @@ describe('un-reminder-worker', () => {
     // Outside the silent catch above: a seed failure must surface as itself, not as 401s
     await seedToken(TOKEN_A, 'alex')
     await seedToken(TOKEN_B, 'friend')
+    await seedToken(TOKEN_C, 'play-user', true, false)
   })
 
   afterEach(() => {
@@ -220,6 +250,216 @@ describe('un-reminder-worker', () => {
     } finally {
       get.mockRestore()
       error.mockRestore()
+    }
+  })
+
+  // ---- Play Integrity tests ----
+
+  it('lets an exempt token through without an integrity header or a Google call', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      mockRequestySuccess([{ text: 'Stretch!', shape: 'TERSE' }])
+      const req = makeRequest('/v1/generate/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_A) },
+        body: validBody(1),
+      })
+      const ctx = createExecutionContext()
+      const res = await app.fetch(req, testEnv(), ctx)
+      await waitOnExecutionContext(ctx)
+      expect(res.status).toBe(200)
+      expect(fetchCallIndex).toBe(1)
+      expect(log).toHaveBeenCalledWith('[integrity] exempt token', { id: '000000000000000a', label: 'alex' })
+    } finally {
+      log.mockRestore()
+    }
+  })
+
+  it('verifies a Play user\'s token with Google, then generates', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    try {
+      const body = validBody(1)
+      await mockIntegrityDecode(body)
+      mockRequestySuccess([{ text: 'Stretch!', shape: 'TERSE' }])
+      const req = makeRequest('/v1/generate/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_C), [integrityWire.header]: 'play-token' },
+        body,
+      })
+      const ctx = createExecutionContext()
+      const res = await app.fetch(req, testEnv(), ctx)
+      await waitOnExecutionContext(ctx)
+      expect(res.status).toBe(200)
+      expect(fetchCallIndex).toBe(3)
+
+      const fetchMock = globalThis.fetch as unknown as { mock: { calls: Array<[string, RequestInit]> } }
+      expect(fetchMock.mock.calls[0][0]).toBe('https://oauth2.googleapis.com/token')
+      expect(fetchMock.mock.calls[1][0]).toContain(':decodeIntegrityToken')
+      expect(JSON.parse(fetchMock.mock.calls[1][1].body as string)).toEqual({ integrityToken: 'play-token' })
+      expect(log).toHaveBeenCalledWith('[integrity] verified', { id: '000000000000000c', label: 'play-user', device: ['MEETS_DEVICE_INTEGRITY'] })
+      // The handler still parsed the body the middleware had already read for hashing.
+      expect(JSON.parse(fetchMock.mock.calls[2][1].body as string).messages[0].content).toContain('Habit: "Morning stretch"')
+    } finally {
+      log.mockRestore()
+    }
+  })
+
+  it('returns 403 missing for a Play user without an integrity header, without calling Google', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const req = makeRequest('/v1/generate/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_C) },
+        body: validBody(1),
+      })
+      const ctx = createExecutionContext()
+      const res = await app.fetch(req, testEnv(), ctx)
+      await waitOnExecutionContext(ctx)
+      expect(res.status).toBe(403)
+      expect(await res.json()).toEqual({ error: integrityWire.rejectedError, reason: 'missing' })
+      expect(fetchCallIndex).toBe(0)
+      expect(warn).toHaveBeenCalledWith('[integrity] rejected', { id: '000000000000000c', label: 'play-user', reason: 'missing' })
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it.each<[string, Partial<TokenPayload>, string]>([
+    ['an unrecognised build', { appIntegrity: { appRecognitionVerdict: 'UNRECOGNIZED_VERSION' } }, 'unrecognized-app'],
+    ['an unlicensed install', { accountDetails: { appLicensingVerdict: 'UNLICENSED' } }, 'unlicensed'],
+  ])('returns 403 for %s and never reaches the LLM', async (_name, overrides, reason) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const body = validBody(1)
+      await mockIntegrityDecode(body, overrides)
+      const req = makeRequest('/v1/generate/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_C), [integrityWire.header]: 'play-token' },
+        body,
+      })
+      const ctx = createExecutionContext()
+      const res = await app.fetch(req, testEnv(), ctx)
+      await waitOnExecutionContext(ctx)
+      expect(res.status).toBe(403)
+      expect(await res.json()).toEqual({ error: integrityWire.rejectedError, reason })
+      expect(fetchCallIndex).toBe(2)
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it('returns 403 hash-mismatch when the token was bound to a different body', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      await mockIntegrityDecode({ ...validBody(1), habitTitle: 'Something else' })
+      const req = makeRequest('/v1/generate/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_C), [integrityWire.header]: 'play-token' },
+        body: validBody(1),
+      })
+      const ctx = createExecutionContext()
+      const res = await app.fetch(req, testEnv(), ctx)
+      await waitOnExecutionContext(ctx)
+      expect(res.status).toBe(403)
+      expect(await res.json()).toEqual({ error: integrityWire.rejectedError, reason: 'hash-mismatch' })
+      expect(fetchCallIndex).toBe(2)
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it('generates for a Play user whose device verdict is empty', async () => {
+    const body = validBody(1)
+    await mockIntegrityDecode(body, { deviceIntegrity: { deviceRecognitionVerdict: [] } })
+    mockRequestySuccess([{ text: 'Stretch!', shape: 'TERSE' }])
+    const req = makeRequest('/v1/generate/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_C), [integrityWire.header]: 'play-token' },
+      body,
+    })
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, testEnv(), ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(200)
+  })
+
+  it('returns 403 invalid when Google rejects the token itself', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      enqueueResponse(200, JSON.stringify({ access_token: 'ya29.test' }))
+      enqueueResponse(400, JSON.stringify({ error: { message: 'Integrity token cannot be decoded' } }))
+      const req = makeRequest('/v1/generate/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_C), [integrityWire.header]: 'garbage' },
+        body: validBody(1),
+      })
+      const ctx = createExecutionContext()
+      const res = await app.fetch(req, testEnv(), ctx)
+      await waitOnExecutionContext(ctx)
+      expect(res.status).toBe(403)
+      expect(await res.json()).toEqual({ error: integrityWire.rejectedError, reason: 'invalid' })
+      expect(fetchCallIndex).toBe(2)
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
+  it.each([[429], [503]])('returns 503 after one decode attempt when Google answers %s', async (status) => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      enqueueResponse(200, JSON.stringify({ access_token: 'ya29.test' }))
+      enqueueResponse(status, 'quota or outage')
+      const req = makeRequest('/v1/generate/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_C), [integrityWire.header]: 'play-token' },
+        body: validBody(1),
+      })
+      const ctx = createExecutionContext()
+      const res = await app.fetch(req, testEnv(), ctx)
+      await waitOnExecutionContext(ctx)
+      expect(res.status).toBe(503)
+      expect(await res.json()).toEqual({ error: 'Integrity check unavailable' })
+      expect(fetchCallIndex).toBe(2)
+    } finally {
+      error.mockRestore()
+    }
+  })
+
+  it('returns 503 without any outbound call when the service-account secret is unset', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const req = makeRequest('/v1/generate/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_C), [integrityWire.header]: 'play-token' },
+        body: validBody(1),
+      })
+      const ctx = createExecutionContext()
+      const res = await app.fetch(req, { ...testEnv(), UR_PLAY_INTEGRITY_SA_KEY: undefined }, ctx)
+      await waitOnExecutionContext(ctx)
+      expect(res.status).toBe(503)
+      expect(await res.json()).toEqual({ error: 'Service misconfigured' })
+      expect(fetchCallIndex).toBe(0)
+    } finally {
+      error.mockRestore()
+    }
+  })
+
+  it('gates /v1/habit-fields the same way', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const req = makeRequest('/v1/habit-fields', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...bearer(TOKEN_C) },
+        body: { title: 'Meditate' },
+      })
+      const ctx = createExecutionContext()
+      const res = await app.fetch(req, testEnv(), ctx)
+      await waitOnExecutionContext(ctx)
+      expect(res.status).toBe(403)
+      expect(await res.json()).toEqual({ error: integrityWire.rejectedError, reason: 'missing' })
+      expect(fetchCallIndex).toBe(0)
+    } finally {
+      warn.mockRestore()
     }
   })
 

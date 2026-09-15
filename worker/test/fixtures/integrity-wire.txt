@@ -1,0 +1,6 @@
+# Wire-format literals the Worker (worker/src/lib/integrity.ts, worker/src/middleware/integrity.ts)
+# and the app (app/.../service/worker/RequestyProxyClient.kt) must agree on byte for byte;
+# worker/src/lib/integrity.test.ts, worker/test/index.test.ts and RequestyProxyClientTest.kt all assert against it.
+# One entry per line: the key, a tab, then the value verbatim.
+header	X-Play-Integrity-Token
+rejected-error	Play Integrity check failed

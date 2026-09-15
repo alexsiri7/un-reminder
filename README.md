@@ -97,8 +97,8 @@ Runs as a Cloudflare Worker (Hono framework). Exposes these routes:
 | Route | Auth | Description |
 |---|---|---|
 | `GET /v1/health` | Public | Returns `{ status, spendUsedToday, spendUsedMonth, capDaily, capMonthly, generationVersion }` |
-| `POST /v1/generate/batch` | `Authorization: Bearer <token>` | Accepts `{ habitTitle, habitTags, locationName, timeOfDay, supportedModes?, n }`, returns `{ variants: Array<{ text: string, shape: string, modes: string[], actionUrl?: string }>, generationVersion }` via Requesty |
-| `POST /v1/habit-fields` | `Authorization: Bearer <token>` | Accepts `{ title }`, returns `{ descriptionLadder: string[] }` (6 elements, one per dedication level) via Requesty |
+| `POST /v1/generate/batch` | `Authorization: Bearer <token>` + `X-Play-Integrity-Token` (unless the token is integrity-exempt) | Accepts `{ habitTitle, habitTags, locationName, timeOfDay, supportedModes?, n }`, returns `{ variants: Array<{ text: string, shape: string, modes: string[], actionUrl?: string }>, generationVersion }` via Requesty |
+| `POST /v1/habit-fields` | `Authorization: Bearer <token>` + `X-Play-Integrity-Token` (unless the token is integrity-exempt) | Accepts `{ title }`, returns `{ descriptionLadder: string[] }` (6 elements, one per dedication level) via Requesty |
 
 **Local dev:**
 ```sh
@@ -125,6 +125,7 @@ The following repository secrets are required for CI release builds and Worker d
 | `GITHUB_FEEDBACK_TOKEN` | In-app feedback submission | GitHub PAT with `issues:write` scope |
 | `SENTRY_DSN` | Automated crash reporting (optional — blank value disables Sentry) | Sentry DSN URL, e.g. `https://key@org.ingest.sentry.io/projectid` |
 | `WORKER_URL` | URL of the cloud AI variant generation worker (optional — blank disables cloud AI) | Full URL, e.g. `https://un-reminder-worker.yourname.workers.dev` |
+| `PLAY_CLOUD_PROJECT_NUMBER` | Cloud project linked to the app's Play Integrity API (optional — blank means the app never requests integrity tokens, so only integrity-exempt Worker tokens work) | The numeric project *number*, not the id; see `worker/README.md` "Play Integrity" |
 | `CLOUDFLARE_API_TOKEN` | Used by `.github/workflows/deploy-worker.yml` to deploy the Cloudflare Worker | User-owned token from dash.cloudflare.com/profile/api-tokens — see required scopes in `worker/wrangler.toml` header comment |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account that owns the Worker | Account ID from the Cloudflare dashboard |
 
@@ -138,6 +139,7 @@ The following must be set via `wrangler secret put` before deploying the CF Work
 |---|---|---|
 | `UR_TOKENS` namespace ID | KV namespace of per-user auth tokens, stored as salted hashes | `wrangler kv namespace create UR_TOKENS` → paste ID into `worker/wrangler.toml`, then `npm run tokens -- mint --label <name>` |
 | `UR_REQUESTY_KEY` | Requesty.ai API key for Gemini Flash calls | `wrangler secret put UR_REQUESTY_KEY` |
+| `UR_PLAY_INTEGRITY_SA_KEY` | Service-account JSON key the Worker uses to decode Play Integrity tokens; unset ⇒ every non-exempt request answers 503 | `wrangler secret put UR_PLAY_INTEGRITY_SA_KEY < key.json` — setup in `worker/README.md` "Play Integrity" |
 | `UR_SPEND` namespace ID | KV namespace for spend tracking | `wrangler kv namespace create UR_SPEND` → paste ID into `worker/wrangler.toml` |
 
 `UR_DAILY_CAP_CENTS` (default `50`, i.e. $0.50) and `UR_MONTHLY_CAP_CENTS` (default `500`, i.e. $5.00) are plain vars in `worker/wrangler.toml` and can be edited directly. Note the unit is **cents**, not dollars.

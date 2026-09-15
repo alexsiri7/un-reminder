@@ -1,3 +1,5 @@
+import type { TokenIdentity } from './lib/tokens'
+
 export interface Env {
   // KV namespace for spend tracking
   UR_SPEND: KVNamespace
@@ -8,12 +10,17 @@ export interface Env {
   // Secrets (set via `wrangler secret put`)
   UR_REQUESTY_KEY: string
   SENTRY_DSN?: string
+  // Service-account JSON key that decodes Play Integrity tokens; absent ⇒ non-exempt requests get 503
+  UR_PLAY_INTEGRITY_SA_KEY?: string
   // Vars (from wrangler.toml [vars])
   UR_DAILY_CAP_CENTS: string
   UR_MONTHLY_CAP_CENTS: string
   UR_MODEL: string
   UR_GENERATION_VERSION: string
 }
+
+/** Hono env of the routes behind authMiddleware, which publishes the caller's identity. */
+export type AppEnv = { Bindings: Env; Variables: { tokenIdentity: TokenIdentity } }
 
 export interface SpriteOption {
   tag: string

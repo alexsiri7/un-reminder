@@ -14,23 +14,39 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.security.MessageDigest
+
+/** Hands out a fixed result and records the request hash it was asked to bind. */
+private class FakeIntegrityTokenProvider(
+    var result: IntegrityTokenResult = IntegrityTokenResult.Token("play-token"),
+) : IntegrityTokenProvider {
+    val requestedHashes = mutableListOf<String>()
+    override suspend fun warmUp() = Unit
+    override suspend fun token(requestHash: String): IntegrityTokenResult {
+        requestedHashes += requestHash
+        return result
+    }
+}
 
 @RunWith(RobolectricTestRunner::class)
 class RequestyProxyClientTest {
 
     private val server = MockWebServer()
     private val client = OkHttpClient()
+    private val integrity = FakeIntegrityTokenProvider()
     private lateinit var proxyClient: RequestyProxyClient
 
     @Before
     fun setUp() {
         server.start()
-        proxyClient = RequestyProxyClient(client)
+        proxyClient = RequestyProxyClient(client, integrity)
     }
 
     @After
@@ -39,6 +55,115 @@ class RequestyProxyClientTest {
     }
 
     private fun baseUrl(): String = server.url("/").toString().trimEnd('/')
+
+    /**
+     * worker/test/fixtures/integrity-wire.txt, on the test classpath via build.gradle.kts and
+     * asserted against by the Worker's integrity.test.ts and index.test.ts too; each line is a key, a
+     * tab, then the value.
+     */
+    private val wire: Map<String, String> =
+        checkNotNull(javaClass.getResourceAsStream("/integrity-wire.txt")) { "integrity-wire.txt is not on the test classpath" }
+            .bufferedReader().readLines()
+            .filter { it.isNotEmpty() && !it.startsWith("#") }
+            .associate { line -> line.split("\t", limit = 2).let { it[0] to it[1] } }
+    private val wireHeader = wire.getValue("header")
+    private val wireRejectedError = wire.getValue("rejected-error")
+
+    private fun integrityRejection(reason: String? = null): MockResponse {
+        val body = JSONObject().put("error", wireRejectedError).apply { if (reason != null) put("reason", reason) }
+        return MockResponse().setResponseCode(403).setBody(body.toString())
+    }
+
+    private fun sha256Hex(text: String): String =
+        MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
+
+    // --- Play Integrity ---
+
+    @Test
+    fun `post carries the integrity token bound to the hash of the exact body sent`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"descriptionLadder":["a","b","c","d","e","f"]}""")
+                .addHeader("Content-Type", "application/json")
+        )
+
+        proxyClient.habitFields("Meditate", baseUrl(), "secret")
+
+        val recorded = server.takeRequest()
+        assertEquals("play-token", recorded.getHeader(wireHeader))
+        assertEquals(listOf(sha256Hex(recorded.body.readUtf8())), integrity.requestedHashes)
+    }
+
+    @Test
+    fun `post sends no integrity header when no token could be obtained`() = runTest {
+        integrity.result = IntegrityTokenResult.Unavailable(retryable = true, errorCode = -3)
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"descriptionLadder":["a","b","c","d","e","f"]}""")
+                .addHeader("Content-Type", "application/json")
+        )
+
+        proxyClient.habitFields("Meditate", baseUrl(), "secret")
+
+        assertNull(server.takeRequest().getHeader(wireHeader))
+    }
+
+    @Test
+    fun `get never asks for an integrity token`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"generationVersion":3}"""))
+
+        proxyClient.generationVersion(baseUrl())
+
+        assertNull(server.takeRequest().getHeader(wireHeader))
+        assertTrue(integrity.requestedHashes.isEmpty())
+    }
+
+    @Test
+    fun `403 with a reason becomes a non-retryable WorkerIntegrityException when a token was sent`() = runTest {
+        server.enqueue(integrityRejection(reason = "unlicensed"))
+
+        val ex = assertFailsWith<WorkerIntegrityException> {
+            proxyClient.generateBatch("Meditate", emptyList(), "", "", "", emptyList(), emptySet(), 1, baseUrl(), "secret")
+        }
+        assertEquals("unlicensed", ex.reason)
+        assertFalse(ex.retryable)
+    }
+
+    @Test
+    fun `403 after a transient local integrity failure is retryable`() = runTest {
+        integrity.result = IntegrityTokenResult.Unavailable(retryable = true, errorCode = -3)
+        server.enqueue(integrityRejection(reason = "missing"))
+
+        val ex = assertFailsWith<WorkerIntegrityException> {
+            proxyClient.habitFields("Meditate", baseUrl(), "secret")
+        }
+        assertEquals("missing", ex.reason)
+        assertTrue(ex.retryable)
+    }
+
+    @Test
+    fun `403 after a permanent local integrity failure is not retryable`() = runTest {
+        integrity.result = IntegrityTokenResult.Unavailable(retryable = false, errorCode = -6)
+        server.enqueue(integrityRejection())
+
+        val ex = assertFailsWith<WorkerIntegrityException> {
+            proxyClient.habitFields("Meditate", baseUrl(), "secret")
+        }
+        assertEquals("unknown", ex.reason)
+        assertFalse(ex.retryable)
+    }
+
+    @Test
+    fun `a 403 that is not the Worker's integrity rejection stays a WorkerError`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(403).setBody("Forbidden by a Cloudflare rule"))
+
+        val ex = assertFailsWith<WorkerError> {
+            proxyClient.habitFields("Meditate", baseUrl(), "secret")
+        }
+        assertEquals(403, ex.code)
+    }
 
     @Test
     fun `habitFields returns AiHabitFields on 200`() = runTest {
