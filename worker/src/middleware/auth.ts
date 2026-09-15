@@ -1,11 +1,11 @@
 import * as Sentry from '@sentry/cloudflare'
 import type { MiddlewareHandler } from 'hono'
-import type { Env } from '../types'
+import type { AppEnv } from '../types'
 import { verifyToken } from '../lib/tokens'
 
 const BEARER_PREFIX = 'Bearer '
 
-export const authMiddleware: MiddlewareHandler<{ Bindings: Env }> = async (c, next) => {
+export const authMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
   const header = c.req.header('Authorization') ?? ''
   const token = header.startsWith(BEARER_PREFIX) ? header.slice(BEARER_PREFIX.length).trim() : ''
 
@@ -20,6 +20,7 @@ export const authMiddleware: MiddlewareHandler<{ Bindings: Env }> = async (c, ne
     return c.json({ error: 'Unauthorized' }, 401)
   }
 
+  c.set('tokenIdentity', identity)
   Sentry.setTag('token_id', identity.id)
   Sentry.setTag('token_label', identity.label)
   console.log('[auth] authenticated', { id: identity.id, label: identity.label })

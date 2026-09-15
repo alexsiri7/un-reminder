@@ -1,6 +1,7 @@
 // Mints and revokes per-user Worker tokens in the remote UR_TOKENS namespace through wrangler.
 //
 //   npm run tokens -- mint --label <name>   prints a new token once; only its salted hash is stored
+//     --integrity-exempt                     the token skips the Play Integrity gate (debug builds)
 //   npm run tokens -- disable <id>          revokes the token whose prefix is ur1_<id>
 //   npm run tokens -- enable <id>
 //
@@ -25,7 +26,7 @@ const putRecord = (id, record) => kv(['put', tokenKey(id), JSON.stringify(record
 const getRecord = (id) => JSON.parse(kv(['get', tokenKey(id), '--text'], { capture: true }))
 
 function usage() {
-  console.error('usage: npm run tokens -- mint --label <name> | disable <id> | enable <id>')
+  console.error('usage: npm run tokens -- mint --label <name> [--integrity-exempt] | disable <id> | enable <id>')
   process.exit(2)
 }
 
@@ -34,9 +35,11 @@ switch (command) {
   case 'mint': {
     const label = rest[rest.indexOf('--label') + 1]
     if (!rest.includes('--label') || !label) usage()
+    const integrityExempt = rest.includes('--integrity-exempt')
     const { id, token } = mintToken()
-    putRecord(id, await createTokenRecord(token, label, new Date()))
-    console.log(`\nToken for "${label}" (id ${id}). Shown once — it is not stored anywhere:\n\n  ${token}\n`)
+    putRecord(id, await createTokenRecord(token, label, new Date(), { integrityExempt }))
+    const kind = integrityExempt ? 'Integrity-exempt token' : 'Token'
+    console.log(`\n${kind} for "${label}" (id ${id}). Shown once — it is not stored anywhere:\n\n  ${token}\n`)
     break
   }
   case 'disable':

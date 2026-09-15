@@ -15,11 +15,14 @@ export interface TokenRecord {
   label: string
   createdAt: string
   enabled: boolean
+  /** Skips the Play Integrity gate; minted for debug builds, absent on every other record. */
+  integrityExempt?: boolean
 }
 
 export interface TokenIdentity {
   id: string
   label: string
+  integrityExempt: boolean
 }
 
 export function tokenKey(id: string): string {
@@ -44,7 +47,8 @@ function isTokenRecord(value: unknown): value is TokenRecord {
     typeof record.salt === 'string' &&
     typeof record.label === 'string' &&
     typeof record.createdAt === 'string' &&
-    typeof record.enabled === 'boolean'
+    typeof record.enabled === 'boolean' &&
+    (record.integrityExempt === undefined || typeof record.integrityExempt === 'boolean')
   )
 }
 
@@ -66,5 +70,5 @@ export async function verifyToken(kv: Pick<KVNamespace, 'get'>, token: string): 
     console.warn('[auth] disabled token', { id, label: record.label })
     return null
   }
-  return { id, label: record.label }
+  return { id, label: record.label, integrityExempt: record.integrityExempt === true }
 }

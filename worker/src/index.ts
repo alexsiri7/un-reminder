@@ -2,6 +2,7 @@ import { withSentry } from '@sentry/cloudflare'
 import { Hono } from 'hono'
 import type { Env } from './types'
 import { authMiddleware } from './middleware/auth'
+import { integrityMiddleware } from './middleware/integrity'
 import { rateLimitMiddleware } from './middleware/rateLimit'
 import { spendGate } from './middleware/spendGate'
 import { healthHandler } from './routes/health'
@@ -13,9 +14,9 @@ const app = new Hono<{ Bindings: Env }>()
 // Public — no auth
 app.get('/v1/health', healthHandler)
 
-// Shared protection for all AI generation routes — applied in order: rate-limit → auth → spend gate
+// Shared protection for all AI generation routes — applied in order: rate-limit → auth → integrity → spend gate
 for (const path of ['/v1/generate/*', '/v1/habit-fields']) {
-  app.use(path, rateLimitMiddleware, authMiddleware, spendGate)
+  app.use(path, rateLimitMiddleware, authMiddleware, integrityMiddleware, spendGate)
 }
 
 app.post('/v1/generate/batch', generateBatchHandler)

@@ -1,6 +1,8 @@
 # Required Worker secrets (set via wrangler secret put):
 #   SENTRY_DSN       — (optional) Sentry DSN for error tracking
 #   UR_REQUESTY_KEY  — Requesty.ai API key for LLM calls
+#   UR_PLAY_INTEGRITY_SA_KEY — service-account JSON key that decodes Play Integrity tokens
+#                              (README.md, "Play Integrity"); unset ⇒ non-exempt requests get 503
 # Per-user auth tokens live as salted hashes in the UR_TOKENS namespace below;
 # mint and revoke them with `npm run tokens` (see README.md).
 #

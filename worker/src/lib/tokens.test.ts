@@ -66,6 +66,7 @@ describe('minting side (scripts/tokenRecord.mjs) agrees with the verifying side'
     expect(record).toMatchObject({ label: 'alex', createdAt: '2026-09-15T00:00:00.000Z', enabled: true })
     expect(record.salt).toMatch(/^[0-9a-f]{32}$/)
     expect(record.hash).toBe(await hashToken(record.salt, TOKEN))
+    expect(record).not.toHaveProperty('integrityExempt')
   })
 })
 
@@ -88,8 +89,27 @@ describe('verifyToken', () => {
     await seed(TOKEN, 'alex')
     await seed(other, 'friend')
 
-    expect(await verifyToken(env.UR_TOKENS, TOKEN)).toEqual({ id: ID, label: 'alex' })
-    expect(await verifyToken(env.UR_TOKENS, other)).toEqual({ id: parseTokenId(other), label: 'friend' })
+    expect(await verifyToken(env.UR_TOKENS, TOKEN)).toEqual({ id: ID, label: 'alex', integrityExempt: false })
+    expect(await verifyToken(env.UR_TOKENS, other)).toEqual({ id: parseTokenId(other), label: 'friend', integrityExempt: false })
+  })
+
+  it('reads the integrity exemption off the record', async () => {
+    const record = await createTokenRecord(TOKEN, 'alex-dev', new Date('2026-09-15T00:00:00Z'), { integrityExempt: true })
+    expect(record.integrityExempt).toBe(true)
+    await env.UR_TOKENS.put(tokenKey(ID), JSON.stringify(record))
+    expect(await verifyToken(env.UR_TOKENS, TOKEN)).toEqual({ id: ID, label: 'alex-dev', integrityExempt: true })
+  })
+
+  it('treats a record whose exemption is not a boolean as malformed', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const record = await seed(TOKEN, 'alex')
+      await env.UR_TOKENS.put(tokenKey(ID), JSON.stringify({ ...record, integrityExempt: 'yes' }))
+      expect(await verifyToken(env.UR_TOKENS, TOKEN)).toBeNull()
+      expect(error).toHaveBeenCalledWith('[auth] malformed token record', { id: ID })
+    } finally {
+      error.mockRestore()
+    }
   })
 
   it('returns null for an unknown id', async () => {
