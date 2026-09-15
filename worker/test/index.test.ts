@@ -7,6 +7,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vite
 import app from '../src/index'
 import { sha256Hex, type TokenPayload } from '../src/lib/integrity'
 import { parseTokenId, tokenKey } from '../src/lib/tokens'
+import { spendKeys } from '../src/lib/spend'
 import { createTokenRecord } from '../scripts/tokenRecord.mjs'
 import { generateTestServiceAccount } from './serviceAccount'
 import { integrityWire } from './integrityWire'
@@ -31,11 +32,7 @@ async function seedToken(
 }
 
 /** Today's UR_SPEND daily key: the Worker-wide one, or [token]'s own. */
-function dailySpendKey(token?: string) {
-  const d = new Date()
-  const day = `day:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
-  return token === undefined ? day : `user:${parseTokenId(token)!}:${day}`
-}
+const dailySpendKey = (token?: string) => spendKeys(token === undefined ? undefined : parseTokenId(token)!).daily
 
 async function postBatch(e: ReturnType<typeof testEnv>, token: string) {
   const req = makeRequest('/v1/generate/batch', {
@@ -587,8 +584,7 @@ describe('un-reminder-worker', () => {
 
   it('returns 402 when daily KV counter over cap', async () => {
     const e = testEnv()
-    const d = new Date()
-    const dayKey = `day:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+    const dayKey = dailySpendKey()
     await e.UR_SPEND.put(dayKey, '999')
 
     const req = makeRequest('/v1/generate/batch', {
@@ -611,8 +607,7 @@ describe('un-reminder-worker', () => {
 
   it('returns 402 when monthly KV counter over cap', async () => {
     const e = testEnv()
-    const d = new Date()
-    const mKey = `month:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+    const mKey = spendKeys().monthly
     await e.UR_SPEND.put(mKey, '999')
 
     const req = makeRequest('/v1/generate/batch', {
@@ -1201,8 +1196,7 @@ describe('un-reminder-worker', () => {
     await waitOnExecutionContext(ctx)
     expect(res.status).toBe(200)
 
-    const d = new Date()
-    const dayKey = `day:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+    const dayKey = dailySpendKey()
     const dailySpend = await e.UR_SPEND.get(dayKey)
     expect(Number(dailySpend)).toBeGreaterThan(0)
   })
@@ -1256,8 +1250,7 @@ describe('un-reminder-worker', () => {
 
   it('returns 402 on /v1/habit-fields when daily cap exceeded', async () => {
     const e = testEnv()
-    const d = new Date()
-    const dayKey = `day:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+    const dayKey = dailySpendKey()
     await e.UR_SPEND.put(dayKey, '999')
 
     const req = makeRequest('/v1/habit-fields', {
@@ -1277,8 +1270,7 @@ describe('un-reminder-worker', () => {
 
   it('returns 402 on /v1/habit-fields when monthly cap exceeded', async () => {
     const e = testEnv()
-    const d = new Date()
-    const mKey = `month:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+    const mKey = spendKeys().monthly
     await e.UR_SPEND.put(mKey, '999')
 
     const req = makeRequest('/v1/habit-fields', {
@@ -1422,8 +1414,7 @@ describe('un-reminder-worker', () => {
     await waitOnExecutionContext(ctx)
     expect(res.status).toBe(200)
 
-    const d = new Date()
-    const dayKey = `day:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+    const dayKey = dailySpendKey()
     const dailySpend = await e.UR_SPEND.get(dayKey)
     expect(Number(dailySpend)).toBeGreaterThan(0)
   })

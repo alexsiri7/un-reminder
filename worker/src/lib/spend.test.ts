@@ -1,16 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
-import { getSpend, addSpend } from './spend'
+import { getSpend, addSpend, spendKeys } from './spend'
 
 const ID = '0123456789abcdef'
 const OTHER_ID = 'fedcba9876543210'
-
-function todayKeys(tokenId?: string) {
-  const d = new Date()
-  const day = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
-  const month = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
-  const prefix = tokenId === undefined ? '' : `user:${tokenId}:`
-  return { daily: `${prefix}day:${day}`, monthly: `${prefix}month:${month}` }
-}
 
 function mockKV(store: Map<string, string> = new Map()): KVNamespace {
   return {
@@ -32,6 +24,8 @@ describe('getSpend', () => {
   })
 
   it('returns parsed values when KV has data', async () => {
+    // Spelled out rather than taken from spendKeys: this is the one place the `day:`/`month:`
+    // key format is pinned, and the README's `--prefix user:<id>:` example depends on it.
     const d = new Date()
     const dayKey = `day:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
     const monthKey = `month:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
@@ -46,8 +40,8 @@ describe('getSpend', () => {
   })
 
   it('reads one token\'s counters, not the Worker-wide ones', async () => {
-    const user = todayKeys(ID)
-    const global = todayKeys()
+    const user = spendKeys(ID)
+    const global = spendKeys()
     const kv = mockKV(new Map([
       [user.daily, '0.1'],
       [user.monthly, '0.2'],
@@ -73,8 +67,8 @@ describe('addSpend', () => {
     const store = new Map<string, string>()
     const kv = mockKV(store)
     await addSpend(kv, 0.01, ID)
-    const user = todayKeys(ID)
-    const global = todayKeys()
+    const user = spendKeys(ID)
+    const global = spendKeys()
     expect([...store.keys()].sort()).toEqual([user.daily, user.monthly, global.daily, global.monthly].sort())
   })
 

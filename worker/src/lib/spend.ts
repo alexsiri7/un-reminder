@@ -11,7 +11,7 @@ function utcMonth(d: Date): string {
  * is given, else that token's pair under `user:<id>:`, so one user's spend lists with
  * `wrangler kv key list --prefix user:<id>:`.
  */
-function spendKeys(tokenId?: string): { daily: string; monthly: string } {
+export function spendKeys(tokenId?: string): { daily: string; monthly: string } {
   const d = new Date()
   const prefix = tokenId === undefined ? '' : `user:${tokenId}:`
   return { daily: `${prefix}day:${utcDay(d)}`, monthly: `${prefix}month:${utcMonth(d)}` }
