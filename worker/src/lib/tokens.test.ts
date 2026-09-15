@@ -68,6 +68,16 @@ describe('minting side (scripts/tokenRecord.mjs) agrees with the verifying side'
     expect(record.hash).toBe(await hashToken(record.salt, TOKEN))
     expect(record).not.toHaveProperty('integrityExempt')
   })
+
+  it('writes a cap override only when one is given', async () => {
+    const plain = await createTokenRecord(TOKEN, 'alex', new Date('2026-09-15T00:00:00Z'))
+    expect(plain).not.toHaveProperty('dailyCapCents')
+    expect(plain).not.toHaveProperty('monthlyCapCents')
+
+    const capped = await createTokenRecord(TOKEN, 'alex', new Date('2026-09-15T00:00:00Z'), { dailyCapCents: 100 })
+    expect(capped.dailyCapCents).toBe(100)
+    expect(capped).not.toHaveProperty('monthlyCapCents')
+  })
 })
 
 describe('hashToken', () => {
@@ -98,6 +108,35 @@ describe('verifyToken', () => {
     expect(record.integrityExempt).toBe(true)
     await env.UR_TOKENS.put(tokenKey(ID), JSON.stringify(record))
     expect(await verifyToken(env.UR_TOKENS, TOKEN)).toEqual({ id: ID, label: 'alex-dev', integrityExempt: true })
+  })
+
+  it('reads the cap overrides off the record', async () => {
+    const record = await createTokenRecord(TOKEN, 'alex', new Date('2026-09-15T00:00:00Z'), { dailyCapCents: 100, monthlyCapCents: 900 })
+    await env.UR_TOKENS.put(tokenKey(ID), JSON.stringify(record))
+    expect(await verifyToken(env.UR_TOKENS, TOKEN)).toEqual({
+      id: ID,
+      label: 'alex',
+      integrityExempt: false,
+      dailyCapCents: 100,
+      monthlyCapCents: 900,
+    })
+  })
+
+  it.each([
+    ['a string', '100'],
+    ['zero', 0],
+    ['a fraction', 1.5],
+    ['negative', -5],
+  ])('treats a record whose cap is %s as malformed', async (_name, dailyCapCents) => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const record = await seed(TOKEN, 'alex')
+      await env.UR_TOKENS.put(tokenKey(ID), JSON.stringify({ ...record, dailyCapCents }))
+      expect(await verifyToken(env.UR_TOKENS, TOKEN)).toBeNull()
+      expect(error).toHaveBeenCalledWith('[auth] malformed token record', { id: ID })
+    } finally {
+      error.mockRestore()
+    }
   })
 
   it('treats a record whose exemption is not a boolean as malformed', async () => {
