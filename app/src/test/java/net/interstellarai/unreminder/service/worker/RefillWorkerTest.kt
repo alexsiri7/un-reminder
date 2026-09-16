@@ -368,6 +368,7 @@ class RefillWorkerTest {
 
             assertEquals(Result.retry(), createWorker().doWork())
             verify(exactly = 0) { Sentry.captureException(any(), any<ScopeCallback>()) }
+            coVerify(exactly = 0) { mockGenerationFailureRepository.record(any()) }
         } finally {
             unmockkStatic(Sentry::class)
         }
@@ -521,6 +522,7 @@ class RefillWorkerTest {
 
         val worker = createWorker()
         assertEquals(Result.retry(), worker.doWork())
+        coVerify(exactly = 0) { mockGenerationFailureRepository.record(any()) }
     }
 
     @Test
@@ -533,6 +535,7 @@ class RefillWorkerTest {
 
         val worker = createWorker()
         assertEquals(Result.retry(), worker.doWork())
+        coVerify(exactly = 0) { mockGenerationFailureRepository.record(any()) }
     }
 
     @Test
