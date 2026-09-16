@@ -9,9 +9,10 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.retryWhen
 import net.interstellarai.unreminder.domain.model.SpendCapType
 import java.io.IOException
 import java.time.Instant
@@ -51,14 +52,20 @@ class GenerationFailureRepository @Inject constructor(
     private val capTypeKey = stringPreferencesKey("generation_failure_cap_type")
     private val atKey = longPreferencesKey("generation_failure_at")
 
-    /** Emits the last failure, or null once a generation has succeeded since. */
+    /**
+     * Emits the last failure, or null once a generation has succeeded since. A read error reports
+     * no failure and keeps the flow alive: Cloud AI settings collects it for the whole visit, so
+     * a flow that ended on the first bad read would show "no problem" for the rest of it.
+     */
     val failure: Flow<GenerationFailure?> = dataStore.data
-        .catch { e ->
+        .retryWhen { e, _ ->
             if (e is IOException) {
                 Log.w(TAG, "DataStore read error, defaulting to no generation failure", e)
                 emit(emptyPreferences())
+                delay(READ_RETRY_DELAY_MS)
+                true
             } else {
-                throw e
+                false
             }
         }
         .map { prefs ->
@@ -92,5 +99,6 @@ class GenerationFailureRepository @Inject constructor(
 
     companion object {
         private const val TAG = "GenerationFailureRepo"
+        private const val READ_RETRY_DELAY_MS = 5_000L
     }
 }

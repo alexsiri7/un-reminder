@@ -14,7 +14,10 @@ import io.mockk.unmockkStatic
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import net.interstellarai.unreminder.domain.model.SpendCapType
 import org.junit.After
@@ -117,6 +120,23 @@ class GenerationFailureRepositoryTest {
         assertEquals(
             GenerationFailure(GenerationFailure.Kind.SERVICE_UNAVAILABLE, null, Instant.ofEpochMilli(2L)),
             repo.failure.first(),
+        )
+    }
+
+    @Test
+    fun `failure keeps delivering after a DataStore read error`() = runTest {
+        val stored = mutablePreferencesOf(kindKey to "SPEND_CAP_GLOBAL", atKey to 1_700_000_000_000L)
+        var reads = 0
+        val dataStore: DataStore<Preferences> = mockk {
+            every { data } returns flow {
+                if (++reads == 1) throw IOException("read error")
+                emit(stored)
+            }
+        }
+
+        assertEquals(
+            listOf(null, GenerationFailure(GenerationFailure.Kind.SPEND_CAP_GLOBAL, null, Instant.ofEpochMilli(1_700_000_000_000L))),
+            GenerationFailureRepository(dataStore).failure.take(2).toList(),
         )
     }
 
