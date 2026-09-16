@@ -82,10 +82,12 @@ fun HabitListScreen(
 ) {
     val habits by viewModel.habits.collectAsStateWithLifecycle()
     val aiStatus by viewModel.aiStatus.collectAsStateWithLifecycle()
+    val tokenRejected by viewModel.tokenRejected.collectAsStateWithLifecycle()
     val habitAvailability by viewModel.habitAvailability.collectAsStateWithLifecycle()
     HabitListContent(
         habits = habits,
         aiStatus = aiStatus,
+        tokenRejected = tokenRejected,
         habitAvailability = habitAvailability,
         today = LocalDate.now(),
         onAddHabit = onAddHabit,
@@ -104,6 +106,7 @@ internal fun HabitListContent(
     onAddHabit: () -> Unit,
     onEditHabit: (Long) -> Unit,
     onNavigateToFeedback: () -> Unit,
+    tokenRejected: Boolean = false,
 ) {
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -123,7 +126,7 @@ internal fun HabitListContent(
                 .fillMaxSize()
                 .padding(padding),
         ) {
-            AiDownloadBanner(aiStatus = aiStatus)
+            AiDownloadBanner(aiStatus = aiStatus, tokenRejected = tokenRejected)
 
             HabitListHeader(today, onNavigateToFeedback)
 
@@ -217,18 +220,23 @@ private fun HabitListHeader(today: LocalDate, onNavigateToFeedback: () -> Unit) 
 
 // ─────────────────────────────────────────────────────────────────────────
 // AI status banner — renders at the top of the list when the cloud worker
-// is not configured or when the pool is empty.
+// is not configured, the token was rejected, or the pool is empty.
 // ─────────────────────────────────────────────────────────────────────────
+
+/** No token means there is nothing to have been rejected, so [AiStatus.Unavailable] wins. */
+internal fun aiBannerLabel(aiStatus: AiStatus, tokenRejected: Boolean): String? = when {
+    aiStatus is AiStatus.Unavailable -> "AI unavailable — check cloud settings"
+    tokenRejected -> "token rejected — check cloud settings"
+    aiStatus is AiStatus.Empty -> "cloud pool empty — variants being generated"
+    else -> null
+}
 
 @Composable
 private fun AiDownloadBanner(
     aiStatus: AiStatus,
+    tokenRejected: Boolean = false,
 ) {
-    val label = when (aiStatus) {
-        is AiStatus.Empty -> "cloud pool empty — variants being generated"
-        is AiStatus.Unavailable -> "AI unavailable — check cloud settings"
-        else -> return
-    }
+    val label = aiBannerLabel(aiStatus, tokenRejected) ?: return
     Column(
         modifier = Modifier
             .fillMaxWidth()

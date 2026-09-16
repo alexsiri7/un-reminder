@@ -10,6 +10,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
+import io.mockk.slot
 import io.mockk.unmockkStatic
 import io.mockk.verify
 import io.sentry.Sentry
@@ -19,6 +20,8 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.db.VariationEntity
+import net.interstellarai.unreminder.data.repository.GenerationFailure
+import net.interstellarai.unreminder.data.repository.GenerationFailureRepository
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.PersonalContextRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
@@ -26,11 +29,14 @@ import net.interstellarai.unreminder.data.repository.WorkerTokenRepository
 import net.interstellarai.unreminder.domain.model.ActivityMode
 import net.interstellarai.unreminder.domain.model.GeneratedBatch
 import net.interstellarai.unreminder.domain.model.GeneratedVariant
+import net.interstellarai.unreminder.domain.model.SpendCapScope
+import net.interstellarai.unreminder.domain.model.SpendCapType
 import net.interstellarai.unreminder.domain.model.VariantShape
 import net.interstellarai.unreminder.service.notification.MascotSprites
 import org.json.JSONException
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import java.io.InterruptedIOException
@@ -69,6 +75,7 @@ class RefillWorkerTest {
     private val mockWorkerTokenRepository: WorkerTokenRepository = mockk {
         every { token } returns flowOf(TOKEN)
     }
+    private val mockGenerationFailureRepository: GenerationFailureRepository = mockk(relaxUnitFun = true)
 
     private fun createWorker(habitId: Long = 1L, replace: Boolean = false): RefillWorker {
         val inputData = Data.Builder()
@@ -84,7 +91,21 @@ class RefillWorkerTest {
             mockProxyClient,
             mockPersonalContextRepository,
             mockWorkerTokenRepository,
+            mockGenerationFailureRepository,
         )
+    }
+
+    private fun proxyThrows(e: Throwable) {
+        coEvery { mockHabitRepository.getByIdOnce(1L) } returns HabitEntity(id = 1L, name = "Meditate")
+        coEvery {
+            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } throws e
+    }
+
+    private fun recordedFailure(): GenerationFailure {
+        val recorded = slot<GenerationFailure>()
+        coVerify(exactly = 1) { mockGenerationFailureRepository.record(capture(recorded)) }
+        return recorded.captured
     }
 
     @Test
@@ -150,6 +171,7 @@ class RefillWorkerTest {
                     && entities[1].text == "variant 2" && entities[1].actionUrl == "https://youtube.com/results?search_query=test" && entities[1].shape == VariantShape.TIMEBOXED
             }, false)
         }
+        coVerify(exactly = 1) { mockGenerationFailureRepository.clear() }
     }
 
     @Test
@@ -285,26 +307,53 @@ class RefillWorkerTest {
 
     @Test
     fun `doWork returns failure on SpendCapExceededException`() = runTest {
-        val habit = HabitEntity(id = 1L, name = "Meditate")
-        coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
-        coEvery {
-            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
-        } throws SpendCapExceededException()
+        proxyThrows(SpendCapExceededException())
 
         val worker = createWorker()
         assertEquals(Result.failure(), worker.doWork())
     }
 
     @Test
-    fun `doWork returns failure on WorkerAuthException`() = runTest {
-        val habit = HabitEntity(id = 1L, name = "Meditate")
-        coEvery { mockHabitRepository.getByIdOnce(1L) } returns habit
-        coEvery {
-            mockProxyClient.generateBatch(any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
-        } throws WorkerAuthException()
+    fun `doWork notes the user's own cap with its type`() = runTest {
+        proxyThrows(SpendCapExceededException(SpendCapScope.USER, SpendCapType.DAILY))
+
+        assertEquals(Result.failure(), createWorker().doWork())
+
+        val failure = recordedFailure()
+        assertEquals(GenerationFailure.Kind.SPEND_CAP_USER, failure.kind)
+        assertEquals(SpendCapType.DAILY, failure.capType)
+    }
+
+    @Test
+    fun `doWork notes the service's cap`() = runTest {
+        proxyThrows(SpendCapExceededException(SpendCapScope.GLOBAL, SpendCapType.MONTHLY))
+
+        assertEquals(Result.failure(), createWorker().doWork())
+
+        val failure = recordedFailure()
+        assertEquals(GenerationFailure.Kind.SPEND_CAP_GLOBAL, failure.kind)
+        assertEquals(SpendCapType.MONTHLY, failure.capType)
+    }
+
+    @Test
+    fun `doWork reads an unknown cap scope as the service's`() = runTest {
+        proxyThrows(SpendCapExceededException())
+
+        assertEquals(Result.failure(), createWorker().doWork())
+
+        val failure = recordedFailure()
+        assertEquals(GenerationFailure.Kind.SPEND_CAP_GLOBAL, failure.kind)
+        assertNull(failure.capType)
+    }
+
+    @Test
+    fun `doWork returns failure and notes a rejected token on WorkerAuthException`() = runTest {
+        proxyThrows(WorkerAuthException())
 
         val worker = createWorker()
         assertEquals(Result.failure(), worker.doWork())
+        assertEquals(GenerationFailure.Kind.TOKEN_REJECTED, recordedFailure().kind)
+        coVerify(exactly = 0) { mockGenerationFailureRepository.clear() }
     }
 
     @Test
@@ -319,6 +368,7 @@ class RefillWorkerTest {
 
             assertEquals(Result.retry(), createWorker().doWork())
             verify(exactly = 0) { Sentry.captureException(any(), any<ScopeCallback>()) }
+            coVerify(exactly = 0) { mockGenerationFailureRepository.record(any()) }
         } finally {
             unmockkStatic(Sentry::class)
         }
@@ -336,6 +386,7 @@ class RefillWorkerTest {
 
             assertEquals(Result.failure(), createWorker().doWork())
             verify(exactly = 0) { Sentry.captureException(any(), any<ScopeCallback>()) }
+            coVerify(exactly = 0) { mockGenerationFailureRepository.record(any()) }
         } finally {
             unmockkStatic(Sentry::class)
         }
@@ -351,6 +402,7 @@ class RefillWorkerTest {
 
         val worker = createWorker()
         assertEquals(Result.retry(), worker.doWork())
+        assertEquals(GenerationFailure.Kind.SERVICE_UNAVAILABLE, recordedFailure().kind)
     }
 
     @Test
@@ -408,6 +460,7 @@ class RefillWorkerTest {
             val worker = createWorker()
             assertEquals(Result.retry(), worker.doWork())
             verify(exactly = 0) { Sentry.captureException(any(), any<ScopeCallback>()) }
+            assertEquals(GenerationFailure.Kind.SERVICE_UNAVAILABLE, recordedFailure().kind)
         } finally {
             unmockkStatic(Sentry::class)
         }
@@ -443,6 +496,7 @@ class RefillWorkerTest {
 
         val worker = createWorker()
         assertEquals(Result.retry(), worker.doWork())
+        assertEquals(GenerationFailure.Kind.SERVICE_UNAVAILABLE, recordedFailure().kind)
     }
 
     @Test
@@ -455,6 +509,7 @@ class RefillWorkerTest {
 
         val worker = createWorker()
         assertEquals(Result.failure(), worker.doWork())
+        coVerify(exactly = 0) { mockGenerationFailureRepository.record(any()) }
     }
 
     @Test
@@ -467,6 +522,7 @@ class RefillWorkerTest {
 
         val worker = createWorker()
         assertEquals(Result.retry(), worker.doWork())
+        coVerify(exactly = 0) { mockGenerationFailureRepository.record(any()) }
     }
 
     @Test
@@ -479,6 +535,7 @@ class RefillWorkerTest {
 
         val worker = createWorker()
         assertEquals(Result.retry(), worker.doWork())
+        coVerify(exactly = 0) { mockGenerationFailureRepository.record(any()) }
     }
 
     @Test
@@ -496,6 +553,7 @@ class RefillWorkerTest {
             val worker = createWorker()
             assertEquals(Result.failure(), worker.doWork())
             verify(exactly = 1) { Sentry.captureException(any(), any<ScopeCallback>()) }
+            coVerify(exactly = 0) { mockGenerationFailureRepository.record(any()) }
         } finally {
             unmockkStatic(Sentry::class)
         }

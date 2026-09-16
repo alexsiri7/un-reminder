@@ -11,10 +11,14 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import net.interstellarai.unreminder.BuildConfig
 import net.interstellarai.unreminder.data.db.VariationEntity
+import net.interstellarai.unreminder.data.repository.GenerationFailure
+import net.interstellarai.unreminder.data.repository.GenerationFailureRepository
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.PersonalContextRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.data.repository.WorkerTokenRepository
+import net.interstellarai.unreminder.domain.model.SpendCapScope
+import net.interstellarai.unreminder.domain.model.SpendCapType
 import net.interstellarai.unreminder.service.notification.MascotSprites
 import io.sentry.Sentry
 import java.io.IOException
@@ -34,6 +38,7 @@ class RefillWorker @AssistedInject constructor(
     private val requestyProxyClient: RequestyProxyClient,
     private val personalContextRepository: PersonalContextRepository,
     private val workerTokenRepository: WorkerTokenRepository,
+    private val generationFailureRepository: GenerationFailureRepository,
 ) : CoroutineWorker(appContext, workerParams) {
 
     companion object {
@@ -97,14 +102,22 @@ class RefillWorker @AssistedInject constructor(
                 )
             }
             variationRepository.refill(habitId, batch.generationVersion, entities, replace)
+            generationFailureRepository.clear()
             Result.success()
         } catch (e: CancellationException) {
             throw e
         } catch (e: SpendCapExceededException) {
             Log.w(TAG, "Spend cap exceeded for habit $habitId", e)
+            // An unknown scope reads as the service's: never blame the user without the Worker saying so.
+            note(
+                if (e.capScope == SpendCapScope.USER) GenerationFailure.Kind.SPEND_CAP_USER
+                else GenerationFailure.Kind.SPEND_CAP_GLOBAL,
+                e.capType,
+            )
             Result.failure()
         } catch (e: WorkerAuthException) {
             Log.w(TAG, "Auth failed for habit $habitId", e)
+            note(GenerationFailure.Kind.TOKEN_REJECTED)
             Result.failure()
         } catch (e: WorkerIntegrityException) {
             Log.w(TAG, "Integrity check failed (${e.reason}) for habit $habitId, ${if (e.retryable) "will retry" else "giving up"}", e)
@@ -117,6 +130,7 @@ class RefillWorker @AssistedInject constructor(
                     scope.setTag("habit_id", habitId.toString())
                     scope.setTag("error_code", e.code.toString())
                 }
+                note(GenerationFailure.Kind.SERVICE_UNAVAILABLE)
                 Result.retry()
             } else {
                 Log.w(TAG, "Client error ${e.code} for habit $habitId", e)
@@ -126,24 +140,28 @@ class RefillWorker @AssistedInject constructor(
             // Safety net: NetworkType.CONNECTED constraint prevents most cases,
             // but network can drop mid-request (handoff, captive portal redirect).
             Log.w(TAG, "DNS lookup failed for habit $habitId, will retry", e)
+            note(GenerationFailure.Kind.SERVICE_UNAVAILABLE)
             Result.retry()
         } catch (e: ConnectException) {
             // Transient TCP-connect failure (network unreachable, captive portal,
             // mobile handoff). Worker is on Cloudflare — a real server-side connect
             // refusal is vanishingly improbable, so treat as offline-class noise.
             Log.w(TAG, "Connect failed for habit $habitId, will retry", e)
+            note(GenerationFailure.Kind.SERVICE_UNAVAILABLE)
             Result.retry()
         } catch (e: SocketTimeoutException) {
             // Transient socket timeout (slow LTE handoff, Requesty/Cloudflare high load,
             // Doze network throttling). Same class of offline noise as UnknownHostException
             // and ConnectException — not actionable for the developer.
             Log.w(TAG, "Socket timeout for habit $habitId, will retry", e)
+            note(GenerationFailure.Kind.SERVICE_UNAVAILABLE)
             Result.retry()
         } catch (e: InterruptedIOException) {
             // OkHttp callTimeout (90s) expired — same transient class as SocketTimeoutException.
             // InterruptedIOException is the parent of SocketTimeoutException; OkHttp uses it
             // specifically for the overall call deadline, not per-operation timeouts.
             Log.w(TAG, "Call timeout for habit $habitId, will retry", e)
+            note(GenerationFailure.Kind.SERVICE_UNAVAILABLE)
             Result.retry()
         } catch (e: IOException) {
             Log.w(TAG, "IO error for habit $habitId, will retry", e)
@@ -151,6 +169,7 @@ class RefillWorker @AssistedInject constructor(
                 scope.setTag("component", "refill-worker")
                 scope.setTag("habit_id", habitId.toString())
             }
+            note(GenerationFailure.Kind.SERVICE_UNAVAILABLE)
             Result.retry()
         } catch (e: JSONException) {
             Log.w(TAG, "JSON parse error for habit $habitId, will retry", e)
@@ -174,6 +193,10 @@ class RefillWorker @AssistedInject constructor(
             reportUnexpected(e, habitId)
         }
     }
+
+    /** Leaves a record for Cloud AI settings; the token, cap and service classes are the only ones a user can act on. */
+    private suspend fun note(kind: GenerationFailure.Kind, capType: SpendCapType? = null) =
+        generationFailureRepository.record(GenerationFailure(kind, capType, Instant.now()))
 
     private fun reportUnexpected(e: Exception, habitId: Long): Result {
         Log.e(TAG, "Unexpected error for habit $habitId", e)

@@ -3,6 +3,8 @@ package net.interstellarai.unreminder.ui.habit
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import net.interstellarai.unreminder.data.db.HabitEntity
+import net.interstellarai.unreminder.data.repository.GenerationFailure
+import net.interstellarai.unreminder.data.repository.GenerationFailureRepository
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.domain.AvailabilityStatus
 import net.interstellarai.unreminder.domain.HabitAvailabilityService
@@ -16,6 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -26,12 +29,18 @@ class HabitListViewModel @Inject constructor(
     private val promptGenerator: PromptGenerator,
     private val availabilityService: HabitAvailabilityService,
     private val geofenceManager: GeofenceManager,
+    generationFailureRepository: GenerationFailureRepository,
 ) : ViewModel() {
 
     val habits: StateFlow<List<HabitEntity>> = habitRepository.getAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val aiStatus: StateFlow<AiStatus> = promptGenerator.aiStatus
+
+    /** True while the last background refill was refused for a bad token — the one failure that will not fix itself (#422). */
+    val tokenRejected: StateFlow<Boolean> = generationFailureRepository.failure
+        .map { it?.kind == GenerationFailure.Kind.TOKEN_REJECTED }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     private val _habitAvailability = MutableStateFlow<Map<Long, AvailabilityStatus>>(emptyMap())
     val habitAvailability: StateFlow<Map<Long, AvailabilityStatus>> = _habitAvailability.asStateFlow()
