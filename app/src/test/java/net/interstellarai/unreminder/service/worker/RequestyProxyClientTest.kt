@@ -3,6 +3,8 @@ package net.interstellarai.unreminder.service.worker
 import kotlinx.coroutines.test.runTest
 import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.domain.model.ActivityMode
+import net.interstellarai.unreminder.domain.model.SpendCapScope
+import net.interstellarai.unreminder.domain.model.SpendCapType
 import net.interstellarai.unreminder.domain.model.VariantShape
 import net.interstellarai.unreminder.service.notification.MascotSprite
 import net.interstellarai.unreminder.service.notification.MascotSprites
@@ -61,13 +63,26 @@ class RequestyProxyClientTest {
      * asserted against by the Worker's integrity.test.ts and index.test.ts too; each line is a key, a
      * tab, then the value.
      */
-    private val wire: Map<String, String> =
-        checkNotNull(javaClass.getResourceAsStream("/integrity-wire.txt")) { "integrity-wire.txt is not on the test classpath" }
+    private val wire: Map<String, String> = fixture("integrity-wire.txt")
+    private val wireHeader = wire.getValue("header")
+    private val wireRejectedError = wire.getValue("rejected-error")
+
+    /** worker/test/fixtures/spend-wire.txt: the 402 body's literals, asserted against by the Worker's types.test.ts too. */
+    private val spendWire: Map<String, String> = fixture("spend-wire.txt")
+
+    private fun fixture(name: String): Map<String, String> =
+        checkNotNull(javaClass.getResourceAsStream("/$name")) { "$name is not on the test classpath" }
             .bufferedReader().readLines()
             .filter { it.isNotEmpty() && !it.startsWith("#") }
             .associate { line -> line.split("\t", limit = 2).let { it[0] to it[1] } }
-    private val wireHeader = wire.getValue("header")
-    private val wireRejectedError = wire.getValue("rejected-error")
+
+    private fun spendCapRejection(scope: String, type: String): MockResponse {
+        val body = JSONObject()
+            .put("error", spendWire.getValue("cap-error-$scope-$type"))
+            .put("capType", spendWire.getValue("cap-type-$type"))
+            .put("capScope", spendWire.getValue("cap-scope-$scope"))
+        return MockResponse().setResponseCode(402).setBody(body.toString())
+    }
 
     private fun integrityRejection(reason: String? = null): MockResponse {
         val body = JSONObject().put("error", wireRejectedError).apply { if (reason != null) put("reason", reason) }
@@ -211,6 +226,17 @@ class RequestyProxyClientTest {
         assertFailsWith<SpendCapExceededException> {
             proxyClient.habitFields("Meditate", baseUrl(), "secret")
         }
+    }
+
+    @Test
+    fun `402 with the Worker's global monthly body parses scope and type`() = runTest {
+        server.enqueue(spendCapRejection(scope = "global", type = "monthly"))
+
+        val ex = assertFailsWith<SpendCapExceededException> {
+            proxyClient.habitFields("Meditate", baseUrl(), "secret")
+        }
+        assertEquals(SpendCapScope.GLOBAL, ex.capScope)
+        assertEquals(SpendCapType.MONTHLY, ex.capType)
     }
 
     @Test
@@ -432,6 +458,28 @@ class RequestyProxyClientTest {
         assertFailsWith<SpendCapExceededException> {
             proxyClient.generateBatch("Meditate", emptyList(), "", "", "", emptyList(), emptySet(), 1, baseUrl(), "secret")
         }
+    }
+
+    @Test
+    fun `402 with the Worker's user daily body parses scope and type`() = runTest {
+        server.enqueue(spendCapRejection(scope = "user", type = "daily"))
+
+        val ex = assertFailsWith<SpendCapExceededException> {
+            proxyClient.generateBatch("Meditate", emptyList(), "", "", "", emptyList(), emptySet(), 1, baseUrl(), "secret")
+        }
+        assertEquals(SpendCapScope.USER, ex.capScope)
+        assertEquals(SpendCapType.DAILY, ex.capType)
+    }
+
+    @Test
+    fun `402 without cap fields leaves scope and type null`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(402).setBody("""{"error":"cap"}"""))
+
+        val ex = assertFailsWith<SpendCapExceededException> {
+            proxyClient.generateBatch("Meditate", emptyList(), "", "", "", emptyList(), emptySet(), 1, baseUrl(), "secret")
+        }
+        assertNull(ex.capScope)
+        assertNull(ex.capType)
     }
 
     @Test

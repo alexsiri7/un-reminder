@@ -7,6 +7,8 @@ import net.interstellarai.unreminder.domain.model.ActivityMode
 import net.interstellarai.unreminder.domain.model.AiHabitFields
 import net.interstellarai.unreminder.domain.model.GeneratedBatch
 import net.interstellarai.unreminder.domain.model.GeneratedVariant
+import net.interstellarai.unreminder.domain.model.SpendCapScope
+import net.interstellarai.unreminder.domain.model.SpendCapType
 import net.interstellarai.unreminder.domain.model.VariantShape
 import net.interstellarai.unreminder.service.notification.MascotSprite
 import okhttp3.MediaType.Companion.toMediaType
@@ -34,7 +36,13 @@ private fun Response.throwOnError(integrity: IntegrityTokenResult?): Nothing {
     val text = body?.string() ?: ""
     when (code) {
         401 -> throw WorkerAuthException()
-        402 -> throw SpendCapExceededException()
+        402 -> {
+            val json = runCatching { JSONObject(text) }.getOrNull()
+            throw SpendCapExceededException(
+                capScope = json?.optString("capScope")?.let(SpendCapScope::fromWire),
+                capType = json?.optString("capType")?.let(SpendCapType::fromWire),
+            )
+        }
         403 -> {
             val json = runCatching { JSONObject(text) }.getOrNull()
             if (json?.optString("error") == INTEGRITY_REJECTED) {

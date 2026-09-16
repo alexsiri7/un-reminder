@@ -18,6 +18,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.transformWhile
 import kotlinx.coroutines.launch
+import net.interstellarai.unreminder.data.repository.GenerationFailure
+import net.interstellarai.unreminder.data.repository.GenerationFailureRepository
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.WorkerTokenRepository
 import net.interstellarai.unreminder.service.worker.RefillScheduler
@@ -38,6 +40,8 @@ data class CloudSettingsUiState(
     val tokenId: String? = null,
     val tokenInput: String = "",
     val tokenInputError: String? = null,
+    /** The last background generation failure, or null once one has succeeded since. */
+    val lastFailure: GenerationFailure? = null,
 )
 
 @HiltViewModel
@@ -46,6 +50,7 @@ class CloudSettingsViewModel @Inject constructor(
     private val habitRepository: HabitRepository,
     private val workManager: WorkManager,
     private val workerTokenRepository: WorkerTokenRepository,
+    private val generationFailureRepository: GenerationFailureRepository,
 ) : ViewModel() {
 
     companion object {
@@ -66,13 +71,22 @@ class CloudSettingsViewModel @Inject constructor(
                 )
             }
         }
+        viewModelScope.launch {
+            generationFailureRepository.failure.collect { failure ->
+                _uiState.value = _uiState.value.copy(lastFailure = failure)
+            }
+        }
     }
 
     fun setTokenInput(value: String) {
         _uiState.value = _uiState.value.copy(tokenInput = value, tokenInputError = null)
     }
 
-    /** Persists the pasted token only if it is well-formed; a malformed one is rejected inline. */
+    /**
+     * Persists the pasted token only if it is well-formed; a malformed one is rejected inline.
+     * A rejected-token record was about the old token, so a new one retires it; a cap or a
+     * service failure is not, and the next refill decides those.
+     */
     fun saveToken() {
         val token = _uiState.value.tokenInput.trim()
         if (!WorkerToken.isWellFormed(token)) {
@@ -82,6 +96,9 @@ class CloudSettingsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 workerTokenRepository.setToken(token)
+                if (_uiState.value.lastFailure?.kind == GenerationFailure.Kind.TOKEN_REJECTED) {
+                    generationFailureRepository.clear()
+                }
                 _uiState.value = _uiState.value.copy(
                     tokenInput = "",
                     tokenInputError = null,

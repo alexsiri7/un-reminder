@@ -20,6 +20,8 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import net.interstellarai.unreminder.data.db.HabitEntity
+import net.interstellarai.unreminder.data.repository.GenerationFailure
+import net.interstellarai.unreminder.data.repository.GenerationFailureRepository
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.WorkerTokenRepository
 import net.interstellarai.unreminder.service.worker.RefillScheduler
@@ -29,6 +31,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
+import java.time.Instant
 import java.util.UUID
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -43,6 +46,11 @@ class CloudSettingsViewModelTest {
     private val mockWorkerTokenRepository: WorkerTokenRepository = mockk {
         every { token } returns storedToken
         coEvery { setToken(any()) } answers { storedToken.value = firstArg() }
+    }
+    private val storedFailure = MutableStateFlow<GenerationFailure?>(null)
+    private val mockGenerationFailureRepository: GenerationFailureRepository = mockk {
+        every { failure } returns storedFailure
+        coEvery { clear() } answers { storedFailure.value = null }
     }
 
     private val habits = listOf(
@@ -64,7 +72,15 @@ class CloudSettingsViewModelTest {
     }
 
     private fun createViewModel(): CloudSettingsViewModel =
-        CloudSettingsViewModel(mockRefillScheduler, mockHabitRepository, workManager, mockWorkerTokenRepository)
+        CloudSettingsViewModel(
+            mockRefillScheduler,
+            mockHabitRepository,
+            workManager,
+            mockWorkerTokenRepository,
+            mockGenerationFailureRepository,
+        )
+
+    private fun failure(kind: GenerationFailure.Kind) = GenerationFailure(kind, null, Instant.EPOCH)
 
     private fun mockInfo(state: WorkInfo.State): WorkInfo = mockk {
         every { this@mockk.state } returns state
@@ -378,6 +394,59 @@ class CloudSettingsViewModelTest {
 
         assertEquals("Failed to save token.", vm.uiState.value.errorMessage)
         assertEquals(token, vm.uiState.value.tokenInput)
+    }
+
+    @Test
+    fun `lastFailure mirrors the repository`() = runTest(testDispatcher) {
+        val vm = createViewModel()
+        advanceUntilIdle()
+        assertNull(vm.uiState.value.lastFailure)
+
+        storedFailure.value = failure(GenerationFailure.Kind.SPEND_CAP_USER)
+        advanceUntilIdle()
+
+        assertEquals(failure(GenerationFailure.Kind.SPEND_CAP_USER), vm.uiState.value.lastFailure)
+    }
+
+    @Test
+    fun `saveToken clears a rejected-token failure`() = runTest(testDispatcher) {
+        storedFailure.value = failure(GenerationFailure.Kind.TOKEN_REJECTED)
+        val vm = createViewModel()
+        advanceUntilIdle()
+
+        vm.setTokenInput(token)
+        vm.saveToken()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { mockGenerationFailureRepository.clear() }
+        assertNull(vm.uiState.value.lastFailure)
+    }
+
+    @Test
+    fun `saveToken leaves a service failure recorded`() = runTest(testDispatcher) {
+        storedFailure.value = failure(GenerationFailure.Kind.SERVICE_UNAVAILABLE)
+        val vm = createViewModel()
+        advanceUntilIdle()
+
+        vm.setTokenInput(token)
+        vm.saveToken()
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { mockGenerationFailureRepository.clear() }
+        assertEquals(failure(GenerationFailure.Kind.SERVICE_UNAVAILABLE), vm.uiState.value.lastFailure)
+    }
+
+    @Test
+    fun `a rejected malformed token does not clear the failure`() = runTest(testDispatcher) {
+        storedFailure.value = failure(GenerationFailure.Kind.TOKEN_REJECTED)
+        val vm = createViewModel()
+        advanceUntilIdle()
+
+        vm.setTokenInput("ur1_not-a-token")
+        vm.saveToken()
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { mockGenerationFailureRepository.clear() }
     }
 
     @Test

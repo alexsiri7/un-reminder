@@ -31,12 +31,17 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import net.interstellarai.unreminder.data.repository.GenerationFailure
+import net.interstellarai.unreminder.domain.model.SpendCapType
 import net.interstellarai.unreminder.ui.theme.Dimens
 import net.interstellarai.unreminder.ui.theme.DisplayHuge
 import net.interstellarai.unreminder.ui.theme.MonoContextStrip
 import net.interstellarai.unreminder.ui.theme.MonoLabel
 import net.interstellarai.unreminder.ui.theme.SansBody
 import net.interstellarai.unreminder.ui.theme.UnReminderShapes
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -120,6 +125,20 @@ fun CloudSettingsScreen(
                         ),
                     )
                 }
+                uiState.lastFailure?.let { failure ->
+                    Spacer(Modifier.height(Dimens.lg))
+                    Text(
+                        failureTimestamp(failure.at, ZoneId.systemDefault()),
+                        style = MonoLabel,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                    )
+                    Spacer(Modifier.height(Dimens.xs))
+                    Text(
+                        failureMessage(failure),
+                        style = SansBody,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    )
+                }
                 Spacer(Modifier.height(Dimens.xxl))
                 Box(
                     modifier = Modifier
@@ -175,3 +194,25 @@ internal fun regeneratingLabel(progress: RegenerationProgress): String {
     val failed = if (progress.failed > 0) " (${progress.failed} failed)" else ""
     return "regenerating… $settled of ${progress.total}$failed"
 }
+
+internal fun failureMessage(failure: GenerationFailure): String = when (failure.kind) {
+    GenerationFailure.Kind.TOKEN_REJECTED ->
+        "token rejected — paste a new one above, or ask Alex for one"
+    GenerationFailure.Kind.SPEND_CAP_USER -> when (failure.capType) {
+        SpendCapType.DAILY -> "your generation budget for today is spent — it resets tomorrow"
+        SpendCapType.MONTHLY -> "your generation budget for this month is spent — it resets next month"
+        null -> "your generation budget is spent — try again later"
+    }
+    GenerationFailure.Kind.SPEND_CAP_GLOBAL -> when (failure.capType) {
+        SpendCapType.DAILY -> "the service's budget for today is spent, not yours — try tomorrow"
+        SpendCapType.MONTHLY -> "the service's budget for this month is spent, not yours — try next month"
+        null -> "the service's budget is spent, not yours — try again later"
+    }
+    GenerationFailure.Kind.SERVICE_UNAVAILABLE ->
+        "the service could not be reached — the app will try again on its own"
+}
+
+private val FAILURE_TIME = DateTimeFormatter.ofPattern("MMM d · HH:mm")
+
+internal fun failureTimestamp(at: Instant, zone: ZoneId): String =
+    "last generation failed " + at.atZone(zone).format(FAILURE_TIME)

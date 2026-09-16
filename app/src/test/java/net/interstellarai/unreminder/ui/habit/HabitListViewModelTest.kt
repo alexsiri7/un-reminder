@@ -1,5 +1,7 @@
 package net.interstellarai.unreminder.ui.habit
 
+import net.interstellarai.unreminder.data.repository.GenerationFailure
+import net.interstellarai.unreminder.data.repository.GenerationFailureRepository
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.domain.HabitAvailabilityService
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
@@ -12,14 +14,19 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HabitListViewModelTest {
@@ -29,6 +36,10 @@ class HabitListViewModelTest {
     private val mockHabitRepository: HabitRepository = mockk()
     private val mockAvailabilityService: HabitAvailabilityService = mockk()
     private val mockGeofenceManager: GeofenceManager = mockk()
+    private val storedFailure = MutableStateFlow<GenerationFailure?>(null)
+    private val mockGenerationFailureRepository: GenerationFailureRepository = mockk {
+        every { failure } returns storedFailure
+    }
 
     @Before
     fun setup() {
@@ -49,6 +60,7 @@ class HabitListViewModelTest {
         mockPromptGenerator,
         mockAvailabilityService,
         mockGeofenceManager,
+        mockGenerationFailureRepository,
     )
 
     @Test
@@ -63,5 +75,25 @@ class HabitListViewModelTest {
         every { mockPromptGenerator.aiStatus } returns MutableStateFlow(AiStatus.Ready)
         val vm = buildViewModel()
         assertEquals(AiStatus.Ready, vm.aiStatus.value)
+    }
+
+    @Test
+    fun `tokenRejected is true only while the last failure is a rejected token`() = runTest(testDispatcher) {
+        val vm = buildViewModel()
+        backgroundScope.launch { vm.tokenRejected.collect {} }
+        advanceUntilIdle()
+        assertFalse(vm.tokenRejected.value)
+
+        storedFailure.value = GenerationFailure(GenerationFailure.Kind.TOKEN_REJECTED, null, Instant.EPOCH)
+        advanceUntilIdle()
+        assertTrue(vm.tokenRejected.value)
+
+        storedFailure.value = GenerationFailure(GenerationFailure.Kind.SPEND_CAP_USER, null, Instant.EPOCH)
+        advanceUntilIdle()
+        assertFalse(vm.tokenRejected.value)
+
+        storedFailure.value = null
+        advanceUntilIdle()
+        assertFalse(vm.tokenRejected.value)
     }
 }
