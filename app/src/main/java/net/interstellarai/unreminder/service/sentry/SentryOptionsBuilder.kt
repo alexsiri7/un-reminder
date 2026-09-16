@@ -23,7 +23,11 @@ fun applyOptions(
     options.isAttachViewHierarchy = false
     options.isAnrEnabled = false // belt-and-suspenders guard against ANR watchdog crash on sideloaded pre-API-31 devices (see #133)
     options.beforeSend = SentryOptions.BeforeSendCallback { event, _ ->
-        if (isMisreportedApiLevelStopReasonCrash(event.throwable)) null else event
+        if (isMisreportedApiLevelStopReasonCrash(event.throwable) || isListAdapterTrampolineCrash(event.throwable)) {
+            null
+        } else {
+            event
+        }
     }
 }
 
@@ -35,3 +39,17 @@ private fun isMisreportedApiLevelStopReasonCrash(throwable: Throwable?): Boolean
     throwable is NoSuchMethodError &&
         throwable.message?.contains("getStopReason") == true &&
         throwable.message?.contains("JobParameters") == true
+
+// Glance 1.1.1 only routes a click through ActionTrampolineActivity when the clickable sits inside
+// a LazyColumn/LazyVerticalGrid (applyAction() takes the fill-in-intent branch iff
+// TranslationContext.isLazyCollectionDescendant()), and DoableHabitWidget has never used one, so
+// this IllegalArgumentException can't come from a click this app composed. Nothing in this app can
+// prevent the crash; drop the report so it stops re-opening as a new issue (see #432).
+// launchTrampolineAction() has two guards (missing target intent, missing trampoline type) whose
+// messages share this prefix, so the match covers both. ActivityThread wraps activity start
+// failures in a RuntimeException, so the match walks the causes.
+private fun isListAdapterTrampolineCrash(throwable: Throwable?): Boolean =
+    generateSequence(throwable, Throwable::cause).any {
+        it is IllegalArgumentException &&
+            it.message?.contains("List adapter activity trampoline invoked without") == true
+    }
