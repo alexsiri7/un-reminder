@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { TOKEN_PATTERN, hashToken, parseTokenId, tokenKey, verifyToken } from './tokens'
 import tokenFormatFixture from '../../test/fixtures/token-format.txt?raw'
 import {
+  applyCaps,
   createTokenRecord,
   hashToken as mintSideHashToken,
   mintToken,
@@ -68,6 +69,44 @@ describe('minting side (scripts/tokenRecord.mjs) agrees with the verifying side'
     expect(record.hash).toBe(await hashToken(record.salt, TOKEN))
     expect(record).not.toHaveProperty('integrityExempt')
   })
+
+  it('writes a cap override only when one is given', async () => {
+    const plain = await createTokenRecord(TOKEN, 'alex', new Date('2026-09-15T00:00:00Z'))
+    expect(plain).not.toHaveProperty('dailyCapCents')
+    expect(plain).not.toHaveProperty('monthlyCapCents')
+
+    const capped = await createTokenRecord(TOKEN, 'alex', new Date('2026-09-15T00:00:00Z'), { dailyCapCents: 100 })
+    expect(capped.dailyCapCents).toBe(100)
+    expect(capped).not.toHaveProperty('monthlyCapCents')
+  })
+})
+
+describe('applyCaps (the `caps` subcommand)', () => {
+  const capped = () =>
+    createTokenRecord(TOKEN, 'alex', new Date('2026-09-15T00:00:00Z'), {
+      integrityExempt: true,
+      dailyCapCents: 100,
+      monthlyCapCents: 900,
+    })
+
+  it('replaces the overrides rather than merging: an omitted cap is cleared', async () => {
+    const record = applyCaps(await capped(), { dailyCapCents: 50 })
+    expect(record.dailyCapCents).toBe(50)
+    expect(record).not.toHaveProperty('monthlyCapCents')
+  })
+
+  it('clears both overrides when given none', async () => {
+    const record = applyCaps(await capped(), {})
+    expect(record).not.toHaveProperty('dailyCapCents')
+    expect(record).not.toHaveProperty('monthlyCapCents')
+  })
+
+  it('leaves everything but the caps untouched', async () => {
+    const before = await capped()
+    const { dailyCapCents: _daily, monthlyCapCents: _monthly, ...rest } = before
+    expect(applyCaps(before, { monthlyCapCents: 300 })).toEqual({ ...rest, monthlyCapCents: 300 })
+    expect(before).toMatchObject({ dailyCapCents: 100, monthlyCapCents: 900 })
+  })
 })
 
 describe('hashToken', () => {
@@ -98,6 +137,35 @@ describe('verifyToken', () => {
     expect(record.integrityExempt).toBe(true)
     await env.UR_TOKENS.put(tokenKey(ID), JSON.stringify(record))
     expect(await verifyToken(env.UR_TOKENS, TOKEN)).toEqual({ id: ID, label: 'alex-dev', integrityExempt: true })
+  })
+
+  it('reads the cap overrides off the record', async () => {
+    const record = await createTokenRecord(TOKEN, 'alex', new Date('2026-09-15T00:00:00Z'), { dailyCapCents: 100, monthlyCapCents: 900 })
+    await env.UR_TOKENS.put(tokenKey(ID), JSON.stringify(record))
+    expect(await verifyToken(env.UR_TOKENS, TOKEN)).toEqual({
+      id: ID,
+      label: 'alex',
+      integrityExempt: false,
+      dailyCapCents: 100,
+      monthlyCapCents: 900,
+    })
+  })
+
+  it.each([
+    ['a string', '100'],
+    ['zero', 0],
+    ['a fraction', 1.5],
+    ['negative', -5],
+  ])('treats a record whose cap is %s as malformed', async (_name, dailyCapCents) => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const record = await seed(TOKEN, 'alex')
+      await env.UR_TOKENS.put(tokenKey(ID), JSON.stringify({ ...record, dailyCapCents }))
+      expect(await verifyToken(env.UR_TOKENS, TOKEN)).toBeNull()
+      expect(error).toHaveBeenCalledWith('[auth] malformed token record', { id: ID })
+    } finally {
+      error.mockRestore()
+    }
   })
 
   it('treats a record whose exemption is not a boolean as malformed', async () => {

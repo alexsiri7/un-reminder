@@ -7,9 +7,11 @@ import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vite
 import app from '../src/index'
 import { sha256Hex, type TokenPayload } from '../src/lib/integrity'
 import { parseTokenId, tokenKey } from '../src/lib/tokens'
+import { spendKeys } from '../src/lib/spend'
 import { createTokenRecord } from '../scripts/tokenRecord.mjs'
 import { generateTestServiceAccount } from './serviceAccount'
 import { integrityWire } from './integrityWire'
+import { spendWire } from './spendWire'
 
 // A and B are integrity-exempt so the generation tests exercise only the route under test;
 // C is a Play user whose requests must carry a verified integrity token.
@@ -18,10 +20,45 @@ const TOKEN_B = 'ur1_000000000000000b_' + 'b'.repeat(64)
 const TOKEN_C = 'ur1_000000000000000c_' + 'c'.repeat(64)
 const bearer = (token: string) => ({ Authorization: `Bearer ${token}` })
 
-async function seedToken(token: string, label: string, enabled = true, integrityExempt = true) {
-  const record = await createTokenRecord(token, label, new Date('2026-09-15T00:00:00Z'), { integrityExempt })
+async function seedToken(
+  token: string,
+  label: string,
+  enabled = true,
+  integrityExempt = true,
+  caps: { dailyCapCents?: number; monthlyCapCents?: number } = {},
+) {
+  const record = await createTokenRecord(token, label, new Date('2026-09-15T00:00:00Z'), { integrityExempt, ...caps })
   await env.UR_TOKENS.put(tokenKey(parseTokenId(token)!), JSON.stringify({ ...record, enabled }))
 }
+
+/** Today's UR_SPEND daily key: the Worker-wide one, or [token]'s own. */
+const dailySpendKey = (token?: string) => spendKeys(token === undefined ? undefined : parseTokenId(token)!).daily
+
+async function postBatch(e: ReturnType<typeof testEnv>, token: string) {
+  const req = makeRequest('/v1/generate/batch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...bearer(token) },
+    body: validBody(1),
+  })
+  const ctx = createExecutionContext()
+  const res = await app.fetch(req, e, ctx)
+  await waitOnExecutionContext(ctx)
+  return res
+}
+
+async function postHabitFields(e: ReturnType<typeof testEnv>, token: string) {
+  const req = makeRequest('/v1/habit-fields', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...bearer(token) },
+    body: { title: 'Meditate' },
+  })
+  const ctx = createExecutionContext()
+  const res = await app.fetch(req, e, ctx)
+  await waitOnExecutionContext(ctx)
+  return res
+}
+
+type SpendCapBody = { error: string; capType: string; capScope: string }
 
 let saKeyJson: string
 
@@ -101,6 +138,8 @@ function testEnv() {
     UR_MODEL: 'google/gemini-3.6-flash',
     UR_DAILY_CAP_CENTS: '50',
     UR_MONTHLY_CAP_CENTS: '500',
+    UR_USER_DAILY_CAP_CENTS: '20',
+    UR_USER_MONTHLY_CAP_CENTS: '200',
   }
 }
 
@@ -545,8 +584,7 @@ describe('un-reminder-worker', () => {
 
   it('returns 402 when daily KV counter over cap', async () => {
     const e = testEnv()
-    const d = new Date()
-    const dayKey = `day:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+    const dayKey = dailySpendKey()
     await e.UR_SPEND.put(dayKey, '999')
 
     const req = makeRequest('/v1/generate/batch', {
@@ -569,8 +607,7 @@ describe('un-reminder-worker', () => {
 
   it('returns 402 when monthly KV counter over cap', async () => {
     const e = testEnv()
-    const d = new Date()
-    const mKey = `month:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+    const mKey = spendKeys().monthly
     await e.UR_SPEND.put(mKey, '999')
 
     const req = makeRequest('/v1/generate/batch', {
@@ -589,6 +626,100 @@ describe('un-reminder-worker', () => {
     expect(body.error.toLowerCase()).toContain('monthly')
 
     await e.UR_SPEND.delete(mKey)
+  })
+
+  it('returns 402 for the user over their own daily cap while another user still generates', async () => {
+    const e = testEnv()
+    await e.UR_SPEND.put(dailySpendKey(TOKEN_A), '999')
+
+    const resA = await postBatch(e, TOKEN_A)
+    expect(resA.status).toBe(402)
+    expect(await resA.json()).toEqual<SpendCapBody>({
+      error: spendWire.errors.user.daily,
+      capType: spendWire.capTypes.daily,
+      capScope: spendWire.capScopes.user,
+    })
+
+    mockRequestySuccess([{ text: 'Go stretch!', shape: 'TERSE' }])
+    const resB = await postBatch(e, TOKEN_B)
+    expect(resB.status).toBe(200)
+  })
+
+  it('returns 402 for a user under their own cap when the service-wide daily cap is reached', async () => {
+    const e = testEnv()
+    await e.UR_SPEND.put(dailySpendKey(), '999')
+
+    const res = await postBatch(e, TOKEN_A)
+    expect(res.status).toBe(402)
+    expect(await res.json()).toEqual<SpendCapBody>({
+      error: spendWire.errors.global.daily,
+      capType: spendWire.capTypes.daily,
+      capScope: spendWire.capScopes.global,
+    })
+  })
+
+  it('names the user\'s own cap when both it and the service-wide cap are reached', async () => {
+    const e = testEnv()
+    await e.UR_SPEND.put(dailySpendKey(TOKEN_A), '999')
+    await e.UR_SPEND.put(dailySpendKey(), '999')
+
+    const res = await postBatch(e, TOKEN_A)
+    expect(res.status).toBe(402)
+    expect(((await res.json()) as SpendCapBody).capScope).toBe(spendWire.capScopes.user)
+  })
+
+  it('lets a token with a raised cap override past the per-user default', async () => {
+    const e = testEnv()
+    await seedToken(TOKEN_A, 'alex', true, true, { dailyCapCents: 40 })
+    // Over the 20-cent default, under A's 40-cent override and the 50-cent service cap
+    await e.UR_SPEND.put(dailySpendKey(TOKEN_A), '0.30')
+    await e.UR_SPEND.put(dailySpendKey(TOKEN_B), '0.30')
+
+    mockRequestySuccess([{ text: 'Go stretch!', shape: 'TERSE' }])
+    expect((await postBatch(e, TOKEN_A)).status).toBe(200)
+
+    const resB = await postBatch(e, TOKEN_B)
+    expect(resB.status).toBe(402)
+    expect(await resB.json()).toMatchObject({ capType: spendWire.capTypes.daily, capScope: spendWire.capScopes.user })
+  })
+
+  it('attributes a batch\'s spend to the caller\'s counter and the service-wide one', async () => {
+    const e = testEnv()
+    mockRequestySuccess([{ text: 'Go stretch!', shape: 'TERSE' }])
+    expect((await postBatch(e, TOKEN_A)).status).toBe(200)
+
+    expect(Number(await e.UR_SPEND.get(dailySpendKey(TOKEN_A)))).toBeGreaterThan(0)
+    expect(Number(await e.UR_SPEND.get(dailySpendKey()))).toBeGreaterThan(0)
+    expect(await e.UR_SPEND.get(dailySpendKey(TOKEN_B))).toBeNull()
+  })
+
+  it('returns 503 without calling upstream when a per-user cap env var is malformed', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const res = await postBatch({ ...testEnv(), UR_USER_DAILY_CAP_CENTS: 'abc' }, TOKEN_A)
+      expect(res.status).toBe(503)
+      expect(fetchCallIndex).toBe(0)
+    } finally {
+      error.mockRestore()
+    }
+  })
+
+  it('lets the request through when the spend counters cannot be read', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const downKV = {
+        get: async () => {
+          throw new Error('kv down')
+        },
+        put: async () => {},
+      } as unknown as KVNamespace
+      mockRequestySuccess([{ text: 'Go stretch!', shape: 'TERSE' }])
+      const res = await postBatch({ ...testEnv(), UR_SPEND: downKV }, TOKEN_A)
+      expect(res.status).toBe(200)
+      expect(error).toHaveBeenCalledWith('[spendGate] KV read failed, allowing request through:', expect.any(Error))
+    } finally {
+      error.mockRestore()
+    }
   })
 
   // ---- Success test ----
@@ -1065,8 +1196,7 @@ describe('un-reminder-worker', () => {
     await waitOnExecutionContext(ctx)
     expect(res.status).toBe(200)
 
-    const d = new Date()
-    const dayKey = `day:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+    const dayKey = dailySpendKey()
     const dailySpend = await e.UR_SPEND.get(dayKey)
     expect(Number(dailySpend)).toBeGreaterThan(0)
   })
@@ -1120,8 +1250,7 @@ describe('un-reminder-worker', () => {
 
   it('returns 402 on /v1/habit-fields when daily cap exceeded', async () => {
     const e = testEnv()
-    const d = new Date()
-    const dayKey = `day:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+    const dayKey = dailySpendKey()
     await e.UR_SPEND.put(dayKey, '999')
 
     const req = makeRequest('/v1/habit-fields', {
@@ -1141,8 +1270,7 @@ describe('un-reminder-worker', () => {
 
   it('returns 402 on /v1/habit-fields when monthly cap exceeded', async () => {
     const e = testEnv()
-    const d = new Date()
-    const mKey = `month:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+    const mKey = spendKeys().monthly
     await e.UR_SPEND.put(mKey, '999')
 
     const req = makeRequest('/v1/habit-fields', {
@@ -1286,10 +1414,28 @@ describe('un-reminder-worker', () => {
     await waitOnExecutionContext(ctx)
     expect(res.status).toBe(200)
 
-    const d = new Date()
-    const dayKey = `day:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+    const dayKey = dailySpendKey()
     const dailySpend = await e.UR_SPEND.get(dayKey)
     expect(Number(dailySpend)).toBeGreaterThan(0)
+  })
+
+  it('attributes /v1/habit-fields spend to the caller\'s counter and the service-wide one', async () => {
+    const e = testEnv()
+    mockRequestySuccess({ descriptionLadder: Array(6).fill('A description.') })
+    expect((await postHabitFields(e, TOKEN_A)).status).toBe(200)
+
+    expect(Number(await e.UR_SPEND.get(dailySpendKey(TOKEN_A)))).toBeGreaterThan(0)
+    expect(Number(await e.UR_SPEND.get(dailySpendKey()))).toBeGreaterThan(0)
+    expect(await e.UR_SPEND.get(dailySpendKey(TOKEN_B))).toBeNull()
+  })
+
+  it('returns 402 on /v1/habit-fields for the user over their own daily cap', async () => {
+    const e = testEnv()
+    await e.UR_SPEND.put(dailySpendKey(TOKEN_A), '999')
+
+    const res = await postHabitFields(e, TOKEN_A)
+    expect(res.status).toBe(402)
+    expect(await res.json()).toMatchObject({ capType: spendWire.capTypes.daily, capScope: spendWire.capScopes.user })
   })
 
   it('returns 502 on /v1/habit-fields when upstream throws on both attempts', async () => {

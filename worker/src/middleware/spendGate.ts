@@ -1,41 +1,59 @@
 import type { MiddlewareHandler } from 'hono'
-import type { AppEnv } from '../types'
+import { SPEND_CAP_ERRORS, type AppEnv, type SpendCapResponse, type SpendCapScope, type SpendCapType } from '../types'
 import { getSpend } from '../lib/spend'
 
 export const spendGate: MiddlewareHandler<AppEnv> = async (c, next) => {
-  const capDailyCents = parseInt(c.env.UR_DAILY_CAP_CENTS, 10)
-  const capMonthlyCents = parseInt(c.env.UR_MONTHLY_CAP_CENTS, 10)
+  const capEnv = {
+    UR_DAILY_CAP_CENTS: c.env.UR_DAILY_CAP_CENTS,
+    UR_MONTHLY_CAP_CENTS: c.env.UR_MONTHLY_CAP_CENTS,
+    UR_USER_DAILY_CAP_CENTS: c.env.UR_USER_DAILY_CAP_CENTS,
+    UR_USER_MONTHLY_CAP_CENTS: c.env.UR_USER_MONTHLY_CAP_CENTS,
+  }
+  const globalDailyCents = parseInt(capEnv.UR_DAILY_CAP_CENTS, 10)
+  const globalMonthlyCents = parseInt(capEnv.UR_MONTHLY_CAP_CENTS, 10)
+  const userDailyEnvCents = parseInt(capEnv.UR_USER_DAILY_CAP_CENTS, 10)
+  const userMonthlyEnvCents = parseInt(capEnv.UR_USER_MONTHLY_CAP_CENTS, 10)
 
   // Fail closed: if env vars are missing or malformed, block all requests rather
   // than silently allowing unlimited spend.
-  if (isNaN(capDailyCents) || isNaN(capMonthlyCents)) {
-    console.error('[spendGate] Spend cap env vars missing or invalid — blocking request as fail-safe', {
-      UR_DAILY_CAP_CENTS: c.env.UR_DAILY_CAP_CENTS,
-      UR_MONTHLY_CAP_CENTS: c.env.UR_MONTHLY_CAP_CENTS,
-    })
+  if ([globalDailyCents, globalMonthlyCents, userDailyEnvCents, userMonthlyEnvCents].some(isNaN)) {
+    console.error('[spendGate] Spend cap env vars missing or invalid — blocking request as fail-safe', capEnv)
     return c.json({ error: 'Service misconfigured' }, 503)
   }
 
-  // Convert caps from cents to dollars for comparison with KV values (stored as dollars)
-  const capDaily = capDailyCents / 100
-  const capMonthly = capMonthlyCents / 100
+  const { id, label, dailyCapCents, monthlyCapCents } = c.get('tokenIdentity')
 
-  let spend = { daily: 0, monthly: 0 }
+  // Caps are configured in cents; KV counters hold dollars
+  const caps = {
+    user: { daily: (dailyCapCents ?? userDailyEnvCents) / 100, monthly: (monthlyCapCents ?? userMonthlyEnvCents) / 100 },
+    global: { daily: globalDailyCents / 100, monthly: globalMonthlyCents / 100 },
+  }
+
+  let spend
   try {
-    spend = await getSpend(c.env.UR_SPEND)
+    const [user, global] = await Promise.all([getSpend(c.env.UR_SPEND, id), getSpend(c.env.UR_SPEND)])
+    spend = { user, global }
   } catch (err) {
     // Fail open on KV error — soft cap is a best-effort guardrail per PRD.
     // Log so the issue is detectable, but don't block requests during a KV blip.
+    // A caller cannot induce this path: the keys read are built from the UTC date and a token
+    // id that auth already matched against a stored record, never from request bytes.
     console.error('[spendGate] KV read failed, allowing request through:', err)
     await next()
     return
   }
 
-  if (spend.daily >= capDaily) {
-    return c.json({ error: 'Daily spend cap reached', capType: 'daily' }, 402)
+  const reject = (capScope: SpendCapScope, capType: SpendCapType) => {
+    console.warn('[spendGate] cap reached', { id, label, capScope, capType })
+    const body: SpendCapResponse = { error: SPEND_CAP_ERRORS[capScope][capType], capType, capScope }
+    return c.json(body, 402)
   }
-  if (spend.monthly >= capMonthly) {
-    return c.json({ error: 'Monthly spend cap reached', capType: 'monthly' }, 402)
-  }
+
+  // A user over both their own cap and the service's hears that it is theirs: retrying once
+  // the service recovers would only run them into their own cap again.
+  if (spend.user.daily >= caps.user.daily) return reject('user', 'daily')
+  if (spend.user.monthly >= caps.user.monthly) return reject('user', 'monthly')
+  if (spend.global.daily >= caps.global.daily) return reject('global', 'daily')
+  if (spend.global.monthly >= caps.global.monthly) return reject('global', 'monthly')
   await next()
 }

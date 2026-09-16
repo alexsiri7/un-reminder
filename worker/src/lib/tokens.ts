@@ -17,12 +17,17 @@ export interface TokenRecord {
   enabled: boolean
   /** Skips the Play Integrity gate; minted for debug builds, absent on every other record. */
   integrityExempt?: boolean
+  /** Spend caps in cents, positive integers; absent ⇒ UR_USER_DAILY_CAP_CENTS / UR_USER_MONTHLY_CAP_CENTS. */
+  dailyCapCents?: number
+  monthlyCapCents?: number
 }
 
 export interface TokenIdentity {
   id: string
   label: string
   integrityExempt: boolean
+  dailyCapCents?: number
+  monthlyCapCents?: number
 }
 
 export function tokenKey(id: string): string {
@@ -39,6 +44,8 @@ export async function hashToken(salt: string, token: string): Promise<string> {
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('')
 }
 
+const isCapCents = (value: unknown) => value === undefined || (typeof value === 'number' && Number.isInteger(value) && value > 0)
+
 function isTokenRecord(value: unknown): value is TokenRecord {
   if (typeof value !== 'object' || value === null) return false
   const record = value as Record<string, unknown>
@@ -48,7 +55,9 @@ function isTokenRecord(value: unknown): value is TokenRecord {
     typeof record.label === 'string' &&
     typeof record.createdAt === 'string' &&
     typeof record.enabled === 'boolean' &&
-    (record.integrityExempt === undefined || typeof record.integrityExempt === 'boolean')
+    (record.integrityExempt === undefined || typeof record.integrityExempt === 'boolean') &&
+    isCapCents(record.dailyCapCents) &&
+    isCapCents(record.monthlyCapCents)
   )
 }
 
@@ -70,5 +79,11 @@ export async function verifyToken(kv: Pick<KVNamespace, 'get'>, token: string): 
     console.warn('[auth] disabled token', { id, label: record.label })
     return null
   }
-  return { id, label: record.label, integrityExempt: record.integrityExempt === true }
+  return {
+    id,
+    label: record.label,
+    integrityExempt: record.integrityExempt === true,
+    ...(record.dailyCapCents !== undefined && { dailyCapCents: record.dailyCapCents }),
+    ...(record.monthlyCapCents !== undefined && { monthlyCapCents: record.monthlyCapCents }),
+  }
 }
