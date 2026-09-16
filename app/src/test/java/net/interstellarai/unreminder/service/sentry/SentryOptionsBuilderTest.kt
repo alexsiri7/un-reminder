@@ -71,6 +71,43 @@ class SentryOptionsBuilderTest {
         assertEquals(event, buildOptions().beforeSend!!.execute(event, Hint()))
     }
 
+    private val trampolineMessage =
+        "List adapter activity trampoline invoked without specifying target intent."
+
+    private val activityStartFailure =
+        "Unable to start activity ComponentInfo{net.interstellarai.unreminder/" +
+            "androidx.glance.appwidget.action.ActionTrampolineActivity}: " +
+            "java.lang.IllegalArgumentException: $trampolineMessage"
+
+    @Test fun `beforeSend drops the Glance list adapter trampoline crash as ActivityThread reports it`() {
+        val event = SentryEvent(
+            RuntimeException(activityStartFailure, IllegalArgumentException(trampolineMessage))
+        )
+        assertNull(buildOptions().beforeSend!!.execute(event, Hint()))
+    }
+
+    @Test fun `beforeSend drops the Glance list adapter trampoline IllegalArgumentException itself`() {
+        val event = SentryEvent(IllegalArgumentException(trampolineMessage))
+        assertNull(buildOptions().beforeSend!!.execute(event, Hint()))
+    }
+
+    @Test fun `beforeSend keeps an unrelated IllegalArgumentException`() {
+        val event = SentryEvent(IllegalArgumentException("Receiver not registered: null"))
+        assertEquals(event, buildOptions().beforeSend!!.execute(event, Hint()))
+    }
+
+    @Test fun `beforeSend keeps the trampoline message on another exception type`() {
+        val event = SentryEvent(RuntimeException(trampolineMessage))
+        assertEquals(event, buildOptions().beforeSend!!.execute(event, Hint()))
+    }
+
+    @Test fun `beforeSend keeps an activity start failure whose cause is not the trampoline IllegalArgumentException`() {
+        val event = SentryEvent(
+            RuntimeException(activityStartFailure, RuntimeException(trampolineMessage))
+        )
+        assertEquals(event, buildOptions().beforeSend!!.execute(event, Hint()))
+    }
+
     @Test fun `beforeSend keeps unrelated exceptions`() {
         val event = SentryEvent(RuntimeException("boom"))
         assertEquals(event, buildOptions().beforeSend!!.execute(event, Hint()))
