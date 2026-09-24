@@ -3,8 +3,9 @@ import { timingSafeEqual } from './timing'
 /**
  * `ur1_<id>_<secret>`: a 64-bit hex id the record is looked up by, then a 256-bit hex secret
  * that exists in plaintext only on the user's device. Mirrors `WorkerToken.PATTERN` in
- * app/src/main/java/net/interstellarai/unreminder/service/worker/WorkerToken.kt and the minting
- * side in scripts/tokenRecord.mjs — keep the three in sync.
+ * app/src/main/java/net/interstellarai/unreminder/service/worker/WorkerToken.kt and
+ * scripts/tokenRecord.mjs, which mints for `npm run tokens` as `mintToken` here mints for
+ * self-registration — keep them in sync.
  */
 export const TOKEN_PATTERN = /^ur1_([0-9a-f]{16})_[0-9a-f]{64}$/
 
@@ -38,10 +39,24 @@ export function parseTokenId(token: string): string | null {
   return TOKEN_PATTERN.exec(token)?.[1] ?? null
 }
 
+const hex = (bytes: Uint8Array) => Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+const randomHex = (byteLength: number) => hex(crypto.getRandomValues(new Uint8Array(byteLength)))
+
 /** Hex SHA-256 of `salt + token`; scripts/tokenRecord.mjs writes records with the same formula. */
 export async function hashToken(salt: string, token: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(salt + token))
-  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('')
+  return hex(new Uint8Array(digest))
+}
+
+export function mintToken(): { id: string; token: string } {
+  const id = randomHex(8)
+  return { id, token: `ur1_${id}_${randomHex(32)}` }
+}
+
+/** A record on the default caps and behind the integrity gate, as every self-registered token is. */
+export async function createTokenRecord(token: string, label: string, now: Date): Promise<TokenRecord> {
+  const salt = randomHex(16)
+  return { hash: await hashToken(salt, token), salt, label, createdAt: now.toISOString(), enabled: true }
 }
 
 const isCapCents = (value: unknown) => value === undefined || (typeof value === 'number' && Number.isInteger(value) && value > 0)

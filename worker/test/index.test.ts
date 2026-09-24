@@ -8,10 +8,13 @@ import app from '../src/index'
 import { sha256Hex, type TokenPayload } from '../src/lib/integrity'
 import { parseTokenId, tokenKey } from '../src/lib/tokens'
 import { spendKeys } from '../src/lib/spend'
+import { registrationsKey } from '../src/lib/registrations'
+import { REGISTRATION_CAP_ERROR } from '../src/types'
 import { createTokenRecord } from '../scripts/tokenRecord.mjs'
 import { generateTestServiceAccount } from './serviceAccount'
 import { integrityWire } from './integrityWire'
 import { spendWire } from './spendWire'
+import { registerWire } from './registerWire'
 
 // A and B are integrity-exempt so the generation tests exercise only the route under test;
 // C is a Play user whose requests must carry a verified integrity token.
@@ -57,6 +60,22 @@ async function postHabitFields(e: ReturnType<typeof testEnv>, token: string) {
   await waitOnExecutionContext(ctx)
   return res
 }
+
+async function postRegister(e: ReturnType<typeof testEnv>, body: unknown, integrityToken?: string) {
+  const req = makeRequest(registerWire.path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(integrityToken && { [integrityWire.header]: integrityToken }) },
+    body,
+  })
+  const ctx = createExecutionContext()
+  const res = await app.fetch(req, e, ctx)
+  await waitOnExecutionContext(ctx)
+  return res
+}
+
+const tokenCount = async () => (await env.UR_TOKENS.list()).keys.length
+
+const registerBody = (deviceLabel: unknown = 'Pixel 8') => ({ [registerWire.deviceLabelField]: deviceLabel })
 
 type SpendCapBody = { error: string; capType: string; capScope: string }
 
@@ -140,6 +159,7 @@ function testEnv() {
     UR_MONTHLY_CAP_CENTS: '500',
     UR_USER_DAILY_CAP_CENTS: '20',
     UR_USER_MONTHLY_CAP_CENTS: '200',
+    UR_MAX_REGISTRATIONS_PER_DAY: '20',
   }
 }
 
@@ -1468,5 +1488,183 @@ describe('un-reminder-worker', () => {
     expect(res.status).toBe(200)
     const body = (await res.json()) as { descriptionLadder: string[] }
     expect(body.descriptionLadder).toHaveLength(6)
+  })
+
+  // ---- Self-registration ----
+
+  describe('POST /v1/register', () => {
+    let warn: ReturnType<typeof vi.spyOn>
+    let log: ReturnType<typeof vi.spyOn>
+    let error: ReturnType<typeof vi.spyOn>
+
+    beforeEach(() => {
+      warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      log = vi.spyOn(console, 'log').mockImplementation(() => {})
+      error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    })
+
+    afterEach(() => {
+      warn.mockRestore()
+      log.mockRestore()
+      error.mockRestore()
+    })
+
+    it('mints a token for a Play-verified install that then authenticates a generation call', async () => {
+      const body = registerBody()
+      await mockIntegrityDecode(body)
+      const res = await postRegister(testEnv(), body, 'play-token')
+      expect(res.status).toBe(200)
+      const { token, id } = (await res.json()) as { token: string; id: string }
+      expect(parseTokenId(token)).toBe(id)
+
+      const stored = JSON.parse((await env.UR_TOKENS.get(tokenKey(id)))!)
+      expect(stored).toMatchObject({ label: 'self:Pixel 8', enabled: true })
+      expect(stored).not.toHaveProperty('integrityExempt')
+      expect(stored).not.toHaveProperty('dailyCapCents')
+      expect(stored).not.toHaveProperty('monthlyCapCents')
+      expect(JSON.stringify(stored)).not.toContain(token.slice(-64))
+      expect(await env.UR_SPEND.get(registrationsKey())).toBe('1')
+
+      const batch = validBody(1)
+      await mockIntegrityDecode(batch)
+      mockRequestySuccess([{ text: 'Stretch!', shape: 'TERSE' }])
+      const req = makeRequest('/v1/generate/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...bearer(token), [integrityWire.header]: 'play-token-2' },
+        body: batch,
+      })
+      const ctx = createExecutionContext()
+      const generated = await app.fetch(req, testEnv(), ctx)
+      await waitOnExecutionContext(ctx)
+      expect(generated.status).toBe(200)
+      expect(log).toHaveBeenCalledWith('[integrity] verified', { id, label: 'self:Pixel 8', device: ['MEETS_DEVICE_INTEGRITY'] })
+    })
+
+    it('sanitises and caps the device label', async () => {
+      const body = registerBody(`  Pixel\n​8 ${'x'.repeat(60)}`)
+      await mockIntegrityDecode(body)
+      const res = await postRegister(testEnv(), body, 'play-token')
+      const { id } = (await res.json()) as { id: string }
+      const stored = JSON.parse((await env.UR_TOKENS.get(tokenKey(id)))!)
+      expect(stored.label).toBe(`self:Pixel 8 ${'x'.repeat(32)}`)
+    })
+
+    it('returns 403 missing without calling Google or minting', async () => {
+      const before = await tokenCount()
+      const res = await postRegister(testEnv(), registerBody())
+      expect(res.status).toBe(403)
+      expect(await res.json()).toEqual({ error: integrityWire.rejectedError, reason: 'missing' })
+      expect(fetchCallIndex).toBe(0)
+      expect(await tokenCount()).toBe(before)
+    })
+
+    it('returns 403 invalid when Google rejects the token itself', async () => {
+      enqueueResponse(200, JSON.stringify({ access_token: 'ya29.test' }))
+      enqueueResponse(400, JSON.stringify({ error: { message: 'Integrity token cannot be decoded' } }))
+      const res = await postRegister(testEnv(), registerBody(), 'garbage')
+      expect(res.status).toBe(403)
+      expect(await res.json()).toEqual({ error: integrityWire.rejectedError, reason: 'invalid' })
+    })
+
+    it('returns 403 stale for a token issued more than ten minutes ago and mints nothing', async () => {
+      const before = await tokenCount()
+      const body = registerBody()
+      const requestHash = await sha256Hex(JSON.stringify(body))
+      await mockIntegrityDecode(body, { requestDetails: { requestHash, timestampMillis: String(Date.now() - 11 * 60 * 1000) } })
+      const res = await postRegister(testEnv(), body, 'play-token')
+      expect(res.status).toBe(403)
+      expect(await res.json()).toEqual({ error: integrityWire.rejectedError, reason: 'stale' })
+      expect(await tokenCount()).toBe(before)
+    })
+
+    it.each<[string, Partial<TokenPayload>, string]>([
+      ['an unrecognised build', { appIntegrity: { appRecognitionVerdict: 'UNRECOGNIZED_VERSION' } }, 'unrecognized-app'],
+      ['an unlicensed install', { accountDetails: { appLicensingVerdict: 'UNLICENSED' } }, 'unlicensed'],
+    ])('returns 403 for %s and mints nothing', async (_name, overrides, reason) => {
+      const before = await tokenCount()
+      const body = registerBody()
+      await mockIntegrityDecode(body, overrides)
+      const res = await postRegister(testEnv(), body, 'play-token')
+      expect(res.status).toBe(403)
+      expect(await res.json()).toEqual({ error: integrityWire.rejectedError, reason })
+      expect(await tokenCount()).toBe(before)
+      expect(await env.UR_SPEND.get(registrationsKey())).toBeNull()
+    })
+
+    it('returns 403 hash-mismatch for a token bound to another body', async () => {
+      await mockIntegrityDecode(validBody(1))
+      const res = await postRegister(testEnv(), registerBody(), 'play-token')
+      expect(res.status).toBe(403)
+      expect(await res.json()).toEqual({ error: integrityWire.rejectedError, reason: 'hash-mismatch' })
+    })
+
+    it.each([[429], [503]])('returns 503 and mints nothing when Google answers %s', async (status) => {
+      const before = await tokenCount()
+      enqueueResponse(200, JSON.stringify({ access_token: 'ya29.test' }))
+      enqueueResponse(status, 'quota or outage')
+      const res = await postRegister(testEnv(), registerBody(), 'play-token')
+      expect(res.status).toBe(503)
+      expect(await res.json()).toEqual({ error: 'Integrity check unavailable' })
+      expect(await tokenCount()).toBe(before)
+    })
+
+    it('returns 503 without any outbound call when the service-account secret is unset', async () => {
+      const res = await postRegister({ ...testEnv(), UR_PLAY_INTEGRITY_SA_KEY: undefined }, registerBody(), 'play-token')
+      expect(res.status).toBe(503)
+      expect(await res.json()).toEqual({ error: 'Service misconfigured' })
+      expect(fetchCallIndex).toBe(0)
+    })
+
+    it('returns 429 with its own error once the day\'s registrations are used up, before any decode', async () => {
+      await env.UR_SPEND.put(registrationsKey(), '20')
+      const res = await postRegister(testEnv(), registerBody(), 'play-token')
+      expect(res.status).toBe(429)
+      expect(await res.json()).toEqual({ error: registerWire.capError })
+      expect(REGISTRATION_CAP_ERROR).toBe(registerWire.capError)
+      expect(fetchCallIndex).toBe(0)
+    })
+
+    it('counts registrations towards UR_MAX_REGISTRATIONS_PER_DAY', async () => {
+      const e = { ...testEnv(), UR_MAX_REGISTRATIONS_PER_DAY: '1' }
+      await mockIntegrityDecode(registerBody('first'))
+      expect((await postRegister(e, registerBody('first'), 'play-token')).status).toBe(200)
+      const res = await postRegister(e, registerBody('second'), 'play-token')
+      expect(res.status).toBe(429)
+      expect(fetchCallIndex).toBe(2)
+    })
+
+    it('fails closed when the registration counter cannot be read', async () => {
+      const get = vi.spyOn(env.UR_SPEND, 'get').mockRejectedValue(new Error('kv down'))
+      try {
+        const res = await postRegister(testEnv(), registerBody(), 'play-token')
+        expect(res.status).toBe(503)
+        expect(fetchCallIndex).toBe(0)
+      } finally {
+        get.mockRestore()
+      }
+    })
+
+    it('returns 503 when UR_MAX_REGISTRATIONS_PER_DAY is not a number', async () => {
+      const res = await postRegister({ ...testEnv(), UR_MAX_REGISTRATIONS_PER_DAY: 'lots' }, registerBody(), 'play-token')
+      expect(res.status).toBe(503)
+      expect(await res.json()).toEqual({ error: 'Service misconfigured' })
+    })
+
+    it.each<[string, unknown]>([
+      ['no deviceLabel', {}],
+      ['a non-string deviceLabel', { deviceLabel: 42 }],
+      ['a deviceLabel of only whitespace and control characters', { deviceLabel: ' \n\u0000 ' }],
+      ['a JSON array', ['Pixel 8']],
+    ])('returns 400 for %s without calling Google', async (_name, body) => {
+      const res = await postRegister(testEnv(), body, 'play-token')
+      expect(res.status).toBe(400)
+      expect(fetchCallIndex).toBe(0)
+    })
+
+    it('needs no bearer token but sits behind REQUEST_LIMITER', async () => {
+      const res = await postRegister({ ...testEnv(), REQUEST_LIMITER: { limit: async () => ({ success: false }) } as RateLimit }, registerBody(), 'play-token')
+      expect(res.status).toBe(429)
+      expect(await res.json()).toEqual({ error: 'Rate limit exceeded' })
+    })
   })
 })

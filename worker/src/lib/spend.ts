@@ -1,4 +1,4 @@
-function utcDay(d: Date): string {
+export function utcDay(d: Date): string {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
 }
 
@@ -17,7 +17,7 @@ export function spendKeys(tokenId?: string): { daily: string; monthly: string } 
   return { daily: `${prefix}day:${utcDay(d)}`, monthly: `${prefix}month:${utcMonth(d)}` }
 }
 
-function secondsUntilMidnightUTC(): number {
+export function secondsUntilMidnightUTC(): number {
   const now = new Date()
   const midnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1))
   return Math.max(60, Math.floor((midnight.getTime() - now.getTime()) / 1000))

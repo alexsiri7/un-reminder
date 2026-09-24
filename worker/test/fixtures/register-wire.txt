@@ -1,0 +1,7 @@
+# Wire-format literals of POST /v1/register that the Worker (worker/src/routes/register.ts,
+# worker/src/types.ts) and the app's self-registration (#437) must agree on byte for byte;
+# worker/test/index.test.ts asserts against it and the app will read the same file.
+# One entry per line: the key, a tab, then the value verbatim.
+path	/v1/register
+device-label-field	deviceLabel
+cap-error	Daily registration limit reached

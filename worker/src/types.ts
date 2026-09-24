@@ -21,6 +21,8 @@ export interface Env {
   UR_USER_MONTHLY_CAP_CENTS: string
   UR_MODEL: string
   UR_GENERATION_VERSION: string
+  // Service-wide ceiling on tokens minted by POST /v1/register per UTC day
+  UR_MAX_REGISTRATIONS_PER_DAY: string
 }
 
 /** Hono env of the routes behind authMiddleware, which publishes the caller's identity. */
@@ -91,6 +93,18 @@ export const SPEND_CAP_ERRORS: Record<SpendCapScope, Record<SpendCapType, string
   user: { daily: 'Daily spend cap reached', monthly: 'Monthly spend cap reached' },
   global: { daily: 'Service daily spend cap reached', monthly: 'Service monthly spend cap reached' },
 }
+
+/** Body of a 200 from POST /v1/register; the only time the plaintext token leaves the Worker. */
+export interface RegisterResponse {
+  token: string
+  id: string
+}
+
+/**
+ * `error` of the 429 POST /v1/register sends once the day's registrations are used up, distinct
+ * from REQUEST_LIMITER's "Rate limit exceeded"; test/fixtures/register-wire.txt pins it for the app.
+ */
+export const REGISTRATION_CAP_ERROR = 'Daily registration limit reached'
 
 export interface HealthResponse {
   status: 'ok'
