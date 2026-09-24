@@ -177,6 +177,6 @@ internal fun deviceLabel(manufacturer: String?, model: String?): String {
 }
 
 private val CONTROL_CHARS = Regex("[\\p{Cc}\\p{Cf}]")
-// Not "(?U)\\s+": Android's Pattern rejects the UNICODE_CHARACTER_CLASS flag outright, and \p{Z}
+// Not "(?U)\\s+": Android's regex engine rejects (?U) and throws. \p{Z}
 // gives the JVM (unit tests) the Unicode spaces ICU's \s already matches on devices.
 private val WHITESPACE_RUN = Regex("[\\s\\p{Z}]+")
