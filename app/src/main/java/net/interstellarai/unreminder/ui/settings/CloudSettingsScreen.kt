@@ -22,7 +22,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -87,21 +90,9 @@ fun CloudSettingsScreen(
                 modifier = Modifier.padding(horizontal = Dimens.xxl),
             ) {
                 Text(
-                    uiState.tokenId?.let { "token: $it" } ?: "no token — ask Alex for one",
+                    tokenStatus(uiState.tokenId, uiState.deviceLabel),
                     style = MonoLabel,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
-                )
-                Spacer(Modifier.height(Dimens.sm))
-                OutlinedTextField(
-                    value = uiState.tokenInput,
-                    onValueChange = viewModel::setTokenInput,
-                    label = { Text("paste token", style = MonoLabel) },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    isError = uiState.tokenInputError != null,
-                    supportingText = uiState.tokenInputError?.let { { Text(it) } },
-                    modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(Dimens.sm))
                 Box(
@@ -113,15 +104,15 @@ fun CloudSettingsScreen(
                             MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f),
                             UnReminderShapes.small,
                         )
-                        .clickable(enabled = uiState.tokenInput.isNotBlank()) { viewModel.saveToken() }
+                        .clickable(enabled = !uiState.registering) { viewModel.reregister() }
                         .padding(vertical = Dimens.md + 2.dp),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        "save token",
+                        if (uiState.registering) "registering…" else "re-register",
                         style = SansBody,
                         color = MaterialTheme.colorScheme.onBackground.copy(
-                            alpha = if (uiState.tokenInput.isNotBlank()) 1f else 0.6f,
+                            alpha = if (uiState.registering) 0.6f else 1f,
                         ),
                     )
                 }
@@ -138,6 +129,53 @@ fun CloudSettingsScreen(
                         style = SansBody,
                         color = MaterialTheme.colorScheme.onBackground,
                     )
+                }
+                Spacer(Modifier.height(Dimens.lg))
+                var advancedOpen by rememberSaveable { mutableStateOf(false) }
+                Text(
+                    if (advancedOpen) "advanced ▾" else "advanced ▸",
+                    style = MonoLabel,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { advancedOpen = !advancedOpen }
+                        .padding(vertical = Dimens.xs),
+                )
+                if (advancedOpen) {
+                    Spacer(Modifier.height(Dimens.sm))
+                    OutlinedTextField(
+                        value = uiState.tokenInput,
+                        onValueChange = viewModel::setTokenInput,
+                        label = { Text("paste token", style = MonoLabel) },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        isError = uiState.tokenInputError != null,
+                        supportingText = uiState.tokenInputError?.let { { Text(it) } },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(Dimens.sm))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color.Transparent, UnReminderShapes.small)
+                            .border(
+                                1.5.dp,
+                                MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f),
+                                UnReminderShapes.small,
+                            )
+                            .clickable(enabled = uiState.tokenInput.isNotBlank()) { viewModel.saveToken() }
+                            .padding(vertical = Dimens.md + 2.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            "save token",
+                            style = SansBody,
+                            color = MaterialTheme.colorScheme.onBackground.copy(
+                                alpha = if (uiState.tokenInput.isNotBlank()) 1f else 0.6f,
+                            ),
+                        )
+                    }
                 }
                 Spacer(Modifier.height(Dimens.xxl))
                 Box(
@@ -189,6 +227,12 @@ fun CloudSettingsScreen(
     }
 }
 
+internal fun tokenStatus(tokenId: String?, deviceLabel: String?): String = when {
+    tokenId == null -> "no token yet — tap re-register"
+    deviceLabel != null -> "registered as $tokenId on $deviceLabel"
+    else -> "token: $tokenId"
+}
+
 internal fun regeneratingLabel(progress: RegenerationProgress): String {
     val settled = progress.done + progress.failed
     val failed = if (progress.failed > 0) " (${progress.failed} failed)" else ""
@@ -197,7 +241,7 @@ internal fun regeneratingLabel(progress: RegenerationProgress): String {
 
 internal fun failureMessage(failure: GenerationFailure): String = when (failure.kind) {
     GenerationFailure.Kind.TOKEN_REJECTED ->
-        "token rejected — paste a new one above, or ask Alex for one"
+        "token rejected — tap re-register, or paste a new one under advanced"
     GenerationFailure.Kind.SPEND_CAP_USER -> when (failure.capType) {
         SpendCapType.DAILY -> "your generation budget for today is spent — it resets tomorrow"
         SpendCapType.MONTHLY -> "your generation budget for this month is spent — it resets next month"
@@ -210,6 +254,12 @@ internal fun failureMessage(failure: GenerationFailure): String = when (failure.
     }
     GenerationFailure.Kind.SERVICE_UNAVAILABLE ->
         "the service could not be reached — the app will try again on its own"
+    GenerationFailure.Kind.INTEGRITY_UNAVAILABLE ->
+        "this device can't prove it's a Play install — install from Play, or paste a token under advanced"
+    GenerationFailure.Kind.REGISTRATION_REJECTED ->
+        "Play didn't verify this install — install from Play, or paste a token under advanced"
+    GenerationFailure.Kind.REGISTRATION_CAP ->
+        "too many new installs today — the app will try again later"
 }
 
 private val FAILURE_TIME = DateTimeFormatter.ofPattern("MMM d · HH:mm")

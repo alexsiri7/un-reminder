@@ -14,11 +14,9 @@ import io.mockk.verify
 import io.sentry.ScopeCallback
 import io.sentry.Sentry
 import io.sentry.protocol.SentryId
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.data.repository.VariationRepository
-import net.interstellarai.unreminder.data.repository.WorkerTokenRepository
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -29,9 +27,8 @@ class GenerationVersionWorkerTest {
 
     private val mockContext: Context = mockk(relaxed = true)
     private val mockWorkerParams: WorkerParameters = mockk(relaxed = true)
-    private val token = MutableStateFlow("ur1_0123456789abcdef_" + "f".repeat(64))
-    private val mockWorkerTokenRepository: WorkerTokenRepository = mockk {
-        every { token } returns this@GenerationVersionWorkerTest.token
+    private val mockWorkerRegistrar: WorkerRegistrar = mockk {
+        coEvery { ensureToken(any()) } returns "ur1_0123456789abcdef_" + "f".repeat(64)
     }
     private val mockProxyClient: RequestyProxyClient = mockk()
     private val mockVariationRepository: VariationRepository = mockk()
@@ -43,7 +40,7 @@ class GenerationVersionWorkerTest {
         mockContext,
         mockWorkerParams,
         workerUrl,
-        mockWorkerTokenRepository,
+        mockWorkerRegistrar,
         mockProxyClient,
         mockVariationRepository,
         mockRefillScheduler,
@@ -68,19 +65,31 @@ class GenerationVersionWorkerTest {
     fun `does nothing when the build has no worker URL`() = runTest {
         assertEquals(Result.success(), createWorker(workerUrl = "").doWork())
 
+        coVerify(exactly = 0) { mockWorkerRegistrar.ensureToken(any()) }
         coVerify(exactly = 0) { mockProxyClient.generationVersion(any()) }
         verify(exactly = 0) { mockRefillScheduler.enqueuePaced(any()) }
         verify(exactly = 0) { Sentry.captureException(any(), any<ScopeCallback>()) }
     }
 
     @Test
-    fun `does nothing when no token has been entered`() = runTest {
-        token.value = ""
+    fun `does nothing when no token could be registered`() = runTest {
+        coEvery { mockWorkerRegistrar.ensureToken(any()) } returns ""
 
         assertEquals(Result.success(), worker.doWork())
 
         coVerify(exactly = 0) { mockProxyClient.generationVersion(any()) }
         verify(exactly = 0) { mockRefillScheduler.enqueuePaced(any()) }
+        verify(exactly = 0) { Sentry.captureException(any(), any<ScopeCallback>()) }
+    }
+
+    @Test
+    fun `checks the version once the registrar, respecting its backoff, yields a token`() = runTest {
+        coEvery { mockProxyClient.generationVersion(any()) } returns VariationEntity.UNVERSIONED
+
+        assertEquals(Result.success(), worker.doWork())
+
+        coVerify(exactly = 1) { mockWorkerRegistrar.ensureToken(ignoreBackoff = false) }
+        coVerify(exactly = 1) { mockProxyClient.generationVersion("https://worker.example") }
     }
 
     @Test

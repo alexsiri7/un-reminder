@@ -539,4 +539,79 @@ class RequestyProxyClientTest {
         val ex = assertFailsWith<WorkerError> { proxyClient.generationVersion(baseUrl()) }
         assertEquals(503, ex.code)
     }
+
+    // --- Self-registration ---
+
+    /** worker/test/fixtures/register-wire.txt: POST /v1/register's literals, asserted against by the Worker's index.test.ts too. */
+    private val registerWire: Map<String, String> = fixture("register-wire.txt")
+
+    private val mintedToken = "ur1_0123456789abcdef_" + "a".repeat(64)
+
+    @Test
+    fun `register posts only the device label, bound to the integrity token, without auth`() = runTest {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(JSONObject().put("token", mintedToken).put("id", "0123456789abcdef").toString())
+        )
+
+        val registration = proxyClient.register("Pixel 8", baseUrl())
+
+        assertEquals(Registration(mintedToken), registration)
+        val recorded = server.takeRequest()
+        assertEquals("POST", recorded.method)
+        assertEquals(registerWire.getValue("path"), recorded.path)
+        val sent = recorded.body.readUtf8()
+        val json = JSONObject(sent)
+        assertEquals(listOf(registerWire.getValue("device-label-field")), json.keys().asSequence().toList())
+        assertEquals("Pixel 8", json.getString(registerWire.getValue("device-label-field")))
+        assertEquals("play-token", recorded.getHeader(wireHeader))
+        assertEquals(listOf(sha256Hex(sent)), integrity.requestedHashes)
+        assertNull(recorded.getHeader("Authorization"))
+    }
+
+    @Test
+    fun `register never calls the Worker when no integrity token could be obtained`() = runTest {
+        for (retryable in listOf(true, false)) {
+            integrity.result = IntegrityTokenResult.Unavailable(retryable = retryable, errorCode = -1)
+
+            val ex = assertFailsWith<IntegrityUnavailableException> { proxyClient.register("Pixel 8", baseUrl()) }
+
+            assertEquals(retryable, ex.retryable)
+        }
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun `register maps the daily registration cap 429 to RegistrationCapException`() = runTest {
+        server.enqueue(
+            MockResponse().setResponseCode(429)
+                .setBody(JSONObject().put("error", registerWire.getValue("cap-error")).toString())
+        )
+
+        assertFailsWith<RegistrationCapException> { proxyClient.register("Pixel 8", baseUrl()) }
+    }
+
+    @Test
+    fun `a rate-limit 429 stays a WorkerError`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(429).setBody("""{"error":"Rate limit exceeded"}"""))
+
+        val ex = assertFailsWith<WorkerError> { proxyClient.register("Pixel 8", baseUrl()) }
+        assertEquals(429, ex.code)
+    }
+
+    @Test
+    fun `register maps the Worker's integrity rejection to WorkerIntegrityException`() = runTest {
+        server.enqueue(integrityRejection("unrecognized-app"))
+
+        val ex = assertFailsWith<WorkerIntegrityException> { proxyClient.register("Pixel 8", baseUrl()) }
+        assertEquals("unrecognized-app", ex.reason)
+    }
+
+    @Test
+    fun `register throws JSONException when the 200 has no token`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"id":"0123456789abcdef"}"""))
+
+        assertFailsWith<JSONException> { proxyClient.register("Pixel 8", baseUrl()) }
+    }
 }

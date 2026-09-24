@@ -6,12 +6,14 @@ import androidx.core.content.ContextCompat
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.OnboardingRepository
 import net.interstellarai.unreminder.data.repository.WindowRepository
+import net.interstellarai.unreminder.service.worker.WorkerRegistrar
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.unmockkStatic
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -36,6 +38,9 @@ class OnboardingViewModelTest {
     private val mockOnboardingRepository: OnboardingRepository = mockk(relaxUnitFun = true)
     private val mockHabitRepository: HabitRepository = mockk(relaxed = true)
     private val mockWindowRepository: WindowRepository = mockk(relaxed = true)
+    private val mockWorkerRegistrar: WorkerRegistrar = mockk {
+        coEvery { ensureToken(any()) } returns ""
+    }
     private lateinit var viewModel: OnboardingViewModel
 
     @Before
@@ -47,7 +52,8 @@ class OnboardingViewModelTest {
         } returns PackageManager.PERMISSION_DENIED
 
         viewModel = OnboardingViewModel(
-            mockContext, mockOnboardingRepository, mockHabitRepository, mockWindowRepository
+            mockContext, mockOnboardingRepository, mockHabitRepository, mockWindowRepository,
+            mockWorkerRegistrar, CoroutineScope(testDispatcher),
         )
     }
 
@@ -63,6 +69,41 @@ class OnboardingViewModelTest {
         advanceUntilIdle()
 
         coVerify { mockOnboardingRepository.markOnboardingCompleted() }
+        assertTrue(viewModel.uiState.value.isCompleted)
+    }
+
+    @Test
+    fun `leaving the permissions step starts registration once, ignoring the backoff`() = runTest {
+        viewModel.advanceToStep(1)
+        advanceUntilIdle()
+        viewModel.advanceToStep(2)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { mockWorkerRegistrar.ensureToken(ignoreBackoff = true) }
+    }
+
+    @Test
+    fun `staying on the permissions step does not register`() = runTest {
+        viewModel.advanceToStep(0)
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { mockWorkerRegistrar.ensureToken(any()) }
+    }
+
+    @Test
+    fun `skip starts registration`() = runTest {
+        viewModel.skip()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { mockWorkerRegistrar.ensureToken(ignoreBackoff = true) }
+    }
+
+    @Test
+    fun `onboarding completes when registration yields no token`() = runTest {
+        viewModel.advanceToStep(1)
+        viewModel.completeOnboarding(saveHabit = false, saveWindow = false)
+        advanceUntilIdle()
+
         assertTrue(viewModel.uiState.value.isCompleted)
     }
 

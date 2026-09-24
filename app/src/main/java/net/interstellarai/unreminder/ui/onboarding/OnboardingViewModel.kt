@@ -12,8 +12,11 @@ import net.interstellarai.unreminder.data.db.WindowEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.OnboardingRepository
 import net.interstellarai.unreminder.data.repository.WindowRepository
+import net.interstellarai.unreminder.di.ApplicationScope
+import net.interstellarai.unreminder.service.worker.WorkerRegistrar
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -37,11 +40,15 @@ class OnboardingViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val onboardingRepository: OnboardingRepository,
     private val habitRepository: HabitRepository,
-    private val windowRepository: WindowRepository
+    private val windowRepository: WindowRepository,
+    private val workerRegistrar: WorkerRegistrar,
+    @ApplicationScope private val applicationScope: CoroutineScope,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(OnboardingUiState())
     val uiState: StateFlow<OnboardingUiState> = _uiState.asStateFlow()
+
+    private var registrationStarted = false
 
     init {
         refreshPermissions()
@@ -59,7 +66,19 @@ class OnboardingViewModel @Inject constructor(
     }
 
     fun advanceToStep(step: Int) {
+        if (_uiState.value.step == 0 && step > 0) startRegistration()
         _uiState.value = _uiState.value.copy(step = step)
+    }
+
+    /**
+     * Registers with the Worker while the user fills in the rest. On the application scope, since
+     * finishing onboarding clears this ViewModel mid-request. It ignores the backoff because the
+     * daily version check runs just after install and may have failed transiently moments ago.
+     */
+    private fun startRegistration() {
+        if (registrationStarted) return
+        registrationStarted = true
+        applicationScope.launch { workerRegistrar.ensureToken(ignoreBackoff = true) }
     }
 
     fun updateHabitName(name: String) {
@@ -110,6 +129,7 @@ class OnboardingViewModel @Inject constructor(
     }
 
     fun skip() {
+        startRegistration()
         viewModelScope.launch {
             try {
                 onboardingRepository.markOnboardingCompleted()

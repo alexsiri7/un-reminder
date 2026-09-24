@@ -16,7 +16,6 @@ import net.interstellarai.unreminder.data.repository.GenerationFailureRepository
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.PersonalContextRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
-import net.interstellarai.unreminder.data.repository.WorkerTokenRepository
 import net.interstellarai.unreminder.domain.model.SpendCapScope
 import net.interstellarai.unreminder.domain.model.SpendCapType
 import net.interstellarai.unreminder.service.notification.MascotSprites
@@ -37,7 +36,7 @@ class RefillWorker @AssistedInject constructor(
     private val variationRepository: VariationRepository,
     private val requestyProxyClient: RequestyProxyClient,
     private val personalContextRepository: PersonalContextRepository,
-    private val workerTokenRepository: WorkerTokenRepository,
+    private val workerRegistrar: WorkerRegistrar,
     private val generationFailureRepository: GenerationFailureRepository,
 ) : CoroutineWorker(appContext, workerParams) {
 
@@ -58,9 +57,9 @@ class RefillWorker @AssistedInject constructor(
         }
 
         val url = BuildConfig.WORKER_URL
-        val token = workerTokenRepository.token.first()
+        val token = workerRegistrar.ensureToken()
         if (token.isBlank()) {
-            Log.w(TAG, "No worker token configured, skipping refill for habit $habitId")
+            Log.w(TAG, "No worker token and none could be registered, skipping refill for habit $habitId")
             return Result.failure()
         }
 
@@ -116,9 +115,14 @@ class RefillWorker @AssistedInject constructor(
             )
             Result.failure()
         } catch (e: WorkerAuthException) {
-            Log.w(TAG, "Auth failed for habit $habitId", e)
-            note(GenerationFailure.Kind.TOKEN_REJECTED)
-            Result.failure()
+            if (workerRegistrar.discardRejected(token)) {
+                Log.w(TAG, "Self-registered token rejected for habit $habitId, re-registering", e)
+                Result.retry()
+            } else {
+                Log.w(TAG, "Auth failed for habit $habitId", e)
+                note(GenerationFailure.Kind.TOKEN_REJECTED)
+                Result.failure()
+            }
         } catch (e: WorkerIntegrityException) {
             Log.w(TAG, "Integrity check failed (${e.reason}) for habit $habitId, ${if (e.retryable) "will retry" else "giving up"}", e)
             if (e.retryable) Result.retry() else Result.failure()

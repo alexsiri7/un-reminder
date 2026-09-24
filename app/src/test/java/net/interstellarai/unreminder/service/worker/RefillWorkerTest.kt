@@ -25,7 +25,6 @@ import net.interstellarai.unreminder.data.repository.GenerationFailureRepository
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.PersonalContextRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
-import net.interstellarai.unreminder.data.repository.WorkerTokenRepository
 import net.interstellarai.unreminder.domain.model.ActivityMode
 import net.interstellarai.unreminder.domain.model.GeneratedBatch
 import net.interstellarai.unreminder.domain.model.GeneratedVariant
@@ -72,8 +71,9 @@ class RefillWorkerTest {
     private val mockPersonalContextRepository: PersonalContextRepository = mockk {
         every { personalContext } returns flowOf("")
     }
-    private val mockWorkerTokenRepository: WorkerTokenRepository = mockk {
-        every { token } returns flowOf(TOKEN)
+    private val mockWorkerRegistrar: WorkerRegistrar = mockk {
+        coEvery { ensureToken(any()) } returns TOKEN
+        coEvery { discardRejected(any()) } returns false
     }
     private val mockGenerationFailureRepository: GenerationFailureRepository = mockk(relaxUnitFun = true)
 
@@ -90,7 +90,7 @@ class RefillWorkerTest {
             mockVariationRepository,
             mockProxyClient,
             mockPersonalContextRepository,
-            mockWorkerTokenRepository,
+            mockWorkerRegistrar,
             mockGenerationFailureRepository,
         )
     }
@@ -109,8 +109,8 @@ class RefillWorkerTest {
     }
 
     @Test
-    fun `doWork returns failure and never calls the proxy when no token is stored`() = runTest {
-        every { mockWorkerTokenRepository.token } returns flowOf("")
+    fun `doWork returns failure and never calls the proxy when no token could be obtained`() = runTest {
+        coEvery { mockWorkerRegistrar.ensureToken(any()) } returns ""
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns HabitEntity(id = 1L, name = "Meditate")
 
         assertEquals(Result.failure(), createWorker().doWork())
@@ -172,6 +172,7 @@ class RefillWorkerTest {
             }, false)
         }
         coVerify(exactly = 1) { mockGenerationFailureRepository.clear() }
+        coVerify(exactly = 1) { mockWorkerRegistrar.ensureToken(ignoreBackoff = false) }
     }
 
     @Test
@@ -347,13 +348,24 @@ class RefillWorkerTest {
     }
 
     @Test
-    fun `doWork returns failure and notes a rejected token on WorkerAuthException`() = runTest {
+    fun `doWork returns failure and notes a rejected token the registrar keeps`() = runTest {
         proxyThrows(WorkerAuthException())
 
         val worker = createWorker()
         assertEquals(Result.failure(), worker.doWork())
         assertEquals(GenerationFailure.Kind.TOKEN_REJECTED, recordedFailure().kind)
+        coVerify(exactly = 1) { mockWorkerRegistrar.discardRejected(TOKEN) }
         coVerify(exactly = 0) { mockGenerationFailureRepository.clear() }
+    }
+
+    @Test
+    fun `doWork retries without noting anything when the registrar discards the rejected token`() = runTest {
+        proxyThrows(WorkerAuthException())
+        coEvery { mockWorkerRegistrar.discardRejected(TOKEN) } returns true
+
+        assertEquals(Result.retry(), createWorker().doWork())
+
+        coVerify(exactly = 0) { mockGenerationFailureRepository.record(any()) }
     }
 
     @Test

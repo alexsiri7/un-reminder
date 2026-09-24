@@ -48,7 +48,7 @@ Solo user (the author). Single-device, single-user. Personal productivity / well
 | Testing | JUnit + Compose UI tests | |
 | CF Worker | **Hono** on **Cloudflare Workers** | Remote LLM generation via Requesty.ai. Handles auth, spend cap, and parallel Gemini Flash fan-out. Deployed via Wrangler. |
 
-**Target device for MVP:** Any Android device with min SDK 31. The cloud worker URL is configured at build time; each user pastes their own Worker token in Cloud AI settings.
+**Target device for MVP:** Any Android device with min SDK 31. The cloud worker URL is configured at build time; a Play install registers itself with the Worker (`POST /v1/register`, verified by Play Integrity) for its own token, and pasting a token under Cloud AI settings → advanced is the path for sideloaded and debug builds.
 
 ### Screenshot tests
 
@@ -328,7 +328,7 @@ from the pool, not from a fresh generation.
    reading reactively from `WorkManager.getWorkInfosForUniqueWorkFlow(RandomIntervalWorker.WORK_NAME)`.
    Includes a "Send Feedback" button in the top bar.
 7. **Settings screen** — notification permission status, background location permission status, a manual "Test trigger now" button, a button to regenerate tomorrow's scheduled triggers, a link to Cloud AI settings, and a "Send Feedback" button.
-7a. **Cloud AI settings screen** — a field to paste the per-user Worker token Alex issues, showing the non-secret `ur1_<id>` prefix of the stored one, and a "regenerate all variants" button that generates a fresh batch per active habit and swaps it in only once it lands, keeping the previous variants until then (see "Pool lifecycle" above).
+7a. **Cloud AI settings screen** — the stored token's non-secret `ur1_<id>` prefix (`registered as ur1_<id> on <device>` for a self-registered one), a "re-register" button that mints a fresh token, why generation or registration last failed, an "advanced" expander with a field to paste a per-user Worker token Alex issues, and a "regenerate all variants" button that generates a fresh batch per active habit and swaps it in only once it lands, keeping the previous variants until then (see "Pool lifecycle" above).
 8. **Onboarding screen** — shown once on first launch. Walks the user through three collapsible steps: (1) granting Notifications and Location permissions, (2) creating a first habit with name/descriptions and weekday schedule, (3) creating a first time window. Includes a "Skip" action in the top bar. Completion (or skip) is persisted via DataStore (`onboarding_done` key) and never shown again. Bottom navigation bar is hidden while onboarding is active.
 9. **Feedback screen** — annotated screenshot tool. Captures the current screen, lets the user draw annotations (red/yellow/green strokes), type a description, and submit as a GitHub issue. Falls back to an offline queue (WorkManager) when connectivity is unavailable.
 10. **Reminder detail screen** — read/act view for one variant, reached two ways. Keyed on a trigger, by

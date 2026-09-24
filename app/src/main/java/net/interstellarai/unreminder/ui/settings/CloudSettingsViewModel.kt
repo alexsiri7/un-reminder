@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -23,7 +24,10 @@ import net.interstellarai.unreminder.data.repository.GenerationFailureRepository
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.WorkerTokenRepository
 import net.interstellarai.unreminder.service.worker.RefillScheduler
+import net.interstellarai.unreminder.service.worker.RegistrationOutcome
+import net.interstellarai.unreminder.service.worker.WorkerRegistrar
 import net.interstellarai.unreminder.service.worker.WorkerToken
+import java.time.Instant
 import java.util.UUID
 import javax.inject.Inject
 
@@ -36,8 +40,12 @@ data class CloudSettingsUiState(
     val errorMessage: String? = null,
     /** Non-null while a regeneration started from this screen has work outstanding. */
     val regeneration: RegenerationProgress? = null,
-    /** The `ur1_<id>` prefix of the stored token, or null when none has been entered. */
+    /** The `ur1_<id>` prefix of the stored token, or null when there is none. */
     val tokenId: String? = null,
+    /** The device the stored token was registered for; null for a pasted token or none. */
+    val deviceLabel: String? = null,
+    /** True while a re-register started from this screen is in flight. */
+    val registering: Boolean = false,
     val tokenInput: String = "",
     val tokenInputError: String? = null,
     /** The last background generation failure, or null once one has succeeded since. */
@@ -51,6 +59,7 @@ class CloudSettingsViewModel @Inject constructor(
     private val workManager: WorkManager,
     private val workerTokenRepository: WorkerTokenRepository,
     private val generationFailureRepository: GenerationFailureRepository,
+    private val workerRegistrar: WorkerRegistrar,
 ) : ViewModel() {
 
     companion object {
@@ -65,10 +74,10 @@ class CloudSettingsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            workerTokenRepository.token.collect { token ->
-                _uiState.value = _uiState.value.copy(
-                    tokenId = token.takeIf { it.isNotBlank() }?.let(WorkerToken::displayId),
-                )
+            combine(workerTokenRepository.token, workerTokenRepository.selfRegistration) { token, registration ->
+                token.takeIf { it.isNotBlank() }?.let(WorkerToken::displayId) to registration?.deviceLabel
+            }.collect { (tokenId, deviceLabel) ->
+                _uiState.value = _uiState.value.copy(tokenId = tokenId, deviceLabel = deviceLabel)
             }
         }
         viewModelScope.launch {
@@ -84,8 +93,8 @@ class CloudSettingsViewModel @Inject constructor(
 
     /**
      * Persists the pasted token only if it is well-formed; a malformed one is rejected inline.
-     * A rejected-token record was about the old token, so a new one retires it; a cap or a
-     * service failure is not, and the next refill decides those.
+     * A rejected-token or failed-registration record was about having no usable token, so a new
+     * one retires it; a cap or a service failure is not, and the next refill decides those.
      */
     fun saveToken() {
         val token = _uiState.value.tokenInput.trim()
@@ -96,7 +105,7 @@ class CloudSettingsViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 workerTokenRepository.setToken(token)
-                if (_uiState.value.lastFailure?.kind == GenerationFailure.Kind.TOKEN_REJECTED) {
+                if (_uiState.value.lastFailure?.kind?.isTokenProblem == true) {
                     generationFailureRepository.clear()
                 }
                 _uiState.value = _uiState.value.copy(
@@ -108,6 +117,23 @@ class CloudSettingsViewModel @Inject constructor(
                 if (e is CancellationException) throw e
                 Log.e(TAG, "saveToken: failed to persist token", e)
                 _uiState.value = _uiState.value.copy(errorMessage = "Failed to save token.")
+            }
+        }
+    }
+
+    /** Mints a fresh token for this install, replacing the stored one if it succeeds. */
+    fun reregister() {
+        if (_uiState.value.registering) return
+        _uiState.value = _uiState.value.copy(registering = true)
+        viewModelScope.launch {
+            try {
+                val message = when (val outcome = workerRegistrar.register()) {
+                    is RegistrationOutcome.Registered -> "Registered."
+                    is RegistrationOutcome.Failed -> failureMessage(GenerationFailure(outcome.kind, null, Instant.now()))
+                }
+                _uiState.value = _uiState.value.copy(errorMessage = message)
+            } finally {
+                _uiState.value = _uiState.value.copy(registering = false)
             }
         }
     }
