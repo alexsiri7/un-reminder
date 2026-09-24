@@ -5,11 +5,11 @@ const REQUESTY_URL = 'https://router.requesty.ai/v1/chat/completions'
 const toError = (err: unknown): Error =>
   err instanceof Error ? err : new Error(String(err))
 
-// Pricing per token via Requesty for google/gemini-3.6-flash (catalog 2026-09).
+// Pricing per token via Requesty for vertex/gemini-3.8-flash (catalog 2026-09).
 // These constants MUST match the model configured in UR_MODEL (wrangler.toml).
 // If you change the model, update pricing here too.
-export const COST_PER_OUTPUT_TOKEN = 7 / 1_000_000
-export const COST_PER_INPUT_TOKEN = 1.5 / 1_000_000
+export const COST_PER_OUTPUT_TOKEN = 3.75 / 1_000_000
+export const COST_PER_INPUT_TOKEN = 0.75 / 1_000_000
 
 // Requesty maps `low` to a bounded thinking budget (1,024 tokens on Gemini) that is counted
 // inside max_tokens; unbounded thinking truncated the JSON in #81. Callers must leave

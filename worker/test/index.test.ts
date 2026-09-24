@@ -154,7 +154,7 @@ function testEnv() {
     REQUEST_LIMITER: { limit: async () => ({ success: true }) } as RateLimit,
     UR_REQUESTY_KEY: 'test-requesty-key',
     UR_PLAY_INTEGRITY_SA_KEY: saKeyJson,
-    UR_MODEL: 'google/gemini-3.6-flash',
+    UR_MODEL: 'vertex/gemini-3.8-flash',
     UR_DAILY_CAP_CENTS: '50',
     UR_MONTHLY_CAP_CENTS: '500',
     UR_USER_DAILY_CAP_CENTS: '20',

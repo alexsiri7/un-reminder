@@ -151,13 +151,13 @@ Configured in `wrangler.toml` under `[vars]`:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `UR_MODEL` | `google/gemini-3.6-flash` | Model to use via Requesty |
+| `UR_MODEL` | `vertex/gemini-3.8-flash` | Model to use via Requesty |
 | `UR_DAILY_CAP_CENTS` | `50` | Max daily spend in cents across every token — the backstop on the bill |
 | `UR_MONTHLY_CAP_CENTS` | `500` | Max monthly spend in cents across every token |
 | `UR_USER_DAILY_CAP_CENTS` | `20` | Max daily spend in cents per token, unless its record overrides it (`npm run tokens -- caps`) |
 | `UR_USER_MONTHLY_CAP_CENTS` | `200` | Max monthly spend in cents per token, unless its record overrides it |
 | `UR_MAX_REGISTRATIONS_PER_DAY` | `20` | Max tokens `POST /v1/register` mints per UTC day across every install; a value that is not a number makes the route answer 503 |
-| `UR_GENERATION_VERSION` | `2` | Integer ≥ 1 identifying the current model + prompt; echoed on `/v1/health` and `/v1/generate/batch` |
+| `UR_GENERATION_VERSION` | `3` | Integer ≥ 1 identifying the current model + prompt; echoed on `/v1/health` and `/v1/generate/batch` |
 
 **Rolling out a new model or prompt:** bump `UR_GENERATION_VERSION` in the same deploy that changes
 `UR_MODEL` or `buildPrompt`. Every device checks the version daily and regenerates each active habit's
@@ -172,6 +172,7 @@ model or prompt that produced it. Pricing constants in `src/lib/requesty.ts` fol
 |---------|-------|--------|------|--------|
 | `1` | `google/gemini-3-flash-preview` | `buildPrompt` as of #391 (shapes #373, mode tags #374) | 2026-04 | Initial model, never revisited since the first Worker deploy |
 | `2` | `google/gemini-3.6-flash`, `reasoning_effort: low` | Unchanged from `1` | 2026-09 | #376 model upgrade; thinking bounded and reserved inside `max_tokens` |
+| `3` | `vertex/gemini-3.8-flash`, `reasoning_effort: low` | Unchanged from `2` | 2026-09 | #434 model switch; roughly half the per-token price of 3.6-flash |
 
 ### 6. Rate limiting (optional)
 
