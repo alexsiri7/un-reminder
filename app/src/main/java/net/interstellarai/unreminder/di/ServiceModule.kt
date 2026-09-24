@@ -1,6 +1,7 @@
 package net.interstellarai.unreminder.di
 
 import android.content.Context
+import android.os.Build
 import androidx.work.WorkManager
 import com.google.android.gms.location.ActivityRecognition
 import com.google.android.gms.location.ActivityRecognitionClient
@@ -14,6 +15,7 @@ import net.interstellarai.unreminder.data.repository.LocationRepository
 import net.interstellarai.unreminder.service.worker.IntegrityTokenProvider
 import net.interstellarai.unreminder.service.worker.PlayIntegrityTokenProvider
 import net.interstellarai.unreminder.service.worker.RefillScheduler
+import net.interstellarai.unreminder.service.worker.deviceLabel
 import net.interstellarai.unreminder.service.activity.ActivityRecognitionManager
 import net.interstellarai.unreminder.service.geofence.GeofenceManager
 import net.interstellarai.unreminder.service.geofence.LocationReconciler
@@ -113,6 +115,10 @@ object ServiceModule {
     @Provides
     @WorkerUrl
     fun provideWorkerUrl(): String = BuildConfig.WORKER_URL
+
+    @Provides
+    @DeviceLabel
+    fun provideDeviceLabel(): String = deviceLabel(Build.MANUFACTURER, Build.MODEL)
 
     @Provides
     @Singleton
