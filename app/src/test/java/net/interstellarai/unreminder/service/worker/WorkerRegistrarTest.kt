@@ -189,6 +189,15 @@ class WorkerRegistrarTest {
         verify(exactly = 1) { Sentry.captureException(any(), any<ScopeCallback>()) }
     }
 
+    @Test
+    fun `a backoff that cannot be stored does not escape the registrar`() = runTest {
+        coEvery { proxy.register(any(), any()) } throws IOException("offline")
+        coEvery { tokenRepository.deferRegistration(any()) } throws IOException("disk full")
+
+        assertEquals("", registrar().ensureToken(ignoreBackoff = true))
+        assertEquals(RegistrationOutcome.Failed(GenerationFailure.Kind.SERVICE_UNAVAILABLE), registrar().register())
+    }
+
     // --- backoff ---
 
     @Test
@@ -337,11 +346,12 @@ class WorkerRegistrarTest {
     }
 
     @Test
-    fun `deviceLabel caps at 40 code points without splitting a surrogate pair`() {
-        val label = deviceLabel("", "😀".repeat(45))
+    fun `deviceLabel caps the code points without splitting a surrogate pair`() {
+        val cap = WorkerRegistrar.MAX_DEVICE_LABEL_LENGTH
+        val label = deviceLabel("", "😀".repeat(cap + 5))
 
-        assertEquals(40, label.codePointCount(0, label.length))
-        assertEquals("😀".repeat(40), label)
+        assertEquals(cap, label.codePointCount(0, label.length))
+        assertEquals("😀".repeat(cap), label)
     }
 
     @Test
