@@ -71,11 +71,19 @@ class WorkerRegistrar @Inject constructor(
      * it did. Kept instead: a pasted token, since this install presumably cannot register; one
      * registered within [REREGISTER_GRACE], so a Worker that rejects fresh tokens costs one mint
      * an hour rather than a loop; and any token other than [token], since that one is newer.
+     * Never throws: the caller is a 401 handler that must still record the rejection.
      */
     suspend fun discardRejected(token: String): Boolean = mutex.withLock {
         val registration = workerTokenRepository.selfRegistration.first() ?: return@withLock false
         if (registration.registeredAt.isAfter(Instant.now().minus(REREGISTER_GRACE))) return@withLock false
-        workerTokenRepository.clearIfCurrent(token)
+        try {
+            workerTokenRepository.clearIfCurrent(token)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "could not clear the rejected token", e)
+            false
+        }
     }
 
     private suspend fun isBackingOff(): Boolean =

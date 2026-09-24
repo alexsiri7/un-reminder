@@ -293,6 +293,14 @@ class WorkerRegistrarTest {
         assertEquals("", storedToken.value)
     }
 
+    @Test
+    fun `discardRejected reports nothing cleared when the store cannot be written`() = runTest {
+        storedSelfRegistered(Instant.now().minus(Duration.ofHours(2)))
+        coEvery { tokenRepository.clearIfCurrent(any()) } throws IOException("disk full")
+
+        assertFalse(registrar().discardRejected(MINTED))
+    }
+
     // --- concurrency ---
 
     @Test
