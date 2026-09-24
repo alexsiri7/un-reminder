@@ -5,7 +5,7 @@ id: 019
 status: draft
 title: 'Multi-tenant Worker: per-user tokens with salted-hash storage and per-user
   spend caps'
-updated: '2026-09-15'
+updated: '2026-09-24'
 ---
 
 ## Why
@@ -22,7 +22,7 @@ Salted hashing is used here for storage, not transit. A client must possess what
 
 **Per-user tokens replace the shared secret.** Each user of the app holds their own high-entropy random token, presented on every Worker request over TLS. The Worker stores only a salted hash of each token, so a disclosure of its storage yields nothing usable. Token comparison remains timing-safe. The existing single `UR_SHARED_SECRET` path is removed once tokens are in place, not left as a fallback.
 
-**Tokens are provisioned manually.** There is no signup flow, no account, and no identity. Alex mints a token for each friend out of band and they enter it in the app. At the scale this is for — a handful of people — provisioning by hand is correct; a self-registration flow would be a much larger thing to build and maintain, and would introduce an identity and privacy surface the app does not otherwise have.
+**Tokens are provisioned manually.** There is no signup flow, no account, and no identity. Alex mints a token for each friend out of band and they enter it in the app. Self-registration was deferred at the time; req 020 now specifies it, using the Play Integrity verdict this requirement introduced as the proof of a legitimate install.
 
 **Spend caps become per-user.** The daily and monthly generation caps apply to each token separately rather than to the Worker as a whole, so one user regenerating their pools cannot exhaust anyone else's budget or silence their notifications. A global cap remains on top as a backstop against the total bill, but hitting a per-user cap must affect only that user.
 
