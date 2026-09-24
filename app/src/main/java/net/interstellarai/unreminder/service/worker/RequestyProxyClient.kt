@@ -32,6 +32,12 @@ const val INTEGRITY_HEADER = "X-Play-Integrity-Token"
  */
 private const val INTEGRITY_REJECTED = "Play Integrity check failed"
 
+/**
+ * The `error` of the Worker's 429 for its daily registration cap (`REGISTRATION_CAP_ERROR` in
+ * worker/src/types.ts; register-wire.txt pins both); any other 429 is the per-client rate limit.
+ */
+private const val REGISTRATION_CAP_ERROR = "Daily registration limit reached"
+
 private fun Response.throwOnError(integrity: IntegrityTokenResult?): Nothing {
     val text = body?.string() ?: ""
     when (code) {
@@ -52,9 +58,16 @@ private fun Response.throwOnError(integrity: IntegrityTokenResult?): Nothing {
                 )
             }
         }
+        429 -> {
+            val json = runCatching { JSONObject(text) }.getOrNull()
+            if (json?.optString("error") == REGISTRATION_CAP_ERROR) throw RegistrationCapException()
+        }
     }
     throw WorkerError(code, text)
 }
+
+/** A token the Worker minted for this install, and its non-secret id. */
+data class Registration(val token: String, val id: String)
 
 @Singleton
 class RequestyProxyClient @Inject constructor(
@@ -63,10 +76,20 @@ class RequestyProxyClient @Inject constructor(
 ) {
     private suspend fun post(path: String, payload: JSONObject, workerUrl: String, token: String): JSONObject {
         val body = payload.toString()
-        val integrity = integrityTokenProvider.token(sha256Hex(body))
+        return send(path, body, workerUrl, token, integrityTokenProvider.token(sha256Hex(body)))
+    }
+
+    /** [integrity] must have been bound to the hash of exactly [body]. */
+    private fun send(
+        path: String,
+        body: String,
+        workerUrl: String,
+        token: String?,
+        integrity: IntegrityTokenResult,
+    ): JSONObject {
         val request = Request.Builder()
             .url("${workerUrl.trimEnd('/')}/$path")
-            .addHeader("Authorization", "Bearer $token")
+            .apply { if (token != null) addHeader("Authorization", "Bearer $token") }
             .addHeader("Accept", "application/json")
             .apply { if (integrity is IntegrityTokenResult.Token) addHeader(INTEGRITY_HEADER, integrity.value) }
             .post(body.toRequestBody("application/json".toMediaType()))
@@ -102,6 +125,19 @@ class RequestyProxyClient @Inject constructor(
      */
     suspend fun generationVersion(workerUrl: String): Int = withContext(Dispatchers.IO) {
         get("v1/health", workerUrl).optInt("generationVersion", VariationEntity.UNVERSIONED)
+    }
+
+    /**
+     * Trades a Play Integrity token bound to the body for a new per-user token
+     * (worker/src/routes/register.ts; register-wire.txt pins the wire). Without an integrity token
+     * the Worker would only refuse the request and report it to Sentry, so it is never sent.
+     */
+    suspend fun register(deviceLabel: String, workerUrl: String): Registration = withContext(Dispatchers.IO) {
+        val body = JSONObject().put("deviceLabel", deviceLabel).toString()
+        val integrity = integrityTokenProvider.token(sha256Hex(body))
+        if (integrity is IntegrityTokenResult.Unavailable) throw IntegrityUnavailableException(integrity.retryable)
+        val json = send("v1/register", body, workerUrl, token = null, integrity)
+        Registration(token = json.getString("token"), id = json.getString("id"))
     }
 
     suspend fun habitFields(
