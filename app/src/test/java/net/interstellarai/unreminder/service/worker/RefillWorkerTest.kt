@@ -172,6 +172,7 @@ class RefillWorkerTest {
             }, false)
         }
         coVerify(exactly = 1) { mockGenerationFailureRepository.clear() }
+        coVerify(exactly = 1) { mockWorkerRegistrar.ensureToken(ignoreBackoff = false) }
     }
 
     @Test
