@@ -39,11 +39,10 @@ UR_GENERATION_VERSION = "2"
 binding = "UR_SPEND"
 id      = "ba35d7eb3c4b4e46b18707a20ce89d1e"
 
-# Run `npx wrangler kv namespace create UR_TOKENS` and paste the returned id here before
-# merging; the placeholder makes `wrangler deploy` fail rather than deploy without an auth store.
+# UR_TOKENS holds salted-hash per-user token records; managed with `npm run tokens` (README.md).
 [[kv_namespaces]]
 binding = "UR_TOKENS"
-id      = "REPLACE_WITH_ID_FROM_wrangler_kv_namespace_create_UR_TOKENS"
+id      = "36a652c2b86c45aebe8bf476560268d2"
 
 [[ratelimits]]
 name         = "REQUEST_LIMITER"
