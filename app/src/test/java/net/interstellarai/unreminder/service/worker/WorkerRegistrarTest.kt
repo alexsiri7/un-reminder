@@ -346,6 +346,11 @@ class WorkerRegistrarTest {
     }
 
     @Test
+    fun `deviceLabel collapses Unicode spaces`() {
+        assertEquals("Acme Phone X", deviceLabel("Acme", "Phone\u00A0\u2003X\u2028"))
+    }
+
+    @Test
     fun `deviceLabel caps the code points without splitting a surrogate pair`() {
         val cap = WorkerRegistrar.MAX_DEVICE_LABEL_LENGTH
         val label = deviceLabel("", "😀".repeat(cap + 5))
