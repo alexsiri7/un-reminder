@@ -10,41 +10,43 @@ import {
   type IntegrityFailure,
 } from '../lib/integrity'
 
+/** Why a request did not pass: a verdict-level 403, or a 503 because Google could not be asked. */
+export type IntegrityRejection =
+  | { status: 403; reason: IntegrityFailure; body: { error: string; reason: IntegrityFailure } }
+  | { status: 503; reason: 'misconfigured' | 'unavailable'; body: { error: string } }
+
 /**
- * Second gate behind authMiddleware: the request must carry a Play Integrity token bound to
- * its body, decoded by Google and vouching for a Play-recognised, licensed install. Runs
- * before the spend gate so a rejected build never reads spend. Fails closed when Google
- * cannot be asked (missing secret, 429/5xx): a stolen user token must not be able to burn
- * the decode quota and then walk through an open door.
+ * Decodes [token] with Google and checks it vouches for a Play-recognised, licensed install that
+ * sent exactly [body]; null when it does. Fails closed when Google cannot be asked (missing
+ * secret, 429/5xx). [logFields] identify the caller in every log line.
  */
-export const integrityMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
-  const { id, label, integrityExempt } = c.get('tokenIdentity')
-  const reject = (reason: IntegrityFailure, extra: Record<string, unknown> = {}) => {
-    console.warn('[integrity] rejected', { id, label, reason, ...extra })
+export async function verifyIntegrity(
+  saKey: string | undefined,
+  token: string,
+  body: string,
+  logFields: Record<string, unknown>,
+): Promise<IntegrityRejection | null> {
+  const reject = (reason: IntegrityFailure, extra: Record<string, unknown> = {}): IntegrityRejection => {
+    console.warn('[integrity] rejected', { ...logFields, reason, ...extra })
     Sentry.setTag('integrity', reason)
     // The app matches this exact `error` string (RequestyProxyClient.kt); test/fixtures/integrity-wire.txt pins both.
-    return c.json({ error: 'Play Integrity check failed', reason }, 403)
+    return { status: 403, reason, body: { error: 'Play Integrity check failed', reason } }
   }
+  const unavailable = (reason: 'misconfigured' | 'unavailable'): IntegrityRejection => ({
+    status: 503,
+    reason,
+    body: { error: reason === 'misconfigured' ? 'Service misconfigured' : 'Integrity check unavailable' },
+  })
 
-  if (integrityExempt) {
-    Sentry.setTag('integrity', 'exempt')
-    console.log('[integrity] exempt token', { id, label })
-    await next()
-    return
-  }
-
-  const token = c.req.header(INTEGRITY_HEADER)?.trim() ?? ''
   if (token === '') return reject('missing')
 
-  const saKey = c.env.UR_PLAY_INTEGRITY_SA_KEY
   if (!saKey) {
     console.error('[integrity] UR_PLAY_INTEGRITY_SA_KEY not set — blocking request as fail-safe')
     Sentry.captureMessage('UR_PLAY_INTEGRITY_SA_KEY not set', { tags: { component: 'integrity' } })
-    return c.json({ error: 'Service misconfigured' }, 503)
+    return unavailable('misconfigured')
   }
 
-  // Hono caches the body, so the route handler's c.req.json() still works after this read.
-  const requestHash = await sha256Hex(await c.req.text())
+  const requestHash = await sha256Hex(body)
 
   let payload
   try {
@@ -56,7 +58,7 @@ export const integrityMiddleware: MiddlewareHandler<AppEnv> = async (c, next) =>
     Sentry.captureException(err instanceof Error ? err : new Error(String(err)), {
       tags: { component: 'integrity', failure: kind },
     })
-    return c.json({ error: kind === 'misconfigured' ? 'Service misconfigured' : 'Integrity check unavailable' }, 503)
+    return unavailable(kind)
   }
 
   const failure = evaluateVerdict(payload, { requestHash, nowMillis: Date.now() })
@@ -70,6 +72,31 @@ export const integrityMiddleware: MiddlewareHandler<AppEnv> = async (c, next) =>
   const device = payload.deviceIntegrity?.deviceRecognitionVerdict ?? []
   Sentry.setTag('integrity', 'verified')
   Sentry.setTag('device_integrity', device.join(',') || 'none')
-  console.log('[integrity] verified', { id, label, device })
+  console.log('[integrity] verified', { ...logFields, device })
+  return null
+}
+
+/**
+ * Second gate behind authMiddleware: the request must carry a Play Integrity token bound to
+ * its body, decoded by Google and vouching for a Play-recognised, licensed install. Runs
+ * before the spend gate so a rejected build never reads spend. Fails closed when Google
+ * cannot be asked: a stolen user token must not be able to burn the decode quota and then
+ * walk through an open door.
+ */
+export const integrityMiddleware: MiddlewareHandler<AppEnv> = async (c, next) => {
+  const { id, label, integrityExempt } = c.get('tokenIdentity')
+
+  if (integrityExempt) {
+    Sentry.setTag('integrity', 'exempt')
+    console.log('[integrity] exempt token', { id, label })
+    await next()
+    return
+  }
+
+  const token = c.req.header(INTEGRITY_HEADER)?.trim() ?? ''
+  // Hono caches the body, so the route handler's c.req.json() still works after this read.
+  const body = await c.req.text()
+  const rejection = await verifyIntegrity(c.env.UR_PLAY_INTEGRITY_SA_KEY, token, body, { id, label })
+  if (rejection !== null) return c.json(rejection.body, rejection.status)
   await next()
 }

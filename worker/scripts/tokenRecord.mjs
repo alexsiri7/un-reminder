@@ -1,6 +1,6 @@
-// Minting half of the per-user token scheme; the verifying half is src/lib/tokens.ts. Both
-// store hex SHA-256 of `salt + token` under `token:<id>`, and src/lib/tokens.test.ts fails if
-// they drift. Plain JavaScript so tokens.mjs runs under `node` without a TypeScript loader.
+// Minting side of `npm run tokens`; src/lib/tokens.ts verifies tokens and mints the ones
+// self-registration hands out. Both store hex SHA-256 of `salt + token` under `token:<id>`, and
+// src/lib/tokens.test.ts fails if they drift. Plain JavaScript so tokens.mjs runs under `node` without a TypeScript loader.
 
 const hex = (bytes) => Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
 const randomHex = (byteLength) => hex(crypto.getRandomValues(new Uint8Array(byteLength)))

@@ -106,8 +106,10 @@ Owner steps, in order:
 Do these before merging a Worker that enforces the gate: with the secret unset every
 non-exempt request answers `503`.
 
-**What is enforced.** The gate runs after the bearer token is verified and before the spend
-gate, so an unauthenticated request never costs a decode and a rejected build never reads spend.
+**What is enforced.** On the generation routes the gate runs after the bearer token is verified
+and before the spend gate, so an unauthenticated generation request never costs a decode and a
+rejected build never reads spend. `POST /v1/register` is the exception: it has no bearer token, so
+any request carrying the header costs a decode, bounded only by `REQUEST_LIMITER`.
 
 | Verdict | Outcome |
 |---------|---------|
@@ -154,6 +156,7 @@ Configured in `wrangler.toml` under `[vars]`:
 | `UR_MONTHLY_CAP_CENTS` | `500` | Max monthly spend in cents across every token |
 | `UR_USER_DAILY_CAP_CENTS` | `20` | Max daily spend in cents per token, unless its record overrides it (`npm run tokens -- caps`) |
 | `UR_USER_MONTHLY_CAP_CENTS` | `200` | Max monthly spend in cents per token, unless its record overrides it |
+| `UR_MAX_REGISTRATIONS_PER_DAY` | `20` | Max tokens `POST /v1/register` mints per UTC day across every install; a value that is not a number makes the route answer 503 |
 | `UR_GENERATION_VERSION` | `2` | Integer ≥ 1 identifying the current model + prompt; echoed on `/v1/health` and `/v1/generate/batch` |
 
 **Rolling out a new model or prompt:** bump `UR_GENERATION_VERSION` in the same deploy that changes
@@ -180,6 +183,47 @@ Configure rate limiting rules at the Cloudflare zone dashboard level (not in Wor
 
 Returns worker status, the service-wide daily and monthly spend and caps (no per-token figures:
 the route is unauthenticated) and the deployed `generationVersion`.
+
+### `POST /v1/register`
+
+Mints a per-user token for a Play-verified install, so the app can obtain its own instead of
+having one minted and pasted in. Needs no bearer token — it is how bearer tokens are obtained —
+but requires `X-Play-Integrity-Token` bound to the SHA-256 of the request body, checked exactly as
+on the generation routes (the verdict table under "Play Integrity" above, including the fail-closed
+`503`s). There is no exemption: debug builds and sideloaded APKs keep using `npm run tokens -- mint`.
+
+**Request body:**
+
+```json
+{ "deviceLabel": "Pixel 8" }
+```
+
+`deviceLabel` is a short, user-visible name for the install, e.g. the device model. Control
+characters are dropped, whitespace collapsed and the result cut to 40 characters; one that is
+missing, not a string or empty after that answers `400`.
+
+**Response:**
+
+```json
+{ "token": "ur1_<id>_<secret>", "id": "<id>" }
+```
+
+The token is returned this once. Its record is labelled `self:<deviceLabel>`, sits on the default
+spend caps, is not integrity-exempt and is revoked like any other (`npm run tokens -- disable <id>`).
+
+Abuse bounds: the route sits behind `REQUEST_LIMITER`, and at most `UR_MAX_REGISTRATIONS_PER_DAY`
+tokens are minted per UTC day across every install, counted in `UR_SPEND` under
+`registrations:day:<date>`. Past that it answers `429 { "error": "Daily registration limit reached" }`
+before any decode — distinct from the limiter's `429 { "error": "Rate limit exceeded" }`. The
+literals the app matches on are pinned in `test/fixtures/register-wire.txt`. If the counter cannot be
+read, or the token cannot be stored, it answers `503` and mints nothing. The count is written only
+after the token is stored; if that write fails the registration still succeeds, the day's count is
+one short, and the failure is reported to Sentry. Every registration
+and every body, verdict or ceiling rejection is reported to Sentry (`component: register`) with its
+reason; the token never is.
+
+An integrity token spent here cannot be replayed elsewhere: it is bound to this body's hash, and
+Google clears the verdicts of a token decoded twice.
 
 ### `POST /v1/generate/batch`
 

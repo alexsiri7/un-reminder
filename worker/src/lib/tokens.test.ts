@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:test'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { TOKEN_PATTERN, hashToken, parseTokenId, tokenKey, verifyToken } from './tokens'
+import { TOKEN_PATTERN, createTokenRecord as workerCreateTokenRecord, hashToken, mintToken as workerMintToken, parseTokenId, tokenKey, verifyToken } from './tokens'
 import tokenFormatFixture from '../../test/fixtures/token-format.txt?raw'
 import {
   applyCaps,
@@ -78,6 +78,25 @@ describe('minting side (scripts/tokenRecord.mjs) agrees with the verifying side'
     const capped = await createTokenRecord(TOKEN, 'alex', new Date('2026-09-15T00:00:00Z'), { dailyCapCents: 100 })
     expect(capped.dailyCapCents).toBe(100)
     expect(capped).not.toHaveProperty('monthlyCapCents')
+  })
+})
+
+describe('minting side (self-registration) agrees with scripts/tokenRecord.mjs', () => {
+  it('mints tokens of the same format, each one different', () => {
+    const a = workerMintToken()
+    expect(a.token).toMatch(TOKEN_PATTERN)
+    expect(parseTokenId(a.token)).toBe(a.id)
+    expect(a.token).not.toBe(workerMintToken().token)
+  })
+
+  it('writes the same record shape as a default `npm run tokens -- mint`', async () => {
+    const now = new Date('2026-09-15T00:00:00Z')
+    const worker = await workerCreateTokenRecord(TOKEN, 'self:Pixel', now)
+    const script = await createTokenRecord(TOKEN, 'self:Pixel', now)
+    expect(Object.keys(worker).sort()).toEqual(Object.keys(script).sort())
+    expect({ ...worker, hash: '', salt: '' }).toEqual({ ...script, hash: '', salt: '' })
+    expect(worker.salt).toMatch(/^[0-9a-f]{32}$/)
+    expect(JSON.stringify(worker)).not.toContain(SECRET)
   })
 })
 
@@ -178,6 +197,12 @@ describe('verifyToken', () => {
     } finally {
       error.mockRestore()
     }
+  })
+
+  it('accepts a token the Worker minted itself', async () => {
+    const { id, token } = workerMintToken()
+    await env.UR_TOKENS.put(tokenKey(id), JSON.stringify(await workerCreateTokenRecord(token, 'self:Pixel', new Date())))
+    expect(await verifyToken(env.UR_TOKENS, token)).toEqual({ id, label: 'self:Pixel', integrityExempt: false })
   })
 
   it('returns null for an unknown id', async () => {

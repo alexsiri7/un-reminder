@@ -8,11 +8,16 @@ import { spendGate } from './middleware/spendGate'
 import { healthHandler } from './routes/health'
 import { generateBatchHandler } from './routes/generateBatch'
 import { habitFieldsHandler } from './routes/habitFields'
+import { registerHandler } from './routes/register'
 
 const app = new Hono<{ Bindings: Env }>()
 
 // Public — no auth
 app.get('/v1/health', healthHandler)
+
+// The auth bootstrap — no bearer token; the route runs its own integrity check (routes/register.ts)
+app.use('/v1/register', rateLimitMiddleware)
+app.post('/v1/register', registerHandler)
 
 // Shared protection for all AI generation routes — applied in order: rate-limit → auth → integrity → spend gate
 for (const path of ['/v1/generate/*', '/v1/habit-fields']) {
