@@ -347,7 +347,7 @@ class WorkerRegistrarTest {
 
     @Test
     fun `deviceLabel collapses Unicode spaces`() {
-        assertEquals("Acme Phone X", deviceLabel("Acme", "Phone\u00A0\u2003X\u2028"))
+        assertEquals("Acme Phone X Pro", deviceLabel("Acme", "Phone\u00A0\u2003X\u2028\u2029Pro"))
     }
 
     @Test
