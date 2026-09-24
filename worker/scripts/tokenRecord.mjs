@@ -1,4 +1,4 @@
-// Minting side of `npm run tokens`; src/lib/tokens.ts verifies tokens and mints the ones
+// Record side of `npm run tokens`; src/lib/tokens.ts verifies tokens and mints the ones
 // self-registration hands out. Both store hex SHA-256 of `salt + token` under `token:<id>`, and
 // src/lib/tokens.test.ts fails if they drift. Plain JavaScript so tokens.mjs runs under `node` without a TypeScript loader.
 
@@ -37,4 +37,16 @@ export async function createTokenRecord(token, label, now, { integrityExempt = f
 export function applyCaps(record, caps) {
   const { dailyCapCents: _daily, monthlyCapCents: _monthly, ...rest } = record
   return { ...rest, ...caps }
+}
+
+/** One `list` line for the record stored under `token:<id>`; the hash and salt are never shown. */
+export function describeToken(id, { label, createdAt, enabled, integrityExempt, dailyCapCents, monthlyCapCents }) {
+  return [
+    id,
+    enabled ? 'enabled ' : 'disabled',
+    createdAt,
+    `caps ${dailyCapCents ?? 'default'}/${monthlyCapCents ?? 'default'}`,
+    integrityExempt ? 'integrity-exempt' : 'integrity-gated ',
+    JSON.stringify(label),
+  ].join('  ')
 }

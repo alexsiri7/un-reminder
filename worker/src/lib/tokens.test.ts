@@ -5,6 +5,7 @@ import tokenFormatFixture from '../../test/fixtures/token-format.txt?raw'
 import {
   applyCaps,
   createTokenRecord,
+  describeToken,
   hashToken as mintSideHashToken,
   mintToken,
   tokenKey as mintSideTokenKey,
@@ -125,6 +126,25 @@ describe('applyCaps (the `caps` subcommand)', () => {
     const { dailyCapCents: _daily, monthlyCapCents: _monthly, ...rest } = before
     expect(applyCaps(before, { monthlyCapCents: 300 })).toEqual({ ...rest, monthlyCapCents: 300 })
     expect(before).toMatchObject({ dailyCapCents: 100, monthlyCapCents: 900 })
+  })
+})
+
+describe('describeToken (the `list` subcommand)', () => {
+  const now = new Date('2026-09-15T00:00:00Z')
+
+  it('shows a self-registered token on the defaults, and never its hash or salt', async () => {
+    const record = await workerCreateTokenRecord(TOKEN, 'self:Pixel 8', now)
+    const line = describeToken(ID, record)
+    expect(line).toBe(`${ID}  enabled   2026-09-15T00:00:00.000Z  caps default/default  integrity-gated   "self:Pixel 8"`)
+    expect(line).not.toContain(record.hash)
+    expect(line).not.toContain(record.salt)
+  })
+
+  it('shows a disabled, exempt, capped minted token as such', async () => {
+    const record = await createTokenRecord(TOKEN, 'alex-dev', now, { integrityExempt: true, dailyCapCents: 50 })
+    expect(describeToken(ID, { ...record, enabled: false })).toBe(
+      `${ID}  disabled  2026-09-15T00:00:00.000Z  caps 50/default  integrity-exempt  "alex-dev"`,
+    )
   })
 })
 
