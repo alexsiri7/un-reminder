@@ -30,6 +30,16 @@ class CloudSettingsScreenTest {
         )
     }
 
+    @Test
+    fun `the token status names the device only for a registered token`() {
+        assertEquals("no token yet — tap re-register", tokenStatus(null, null))
+        assertEquals("token: ur1_0123456789abcdef", tokenStatus("ur1_0123456789abcdef", null))
+        assertEquals(
+            "registered as ur1_0123456789abcdef on Pixel 8",
+            tokenStatus("ur1_0123456789abcdef", "Pixel 8"),
+        )
+    }
+
     private fun failure(kind: Kind, capType: SpendCapType? = null) =
         GenerationFailure(kind, capType, Instant.EPOCH)
 

@@ -9,6 +9,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,12 +24,16 @@ import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.repository.GenerationFailure
 import net.interstellarai.unreminder.data.repository.GenerationFailureRepository
 import net.interstellarai.unreminder.data.repository.HabitRepository
+import net.interstellarai.unreminder.data.repository.SelfRegistration
 import net.interstellarai.unreminder.data.repository.WorkerTokenRepository
 import net.interstellarai.unreminder.service.worker.RefillScheduler
+import net.interstellarai.unreminder.service.worker.RegistrationOutcome
+import net.interstellarai.unreminder.service.worker.WorkerRegistrar
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.time.Instant
@@ -43,8 +48,10 @@ class CloudSettingsViewModelTest {
     private val workManager: WorkManager = mockk()
     private val workInfos = MutableStateFlow<List<WorkInfo>>(emptyList())
     private val storedToken = MutableStateFlow("")
+    private val storedRegistration = MutableStateFlow<SelfRegistration?>(null)
     private val mockWorkerTokenRepository: WorkerTokenRepository = mockk {
         every { token } returns storedToken
+        every { selfRegistration } returns storedRegistration
         coEvery { setToken(any()) } answers { storedToken.value = firstArg() }
     }
     private val storedFailure = MutableStateFlow<GenerationFailure?>(null)
@@ -52,6 +59,7 @@ class CloudSettingsViewModelTest {
         every { failure } returns storedFailure
         coEvery { clear() } answers { storedFailure.value = null }
     }
+    private val mockWorkerRegistrar: WorkerRegistrar = mockk()
 
     private val habits = listOf(
         HabitEntity(id = 1L, name = "A"),
@@ -78,6 +86,7 @@ class CloudSettingsViewModelTest {
             workManager,
             mockWorkerTokenRepository,
             mockGenerationFailureRepository,
+            mockWorkerRegistrar,
         )
 
     private fun failure(kind: GenerationFailure.Kind) = GenerationFailure(kind, null, Instant.EPOCH)
@@ -447,6 +456,81 @@ class CloudSettingsViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 0) { mockGenerationFailureRepository.clear() }
+    }
+
+    @Test
+    fun `saveToken clears a failed-registration record`() = runTest(testDispatcher) {
+        storedFailure.value = failure(GenerationFailure.Kind.REGISTRATION_REJECTED)
+        val vm = createViewModel()
+        advanceUntilIdle()
+
+        vm.setTokenInput(token)
+        vm.saveToken()
+        advanceUntilIdle()
+
+        assertNull(vm.uiState.value.lastFailure)
+    }
+
+    @Test
+    fun `saveToken leaves a spend-cap failure recorded`() = runTest(testDispatcher) {
+        storedFailure.value = failure(GenerationFailure.Kind.SPEND_CAP_USER)
+        val vm = createViewModel()
+        advanceUntilIdle()
+
+        vm.setTokenInput(token)
+        vm.saveToken()
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { mockGenerationFailureRepository.clear() }
+    }
+
+    @Test
+    fun `deviceLabel is shown only for a self-registered token`() = runTest(testDispatcher) {
+        storedToken.value = token
+        val vm = createViewModel()
+        advanceUntilIdle()
+        assertNull(vm.uiState.value.deviceLabel)
+
+        storedRegistration.value = SelfRegistration("Pixel 8", Instant.EPOCH)
+        advanceUntilIdle()
+
+        assertEquals("ur1_0123456789abcdef", vm.uiState.value.tokenId)
+        assertEquals("Pixel 8", vm.uiState.value.deviceLabel)
+    }
+
+    @Test
+    fun `reregister shows progress, then confirms`() = runTest(testDispatcher) {
+        val release = CompletableDeferred<Unit>()
+        coEvery { mockWorkerRegistrar.register() } coAnswers {
+            release.await()
+            RegistrationOutcome.Registered("ur1_0123456789abcdef")
+        }
+        val vm = createViewModel()
+
+        vm.reregister()
+        vm.reregister()
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.registering)
+
+        release.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(false, vm.uiState.value.registering)
+        assertEquals("Registered.", vm.uiState.value.errorMessage)
+        coVerify(exactly = 1) { mockWorkerRegistrar.register() }
+    }
+
+    @Test
+    fun `a failed reregister explains why`() = runTest(testDispatcher) {
+        coEvery { mockWorkerRegistrar.register() } returns
+            RegistrationOutcome.Failed(GenerationFailure.Kind.INTEGRITY_UNAVAILABLE)
+        val vm = createViewModel()
+
+        vm.reregister()
+        advanceUntilIdle()
+
+        assertEquals(failureMessage(failure(GenerationFailure.Kind.INTEGRITY_UNAVAILABLE)), vm.uiState.value.errorMessage)
+        assertEquals(false, vm.uiState.value.registering)
     }
 
     @Test
