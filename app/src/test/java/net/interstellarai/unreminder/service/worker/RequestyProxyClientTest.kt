@@ -557,7 +557,7 @@ class RequestyProxyClientTest {
 
         val registration = proxyClient.register("Pixel 8", baseUrl())
 
-        assertEquals(Registration(mintedToken, "0123456789abcdef"), registration)
+        assertEquals(Registration(mintedToken), registration)
         val recorded = server.takeRequest()
         assertEquals("POST", recorded.method)
         assertEquals(registerWire.getValue("path"), recorded.path)

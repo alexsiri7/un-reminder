@@ -66,8 +66,8 @@ private fun Response.throwOnError(integrity: IntegrityTokenResult?): Nothing {
     throw WorkerError(code, text)
 }
 
-/** A token the Worker minted for this install, and its non-secret id. */
-data class Registration(val token: String, val id: String)
+/** A token the Worker minted for this install. */
+data class Registration(val token: String)
 
 @Singleton
 class RequestyProxyClient @Inject constructor(
@@ -137,7 +137,7 @@ class RequestyProxyClient @Inject constructor(
         val integrity = integrityTokenProvider.token(sha256Hex(body))
         if (integrity is IntegrityTokenResult.Unavailable) throw IntegrityUnavailableException(integrity.retryable)
         val json = send("v1/register", body, workerUrl, token = null, integrity)
-        Registration(token = json.getString("token"), id = json.getString("id"))
+        Registration(token = json.getString("token"))
     }
 
     suspend fun habitFields(

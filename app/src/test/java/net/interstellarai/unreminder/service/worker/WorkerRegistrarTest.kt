@@ -75,7 +75,7 @@ class WorkerRegistrarTest {
         WorkerRegistrar(proxy, tokenRepository, failureRepository, workerUrl, LABEL)
 
     private fun proxyReturns(minted: String = MINTED) {
-        coEvery { proxy.register(any(), any()) } returns Registration(minted, "0123456789abcdef")
+        coEvery { proxy.register(any(), any()) } returns Registration(minted)
     }
 
     @Before
@@ -308,7 +308,7 @@ class WorkerRegistrarTest {
         val release = CompletableDeferred<Unit>()
         coEvery { proxy.register(any(), any()) } coAnswers {
             release.await()
-            Registration(MINTED, "0123456789abcdef")
+            Registration(MINTED)
         }
         val registrar = registrar()
 
