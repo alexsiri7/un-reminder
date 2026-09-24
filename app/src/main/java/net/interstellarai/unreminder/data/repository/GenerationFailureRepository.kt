@@ -19,7 +19,7 @@ import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** Why the last background variant generation was refused, and when. */
+/** Why the last background variant generation, or the registration it waits on, was refused, and when. */
 data class GenerationFailure(
     val kind: Kind,
     /** Only meaningful for the spend-cap kinds; null when the Worker did not say. */
@@ -31,6 +31,17 @@ data class GenerationFailure(
         SPEND_CAP_USER,
         SPEND_CAP_GLOBAL,
         SERVICE_UNAVAILABLE,
+        /** Play Integrity gave this install no token, so it cannot self-register. */
+        INTEGRITY_UNAVAILABLE,
+        /** The Worker refused this install's Play Integrity verdict when it tried to register. */
+        REGISTRATION_REJECTED,
+        /** The Worker's daily cap on new registrations was reached. */
+        REGISTRATION_CAP,
+        ;
+
+        /** Kinds a new token (pasted or registered) makes moot. */
+        val isTokenProblem: Boolean get() = this == TOKEN_REJECTED || this == INTEGRITY_UNAVAILABLE ||
+            this == REGISTRATION_REJECTED || this == REGISTRATION_CAP
     }
 }
 
@@ -38,8 +49,8 @@ data class GenerationFailure(
  * The single most recent background generation failure, for Cloud AI settings and the habit
  * list banner to explain why the pool is not refilling (#422). One record, not one per habit:
  * every kind is Worker- or token-scoped, so any habit's successful refill proves the problem
- * is gone. Written by RefillWorker, cleared by its next success and by saving a new token
- * after a rejected one.
+ * is gone. Written by RefillWorker and WorkerRegistrar, cleared by the next refill success, by a
+ * successful registration, and by saving a new token after a token problem.
  *
  * Writes swallow failures: a failed note must never change what the worker does with the
  * failure it is noting, or turn a landed refill into a reported error.

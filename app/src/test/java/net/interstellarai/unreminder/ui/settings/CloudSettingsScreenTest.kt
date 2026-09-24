@@ -36,7 +36,7 @@ class CloudSettingsScreenTest {
     @Test
     fun `a rejected token says how to replace it`() {
         assertEquals(
-            "token rejected — paste a new one above, or ask Alex for one",
+            "token rejected — tap re-register, or paste a new one under advanced",
             failureMessage(failure(Kind.TOKEN_REJECTED)),
         )
     }
@@ -78,6 +78,38 @@ class CloudSettingsScreenTest {
         assertEquals(
             "the service could not be reached — the app will try again on its own",
             failureMessage(failure(Kind.SERVICE_UNAVAILABLE)),
+        )
+    }
+
+    @Test
+    fun `an install Play Integrity cannot vouch for points at Play or a pasted token`() {
+        assertEquals(
+            "this device can't prove it's a Play install — install from Play, or paste a token under advanced",
+            failureMessage(failure(Kind.INTEGRITY_UNAVAILABLE)),
+        )
+    }
+
+    @Test
+    fun `a rejected registration points at Play or a pasted token`() {
+        assertEquals(
+            "Play didn't verify this install — install from Play, or paste a token under advanced",
+            failureMessage(failure(Kind.REGISTRATION_REJECTED)),
+        )
+    }
+
+    @Test
+    fun `the registration cap says the app retries later`() {
+        assertEquals(
+            "too many new installs today — the app will try again later",
+            failureMessage(failure(Kind.REGISTRATION_CAP)),
+        )
+    }
+
+    @Test
+    fun `only token and registration kinds are token problems`() {
+        assertEquals(
+            setOf(Kind.TOKEN_REJECTED, Kind.INTEGRITY_UNAVAILABLE, Kind.REGISTRATION_REJECTED, Kind.REGISTRATION_CAP),
+            Kind.entries.filter { it.isTokenProblem }.toSet(),
         )
     }
 

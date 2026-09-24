@@ -197,7 +197,7 @@ internal fun regeneratingLabel(progress: RegenerationProgress): String {
 
 internal fun failureMessage(failure: GenerationFailure): String = when (failure.kind) {
     GenerationFailure.Kind.TOKEN_REJECTED ->
-        "token rejected — paste a new one above, or ask Alex for one"
+        "token rejected — tap re-register, or paste a new one under advanced"
     GenerationFailure.Kind.SPEND_CAP_USER -> when (failure.capType) {
         SpendCapType.DAILY -> "your generation budget for today is spent — it resets tomorrow"
         SpendCapType.MONTHLY -> "your generation budget for this month is spent — it resets next month"
@@ -210,6 +210,12 @@ internal fun failureMessage(failure: GenerationFailure): String = when (failure.
     }
     GenerationFailure.Kind.SERVICE_UNAVAILABLE ->
         "the service could not be reached — the app will try again on its own"
+    GenerationFailure.Kind.INTEGRITY_UNAVAILABLE ->
+        "this device can't prove it's a Play install — install from Play, or paste a token under advanced"
+    GenerationFailure.Kind.REGISTRATION_REJECTED ->
+        "Play didn't verify this install — install from Play, or paste a token under advanced"
+    GenerationFailure.Kind.REGISTRATION_CAP ->
+        "too many new installs today — the app will try again later"
 }
 
 private val FAILURE_TIME = DateTimeFormatter.ofPattern("MMM d · HH:mm")
