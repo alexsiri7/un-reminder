@@ -216,7 +216,9 @@ tokens are minted per UTC day across every install, counted in `UR_SPEND` under
 `registrations:day:<date>`. Past that it answers `429 { "error": "Daily registration limit reached" }`
 before any decode — distinct from the limiter's `429 { "error": "Rate limit exceeded" }`. The
 literals the app matches on are pinned in `test/fixtures/register-wire.txt`. If the counter cannot be
-read or written, or the token cannot be stored, it answers `503` and mints nothing. Every registration
+read, or the token cannot be stored, it answers `503` and mints nothing. The count is written only
+after the token is stored; if that write fails the registration still succeeds, the day's count is
+one short, and the failure is reported to Sentry. Every registration
 and every body, verdict or ceiling rejection is reported to Sentry (`component: register`) with its
 reason; the token never is.
 

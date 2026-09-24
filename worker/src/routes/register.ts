@@ -75,11 +75,18 @@ export async function registerHandler(c: Context<{ Bindings: Env }>) {
 
   const { id, token } = mintToken()
   try {
-    await countRegistration(c.env.UR_SPEND)
     await c.env.UR_TOKENS.put(tokenKey(id), JSON.stringify(await createTokenRecord(token, label, new Date())))
   } catch (err) {
     console.error('[register] could not store the token', err)
     return c.json({ error: 'Registration unavailable' }, 503)
+  }
+  try {
+    await countRegistration(c.env.UR_SPEND)
+  } catch (err) {
+    console.error('[register] could not count the registration', err, { id })
+    Sentry.captureException(err instanceof Error ? err : new Error(String(err)), {
+      tags: { component: 'register', failure: 'count-registration', token_id: id },
+    })
   }
 
   console.log('[register] registered', { id, label })

@@ -1645,6 +1645,34 @@ describe('un-reminder-worker', () => {
       }
     })
 
+    it('fails closed and counts nothing when the token record cannot be stored', async () => {
+      const put = vi.spyOn(env.UR_TOKENS, 'put').mockRejectedValue(new Error('kv down'))
+      try {
+        const body = registerBody()
+        await mockIntegrityDecode(body)
+        const res = await postRegister(testEnv(), body, 'play-token')
+        expect(res.status).toBe(503)
+        expect(await res.json()).not.toHaveProperty('token')
+        expect(await env.UR_SPEND.get(registrationsKey())).toBeNull()
+      } finally {
+        put.mockRestore()
+      }
+    })
+
+    it('still returns the stored token when the registration counter cannot be written', async () => {
+      const put = vi.spyOn(env.UR_SPEND, 'put').mockRejectedValue(new Error('kv down'))
+      try {
+        const body = registerBody()
+        await mockIntegrityDecode(body)
+        const res = await postRegister(testEnv(), body, 'play-token')
+        expect(res.status).toBe(200)
+        const { id } = (await res.json()) as { id: string }
+        expect(await env.UR_TOKENS.get(tokenKey(id))).not.toBeNull()
+      } finally {
+        put.mockRestore()
+      }
+    })
+
     it('returns 503 when UR_MAX_REGISTRATIONS_PER_DAY is not a number', async () => {
       const res = await postRegister({ ...testEnv(), UR_MAX_REGISTRATIONS_PER_DAY: 'lots' }, registerBody(), 'play-token')
       expect(res.status).toBe(503)
