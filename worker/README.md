@@ -106,8 +106,10 @@ Owner steps, in order:
 Do these before merging a Worker that enforces the gate: with the secret unset every
 non-exempt request answers `503`.
 
-**What is enforced.** The gate runs after the bearer token is verified and before the spend
-gate, so an unauthenticated request never costs a decode and a rejected build never reads spend.
+**What is enforced.** On the generation routes the gate runs after the bearer token is verified
+and before the spend gate, so an unauthenticated generation request never costs a decode and a
+rejected build never reads spend. `POST /v1/register` is the exception: it has no bearer token, so
+any request carrying the header costs a decode, bounded only by `REQUEST_LIMITER`.
 
 | Verdict | Outcome |
 |---------|---------|
@@ -215,7 +217,8 @@ tokens are minted per UTC day across every install, counted in `UR_SPEND` under
 before any decode — distinct from the limiter's `429 { "error": "Rate limit exceeded" }`. The
 literals the app matches on are pinned in `test/fixtures/register-wire.txt`. If the counter cannot be
 read or written, or the token cannot be stored, it answers `503` and mints nothing. Every registration
-and every rejection is reported to Sentry (`component: register`) with its reason; the token never is.
+and every body, verdict or ceiling rejection is reported to Sentry (`component: register`) with its
+reason; the token never is.
 
 An integrity token spent here cannot be replayed elsewhere: it is bound to this body's hash, and
 Google clears the verdicts of a token decoded twice.

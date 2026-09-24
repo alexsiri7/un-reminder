@@ -1538,6 +1538,7 @@ describe('un-reminder-worker', () => {
       await waitOnExecutionContext(ctx)
       expect(generated.status).toBe(200)
       expect(log).toHaveBeenCalledWith('[integrity] verified', { id, label: 'self:Pixel 8', device: ['MEETS_DEVICE_INTEGRITY'] })
+      expect(JSON.stringify([log.mock.calls, warn.mock.calls])).not.toContain(token.slice(-64))
     })
 
     it('sanitises and caps the device label', async () => {
