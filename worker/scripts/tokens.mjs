@@ -1,5 +1,7 @@
-// Mints, revokes and re-caps per-user Worker tokens in the remote UR_TOKENS namespace through wrangler.
+// Lists, mints, revokes and re-caps per-user Worker tokens in the remote UR_TOKENS namespace through wrangler.
 //
+//   npm run tokens -- list                  every token, minted or self-registered: id, state, createdAt,
+//                                           caps, Play Integrity exemption and label
 //   npm run tokens -- mint --label <name>   prints a new token once; only its salted hash is stored
 //     --integrity-exempt                     the token skips the Play Integrity gate (debug builds)
 //     --daily-cap-cents <n>                  spend caps for this token instead of UR_USER_*_CAP_CENTS
@@ -14,7 +16,7 @@
 import { execFileSync } from 'node:child_process'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { applyCaps, createTokenRecord, mintToken, tokenKey } from './tokenRecord.mjs'
+import { applyCaps, createTokenRecord, describeToken, mintToken, tokenKey } from './tokenRecord.mjs'
 
 const workerDir = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const wranglerBin = resolve(workerDir, 'node_modules/.bin/wrangler')
@@ -32,7 +34,7 @@ const getRecord = (id) => JSON.parse(kv(['get', tokenKey(id), '--text'], { captu
 
 function usage() {
   console.error(
-    'usage: npm run tokens -- mint --label <name> [--integrity-exempt] [caps] | disable <id> | enable <id> | caps <id> [caps]\n' +
+    'usage: npm run tokens -- list | mint --label <name> [--integrity-exempt] [caps] | disable <id> | enable <id> | caps <id> [caps]\n' +
       '  caps: [--daily-cap-cents <n>] [--monthly-cap-cents <n>]',
   )
   process.exit(2)
@@ -67,6 +69,16 @@ const describeCaps = ({ dailyCapCents, monthlyCapCents }) =>
 
 const [command, ...rest] = process.argv.slice(2)
 switch (command) {
+  case 'list': {
+    if (rest.length > 0) usage()
+    const keys = JSON.parse(kv(['list', '--prefix', tokenKey('')], { capture: true }))
+    console.log(`${keys.length} token(s); caps are daily/monthly cents, default = UR_USER_*_CAP_CENTS`)
+    for (const { name } of keys) {
+      const id = name.slice(tokenKey('').length)
+      console.log(describeToken(id, getRecord(id)))
+    }
+    break
+  }
   case 'mint': {
     const label = rest[rest.indexOf('--label') + 1]
     if (!rest.includes('--label') || !label) usage()

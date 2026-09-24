@@ -112,7 +112,7 @@ wrangler secret put UR_REQUESTY_KEY
 wrangler kv namespace create UR_SPEND   # copy the returned ID into worker/wrangler.toml
 wrangler kv namespace create UR_TOKENS  # likewise
 wrangler deploy
-npm run tokens -- mint --label <name>   # one token per user; see worker/README.md
+npm run tokens -- mint --label <name>   # a token to paste into the app; worker/README.md also covers self-registration
 ```
 
 ### Build Configuration / GitHub Secrets
@@ -137,7 +137,7 @@ The following must be set via `wrangler secret put` before deploying the CF Work
 
 | Secret / Config | Purpose | How to set |
 |---|---|---|
-| `UR_TOKENS` namespace ID | KV namespace of per-user auth tokens, stored as salted hashes | `wrangler kv namespace create UR_TOKENS` → paste ID into `worker/wrangler.toml`, then `npm run tokens -- mint --label <name>` |
+| `UR_TOKENS` namespace ID | KV namespace of per-user auth tokens, stored as salted hashes | `wrangler kv namespace create UR_TOKENS` → paste ID into `worker/wrangler.toml`, then `npm run tokens -- mint --label <name>` (the Worker also mints tokens for Play-verified installs via `POST /v1/register`) |
 | `UR_REQUESTY_KEY` | Requesty.ai API key for Gemini Flash calls | `wrangler secret put UR_REQUESTY_KEY` |
 | `UR_PLAY_INTEGRITY_SA_KEY` | Service-account JSON key the Worker uses to decode Play Integrity tokens; unset ⇒ every non-exempt request answers 503 | `wrangler secret put UR_PLAY_INTEGRITY_SA_KEY < key.json` — setup in `worker/README.md` "Play Integrity" |
 | `UR_SPEND` namespace ID | KV namespace for spend tracking | `wrangler kv namespace create UR_SPEND` → paste ID into `worker/wrangler.toml` |

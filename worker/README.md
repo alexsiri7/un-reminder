@@ -47,18 +47,21 @@ wrangler secret put UR_PLAY_INTEGRITY_SA_KEY < key.json   # service-account key,
 
 ### 3. Tokens
 
-Every user of the app holds their own token, which they paste into the app's Cloud AI settings.
-The Worker stores only a salted SHA-256 hash of it, so the token is printed exactly once when
-minted; keep it or mint another.
+Every user of the app holds their own token. The Worker mints one for a Play-verified install
+through `POST /v1/register` (below), labelling its record `self:<deviceLabel>`; until the app calls
+that route itself, a user gets a token by having one minted here and pasting it into the app's Cloud
+AI settings. Debug builds and installs Play does not recognise can never register, so they keep the
+mint-and-paste path with `--integrity-exempt`. The Worker stores only a salted SHA-256 hash of a
+token, so a minted one is printed exactly once; keep it or mint another.
 
 ```bash
+npm run tokens -- list                  # every token, minted or self-registered; never the secret
 npm run tokens -- mint --label <name>   # prints ur1_<id>_<secret> once and stores its hash
 npm run tokens -- mint --label <name> --integrity-exempt   # same, but skips the Play Integrity gate
 npm run tokens -- mint --label <name> --daily-cap-cents 50 --monthly-cap-cents 500   # own spend caps
 npm run tokens -- disable <id>          # revoke: the token answers 401 from the next request
 npm run tokens -- enable <id>
 npm run tokens -- caps <id> --daily-cap-cents 50   # replace the token's cap overrides; omitted ⇒ default
-npx wrangler kv key list --binding UR_TOKENS --remote   # ids of every minted token
 npx wrangler kv key list --binding UR_SPEND --remote --prefix user:<id>:   # one token's spend counters
 ```
 
