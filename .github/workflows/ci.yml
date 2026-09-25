@@ -105,6 +105,14 @@ jobs:
           VERSION_CODE=$(git rev-list --count HEAD)
           echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
 
+      - name: Warn if Play Integrity project number is missing
+        env:
+          PLAY_CLOUD_PROJECT_NUMBER: ${{ secrets.PLAY_CLOUD_PROJECT_NUMBER }}
+        run: |
+          if [ -z "$PLAY_CLOUD_PROJECT_NUMBER" ]; then
+            echo "::warning::PLAY_CLOUD_PROJECT_NUMBER secret is not set — this release APK cannot self-register, and the Release workflow will refuse to build. See worker/README.md § Play Integrity, step 4."
+          fi
+
       - name: Assemble signed release APK
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
