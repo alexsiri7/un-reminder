@@ -100,6 +100,14 @@ class CloudSettingsScreenTest {
     }
 
     @Test
+    fun `a build without Play Integrity support says so instead of blaming the install`() {
+        assertEquals(
+            "this build was made without Play Integrity support — paste a token under advanced",
+            failureMessage(failure(Kind.INTEGRITY_NOT_CONFIGURED)),
+        )
+    }
+
+    @Test
     fun `a rejected registration points at Play or a pasted token`() {
         assertEquals(
             "Play didn't verify this install — install from Play, or paste a token under advanced",
@@ -118,7 +126,7 @@ class CloudSettingsScreenTest {
     @Test
     fun `only token and registration kinds are token problems`() {
         assertEquals(
-            setOf(Kind.TOKEN_REJECTED, Kind.INTEGRITY_UNAVAILABLE, Kind.REGISTRATION_REJECTED, Kind.REGISTRATION_CAP),
+            setOf(Kind.TOKEN_REJECTED, Kind.INTEGRITY_UNAVAILABLE, Kind.INTEGRITY_NOT_CONFIGURED, Kind.REGISTRATION_REJECTED, Kind.REGISTRATION_CAP),
             Kind.entries.filter { it.isTokenProblem }.toSet(),
         )
     }

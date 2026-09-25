@@ -25,6 +25,15 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Require Play Integrity project number
+        env:
+          PLAY_CLOUD_PROJECT_NUMBER: ${{ secrets.PLAY_CLOUD_PROJECT_NUMBER }}
+        run: |
+          if [ -z "$PLAY_CLOUD_PROJECT_NUMBER" ]; then
+            echo "::error::PLAY_CLOUD_PROJECT_NUMBER secret is not set — a release built without it can never self-register. See worker/README.md § Play Integrity, step 4."
+            exit 1
+          fi
+
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:

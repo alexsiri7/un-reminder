@@ -106,8 +106,9 @@ Owner steps, in order:
    secret so release builds bake it into `BuildConfig`.
 5. Mint an exempt token for your own debug builds: `npm run tokens -- mint --label alex-dev --integrity-exempt`.
 
-Do these before merging a Worker that enforces the gate: with the secret unset every
-non-exempt request answers `503`.
+The gate is already enforced, so do these before the first Release run: without step 3 every
+non-exempt request answers `503` (`/v1/health` reports `"integrity": "unconfigured"`), and without
+step 4 the Release workflow fails before building.
 
 **What is enforced.** On the generation routes the gate runs after the bearer token is verified
 and before the spend gate, so an unauthenticated generation request never costs a decode and a
@@ -186,7 +187,8 @@ Configure rate limiting rules at the Cloudflare zone dashboard level (not in Wor
 ### `GET /v1/health`
 
 Returns worker status, the service-wide daily and monthly spend and caps (no per-token figures:
-the route is unauthenticated) and the deployed `generationVersion`.
+the route is unauthenticated), the deployed `generationVersion`, and `integrity`: `"configured"` or
+`"unconfigured"` depending on whether `UR_PLAY_INTEGRITY_SA_KEY` is set (never its content).
 
 ### `POST /v1/register`
 

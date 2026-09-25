@@ -114,4 +114,6 @@ export interface HealthResponse {
   capMonthly: number
   /** Pools generated under any other version are stale; the app polls this daily. */
   generationVersion: number
+  /** Whether UR_PLAY_INTEGRITY_SA_KEY is set; without it every non-exempt request answers 503. */
+  integrity: 'configured' | 'unconfigured'
 }

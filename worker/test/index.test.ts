@@ -1246,6 +1246,26 @@ describe('un-reminder-worker', () => {
     expect(body.generationVersion).toBe(7)
   })
 
+  it('GET /v1/health reports the Play Integrity key as configured', async () => {
+    const req = makeRequest('/v1/health')
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, testEnv(), ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { integrity: string }
+    expect(body.integrity).toBe('configured')
+  })
+
+  it('GET /v1/health reports a missing Play Integrity key as unconfigured', async () => {
+    const req = makeRequest('/v1/health')
+    const ctx = createExecutionContext()
+    const res = await app.fetch(req, { ...testEnv(), UR_PLAY_INTEGRITY_SA_KEY: undefined }, ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { integrity: string }
+    expect(body.integrity).toBe('unconfigured')
+  })
+
   it('GET /v1/health returns 503 when the generation version is malformed', async () => {
     const req = makeRequest('/v1/health')
     const ctx = createExecutionContext()

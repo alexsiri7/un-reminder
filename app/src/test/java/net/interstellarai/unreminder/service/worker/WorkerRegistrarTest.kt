@@ -107,6 +107,7 @@ class WorkerRegistrarTest {
         for (kind in listOf(
             GenerationFailure.Kind.TOKEN_REJECTED,
             GenerationFailure.Kind.INTEGRITY_UNAVAILABLE,
+            GenerationFailure.Kind.INTEGRITY_NOT_CONFIGURED,
             GenerationFailure.Kind.REGISTRATION_REJECTED,
             GenerationFailure.Kind.REGISTRATION_CAP,
             GenerationFailure.Kind.SERVICE_UNAVAILABLE,
@@ -162,6 +163,7 @@ class WorkerRegistrarTest {
     fun `expected failures are recorded, deferred, and not reported`() = runTest {
         assertFailure(IntegrityUnavailableException(retryable = false), GenerationFailure.Kind.INTEGRITY_UNAVAILABLE, WorkerRegistrar.REFUSAL_BACKOFF)
         assertFailure(IntegrityUnavailableException(retryable = true), GenerationFailure.Kind.SERVICE_UNAVAILABLE, WorkerRegistrar.TRANSIENT_BACKOFF)
+        assertFailure(IntegrityNotConfiguredException(), GenerationFailure.Kind.INTEGRITY_NOT_CONFIGURED, WorkerRegistrar.REFUSAL_BACKOFF)
         assertFailure(WorkerIntegrityException("unrecognized-app", retryable = false), GenerationFailure.Kind.REGISTRATION_REJECTED, WorkerRegistrar.REFUSAL_BACKOFF)
         assertFailure(RegistrationCapException(), GenerationFailure.Kind.REGISTRATION_CAP, WorkerRegistrar.REFUSAL_BACKOFF)
         assertFailure(WorkerError(503, "Registration unavailable"), GenerationFailure.Kind.SERVICE_UNAVAILABLE, WorkerRegistrar.TRANSIENT_BACKOFF)

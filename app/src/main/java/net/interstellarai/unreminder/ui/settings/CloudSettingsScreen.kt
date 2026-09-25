@@ -256,6 +256,8 @@ internal fun failureMessage(failure: GenerationFailure): String = when (failure.
         "the service could not be reached — the app will try again on its own"
     GenerationFailure.Kind.INTEGRITY_UNAVAILABLE ->
         "this device can't prove it's a Play install — install from Play, or paste a token under advanced"
+    GenerationFailure.Kind.INTEGRITY_NOT_CONFIGURED ->
+        "this build was made without Play Integrity support — paste a token under advanced"
     GenerationFailure.Kind.REGISTRATION_REJECTED ->
         "Play didn't verify this install — install from Play, or paste a token under advanced"
     GenerationFailure.Kind.REGISTRATION_CAP ->
