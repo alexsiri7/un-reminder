@@ -107,6 +107,7 @@ class WorkerRegistrarTest {
         for (kind in listOf(
             GenerationFailure.Kind.TOKEN_REJECTED,
             GenerationFailure.Kind.INTEGRITY_UNAVAILABLE,
+            GenerationFailure.Kind.INTEGRITY_NOT_CONFIGURED,
             GenerationFailure.Kind.REGISTRATION_REJECTED,
             GenerationFailure.Kind.REGISTRATION_CAP,
             GenerationFailure.Kind.SERVICE_UNAVAILABLE,
