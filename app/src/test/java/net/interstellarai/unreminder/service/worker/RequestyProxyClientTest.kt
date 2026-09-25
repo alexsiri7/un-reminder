@@ -583,6 +583,15 @@ class RequestyProxyClientTest {
     }
 
     @Test
+    fun `register never calls the Worker from a build without Play Integrity support`() = runTest {
+        integrity.result = IntegrityTokenResult.NotConfigured
+
+        assertFailsWith<IntegrityNotConfiguredException> { proxyClient.register("Pixel 8", baseUrl()) }
+
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
     fun `register maps the daily registration cap 429 to RegistrationCapException`() = runTest {
         server.enqueue(
             MockResponse().setResponseCode(429)

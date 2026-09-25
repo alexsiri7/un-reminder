@@ -16,7 +16,7 @@ import kotlinx.coroutines.tasks.await
 /**
  * Standard Play Integrity requests: one prepared provider per process, tokens requested per
  * call. A build with no [cloudProjectNumber] (local builds without the env var) never asks
- * Play and reports itself permanently unavailable, so only an integrity-exempt Worker token
+ * Play and reports [IntegrityTokenResult.NotConfigured], so only an integrity-exempt Worker token
  * works from it.
  */
 class PlayIntegrityTokenProvider(
@@ -39,7 +39,7 @@ class PlayIntegrityTokenProvider(
     }
 
     override suspend fun token(requestHash: String): IntegrityTokenResult {
-        if (cloudProjectNumber == null) return IntegrityTokenResult.Unavailable(retryable = false, errorCode = null)
+        if (cloudProjectNumber == null) return IntegrityTokenResult.NotConfigured
         return try {
             try {
                 IntegrityTokenResult.Token(request(requestHash))

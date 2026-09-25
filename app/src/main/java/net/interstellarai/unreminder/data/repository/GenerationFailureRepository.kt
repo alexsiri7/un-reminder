@@ -33,6 +33,8 @@ data class GenerationFailure(
         SERVICE_UNAVAILABLE,
         /** Play Integrity gave this install no token, so it cannot self-register. */
         INTEGRITY_UNAVAILABLE,
+        /** This build was made without a Play Integrity Cloud project number, so no install of it can self-register. */
+        INTEGRITY_NOT_CONFIGURED,
         /** The Worker refused this install's Play Integrity verdict when it tried to register. */
         REGISTRATION_REJECTED,
         /** The Worker's daily cap on new registrations was reached. */
@@ -41,7 +43,7 @@ data class GenerationFailure(
 
         /** Kinds a new token (pasted or registered) makes moot. */
         val isTokenProblem: Boolean get() = this == TOKEN_REJECTED || this == INTEGRITY_UNAVAILABLE ||
-            this == REGISTRATION_REJECTED || this == REGISTRATION_CAP
+            this == INTEGRITY_NOT_CONFIGURED || this == REGISTRATION_REJECTED || this == REGISTRATION_CAP
     }
 }
 

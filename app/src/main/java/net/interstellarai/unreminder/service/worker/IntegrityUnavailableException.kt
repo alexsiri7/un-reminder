@@ -6,3 +6,7 @@ package net.interstellarai.unreminder.service.worker
  */
 class IntegrityUnavailableException(val retryable: Boolean) :
     Exception("Play Integrity token unavailable on this device")
+
+/** This build has no Play Integrity Cloud project number, so it can never register. */
+class IntegrityNotConfiguredException :
+    Exception("This build was made without Play Integrity support")

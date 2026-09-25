@@ -132,6 +132,7 @@ class WorkerRegistrar @Inject constructor(
             is IntegrityUnavailableException ->
                 if (e.retryable) Failure(GenerationFailure.Kind.SERVICE_UNAVAILABLE, TRANSIENT_BACKOFF)
                 else Failure(GenerationFailure.Kind.INTEGRITY_UNAVAILABLE, REFUSAL_BACKOFF)
+            is IntegrityNotConfiguredException -> Failure(GenerationFailure.Kind.INTEGRITY_NOT_CONFIGURED, REFUSAL_BACKOFF)
             is WorkerIntegrityException -> Failure(GenerationFailure.Kind.REGISTRATION_REJECTED, REFUSAL_BACKOFF)
             is RegistrationCapException -> Failure(GenerationFailure.Kind.REGISTRATION_CAP, REFUSAL_BACKOFF)
             // A 429 other than the cap is the Worker's per-client rate limit.

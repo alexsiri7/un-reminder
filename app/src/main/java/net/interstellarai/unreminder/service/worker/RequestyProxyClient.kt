@@ -135,7 +135,11 @@ class RequestyProxyClient @Inject constructor(
     suspend fun register(deviceLabel: String, workerUrl: String): Registration = withContext(Dispatchers.IO) {
         val body = JSONObject().put("deviceLabel", deviceLabel).toString()
         val integrity = integrityTokenProvider.token(sha256Hex(body))
-        if (integrity is IntegrityTokenResult.Unavailable) throw IntegrityUnavailableException(integrity.retryable)
+        when (integrity) {
+            is IntegrityTokenResult.Unavailable -> throw IntegrityUnavailableException(integrity.retryable)
+            IntegrityTokenResult.NotConfigured -> throw IntegrityNotConfiguredException()
+            is IntegrityTokenResult.Token -> Unit
+        }
         val json = send("v1/register", body, workerUrl, token = null, integrity)
         Registration(token = json.getString("token"))
     }

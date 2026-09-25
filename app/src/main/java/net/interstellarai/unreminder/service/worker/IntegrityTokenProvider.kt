@@ -5,6 +5,9 @@ sealed interface IntegrityTokenResult {
 
     /** No token could be obtained; [retryable] says whether a later attempt may succeed. */
     data class Unavailable(val retryable: Boolean, val errorCode: Int?) : IntegrityTokenResult
+
+    /** This build has no Play Integrity Cloud project number, so Play was never asked. */
+    data object NotConfigured : IntegrityTokenResult
 }
 
 /** Source of the Play Integrity token each Worker generation request carries. */

@@ -56,7 +56,7 @@ class PlayIntegrityTokenProviderTest {
     fun `a build without a cloud project number never touches Play`() = runTest {
         val result = provider(cloudProjectNumber = null).token("hash")
 
-        assertEquals(IntegrityTokenResult.Unavailable(retryable = false, errorCode = null), result)
+        assertEquals(IntegrityTokenResult.NotConfigured, result)
         provider(cloudProjectNumber = null).warmUp()
         verify(exactly = 0) { manager.prepareIntegrityToken(any()) }
     }
