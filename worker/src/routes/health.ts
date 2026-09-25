@@ -31,6 +31,7 @@ export async function healthHandler(c: Context<{ Bindings: Env }>): Promise<Resp
     capDaily: capDailyCents / 100,
     capMonthly: capMonthlyCents / 100,
     generationVersion,
+    integrity: c.env.UR_PLAY_INTEGRITY_SA_KEY ? 'configured' : 'unconfigured',
   }
   return c.json(body)
 }

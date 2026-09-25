@@ -96,7 +96,7 @@ Runs as a Cloudflare Worker (Hono framework). Exposes these routes:
 
 | Route | Auth | Description |
 |---|---|---|
-| `GET /v1/health` | Public | Returns `{ status, spendUsedToday, spendUsedMonth, capDaily, capMonthly, generationVersion }` |
+| `GET /v1/health` | Public | Returns `{ status, spendUsedToday, spendUsedMonth, capDaily, capMonthly, generationVersion, integrity }` |
 | `POST /v1/generate/batch` | `Authorization: Bearer <token>` + `X-Play-Integrity-Token` (unless the token is integrity-exempt) | Accepts `{ habitTitle, habitTags, locationName, timeOfDay, supportedModes?, n }`, returns `{ variants: Array<{ text: string, shape: string, modes: string[], actionUrl?: string }>, generationVersion }` via Requesty |
 | `POST /v1/habit-fields` | `Authorization: Bearer <token>` + `X-Play-Integrity-Token` (unless the token is integrity-exempt) | Accepts `{ title }`, returns `{ descriptionLadder: string[] }` (6 elements, one per dedication level) via Requesty |
 
