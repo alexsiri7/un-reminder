@@ -125,11 +125,11 @@ The following repository secrets are required for CI release builds and Worker d
 | `GITHUB_FEEDBACK_TOKEN` | In-app feedback submission | GitHub PAT with `issues:write` scope |
 | `SENTRY_DSN` | Automated crash reporting (optional — blank value disables Sentry) | Sentry DSN URL, e.g. `https://key@org.ingest.sentry.io/projectid` |
 | `WORKER_URL` | URL of the cloud AI variant generation worker (optional — blank disables cloud AI) | Full URL, e.g. `https://un-reminder-worker.yourname.workers.dev` |
-| `PLAY_CLOUD_PROJECT_NUMBER` | Cloud project linked to the app's Play Integrity API (optional — blank means the app never requests integrity tokens, so only integrity-exempt Worker tokens work) | The numeric project *number*, not the id; see `worker/README.md` "Play Integrity" |
+| `PLAY_CLOUD_PROJECT_NUMBER` | Cloud project linked to the app's Play Integrity API (required for Release — `release.yml` fails before building when it is blank; other builds without it never request integrity tokens, so only integrity-exempt Worker tokens work) | The numeric project *number*, not the id; see `worker/README.md` "Play Integrity" |
 | `CLOUDFLARE_API_TOKEN` | Used by `.github/workflows/deploy-worker.yml` to deploy the Cloudflare Worker | User-owned token from dash.cloudflare.com/profile/api-tokens — see required scopes in `worker/wrangler.toml` header comment |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account that owns the Worker | Account ID from the Cloudflare dashboard |
 
-All secrets are optional in the sense that the app compiles and runs without them; missing secrets disable the corresponding feature at runtime.
+Apart from `PLAY_CLOUD_PROJECT_NUMBER` in Release, all secrets are optional in the sense that the app compiles and runs without them; missing secrets disable the corresponding feature at runtime.
 
 ### Worker Secrets (Wrangler)
 
