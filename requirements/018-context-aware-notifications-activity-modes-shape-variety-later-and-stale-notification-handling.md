@@ -2,10 +2,10 @@
 created: '2026-09-12'
 github_issue: 369
 id: 018
-status: idea
+status: done
 title: 'Context-aware notifications: activity modes, shape variety, Later, and stale-notification
   handling'
-updated: '2026-09-12'
+updated: '2026-09-28'
 ---
 
 ## Why
