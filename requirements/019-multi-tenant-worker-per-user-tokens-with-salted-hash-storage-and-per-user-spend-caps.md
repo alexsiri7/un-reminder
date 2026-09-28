@@ -2,10 +2,10 @@
 created: '2026-09-15'
 github_issue: null
 id: 019
-status: draft
+status: done
 title: 'Multi-tenant Worker: per-user tokens with salted-hash storage and per-user
   spend caps'
-updated: '2026-09-24'
+updated: '2026-09-28'
 ---
 
 ## Why
