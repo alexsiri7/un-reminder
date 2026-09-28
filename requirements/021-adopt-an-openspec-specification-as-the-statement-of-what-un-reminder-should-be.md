@@ -1,8 +1,8 @@
 ---
 created: '2026-09-28'
-github_issue: null
+github_issue: 460
 id: '021'
-status: draft
+status: idea
 title: Adopt an OpenSpec specification as the statement of what Un-Reminder should
   be
 updated: '2026-09-28'
@@ -18,4 +18,4 @@ The repository holds Un-Reminder's specification in OpenSpec format under `opens
 
 ## Issues
 
-_None yet._
+- #460 — Add Un-Reminder's OpenSpec specification and validate it in CI
