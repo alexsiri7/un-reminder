@@ -2,7 +2,7 @@
 created: '2026-09-10'
 github_issue: 290
 id: '016'
-status: in-progress
+status: done
 title: 'Pull-based nudging: doable-now menu, growth counters, evening invitation,
   widget'
 updated: '2026-09-29'
