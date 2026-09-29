@@ -5,7 +5,7 @@ id: '016'
 status: done
 title: 'Pull-based nudging: doable-now menu, growth counters, evening invitation,
   widget'
-updated: '2026-09-28'
+updated: '2026-09-29'
 ---
 
 ## Why
