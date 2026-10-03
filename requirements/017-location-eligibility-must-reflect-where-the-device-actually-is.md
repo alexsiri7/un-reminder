@@ -2,9 +2,9 @@
 created: '2026-09-11'
 github_issue: 318
 id: '017'
-status: idea
+status: done
 title: Location eligibility must reflect where the device actually is
-updated: '2026-09-11'
+updated: '2026-09-28'
 ---
 
 ## Why
