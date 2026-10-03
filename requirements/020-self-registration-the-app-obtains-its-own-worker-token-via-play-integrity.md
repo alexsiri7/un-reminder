@@ -2,9 +2,9 @@
 created: '2026-09-24'
 github_issue: 439
 id: 16
-status: in-progress
+status: done
 title: 'Self-registration: the app obtains its own Worker token via Play Integrity'
-updated: '2026-09-29'
+updated: '2026-10-03'
 ---
 
 ## Why
