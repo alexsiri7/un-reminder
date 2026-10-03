@@ -13,7 +13,8 @@ jobs:
   # Requirement-doc PRs can't affect anything the jobs below check, so they skip their
   # steps. The jobs themselves still run and report success: a job skipped outright
   # (job-level `if:` or `paths-ignore`) posts no check run, which leaves a required
-  # status check pending forever (#467).
+  # status check pending forever (#467). The `!cancelled()` on those jobs keeps a failed
+  # classification from skipping them too; its empty output runs every step.
   changes:
     name: Classify changes
     runs-on: ubuntu-latest
@@ -44,6 +45,7 @@ jobs:
   build:
     name: Build & test
     needs: changes
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     # The default GITHUB_TOKEN is read-only for this repo; the auto-record step below
@@ -210,6 +212,7 @@ jobs:
   worker-checks:
     name: Worker type-check & tests
     needs: changes
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
@@ -242,6 +245,7 @@ jobs:
   tools-tests:
     name: Slicer tests
     needs: changes
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
