@@ -3,6 +3,7 @@
 import builtins
 import importlib
 import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -103,3 +104,98 @@ def test_release_workflow_runs_the_script() -> None:
     promote = next(s for s in steps if s.get("name") == "Promote internal track draft to completed")
     assert "python3 tools/promote_internal_track.py" in promote["run"]
     assert "<<" not in promote["run"]
+
+
+class FakeHttpError(Exception):
+    def __init__(self, status: int, message: str) -> None:
+        super().__init__(message)
+        self.resp = types.SimpleNamespace(status=status)
+        self.content = message.encode()
+
+
+class FakeRequest:
+    def __init__(self, calls: list, name: str, result, error: Exception | None) -> None:
+        self.calls, self.name, self.result, self.error = calls, name, result, error
+
+    def execute(self, **kwargs):
+        self.calls.append((self.name, kwargs))
+        if self.error is not None:
+            raise self.error
+        return self.result
+
+
+class FakeEdits:
+    """Stands in for svc.edits() and svc.edits().tracks(); `errors` maps a call name
+    to the error that call's request raises once the client gives up retrying."""
+
+    def __init__(self, errors: dict[str, Exception]) -> None:
+        self.calls: list = []
+        self.errors = errors
+
+    def _request(self, name: str, result=None) -> FakeRequest:
+        return FakeRequest(self.calls, name, result, self.errors.get(name))
+
+    def insert(self, **_):
+        return self._request("insert", {"id": "edit-1"})
+
+    def tracks(self):
+        return self
+
+    def get(self, **_):
+        return self._request("get", {"releases": [release(202, "draft")]})
+
+    def update(self, **_):
+        return self._request("update")
+
+    def commit(self, **_):
+        return self._request("commit")
+
+    def delete(self, **_):
+        return self._request("delete")
+
+
+@pytest.fixture
+def play(monkeypatch: pytest.MonkeyPatch):
+    """Runs main() against fake Google client modules backed by the given FakeEdits."""
+    import promote_internal_track
+
+    def run(edits: FakeEdits) -> None:
+        service_account = types.SimpleNamespace(
+            Credentials=types.SimpleNamespace(from_service_account_info=lambda *a, **k: None)
+        )
+        modules = {
+            "google": types.ModuleType("google"),
+            "google.oauth2": types.SimpleNamespace(service_account=service_account),
+            "googleapiclient": types.ModuleType("googleapiclient"),
+            "googleapiclient.discovery": types.SimpleNamespace(
+                build=lambda *a, **k: types.SimpleNamespace(edits=lambda: edits)
+            ),
+            "googleapiclient.errors": types.SimpleNamespace(HttpError=FakeHttpError),
+        }
+        for name, module in modules.items():
+            monkeypatch.setitem(sys.modules, name, module)
+        monkeypatch.setenv("PLAY_SERVICE_ACCOUNT_JSON", "{}")
+        promote_internal_track.main()
+
+    return run
+
+
+def test_every_play_call_retries_transient_failures(play) -> None:
+    """#478: a single 503 from edits.commit turned the Release job red."""
+    edits = FakeEdits({})
+    play(edits)
+    assert [name for name, _ in edits.calls] == ["insert", "get", "update", "commit"]
+    assert all(kwargs.get("num_retries", 0) > 0 for _, kwargs in edits.calls)
+
+
+def test_server_error_that_outlasts_retries_stays_red(play) -> None:
+    with pytest.raises(FakeHttpError):
+        play(FakeEdits({"commit": FakeHttpError(503, "The service is currently unavailable.")}))
+
+
+def test_console_gate_at_commit_is_still_tolerated(play) -> None:
+    edits = FakeEdits(
+        {"commit": FakeHttpError(403, "Tell us whether your app includes any health features.")}
+    )
+    play(edits)
+    assert [name for name, _ in edits.calls][-1] == "delete"
