@@ -143,7 +143,7 @@ configurations.matching { it.name == "debugUnitTestRuntimeClasspath" }.configure
     exclude(group = "com.android.tools.layoutlib", module = "layoutlib")
 }
 
-val canUploadToSentry = !System.getenv("SENTRY_AUTH_TOKEN").isNullOrBlank()
+val canUploadToSentry = envOrDefault("SENTRY_AUTH_TOKEN", "").isNotBlank()
 
 sentry {
     autoInstallation { enabled.set(false) }
