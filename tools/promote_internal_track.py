@@ -8,7 +8,9 @@ in draft state, or a policy declaration under App content is outstanding). Those
 refusals exit 0 with a `::warning::` annotation, a step-summary line, and
 `PLAY_PROMOTION_BLOCKED` in `GITHUB_ENV` so later steps can say the release is
 stuck. Every other API error is re-raised so real regressions (for example a
-target SDK the store no longer accepts, #303) still turn the job red.
+target SDK the store no longer accepts, #303) still turn the job red. Transient
+failures (5xx, 429, connection errors) are retried with exponential backoff by the
+client library before they count as errors (#478).
 
 Only the standard library is imported at module level so the tests run without
 the Google client installed.
@@ -18,6 +20,7 @@ import json
 import os
 
 PKG = 'net.interstellarai.unreminder'
+PLAY_API_RETRIES = 5
 
 DRAFT_APP_FIX = (
     "Complete Play Console setup (content rating, target audience, data safety, etc.) "
@@ -56,6 +59,10 @@ def append_line(env_var: str, line: str) -> None:
         f.write(line + '\n')
 
 
+def execute(request):
+    return request.execute(num_retries=PLAY_API_RETRIES)
+
+
 def main() -> None:
     from google.oauth2 import service_account
     from googleapiclient.discovery import build
@@ -66,23 +73,23 @@ def main() -> None:
         scopes=['https://www.googleapis.com/auth/androidpublisher'],
     )
     svc = build('androidpublisher', 'v3', credentials=creds)
-    edit = svc.edits().insert(packageName=PKG, body={}).execute()
+    edit = execute(svc.edits().insert(packageName=PKG, body={}))
     eid = edit['id']
-    track = svc.edits().tracks().get(packageName=PKG, editId=eid, track='internal').execute()
+    track = execute(svc.edits().tracks().get(packageName=PKG, editId=eid, track='internal'))
     print(f"Track state: {json.dumps(track, indent=2)}")
 
     draft = newest_draft(track.get('releases', []))
     if draft is None:
         print("No draft releases to promote")
-        svc.edits().delete(packageName=PKG, editId=eid).execute()
+        execute(svc.edits().delete(packageName=PKG, editId=eid))
         return
 
     # Only send the new release as completed; omit older releases so Play retires them
     draft['status'] = 'completed'
     track['releases'] = [draft]
     try:
-        svc.edits().tracks().update(packageName=PKG, editId=eid, track='internal', body=track).execute()
-        svc.edits().commit(packageName=PKG, editId=eid).execute()
+        execute(svc.edits().tracks().update(packageName=PKG, editId=eid, track='internal', body=track))
+        execute(svc.edits().commit(packageName=PKG, editId=eid))
         print("Successfully promoted draft to completed")
     except HttpError as e:
         msg = (e.content or b'').decode('utf-8', errors='replace')
@@ -98,7 +105,7 @@ def main() -> None:
         append_line('GITHUB_STEP_SUMMARY', f"⚠️ {notice}")
         append_line('GITHUB_ENV', f"PLAY_PROMOTION_BLOCKED={reason}")
         try:
-            svc.edits().delete(packageName=PKG, editId=eid).execute()
+            execute(svc.edits().delete(packageName=PKG, editId=eid))
         except HttpError:
             pass
 
