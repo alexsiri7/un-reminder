@@ -126,11 +126,15 @@ class FakeRequest:
 
 class FakeEdits:
     """Stands in for svc.edits() and svc.edits().tracks(); `errors` maps a call name
-    to the error that call's request raises once the client gives up retrying."""
+    to the error that call's request raises once the client gives up retrying, and
+    `releases` is what the internal track currently holds."""
 
-    def __init__(self, errors: dict[str, Exception]) -> None:
+    def __init__(
+        self, errors: dict[str, Exception], releases: list[dict] | None = None
+    ) -> None:
         self.calls: list = []
         self.errors = errors
+        self.releases = [release(202, "draft")] if releases is None else releases
 
     def _request(self, name: str, result=None) -> FakeRequest:
         return FakeRequest(self.calls, name, result, self.errors.get(name))
@@ -142,7 +146,7 @@ class FakeEdits:
         return self
 
     def get(self, **_):
-        return self._request("get", {"releases": [release(202, "draft")]})
+        return self._request("get", {"releases": self.releases})
 
     def update(self, **_):
         return self._request("update")
@@ -198,4 +202,13 @@ def test_console_gate_at_commit_is_still_tolerated(play) -> None:
         {"commit": FakeHttpError(403, "Tell us whether your app includes any health features.")}
     )
     play(edits)
-    assert [name for name, _ in edits.calls][-1] == "delete"
+    name, kwargs = edits.calls[-1]
+    assert name == "delete"
+    assert kwargs.get("num_retries", 0) > 0
+
+
+def test_track_without_draft_discards_the_edit_with_retries(play) -> None:
+    edits = FakeEdits({}, releases=[release(201, "completed")])
+    play(edits)
+    assert [name for name, _ in edits.calls] == ["insert", "get", "delete"]
+    assert all(kwargs.get("num_retries", 0) > 0 for _, kwargs in edits.calls)
