@@ -143,15 +143,18 @@ configurations.matching { it.name == "debugUnitTestRuntimeClasspath" }.configure
     exclude(group = "com.android.tools.layoutlib", module = "layoutlib")
 }
 
+val canUploadToSentry = envOrDefault("SENTRY_AUTH_TOKEN", "").isNotBlank()
+
 sentry {
     autoInstallation { enabled.set(false) }
     tracingInstrumentation { enabled.set(false) }
     org.set("alex-siri")
     projectName.set("un-reminder")
-    includeProguardMapping.set(false)
+    // Release builds are minified, so without the R8 mapping Sentry shows obfuscated frames (#231).
+    includeProguardMapping.set(canUploadToSentry)
     includeSourceContext.set(true)
-    autoUploadProguardMapping.set(false)
-    autoUploadSourceContext.set(!System.getenv("SENTRY_AUTH_TOKEN").isNullOrBlank())
+    autoUploadProguardMapping.set(canUploadToSentry)
+    autoUploadSourceContext.set(canUploadToSentry)
     uploadNativeSymbols.set(false)
 }
 

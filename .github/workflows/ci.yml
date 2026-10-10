@@ -191,6 +191,31 @@ jobs:
             }
           ' app/build/outputs/mapping/release/mapping.txt
 
+      # The Sentry plugin stamps the mapping's UUID into the APK only when it uploads that
+      # mapping, so this fails if the SENTRY_AUTH_TOKEN gate in app/build.gradle.kts stops
+      # matching the token: without the upload, Sentry shows obfuscated frames again (#231).
+      - name: Verify the R8 mapping upload follows SENTRY_AUTH_TOKEN
+        if: needs.changes.outputs.docs_only != 'true'
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: |
+          apk=$(ls app/build/outputs/apk/release/*.apk)
+          meta=$(unzip -p "$apk" assets/sentry-debug-meta.properties || true)
+          if grep -q '^io\.sentry\.ProguardUuids=' <<<"$meta"; then
+            stamped=true
+          else
+            stamped=false
+          fi
+          if [ -n "$SENTRY_AUTH_TOKEN" ] && [ "$stamped" = false ]; then
+            echo "::error::SENTRY_AUTH_TOKEN is set but the release APK carries no ProGuard UUID, so the R8 mapping was not uploaded to Sentry."
+            exit 1
+          fi
+          if [ -z "$SENTRY_AUTH_TOKEN" ] && [ "$stamped" = true ]; then
+            echo "::error::SENTRY_AUTH_TOKEN is unset but the release APK carries a ProGuard UUID, so the mapping-upload gate no longer follows the token."
+            exit 1
+          fi
+          echo "R8 mapping upload matches SENTRY_AUTH_TOKEN (ProGuard UUID stamped: $stamped)."
+
       - name: Upload signed release APK
         if: success() && needs.changes.outputs.docs_only != 'true'
         uses: actions/upload-artifact@v4

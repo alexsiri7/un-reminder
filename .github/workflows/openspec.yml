@@ -25,4 +25,4 @@ jobs:
           node-version: 22
 
       - name: Validate
-        run: npx -y @fission-ai/openspec@latest validate --specs --strict
+        run: npx -y @fission-ai/openspec@1.14.0 validate --specs --strict
