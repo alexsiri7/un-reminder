@@ -4,6 +4,9 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Lets the factory's daily build-drift check dispatch CI on main. Nothing deploys off
+  # CI's completion, so a dispatched run only builds and tests.
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
