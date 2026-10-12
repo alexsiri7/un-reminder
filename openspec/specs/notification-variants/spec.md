@@ -57,7 +57,6 @@ When a habit's name, description ladder or supported modes change, its pool SHAL
 - GIVEN the service's generation version is raised
 - WHEN the daily check runs
 - THEN each active habit's pool is regenerated in turn
-- AND each habit keeps firing its old variants until its new batch lands
 
 #### Scenario: Modes changed
 - GIVEN a sitting-only habit
@@ -67,6 +66,12 @@ When a habit's name, description ladder or supported modes change, its pool SHAL
 ### Requirement: A regenerated pool replaces the old one in one step
 
 Version regeneration, reactivation and manual regeneration SHALL keep the old variants firing until the new batch has landed, SHALL swap them in one step so no pool is ever empty or mixed-version, and SHALL leave the old pool in place if generation fails.
+
+#### Scenario: Regeneration in progress
+- GIVEN a habit whose pool is being regenerated
+- WHEN a nudge fires for it before the new batch lands
+- THEN one of its old variants is used
+- AND once the new batch lands, only new variants are used
 
 #### Scenario: Regeneration fails
 - GIVEN a habit whose pool is being regenerated
