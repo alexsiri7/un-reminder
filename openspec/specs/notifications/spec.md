@@ -60,7 +60,22 @@ Before a new nudge is considered posted, any earlier nudge still awaiting an ans
 
 ### Requirement: The variant view is where the habit is done
 
-The variant view SHALL show one variant — its mascot, its text as headline, the habit name and current dedication level — in one of five layouts derived from the same seed as the notification style, so a variant looks recognisably itself on every surface. It SHALL offer Did it, which records a completion and returns, and Watch when the variant has a video. Opened from a trigger it SHALL record OPENED if the trigger is still unanswered, and SHALL withdraw Did it if a swipe or Later already resolved it. Opened from the menu or widget it SHALL record nothing on opening, and Did it SHALL record a new completion exactly as the widget does.
+The variant view SHALL show one variant — its mascot, its text as headline, the habit name and current dedication level — in one of five layouts derived from the same seed as the notification style, so a variant looks recognisably itself on every surface. It SHALL offer Did it, which records a completion and returns, and Watch when the variant has a video.
+
+#### Scenario: Variant with a video
+- GIVEN a variant that has a video
+- WHEN the variant view opens
+- THEN it shows the variant's mascot, text, habit name and dedication level
+- AND it offers Did it and Watch
+
+### Requirement: The variant view records according to where it was opened
+
+Opened from a trigger the variant view SHALL record OPENED if the trigger is still unanswered, and SHALL withdraw Did it if a swipe or Later already resolved it. Opened from the menu or widget it SHALL record nothing on opening, and Did it SHALL record a new completion exactly as the widget does.
+
+#### Scenario: Opened from an unanswered trigger
+- GIVEN a trigger the user has not yet answered
+- WHEN the user opens its variant view
+- THEN the trigger is recorded as OPENED
 
 #### Scenario: Opened from the Now menu
 - GIVEN the user taps a row on the Now menu

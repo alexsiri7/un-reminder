@@ -51,7 +51,7 @@ Every variant SHALL be tagged with the modes it suits or as mode-neutral, and ge
 
 ### Requirement: Pools follow the habit's words and the service's version
 
-When a habit's name, description ladder or supported modes change, its pool SHALL be regenerated for the new habit. The generation service SHALL publish a generation version; at least daily, every active habit whose pool was generated under another version SHALL be regenerated, paced rather than all at once. Version regeneration, reactivation and manual regeneration SHALL keep the old variants firing until the new batch has landed, SHALL swap them in one step so no pool is ever empty or mixed-version, and SHALL leave the old pool in place if generation fails.
+When a habit's name, description ladder or supported modes change, its pool SHALL be regenerated for the new habit. The generation service SHALL publish a generation version; at least daily, every active habit whose pool was generated under another version SHALL be regenerated, paced rather than all at once.
 
 #### Scenario: Model upgrade
 - GIVEN the service's generation version is raised
@@ -63,3 +63,12 @@ When a habit's name, description ladder or supported modes change, its pool SHAL
 - GIVEN a sitting-only habit
 - WHEN the user adds walking to its supported modes and saves
 - THEN its pool is regenerated to include walking variants
+
+### Requirement: A regenerated pool replaces the old one in one step
+
+Version regeneration, reactivation and manual regeneration SHALL keep the old variants firing until the new batch has landed, SHALL swap them in one step so no pool is ever empty or mixed-version, and SHALL leave the old pool in place if generation fails.
+
+#### Scenario: Regeneration fails
+- GIVEN a habit whose pool is being regenerated
+- WHEN generation of the new batch fails
+- THEN the old variants stay in place and keep firing
