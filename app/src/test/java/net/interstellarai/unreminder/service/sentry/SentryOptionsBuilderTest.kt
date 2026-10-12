@@ -118,9 +118,9 @@ class SentryOptionsBuilderTest {
         assertEquals(event, buildOptions().beforeSend!!.execute(event, Hint()))
     }
 
-    @Test fun `beforeSend keeps a NoSuchFieldError naming fontWeightAdjustment on another class`() {
+    @Test fun `beforeSend keeps a NoSuchFieldError naming fontWeightAdjustment on another Configuration-like class`() {
         val event = SentryEvent(
-            NoSuchFieldError("No instance field fontWeightAdjustment of type I in class Landroid/graphics/Typeface;")
+            NoSuchFieldError("No instance field fontWeightAdjustment of type I in class Landroid/view/WindowConfiguration;")
         )
         assertEquals(event, buildOptions().beforeSend!!.execute(event, Hint()))
     }
