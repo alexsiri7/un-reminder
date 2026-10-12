@@ -31,7 +31,7 @@ The user SHALL be able to add, edit and delete named locations by placing a pin 
 
 ### Requirement: Location state follows where the device actually is
 
-The app SHALL treat the device as at a location whenever it is within that location's radius, whether or not a boundary crossing was ever reported. When its belief is wrong in either direction it SHALL correct itself without a reinstall, reboot, permission re-grant or the user physically crossing a boundary. Correction SHALL use one-shot, bounded position requests on occasions the app already wakes for, with no continuous tracking, and computing availability SHALL never wait on a position fix or network call.
+The app SHALL treat the device as at a location whenever it is within that location's radius, whether or not a boundary crossing was ever reported. When its belief is wrong in either direction it SHALL correct itself without a reinstall, reboot, permission re-grant or the user physically crossing a boundary.
 
 #### Scenario: Missed arrival
 - GIVEN the user is at home but no arrival was ever reported
@@ -42,6 +42,16 @@ The app SHALL treat the device as at a location whenever it is within that locat
 - GIVEN the app believes the user is at the gym but they left an hour ago
 - WHEN the app next wakes for a scheduled check
 - THEN the gym is no longer a current location
+
+### Requirement: Location correction is bounded and never blocks
+
+Location correction SHALL use one-shot, bounded position requests on occasions the app already wakes for, with no continuous tracking, and computing availability SHALL never wait on a position fix or network call.
+
+#### Scenario: Correcting on a wake
+- GIVEN the app wakes for a scheduled check
+- WHEN it corrects its location state
+- THEN it makes a one-shot, bounded position request and does not track continuously
+- AND computing availability does not wait on the position fix or a network call
 
 ### Requirement: Location tracking health is visible
 
@@ -54,12 +64,16 @@ The app SHALL show which locations it currently believes the user is at and whet
 
 ### Requirement: The current activity is resolved into a mode
 
-The app SHALL resolve the user's activity into one of three modes — walking, sitting or transport — from recently observed device activity: walking or running as walking, still as sitting, in a vehicle as transport. Cycling SHALL be a separate state that suppresses nudges, not a mode. When nothing has been observed, the observation is older than 15 minutes, the activity is unknown, or the activity permission is denied, the mode SHALL be sitting, marked as assumed. Resolution SHALL be synchronous and never wait on a sensor.
+The app SHALL resolve the user's activity into one of three modes — walking, sitting or transport — from recently observed device activity: walking or running as walking, still as sitting, in a vehicle as transport. Cycling SHALL be a separate state that suppresses nudges, not a mode. Resolution SHALL be synchronous and never wait on a sensor.
 
 #### Scenario: On the tube
 - GIVEN the last observed activity, 5 minutes ago, was in a vehicle
 - WHEN the mode is resolved
 - THEN it is transport, observed
+
+### Requirement: An unknown activity is assumed to be sitting
+
+When nothing has been observed, the observation is older than 15 minutes, the activity is unknown, or the activity permission is denied, the mode SHALL be sitting, marked as assumed.
 
 #### Scenario: Stale observation
 - GIVEN the last observed activity was walking 40 minutes ago

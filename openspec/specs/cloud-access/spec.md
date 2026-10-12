@@ -8,12 +8,16 @@ The app has to hold its own credential for the generation service without anyone
 
 ### Requirement: The app obtains its own token
 
-The app SHALL register itself with the generation service whenever it has no token: during onboarding and lazily whenever background work finds none, so an upgraded install or one whose token was cleared heals itself. Background attempts after a failure SHALL back off, so they spend neither the registration ceiling nor the device's integrity quota. When the service rejects a self-registered token that is more than an hour old, the app SHALL discard it and register again rather than retry the dead token.
+The app SHALL register itself with the generation service whenever it has no token: during onboarding and lazily whenever background work finds none, so an upgraded install or one whose token was cleared heals itself. Background attempts after a failure SHALL back off, so they spend neither the registration ceiling nor the device's integrity quota.
 
 #### Scenario: Upgraded install
 - GIVEN an install upgraded from a build that used pasted tokens and has none stored
 - WHEN the next background refill runs
 - THEN the app registers and the refill proceeds with the new token
+
+### Requirement: A rejected self-registered token is replaced
+
+When the service rejects a self-registered token that is more than an hour old, the app SHALL discard it and register again rather than retry the dead token.
 
 #### Scenario: Revoked token
 - GIVEN a self-registered token the operator has revoked

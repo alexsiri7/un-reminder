@@ -51,7 +51,7 @@ The service SHALL track daily and monthly generation spend per token and for the
 
 ### Requirement: A Play-verified install can register itself
 
-The service SHALL offer an unauthenticated registration route that accepts a device label and a Play Integrity token bound to the request, verifies it exactly as generation does, and on success mints a per-user token labelled as self-registered for that device, returning it once. Registration SHALL fail closed when Google or the registration counter cannot be read, SHALL be rate-limited per caller, and SHALL stop at a service-wide daily ceiling with a distinct, reportable refusal. An integrity token spent on a registration SHALL NOT be accepted again. Self-registered tokens SHALL appear in the token listing, get the default caps, and be revocable like any other.
+The service SHALL offer an unauthenticated registration route that accepts a device label and a Play Integrity token bound to the request, verifies it exactly as generation does, and on success mints a per-user token labelled as self-registered for that device, returning it once. Self-registered tokens SHALL appear in the token listing, get the default caps, and be revocable like any other.
 
 #### Scenario: First registration
 - GIVEN a Play install with no token
@@ -59,10 +59,23 @@ The service SHALL offer an unauthenticated registration route that accepts a dev
 - THEN it receives a new token labelled with its device
 - AND only the token's salted hash is stored
 
+### Requirement: Self-registration is bounded
+
+Registration SHALL fail closed when Google or the registration counter cannot be read, SHALL be rate-limited per caller, and SHALL stop at a service-wide daily ceiling with a distinct, reportable refusal.
+
+#### Scenario: Verdict cannot be checked
+- GIVEN Google or the registration counter cannot be read
+- WHEN an install registers
+- THEN it is refused and no token is minted
+
 #### Scenario: Daily ceiling
 - GIVEN the day's registration ceiling is reached
 - WHEN another install registers
 - THEN it is refused with a distinct registration-ceiling error
+
+### Requirement: An integrity token registers only once
+
+An integrity token spent on a registration SHALL NOT be accepted again.
 
 #### Scenario: Replayed verdict
 - GIVEN an integrity token already used for a successful registration

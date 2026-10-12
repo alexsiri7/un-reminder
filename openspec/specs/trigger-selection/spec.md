@@ -22,7 +22,7 @@ The app SHALL check for a nudge at a random interval of 15–30 minutes, lengthe
 
 ### Requirement: Eligibility is decided at fire time
 
-At each check the app SHALL first correct its location state and resolve the activity, then treat a habit as eligible only if it is active, supports the current mode, is anywhere or at a current location, is in one of its windows or has none, has not been completed today, has not reached its daily limit, and is not within its cooldown after its last dismissed, fired, expired, later or opened trigger. A cooldown of none SHALL disable that exclusion. When nothing is eligible, the check SHALL post nothing.
+At each check the app SHALL first correct its location state and resolve the activity, then treat a habit as eligible only if it is active, supports the current mode, is anywhere or at a current location, is in one of its windows or has none, has not been completed today, has not reached its daily limit, and is not within its cooldown after its last dismissed, fired, expired, later or opened trigger. A cooldown of none SHALL disable that exclusion.
 
 #### Scenario: Done today
 - GIVEN a habit completed this morning
@@ -33,6 +33,15 @@ At each check the app SHALL first correct its location state and resolve the act
 - GIVEN a habit with a 3-hour cooldown answered with Later an hour ago
 - WHEN a check runs
 - THEN that habit is not eligible
+
+### Requirement: A check with nothing eligible posts nothing
+
+When nothing is eligible, the check SHALL post nothing.
+
+#### Scenario: Nothing eligible
+- GIVEN no habit is eligible at a check
+- WHEN the check runs
+- THEN no notification is posted
 
 ### Requirement: Cycling suppresses nudges
 
