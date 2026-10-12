@@ -100,6 +100,38 @@ class SentryOptionsBuilderTest {
         assertEquals(event, buildOptions().beforeSend!!.execute(event, Hint()))
     }
 
+    @Test fun `beforeSend drops the Compose fontWeightAdjustment NoSuchFieldError`() {
+        val event = SentryEvent(
+            NoSuchFieldError(
+                "No instance field fontWeightAdjustment of type I in class Landroid/content/res/Configuration; " +
+                    "or its superclasses (declaration of 'android.content.res.Configuration' " +
+                    "appears in /system/framework/framework.jar)"
+            )
+        )
+        assertNull(buildOptions().beforeSend!!.execute(event, Hint()))
+    }
+
+    @Test fun `beforeSend keeps an unrelated NoSuchFieldError on Configuration`() {
+        val event = SentryEvent(
+            NoSuchFieldError("No instance field densityDpi of type I in class Landroid/content/res/Configuration;")
+        )
+        assertEquals(event, buildOptions().beforeSend!!.execute(event, Hint()))
+    }
+
+    @Test fun `beforeSend keeps a NoSuchFieldError naming fontWeightAdjustment on another class`() {
+        val event = SentryEvent(
+            NoSuchFieldError("No instance field fontWeightAdjustment of type I in class Landroid/graphics/Typeface;")
+        )
+        assertEquals(event, buildOptions().beforeSend!!.execute(event, Hint()))
+    }
+
+    @Test fun `beforeSend keeps the fontWeightAdjustment message on another exception type`() {
+        val event = SentryEvent(
+            NoSuchMethodError("No virtual method fontWeightAdjustment()I in class Landroid/content/res/Configuration;")
+        )
+        assertEquals(event, buildOptions().beforeSend!!.execute(event, Hint()))
+    }
+
     private val trampolineMessage =
         "List adapter activity trampoline invoked without specifying target intent."
 

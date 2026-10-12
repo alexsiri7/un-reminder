@@ -26,6 +26,7 @@ fun applyOptions(
         val throwable = event.throwable
         if (isMisreportedApiLevelStopReasonCrash(throwable) ||
             isMisreportedApiLevelUnsafeIntentLaunchCrash(throwable) ||
+            isMisreportedApiLevelFontWeightAdjustmentCrash(throwable) ||
             isListAdapterTrampolineCrash(throwable)
         ) {
             null
@@ -53,6 +54,16 @@ private fun isMisreportedApiLevelUnsafeIntentLaunchCrash(throwable: Throwable?):
     throwable is NoSuchMethodError &&
         throwable.message?.contains("permitUnsafeIntentLaunch") == true &&
         throwable.message?.contains("StrictMode\$VmPolicy\$Builder") == true
+
+// Compose UI only reads Configuration.fontWeightAdjustment behind its own SDK_INT >= 31 guard (and
+// this app's minSdk is 31), so this NoSuchFieldError, thrown while constructing any
+// AndroidComposeView, can only reach us from a device whose reported SDK level doesn't match its
+// framework. Nothing in this app can prevent the crash there; drop the report so it stops
+// re-opening as a new issue (see #475).
+private fun isMisreportedApiLevelFontWeightAdjustmentCrash(throwable: Throwable?): Boolean =
+    throwable is NoSuchFieldError &&
+        throwable.message?.contains("fontWeightAdjustment") == true &&
+        throwable.message?.contains("Landroid/content/res/Configuration;") == true
 
 // Glance 1.1.1 only routes a click through ActionTrampolineActivity when the clickable sits inside
 // a LazyColumn/LazyVerticalGrid (applyAction() takes the fill-in-intent branch iff
