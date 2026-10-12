@@ -45,8 +45,37 @@ class SentryOptionsBuilderTest {
 
     @Test fun `beforeSend keeps an unrelated NoSuchMethodError`() {
         val event = SentryEvent(
+            NoSuchMethodError("No virtual method getNetwork()Landroid/net/Network; in class Landroid/net/ConnectivityManager;")
+        )
+        assertEquals(event, buildOptions().beforeSend!!.execute(event, Hint()))
+    }
+
+    @Test fun `beforeSend drops the Play Services permitUnsafeIntentLaunch NoSuchMethodError`() {
+        val event = SentryEvent(
             NoSuchMethodError(
                 "No virtual method permitUnsafeIntentLaunch()Landroid/os/StrictMode\$VmPolicy\$Builder; " +
+                    "in class Landroid/os/StrictMode\$VmPolicy\$Builder; or its super classes " +
+                    "(declaration of 'android.os.StrictMode\$VmPolicy\$Builder' appears in " +
+                    "/system/framework/framework.jar!classes2.dex)"
+            )
+        )
+        assertNull(buildOptions().beforeSend!!.execute(event, Hint()))
+    }
+
+    @Test fun `beforeSend keeps a NoSuchMethodError naming permitUnsafeIntentLaunch on another class`() {
+        val event = SentryEvent(
+            NoSuchMethodError(
+                "No virtual method permitUnsafeIntentLaunch()Landroid/os/StrictMode\$ThreadPolicy\$Builder; " +
+                    "in class Landroid/os/StrictMode\$ThreadPolicy\$Builder;"
+            )
+        )
+        assertEquals(event, buildOptions().beforeSend!!.execute(event, Hint()))
+    }
+
+    @Test fun `beforeSend keeps a NoSuchMethodError on StrictMode VmPolicy Builder for another method`() {
+        val event = SentryEvent(
+            NoSuchMethodError(
+                "No virtual method detectUnsafeIntentLaunch()Landroid/os/StrictMode\$VmPolicy\$Builder; " +
                     "in class Landroid/os/StrictMode\$VmPolicy\$Builder;"
             )
         )
