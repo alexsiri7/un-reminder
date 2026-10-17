@@ -45,8 +45,37 @@ class SentryOptionsBuilderTest {
 
     @Test fun `beforeSend keeps an unrelated NoSuchMethodError`() {
         val event = SentryEvent(
+            NoSuchMethodError("No virtual method getNetwork()Landroid/net/Network; in class Landroid/net/ConnectivityManager;")
+        )
+        assertEquals(event, buildOptions().beforeSend!!.execute(event, Hint()))
+    }
+
+    @Test fun `beforeSend drops the Play Services permitUnsafeIntentLaunch NoSuchMethodError`() {
+        val event = SentryEvent(
             NoSuchMethodError(
                 "No virtual method permitUnsafeIntentLaunch()Landroid/os/StrictMode\$VmPolicy\$Builder; " +
+                    "in class Landroid/os/StrictMode\$VmPolicy\$Builder; or its super classes " +
+                    "(declaration of 'android.os.StrictMode\$VmPolicy\$Builder' appears in " +
+                    "/system/framework/framework.jar!classes2.dex)"
+            )
+        )
+        assertNull(buildOptions().beforeSend!!.execute(event, Hint()))
+    }
+
+    @Test fun `beforeSend keeps a NoSuchMethodError naming permitUnsafeIntentLaunch on another class`() {
+        val event = SentryEvent(
+            NoSuchMethodError(
+                "No virtual method permitUnsafeIntentLaunch()Landroid/os/StrictMode\$ThreadPolicy\$Builder; " +
+                    "in class Landroid/os/StrictMode\$ThreadPolicy\$Builder;"
+            )
+        )
+        assertEquals(event, buildOptions().beforeSend!!.execute(event, Hint()))
+    }
+
+    @Test fun `beforeSend keeps a NoSuchMethodError on StrictMode VmPolicy Builder for another method`() {
+        val event = SentryEvent(
+            NoSuchMethodError(
+                "No virtual method detectUnsafeIntentLaunch()Landroid/os/StrictMode\$VmPolicy\$Builder; " +
                     "in class Landroid/os/StrictMode\$VmPolicy\$Builder;"
             )
         )
@@ -67,6 +96,38 @@ class SentryOptionsBuilderTest {
             NoSuchMethodError(
                 "No virtual method getNetwork()Landroid/net/Network; in class Landroid/app/job/JobParameters;"
             )
+        )
+        assertEquals(event, buildOptions().beforeSend!!.execute(event, Hint()))
+    }
+
+    @Test fun `beforeSend drops the Compose fontWeightAdjustment NoSuchFieldError`() {
+        val event = SentryEvent(
+            NoSuchFieldError(
+                "No instance field fontWeightAdjustment of type I in class Landroid/content/res/Configuration; " +
+                    "or its superclasses (declaration of 'android.content.res.Configuration' " +
+                    "appears in /system/framework/framework.jar)"
+            )
+        )
+        assertNull(buildOptions().beforeSend!!.execute(event, Hint()))
+    }
+
+    @Test fun `beforeSend keeps an unrelated NoSuchFieldError on Configuration`() {
+        val event = SentryEvent(
+            NoSuchFieldError("No instance field densityDpi of type I in class Landroid/content/res/Configuration;")
+        )
+        assertEquals(event, buildOptions().beforeSend!!.execute(event, Hint()))
+    }
+
+    @Test fun `beforeSend keeps a NoSuchFieldError naming fontWeightAdjustment on another Configuration-like class`() {
+        val event = SentryEvent(
+            NoSuchFieldError("No instance field fontWeightAdjustment of type I in class Landroid/view/WindowConfiguration;")
+        )
+        assertEquals(event, buildOptions().beforeSend!!.execute(event, Hint()))
+    }
+
+    @Test fun `beforeSend keeps the fontWeightAdjustment message on another exception type`() {
+        val event = SentryEvent(
+            NoSuchMethodError("No virtual method fontWeightAdjustment()I in class Landroid/content/res/Configuration;")
         )
         assertEquals(event, buildOptions().beforeSend!!.execute(event, Hint()))
     }

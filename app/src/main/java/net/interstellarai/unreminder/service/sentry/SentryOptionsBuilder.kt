@@ -23,7 +23,12 @@ fun applyOptions(
     options.isAttachViewHierarchy = false
     options.isAnrEnabled = false // belt-and-suspenders guard against ANR watchdog crash on sideloaded pre-API-31 devices (see #133)
     options.beforeSend = SentryOptions.BeforeSendCallback { event, _ ->
-        if (isMisreportedApiLevelStopReasonCrash(event.throwable) || isListAdapterTrampolineCrash(event.throwable)) {
+        val throwable = event.throwable
+        if (isMisreportedApiLevelStopReasonCrash(throwable) ||
+            isMisreportedApiLevelUnsafeIntentLaunchCrash(throwable) ||
+            isMisreportedApiLevelFontWeightAdjustmentCrash(throwable) ||
+            isListAdapterTrampolineCrash(throwable)
+        ) {
             null
         } else {
             event
@@ -39,6 +44,26 @@ private fun isMisreportedApiLevelStopReasonCrash(throwable: Throwable?): Boolean
     throwable is NoSuchMethodError &&
         throwable.message?.contains("getStopReason") == true &&
         throwable.message?.contains("JobParameters") == true
+
+// minSdk is 31 and no app code touches StrictMode; play-services-basement calls the API-31
+// VmPolicy.Builder.permitUnsafeIntentLaunch() internally, so this NoSuchMethodError can only come
+// from a device whose framework lacks a method its reported SDK level promises (as in #301).
+// Nothing in this app can prevent the crash; drop the report so it stops re-opening as a new
+// issue (see #474).
+private fun isMisreportedApiLevelUnsafeIntentLaunchCrash(throwable: Throwable?): Boolean =
+    throwable is NoSuchMethodError &&
+        throwable.message?.contains("permitUnsafeIntentLaunch") == true &&
+        throwable.message?.contains("StrictMode\$VmPolicy\$Builder") == true
+
+// Compose UI only reads Configuration.fontWeightAdjustment behind its own SDK_INT >= 31 guard (and
+// this app's minSdk is 31), so this NoSuchFieldError, thrown while constructing any
+// AndroidComposeView, can only reach us from a device whose reported SDK level doesn't match its
+// framework. Nothing in this app can prevent the crash there; drop the report so it stops
+// re-opening as a new issue (see #475).
+private fun isMisreportedApiLevelFontWeightAdjustmentCrash(throwable: Throwable?): Boolean =
+    throwable is NoSuchFieldError &&
+        throwable.message?.contains("fontWeightAdjustment") == true &&
+        throwable.message?.contains("Landroid/content/res/Configuration;") == true
 
 // Glance 1.1.1 only routes a click through ActionTrampolineActivity when the clickable sits inside
 // a LazyColumn/LazyVerticalGrid (applyAction() takes the fill-in-intent branch iff
