@@ -46,6 +46,8 @@ import java.io.IOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
+import java.time.Duration
+import java.time.Instant
 
 class RefillWorkerTest {
 
@@ -78,7 +80,14 @@ class RefillWorkerTest {
         coEvery { ensureToken(any()) } returns TOKEN
         coEvery { discardRejected(any()) } returns false
     }
-    private val mockGenerationFailureRepository: GenerationFailureRepository = mockk(relaxUnitFun = true)
+    private val mockGenerationFailureRepository: GenerationFailureRepository = mockk(relaxUnitFun = true) {
+        coEvery { retryingSince(any()) } answers { firstArg() }
+    }
+
+    /** Makes the current retry streak look as if it began [age] ago. */
+    private fun retryingFor(age: Duration) {
+        coEvery { mockGenerationFailureRepository.retryingSince(any()) } answers { firstArg<Instant>() - age }
+    }
 
     private fun createWorker(habitId: Long = 1L, replace: Boolean = false): RefillWorker {
         val inputData = Data.Builder()
@@ -521,7 +530,7 @@ class RefillWorkerTest {
             every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
             val breadcrumb = slot<Breadcrumb>()
             every { Sentry.addBreadcrumb(capture(breadcrumb)) } just runs
-            every { mockWorkerParams.runAttemptCount } returns 0
+            retryingFor(RefillWorker.SUSTAINED_FAILURE.minusSeconds(1))
             proxyThrows(WorkerError(502, "Upstream unavailable or returned invalid response"))
 
             assertEquals(Result.retry(), createWorker().doWork())
@@ -535,17 +544,21 @@ class RefillWorkerTest {
     }
 
     @Test
-    fun `doWork reports a 502 WorkerError to Sentry once the failure is sustained`() = runTest {
+    fun `doWork reports a 502 WorkerError to Sentry once the failure is sustained, whatever the run attempt`() = runTest {
         mockkStatic(Sentry::class)
         try {
             every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
             every { Sentry.addBreadcrumb(any<Breadcrumb>()) } just runs
-            every { mockWorkerParams.runAttemptCount } returns RefillWorker.SUSTAINED_FAILURE_ATTEMPTS
+            // A re-enqueue REPLACEs the pending refill, so a sustained outage can be on its first attempt.
+            every { mockWorkerParams.runAttemptCount } returns 0
             proxyThrows(WorkerError(502, "Upstream unavailable or returned invalid response"))
 
-            assertEquals(Result.retry(), createWorker().doWork())
+            for (age in listOf(RefillWorker.SUSTAINED_FAILURE, Duration.ofHours(6))) {
+                retryingFor(age)
+                assertEquals(Result.retry(), createWorker().doWork())
+            }
 
-            verify(exactly = 1) { Sentry.captureException(any(), any<ScopeCallback>()) }
+            verify(exactly = 2) { Sentry.captureException(any(), any<ScopeCallback>()) }
             verify(exactly = 0) { Sentry.addBreadcrumb(any<Breadcrumb>()) }
         } finally {
             unmockkStatic(Sentry::class)
@@ -558,7 +571,7 @@ class RefillWorkerTest {
         try {
             every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
             every { Sentry.addBreadcrumb(any<Breadcrumb>()) } just runs
-            every { mockWorkerParams.runAttemptCount } returns RefillWorker.SUSTAINED_FAILURE_ATTEMPTS - 1
+            every { mockWorkerParams.runAttemptCount } returns 10
             val failures = listOf(
                 IOException("stream reset"),
                 JSONException("Value at 0 is null"),

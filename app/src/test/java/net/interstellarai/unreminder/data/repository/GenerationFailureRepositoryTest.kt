@@ -141,6 +141,25 @@ class GenerationFailureRepositoryTest {
     }
 
     @Test
+    fun `retryingSince keeps the first retry's time until a clear ends the streak`() = runTest {
+        val repo = GenerationFailureRepository(FakePreferencesDataStore())
+
+        assertEquals(Instant.ofEpochMilli(1_000L), repo.retryingSince(Instant.ofEpochMilli(1_000L)))
+        repo.record(GenerationFailure(GenerationFailure.Kind.SERVICE_UNAVAILABLE, null, Instant.ofEpochMilli(2_000L)))
+        assertEquals(Instant.ofEpochMilli(1_000L), repo.retryingSince(Instant.ofEpochMilli(9_000L)))
+
+        repo.clear()
+        assertEquals(Instant.ofEpochMilli(10_000L), repo.retryingSince(Instant.ofEpochMilli(10_000L)))
+    }
+
+    @Test
+    fun `retryingSince reads a write failure as a streak starting now`() = runTest {
+        val repo = GenerationFailureRepository(FakePreferencesDataStore(failWrites = true))
+
+        assertEquals(Instant.ofEpochMilli(5_000L), repo.retryingSince(Instant.ofEpochMilli(5_000L)))
+    }
+
+    @Test
     fun `record and clear swallow a DataStore IOException`() = runTest {
         val repo = GenerationFailureRepository(FakePreferencesDataStore(failWrites = true))
 

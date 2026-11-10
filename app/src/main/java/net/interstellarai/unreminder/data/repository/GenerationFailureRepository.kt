@@ -54,6 +54,10 @@ data class GenerationFailure(
  * is gone. Written by RefillWorker and WorkerRegistrar, cleared by the next refill success, by a
  * successful registration, and by saving a new token after a token problem.
  *
+ * It also keeps when the current streak of retried refill failures began, which RefillWorker reads
+ * to tell a blip from an outage; unlike a WorkRequest's run attempt count, it survives the refill
+ * being re-enqueued, and the same success that clears the failure ends the streak.
+ *
  * Writes swallow failures: a failed note must never change what the worker does with the
  * failure it is noting, or turn a landed refill into a reported error.
  */
@@ -64,6 +68,7 @@ class GenerationFailureRepository @Inject constructor(
     private val kindKey = stringPreferencesKey("generation_failure_kind")
     private val capTypeKey = stringPreferencesKey("generation_failure_cap_type")
     private val atKey = longPreferencesKey("generation_failure_at")
+    private val retryingSinceKey = longPreferencesKey("generation_retrying_since")
 
     /**
      * Emits the last failure, or null once a generation has succeeded since. A read error reports
@@ -88,27 +93,38 @@ class GenerationFailureRepository @Inject constructor(
             else GenerationFailure(kind, prefs[capTypeKey]?.let { raw -> SpendCapType.entries.firstOrNull { it.name == raw } }, at)
         }
 
-    suspend fun record(failure: GenerationFailure) = write("record generation failure") { prefs ->
-        prefs[kindKey] = failure.kind.name
-        failure.capType?.let { prefs[capTypeKey] = it.name } ?: prefs.remove(capTypeKey)
-        prefs[atKey] = failure.at.toEpochMilli()
+    suspend fun record(failure: GenerationFailure) {
+        write("record generation failure") { prefs ->
+            prefs[kindKey] = failure.kind.name
+            failure.capType?.let { prefs[capTypeKey] = it.name } ?: prefs.remove(capTypeKey)
+            prefs[atKey] = failure.at.toEpochMilli()
+        }
     }
 
-    suspend fun clear() = write("clear generation failure") { prefs ->
-        prefs.remove(kindKey)
-        prefs.remove(capTypeKey)
-        prefs.remove(atKey)
+    /** Starts a retry streak at [now] unless one is running, and returns when the running one began. */
+    suspend fun retryingSince(now: Instant): Instant =
+        write("note retry streak") { prefs ->
+            if (prefs[retryingSinceKey] == null) prefs[retryingSinceKey] = now.toEpochMilli()
+        }?.get(retryingSinceKey)?.let(Instant::ofEpochMilli) ?: now
+
+    suspend fun clear() {
+        write("clear generation failure") { prefs ->
+            prefs.remove(kindKey)
+            prefs.remove(capTypeKey)
+            prefs.remove(atKey)
+            prefs.remove(retryingSinceKey)
+        }
     }
 
-    private suspend fun write(what: String, transform: (MutablePreferences) -> Unit) {
+    private suspend fun write(what: String, transform: (MutablePreferences) -> Unit): Preferences? =
         try {
             dataStore.edit(transform)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Log.w(TAG, "could not $what", e)
+            null
         }
-    }
 
     companion object {
         private const val TAG = "GenerationFailureRepo"

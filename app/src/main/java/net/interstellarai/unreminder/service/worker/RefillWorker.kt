@@ -27,6 +27,7 @@ import java.io.InterruptedIOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
+import java.time.Duration
 import java.time.Instant
 import org.json.JSONException
 
@@ -48,8 +49,8 @@ class RefillWorker @AssistedInject constructor(
         /** True for a manual regenerate: the landed batch replaces the unconsumed pool instead of topping it up. */
         const val KEY_REPLACE = "replace"
         private const val TAG = "RefillWorker"
-        /** Run attempt from which a retried failure is a sustained outage worth a Sentry issue, not a blip (~5 min of exponential backoff). */
-        internal const val SUSTAINED_FAILURE_ATTEMPTS = 5
+        /** How long retried failures must have run, unbroken by a success, to be an outage worth a Sentry issue rather than a blip. */
+        internal val SUSTAINED_FAILURE: Duration = Duration.ofMinutes(5)
     }
 
     override suspend fun doWork(): Result {
@@ -194,11 +195,15 @@ class RefillWorker @AssistedInject constructor(
         generationFailureRepository.record(GenerationFailure(kind, capType, Instant.now()))
 
     /**
-     * A retried server, I/O or parse failure is a breadcrumb until it has outlasted
-     * [SUSTAINED_FAILURE_ATTEMPTS] runs; only then is it an outage worth an issue (#222, #493).
+     * A retried server, I/O or parse failure is a breadcrumb until the streak of them has lasted
+     * [SUSTAINED_FAILURE]; only then is it an outage worth an issue (#222, #493). The streak is
+     * timed rather than counted in run attempts because enqueueing a refill REPLACEs the pending
+     * one, which restarts its attempt count.
      */
-    private fun reportRetry(e: Exception, habitId: Long, errorCode: Int? = null) {
-        if (runAttemptCount < SUSTAINED_FAILURE_ATTEMPTS) {
+    private suspend fun reportRetry(e: Exception, habitId: Long, errorCode: Int? = null) {
+        val now = Instant.now()
+        val failingFor = Duration.between(generationFailureRepository.retryingSince(now), now)
+        if (failingFor < SUSTAINED_FAILURE) {
             Sentry.addBreadcrumb(Breadcrumb().apply {
                 category = "refill"
                 message = "Refill retrying after transient failure"
@@ -206,14 +211,14 @@ class RefillWorker @AssistedInject constructor(
                 setData("habit_id", habitId.toString())
                 setData("error", e.javaClass.simpleName)
                 errorCode?.let { setData("error_code", it.toString()) }
-                setData("run_attempt", runAttemptCount.toString())
+                setData("failing_for_s", failingFor.seconds.toString())
             })
         } else {
             Sentry.captureException(e) { scope ->
                 scope.setTag("component", "refill-worker")
                 scope.setTag("habit_id", habitId.toString())
                 errorCode?.let { scope.setTag("error_code", it.toString()) }
-                scope.setTag("run_attempt", runAttemptCount.toString())
+                scope.setExtra("failing_for_s", failingFor.seconds.toString())
             }
         }
     }
