@@ -78,7 +78,7 @@ Sentry's "new issue" alert opens a GitHub issue for every distinct event it sees
 | Location reconciliation rejected by Play Services (`ApiException` `API_NOT_CONNECTED`) | breadcrumb |
 | Variation pool empty | breadcrumb |
 | Refill retry after a server error, I/O or parse failure, within `SUSTAINED_FAILURE` of the first | breadcrumb |
-| The same refill failures once they have lasted `SUSTAINED_FAILURE` without a success (a sustained outage) | `captureException` |
+| The same refill failures once they have lasted `SUSTAINED_FAILURE` without a refill succeeding or giving up (a sustained outage) | `captureException` |
 | `refreshRegistration` / worker exceptions, and reconciler exceptions other than the row above | `captureException` |
 
 The failing registration summary is the one summary that stays an issue: `reportRegistrationFailure` has already captured an event per failing location by the time the summary is built, so a breadcrumb would arrive too late to carry the permission and location-settings state those events exist to explain.
