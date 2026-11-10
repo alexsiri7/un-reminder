@@ -19,7 +19,9 @@ import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.domain.model.SpendCapScope
 import net.interstellarai.unreminder.domain.model.SpendCapType
 import net.interstellarai.unreminder.service.notification.MascotSprites
+import io.sentry.Breadcrumb
 import io.sentry.Sentry
+import io.sentry.SentryLevel
 import java.io.IOException
 import java.io.InterruptedIOException
 import java.net.ConnectException
@@ -46,6 +48,8 @@ class RefillWorker @AssistedInject constructor(
         /** True for a manual regenerate: the landed batch replaces the unconsumed pool instead of topping it up. */
         const val KEY_REPLACE = "replace"
         private const val TAG = "RefillWorker"
+        /** Run attempt from which a retried failure is a sustained outage worth a Sentry issue, not a blip (~5 min of exponential backoff). */
+        internal const val SUSTAINED_FAILURE_ATTEMPTS = 5
     }
 
     override suspend fun doWork(): Result {
@@ -129,11 +133,7 @@ class RefillWorker @AssistedInject constructor(
         } catch (e: WorkerError) {
             if (e.isServerError()) {
                 Log.w(TAG, "Server error ${e.code} for habit $habitId, will retry", e)
-                Sentry.captureException(e) { scope ->
-                    scope.setTag("component", "refill-worker")
-                    scope.setTag("habit_id", habitId.toString())
-                    scope.setTag("error_code", e.code.toString())
-                }
+                reportRetry(e, habitId, e.code)
                 note(GenerationFailure.Kind.SERVICE_UNAVAILABLE)
                 Result.retry()
             } else {
@@ -169,26 +169,17 @@ class RefillWorker @AssistedInject constructor(
             Result.retry()
         } catch (e: IOException) {
             Log.w(TAG, "IO error for habit $habitId, will retry", e)
-            Sentry.captureException(e) { scope ->
-                scope.setTag("component", "refill-worker")
-                scope.setTag("habit_id", habitId.toString())
-            }
+            reportRetry(e, habitId)
             note(GenerationFailure.Kind.SERVICE_UNAVAILABLE)
             Result.retry()
         } catch (e: JSONException) {
             Log.w(TAG, "JSON parse error for habit $habitId, will retry", e)
-            Sentry.captureException(e) { scope ->
-                scope.setTag("component", "refill-worker")
-                scope.setTag("habit_id", habitId.toString())
-            }
+            reportRetry(e, habitId)
             Result.retry()
         } catch (e: RuntimeException) {
             if (e.cause is JSONException) {
                 Log.w(TAG, "JSON parse error (wrapped) for habit $habitId, will retry", e)
-                Sentry.captureException(e) { scope ->
-                    scope.setTag("component", "refill-worker")
-                    scope.setTag("habit_id", habitId.toString())
-                }
+                reportRetry(e, habitId)
                 Result.retry()
             } else {
                 reportUnexpected(e, habitId)
@@ -201,6 +192,31 @@ class RefillWorker @AssistedInject constructor(
     /** Leaves a record for Cloud AI settings; the token, cap and service classes are the only ones a user can act on. */
     private suspend fun note(kind: GenerationFailure.Kind, capType: SpendCapType? = null) =
         generationFailureRepository.record(GenerationFailure(kind, capType, Instant.now()))
+
+    /**
+     * A retried server, I/O or parse failure is a breadcrumb until it has outlasted
+     * [SUSTAINED_FAILURE_ATTEMPTS] runs; only then is it an outage worth an issue (#222, #493).
+     */
+    private fun reportRetry(e: Exception, habitId: Long, errorCode: Int? = null) {
+        if (runAttemptCount < SUSTAINED_FAILURE_ATTEMPTS) {
+            Sentry.addBreadcrumb(Breadcrumb().apply {
+                category = "refill"
+                message = "Refill retrying after transient failure"
+                level = SentryLevel.INFO
+                setData("habit_id", habitId.toString())
+                setData("error", e.javaClass.simpleName)
+                errorCode?.let { setData("error_code", it.toString()) }
+                setData("run_attempt", runAttemptCount.toString())
+            })
+        } else {
+            Sentry.captureException(e) { scope ->
+                scope.setTag("component", "refill-worker")
+                scope.setTag("habit_id", habitId.toString())
+                errorCode?.let { scope.setTag("error_code", it.toString()) }
+                scope.setTag("run_attempt", runAttemptCount.toString())
+            }
+        }
+    }
 
     private fun reportUnexpected(e: Exception, habitId: Long): Result {
         Log.e(TAG, "Unexpected error for habit $habitId", e)
