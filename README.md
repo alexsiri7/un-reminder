@@ -85,7 +85,7 @@ The failing registration summary is the one summary that stays an issue: `report
 
 `API_NOT_CONNECTED` is Play Services declining to serve `LocationServices.API` on that device at all (missing, disabled, updating, or not authentic — #407); the Settings health row shows the decoded label, and no change in this repository can act on it, so it does not open an issue.
 
-`RefillWorker` retries a 5xx, I/O or parse failure under exponential backoff. One that clears within a few minutes is a blip and opens nothing; one that outlasts `SUSTAINED_FAILURE` without a refill succeeding is the outage #222 wanted visible, and is captured with a `failing_for_s` extra (#493). The streak start is kept in `GenerationFailureRepository`, not taken from the WorkRequest's run attempt count, because every refill enqueue replaces the pending request and restarts that count.
+`RefillWorker` retries a 5xx, I/O or parse failure under exponential backoff. One that clears within a few minutes is a blip and opens nothing; one that outlasts `SUSTAINED_FAILURE` without a refill succeeding or giving up is the outage #222 wanted visible, and is captured with a `failing_for_s` extra (#493). The streak start is kept in `GenerationFailureRepository`, not taken from the WorkRequest's run attempt count, because every refill enqueue replaces the pending request and restarts that count.
 
 Two standing rules:
 

@@ -153,6 +153,19 @@ class GenerationFailureRepositoryTest {
     }
 
     @Test
+    fun `endRetryStreak starts the next retry afresh and keeps the recorded failure`() = runTest {
+        val repo = GenerationFailureRepository(FakePreferencesDataStore())
+        val failure = GenerationFailure(GenerationFailure.Kind.SPEND_CAP_USER, null, Instant.ofEpochMilli(2_000L))
+
+        repo.retryingSince(Instant.ofEpochMilli(1_000L))
+        repo.record(failure)
+        repo.endRetryStreak()
+
+        assertEquals(Instant.ofEpochMilli(90_000L), repo.retryingSince(Instant.ofEpochMilli(90_000L)))
+        assertEquals(failure, repo.failure.first())
+    }
+
+    @Test
     fun `retryingSince reads a write failure as a streak starting now`() = runTest {
         val repo = GenerationFailureRepository(FakePreferencesDataStore(failWrites = true))
 

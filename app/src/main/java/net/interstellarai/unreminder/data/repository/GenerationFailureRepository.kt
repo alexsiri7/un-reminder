@@ -56,7 +56,8 @@ data class GenerationFailure(
  *
  * It also keeps when the current streak of retried refill failures began, which RefillWorker reads
  * to tell a blip from an outage; unlike a WorkRequest's run attempt count, it survives the refill
- * being re-enqueued, and the same success that clears the failure ends the streak.
+ * being re-enqueued. The same success that clears the failure ends the streak, and so does a refill
+ * giving up, so a later blip never inherits a streak that stopped retrying long ago.
  *
  * Writes swallow failures: a failed note must never change what the worker does with the
  * failure it is noting, or turn a landed refill into a reported error.
@@ -106,6 +107,10 @@ class GenerationFailureRepository @Inject constructor(
         write("note retry streak") { prefs ->
             if (prefs[retryingSinceKey] == null) prefs[retryingSinceKey] = now.toEpochMilli()
         }?.get(retryingSinceKey)?.let(Instant::ofEpochMilli) ?: now
+
+    suspend fun endRetryStreak() {
+        write("end retry streak") { prefs -> prefs.remove(retryingSinceKey) }
+    }
 
     suspend fun clear() {
         write("clear generation failure") { prefs ->

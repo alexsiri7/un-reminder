@@ -16,6 +16,7 @@ import io.mockk.slot
 import io.mockk.unmockkStatic
 import io.mockk.verify
 import io.sentry.Breadcrumb
+import io.sentry.Scope
 import io.sentry.Sentry
 import io.sentry.ScopeCallback
 import io.sentry.protocol.SentryId
@@ -144,6 +145,46 @@ class RefillWorkerTest {
         coEvery { mockHabitRepository.getByIdOnce(1L) } returns null
         val worker = createWorker()
         assertEquals(Result.failure(), worker.doWork())
+    }
+
+    @Test
+    fun `doWork ends the retry streak when a refill gives up`() = runTest {
+        mockkStatic(Sentry::class)
+        try {
+            every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
+            val terminal = listOf(
+                WorkerError(400, "Bad Request"),
+                SpendCapExceededException(),
+                WorkerAuthException(),
+                WorkerIntegrityException(reason = "unrecognized-app", retryable = false),
+                IllegalStateException("unexpected"),
+            )
+            for (e in terminal) {
+                proxyThrows(e)
+                assertEquals(Result.failure(), createWorker().doWork())
+            }
+            coEvery { mockHabitRepository.getByIdOnce(1L) } returns null
+            assertEquals(Result.failure(), createWorker().doWork())
+
+            coVerify(exactly = terminal.size + 1) { mockGenerationFailureRepository.endRetryStreak() }
+        } finally {
+            unmockkStatic(Sentry::class)
+        }
+    }
+
+    @Test
+    fun `doWork keeps the retry streak running while a refill retries`() = runTest {
+        mockkStatic(Sentry::class)
+        try {
+            every { Sentry.addBreadcrumb(any<Breadcrumb>()) } just runs
+            proxyThrows(WorkerError(502, "Upstream unavailable or returned invalid response"))
+
+            assertEquals(Result.retry(), createWorker().doWork())
+
+            coVerify(exactly = 0) { mockGenerationFailureRepository.endRetryStreak() }
+        } finally {
+            unmockkStatic(Sentry::class)
+        }
     }
 
     @Test
@@ -537,6 +578,7 @@ class RefillWorkerTest {
 
             verify(exactly = 0) { Sentry.captureException(any(), any<ScopeCallback>()) }
             assertEquals("502", breadcrumb.captured.getData("error_code"))
+            assertEquals("299", breadcrumb.captured.getData("failing_for_s"))
             assertEquals(GenerationFailure.Kind.SERVICE_UNAVAILABLE, recordedFailure().kind)
         } finally {
             unmockkStatic(Sentry::class)
@@ -555,7 +597,13 @@ class RefillWorkerTest {
 
             for (age in listOf(RefillWorker.SUSTAINED_FAILURE, Duration.ofHours(6))) {
                 retryingFor(age)
+                val callback = slot<ScopeCallback>()
+                every { Sentry.captureException(any(), capture(callback)) } returns SentryId.EMPTY_ID
                 assertEquals(Result.retry(), createWorker().doWork())
+
+                val scope = mockk<Scope>(relaxed = true)
+                callback.captured.run(scope)
+                verify { scope.setExtra("failing_for_s", age.seconds.toString()) }
             }
 
             verify(exactly = 2) { Sentry.captureException(any(), any<ScopeCallback>()) }

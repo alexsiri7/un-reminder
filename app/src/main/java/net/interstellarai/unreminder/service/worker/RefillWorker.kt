@@ -53,7 +53,10 @@ class RefillWorker @AssistedInject constructor(
         internal val SUSTAINED_FAILURE: Duration = Duration.ofMinutes(5)
     }
 
-    override suspend fun doWork(): Result {
+    override suspend fun doWork(): Result =
+        refill().also { if (it == Result.failure()) generationFailureRepository.endRetryStreak() }
+
+    private suspend fun refill(): Result {
         val habitId = inputData.getLong(KEY_HABIT_ID, -1L)
         val replace = inputData.getBoolean(KEY_REPLACE, false)
         if (habitId == -1L) {
