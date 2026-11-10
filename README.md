@@ -77,11 +77,15 @@ Sentry's "new issue" alert opens a GitHub issue for every distinct event it sees
 | Geofence radius raised to minimum | breadcrumb |
 | Location reconciliation rejected by Play Services (`ApiException` `API_NOT_CONNECTED`) | breadcrumb |
 | Variation pool empty | breadcrumb |
+| Refill retry after a server error, I/O or parse failure, within `SUSTAINED_FAILURE` of the first | breadcrumb |
+| The same refill failures once they have lasted `SUSTAINED_FAILURE` without a refill succeeding or giving up (a sustained outage) | `captureException` |
 | `refreshRegistration` / worker exceptions, and reconciler exceptions other than the row above | `captureException` |
 
 The failing registration summary is the one summary that stays an issue: `reportRegistrationFailure` has already captured an event per failing location by the time the summary is built, so a breadcrumb would arrive too late to carry the permission and location-settings state those events exist to explain.
 
 `API_NOT_CONNECTED` is Play Services declining to serve `LocationServices.API` on that device at all (missing, disabled, updating, or not authentic — #407); the Settings health row shows the decoded label, and no change in this repository can act on it, so it does not open an issue.
+
+`RefillWorker` retries a 5xx, I/O or parse failure under exponential backoff. One that clears within a few minutes is a blip and opens nothing; one that outlasts `SUSTAINED_FAILURE` without a refill succeeding or giving up is the outage #222 wanted visible, and is captured with a `failing_for_s` extra (#493). The streak start is kept in `GenerationFailureRepository`, not taken from the WorkRequest's run attempt count, because every refill enqueue replaces the pending request and restarts that count.
 
 Two standing rules:
 
