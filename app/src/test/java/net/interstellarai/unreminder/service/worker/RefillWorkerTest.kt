@@ -586,13 +586,11 @@ class RefillWorkerTest {
     }
 
     @Test
-    fun `doWork reports a 502 WorkerError to Sentry once the failure is sustained, whatever the run attempt`() = runTest {
+    fun `doWork reports a 502 WorkerError to Sentry once the failure is sustained`() = runTest {
         mockkStatic(Sentry::class)
         try {
             every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
             every { Sentry.addBreadcrumb(any<Breadcrumb>()) } just runs
-            // A re-enqueue REPLACEs the pending refill, so a sustained outage can be on its first attempt.
-            every { mockWorkerParams.runAttemptCount } returns 0
             proxyThrows(WorkerError(502, "Upstream unavailable or returned invalid response"))
 
             for (age in listOf(RefillWorker.SUSTAINED_FAILURE, Duration.ofHours(6))) {
@@ -619,7 +617,6 @@ class RefillWorkerTest {
         try {
             every { Sentry.captureException(any(), any<ScopeCallback>()) } returns SentryId.EMPTY_ID
             every { Sentry.addBreadcrumb(any<Breadcrumb>()) } just runs
-            every { mockWorkerParams.runAttemptCount } returns 10
             val failures = listOf(
                 IOException("stream reset"),
                 JSONException("Value at 0 is null"),
