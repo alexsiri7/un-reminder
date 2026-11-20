@@ -1,5 +1,6 @@
 package net.interstellarai.unreminder.service.worker
 
+import android.os.RemoteException
 import android.util.Log
 import com.google.android.play.core.integrity.StandardIntegrityException
 import com.google.android.play.core.integrity.StandardIntegrityManager
@@ -54,6 +55,11 @@ class PlayIntegrityTokenProvider(
         } catch (e: StandardIntegrityException) {
             Log.w(TAG, "Play Integrity token unavailable (code ${e.errorCode})", e)
             IntegrityTokenResult.Unavailable(retryable = isRetryable(e.errorCode), errorCode = e.errorCode)
+        } catch (e: RemoteException) {
+            // Play fails every pending request this way when its integrity service process dies
+            // ("ExpressIntegrityService : Binder has died."); the next request binds afresh (#496).
+            Log.w(TAG, "Play Integrity service died mid-request", e)
+            IntegrityTokenResult.Unavailable(retryable = true, errorCode = null)
         } catch (e: Exception) {
             Log.w(TAG, "Play Integrity token request failed", e)
             Sentry.captureException(e) { scope -> scope.setTag("component", "play-integrity") }

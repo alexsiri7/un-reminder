@@ -1,5 +1,6 @@
 package net.interstellarai.unreminder.service.worker
 
+import android.os.RemoteException
 import android.util.Log
 import com.google.android.gms.tasks.Tasks
 import com.google.android.play.core.integrity.StandardIntegrityException
@@ -143,6 +144,16 @@ class PlayIntegrityTokenProviderTest {
             IntegrityTokenResult.Unavailable(retryable = false, errorCode = StandardIntegrityErrorCode.PLAY_SERVICES_NOT_FOUND),
             provider().token("hash"),
         )
+    }
+
+    @Test
+    fun `Play's integrity service dying mid-request is retryable and not reported`() = runTest {
+        managerPrepares()
+        every { tokenProvider.request(any()) } returns
+            Tasks.forException(RemoteException("ExpressIntegrityService : Binder has died."))
+
+        assertEquals(IntegrityTokenResult.Unavailable(retryable = true, errorCode = null), provider().token("hash"))
+        verify(exactly = 0) { Sentry.captureException(any(), any<ScopeCallback>()) }
     }
 
     @Test
