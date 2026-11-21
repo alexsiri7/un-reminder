@@ -57,7 +57,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.data.db.WindowEntity
 import net.interstellarai.unreminder.domain.AvailabilityStatus
-import net.interstellarai.unreminder.domain.UnavailableReason
+import net.interstellarai.unreminder.domain.label
 import net.interstellarai.unreminder.domain.model.ActivityMode
 import net.interstellarai.unreminder.domain.model.VariantShape
 import net.interstellarai.unreminder.service.llm.AiStatus
@@ -979,17 +979,7 @@ private fun AvailabilityStatusRow(
             )
         }
         is AvailabilityStatus.Unavailable -> {
-            val labels = status.reasons.map { reason ->
-                when (reason) {
-                    UnavailableReason.INACTIVE -> "inactive"
-                    UnavailableReason.LOCATION -> "location"
-                    UnavailableReason.TIME_WINDOW -> "time window"
-                    UnavailableReason.ACTIVITY_MODE -> "activity"
-                    UnavailableReason.COMPLETED -> "completed today"
-                    UnavailableReason.COOLDOWN -> "in cooldown"
-                    UnavailableReason.DAILY_LIMIT -> "daily limit reached"
-                }
-            }
+            val labels = status.reasons.map { it.label }
             Text(
                 text = "not available \u00b7 ${labels.joinToString(" \u00b7 ")}",
                 style = MonoLabelTiny,

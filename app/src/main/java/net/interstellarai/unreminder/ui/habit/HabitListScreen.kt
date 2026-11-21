@@ -20,13 +20,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.DirectionsWalk
-import androidx.compose.material.icons.filled.EventBusy
-import androidx.compose.material.icons.filled.LocationOff
-import androidx.compose.material.icons.filled.PauseCircle
-import androidx.compose.material.icons.outlined.HourglassEmpty
-import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -46,7 +39,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.domain.AvailabilityStatus
-import net.interstellarai.unreminder.domain.UnavailableReason
+import net.interstellarai.unreminder.domain.icon
 import net.interstellarai.unreminder.domain.isDoableNow
 import net.interstellarai.unreminder.service.llm.AiStatus
 import net.interstellarai.unreminder.ui.theme.Dimens
@@ -332,17 +325,8 @@ private fun AvailabilityIndicator(
         availability is AvailabilityStatus.Unavailable -> {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 availability.reasons.forEach { reason ->
-                    val icon = when (reason) {
-                        UnavailableReason.LOCATION -> Icons.Default.LocationOff
-                        UnavailableReason.COMPLETED -> Icons.Default.CheckCircle
-                        UnavailableReason.TIME_WINDOW -> Icons.Outlined.Schedule
-                        UnavailableReason.ACTIVITY_MODE -> Icons.Default.DirectionsWalk
-                        UnavailableReason.COOLDOWN -> Icons.Outlined.HourglassEmpty
-                        UnavailableReason.INACTIVE -> Icons.Default.PauseCircle
-                        UnavailableReason.DAILY_LIMIT -> Icons.Default.EventBusy
-                    }
                     Icon(
-                        imageVector = icon,
+                        imageVector = reason.icon,
                         contentDescription = reason.name,
                         modifier = Modifier.size(14.dp),
                         tint = iconTint,
