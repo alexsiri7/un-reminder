@@ -10,6 +10,9 @@ import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.unit.IntSize
 import androidx.work.WorkManager
 import net.interstellarai.unreminder.BuildConfig
 import net.interstellarai.unreminder.data.repository.FeedbackRepository
@@ -134,6 +137,24 @@ class FeedbackViewModel @Inject constructor(
         val canvas = android.graphics.Canvas(merged)
         canvas.drawBitmap(annotationBitmap, 0f, 0f, null)
         return merged
+    }
+
+    fun renderAnnotations(strokes: List<StrokePath>, bitmapSize: IntSize, canvasSize: IntSize): Bitmap {
+        val annBitmap = Bitmap.createBitmap(bitmapSize.width, bitmapSize.height, Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(annBitmap)
+        val scaleX = bitmapSize.width.toFloat() / canvasSize.width
+        val scaleY = bitmapSize.height.toFloat() / canvasSize.height
+        canvas.scale(scaleX, scaleY)
+        val paint = android.graphics.Paint().apply {
+            style = android.graphics.Paint.Style.STROKE
+            strokeWidth = 6f
+            isAntiAlias = true
+        }
+        for (stroke in strokes) {
+            paint.color = stroke.color.toArgb()
+            canvas.drawPath(stroke.path.asAndroidPath(), paint)
+        }
+        return annBitmap
     }
 
     private fun saveToCacheDir(bitmap: Bitmap): String {
