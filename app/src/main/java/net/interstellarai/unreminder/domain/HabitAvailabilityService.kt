@@ -1,6 +1,15 @@
 package net.interstellarai.unreminder.domain
 
 import android.util.Log
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DirectionsWalk
+import androidx.compose.material.icons.filled.EventBusy
+import androidx.compose.material.icons.filled.LocationOff
+import androidx.compose.material.icons.filled.PauseCircle
+import androidx.compose.material.icons.outlined.HourglassEmpty
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.ui.graphics.vector.ImageVector
 import io.sentry.Breadcrumb
 import io.sentry.Sentry
 import io.sentry.SentryLevel
@@ -27,6 +36,28 @@ sealed class AvailabilityStatus {
 }
 
 enum class UnavailableReason { INACTIVE, LOCATION, TIME_WINDOW, ACTIVITY_MODE, COMPLETED, COOLDOWN, DAILY_LIMIT }
+
+val UnavailableReason.icon: ImageVector
+    get() = when (this) {
+        UnavailableReason.LOCATION -> Icons.Default.LocationOff
+        UnavailableReason.COMPLETED -> Icons.Default.CheckCircle
+        UnavailableReason.TIME_WINDOW -> Icons.Outlined.Schedule
+        UnavailableReason.ACTIVITY_MODE -> Icons.Default.DirectionsWalk
+        UnavailableReason.COOLDOWN -> Icons.Outlined.HourglassEmpty
+        UnavailableReason.INACTIVE -> Icons.Default.PauseCircle
+        UnavailableReason.DAILY_LIMIT -> Icons.Default.EventBusy
+    }
+
+val UnavailableReason.label: String
+    get() = when (this) {
+        UnavailableReason.INACTIVE -> "inactive"
+        UnavailableReason.LOCATION -> "location"
+        UnavailableReason.TIME_WINDOW -> "time window"
+        UnavailableReason.ACTIVITY_MODE -> "activity"
+        UnavailableReason.COMPLETED -> "completed today"
+        UnavailableReason.COOLDOWN -> "in cooldown"
+        UnavailableReason.DAILY_LIMIT -> "daily limit reached"
+    }
 
 /**
  * Whether a notification may fire for a habit with this status. This is the trigger gate and

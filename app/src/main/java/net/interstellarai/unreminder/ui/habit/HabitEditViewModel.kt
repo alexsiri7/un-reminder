@@ -9,7 +9,6 @@ import net.interstellarai.unreminder.data.db.VariationEntity
 import net.interstellarai.unreminder.data.db.WindowEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
-import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.data.repository.WindowRepository
 import net.interstellarai.unreminder.domain.AvailabilityStatus
@@ -76,7 +75,6 @@ class HabitEditViewModel @Inject constructor(
     private val refillScheduler: RefillScheduler,
     private val variationRepository: VariationRepository,
     private val geofenceManager: GeofenceManager,
-    private val triggerRepository: TriggerRepository,
     private val availabilityService: HabitAvailabilityService,
     private val activityRecognitionManager: ActivityRecognitionManager,
 ) : ViewModel() {

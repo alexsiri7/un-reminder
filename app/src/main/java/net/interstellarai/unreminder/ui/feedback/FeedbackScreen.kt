@@ -53,8 +53,6 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.asAndroidPath
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
@@ -235,21 +233,11 @@ fun FeedbackScreen(
                         val canvasSizeSnapshot = canvasSize
                         coroutineScope.launch(Dispatchers.Default) {
                             val annotationBitmap = if (bmpSnapshot != null && canvasSizeSnapshot.width > 0) {
-                                val annBitmap = Bitmap.createBitmap(bmpSnapshot.width, bmpSnapshot.height, Bitmap.Config.ARGB_8888)
-                                val canvas = android.graphics.Canvas(annBitmap)
-                                val scaleX = bmpSnapshot.width.toFloat() / canvasSizeSnapshot.width
-                                val scaleY = bmpSnapshot.height.toFloat() / canvasSizeSnapshot.height
-                                canvas.scale(scaleX, scaleY)
-                                val paint = android.graphics.Paint().apply {
-                                    style = android.graphics.Paint.Style.STROKE
-                                    strokeWidth = 6f
-                                    isAntiAlias = true
-                                }
-                                for (stroke in strokesSnapshot) {
-                                    paint.color = stroke.color.toArgb()
-                                    canvas.drawPath(stroke.path.asAndroidPath(), paint)
-                                }
-                                annBitmap
+                                viewModel.renderAnnotations(
+                                    strokesSnapshot,
+                                    IntSize(bmpSnapshot.width, bmpSnapshot.height),
+                                    canvasSizeSnapshot,
+                                )
                             } else {
                                 Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
                             }
