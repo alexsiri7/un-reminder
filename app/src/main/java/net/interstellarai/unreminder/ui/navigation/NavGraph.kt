@@ -24,6 +24,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
@@ -49,6 +50,8 @@ import net.interstellarai.unreminder.ui.reminder.ReminderDetailScreen
 import net.interstellarai.unreminder.ui.reminder.ReminderDetailTarget
 import net.interstellarai.unreminder.ui.settings.CloudSettingsScreen
 import net.interstellarai.unreminder.ui.settings.SettingsScreen
+import net.interstellarai.unreminder.ui.theme.SageBg
+import net.interstellarai.unreminder.ui.theme.SageBgDark
 import net.interstellarai.unreminder.ui.timer.TimerScreen
 import net.interstellarai.unreminder.ui.window.WindowEditScreen
 import net.interstellarai.unreminder.ui.window.WindowListScreen
@@ -140,7 +143,7 @@ fun NavGraph(
             val isNight = (activity.resources.configuration.uiMode and
                 android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
                 android.content.res.Configuration.UI_MODE_NIGHT_YES
-            canvas.drawColor(if (isNight) 0xFF171C14.toInt() else 0xFFE8EBD9.toInt())
+            canvas.drawColor(if (isNight) SageBgDark.toArgb() else SageBg.toArgb())
             view.draw(canvas)
             feedbackScreenshot = bitmap
         } catch (_: Exception) {
