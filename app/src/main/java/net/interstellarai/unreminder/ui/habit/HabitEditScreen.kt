@@ -230,31 +230,11 @@ fun HabitEditScreen(
                 MonoSectionLabel("daily limit")
                 Spacer(Modifier.height(Dimens.sm))
                 val limitOptions = listOf(1, 2, 3, 5, 10)
-                var limitMenuExpanded by remember { mutableStateOf(false) }
-                Box {
-                    Text(
-                        "${uiState.dailyLimit}× / day",
-                        style = SansBody,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier
-                            .clickable { limitMenuExpanded = true }
-                            .padding(vertical = Dimens.sm),
-                    )
-                    DropdownMenu(
-                        expanded = limitMenuExpanded,
-                        onDismissRequest = { limitMenuExpanded = false },
-                    ) {
-                        limitOptions.forEach { n ->
-                            DropdownMenuItem(
-                                text = { Text("${n}× / day", style = SansBody) },
-                                onClick = {
-                                    viewModel.updateDailyLimit(n)
-                                    limitMenuExpanded = false
-                                },
-                            )
-                        }
-                    }
-                }
+                DropdownField(
+                    selectedLabel = "${uiState.dailyLimit}× / day",
+                    options = limitOptions.map { it to "${it}× / day" },
+                    onSelect = { viewModel.updateDailyLimit(it) },
+                )
 
                 Spacer(Modifier.height(Dimens.lg))
 
@@ -268,33 +248,13 @@ fun HabitEditScreen(
                     720 to "12 hours",
                     0 to "None",
                 )
-                var cooldownMenuExpanded by remember { mutableStateOf(false) }
                 val cooldownLabel = cooldownOptions.firstOrNull { it.first == uiState.cooldownMinutes }?.second
                     ?: "${uiState.cooldownMinutes} min"
-                Box {
-                    Text(
-                        cooldownLabel,
-                        style = SansBody,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        modifier = Modifier
-                            .clickable { cooldownMenuExpanded = true }
-                            .padding(vertical = Dimens.sm),
-                    )
-                    DropdownMenu(
-                        expanded = cooldownMenuExpanded,
-                        onDismissRequest = { cooldownMenuExpanded = false },
-                    ) {
-                        cooldownOptions.forEach { (mins, label) ->
-                            DropdownMenuItem(
-                                text = { Text(label, style = SansBody) },
-                                onClick = {
-                                    viewModel.updateCooldownMinutes(mins)
-                                    cooldownMenuExpanded = false
-                                },
-                            )
-                        }
-                    }
-                }
+                DropdownField(
+                    selectedLabel = cooldownLabel,
+                    options = cooldownOptions,
+                    onSelect = { viewModel.updateCooldownMinutes(it) },
+                )
 
                 Spacer(Modifier.height(Dimens.lg))
 
@@ -543,6 +503,39 @@ private fun UnderlinedDisplayField(
         singleLine = true,
         modifier = Modifier.fillMaxWidth(),
     )
+}
+
+@Composable
+private fun <T> DropdownField(
+    selectedLabel: String,
+    options: List<Pair<T, String>>,
+    onSelect: (T) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        Text(
+            selectedLabel,
+            style = SansBody,
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier
+                .clickable { expanded = true }
+                .padding(vertical = Dimens.sm),
+        )
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            options.forEach { (value, label) ->
+                DropdownMenuItem(
+                    text = { Text(label, style = SansBody) },
+                    onClick = {
+                        onSelect(value)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
 }
 
 @Composable
