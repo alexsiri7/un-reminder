@@ -3,7 +3,6 @@ package net.interstellarai.unreminder.ui.habit
 import net.interstellarai.unreminder.data.db.HabitEntity
 import net.interstellarai.unreminder.data.repository.HabitRepository
 import net.interstellarai.unreminder.data.repository.LocationRepository
-import net.interstellarai.unreminder.data.repository.TriggerRepository
 import net.interstellarai.unreminder.data.repository.VariationRepository
 import net.interstellarai.unreminder.data.repository.WindowRepository
 import net.interstellarai.unreminder.domain.AvailabilityStatus
@@ -70,7 +69,6 @@ class HabitEditViewModelTest {
     private val mockVariationRepository: VariationRepository = mockk(relaxUnitFun = true)
     private val mockWindowRepository: WindowRepository = mockk(relaxed = true)
     private val mockGeofenceManager: GeofenceManager = mockk(relaxed = true)
-    private val mockTriggerRepository: TriggerRepository = mockk(relaxed = true)
     private val mockAvailabilityService: HabitAvailabilityService = mockk(relaxed = true)
     private val mockActivityRecognitionManager: ActivityRecognitionManager = mockk()
     private lateinit var viewModel: HabitEditViewModel
@@ -108,7 +106,6 @@ class HabitEditViewModelTest {
             mockRefillScheduler,
             mockVariationRepository,
             mockGeofenceManager,
-            mockTriggerRepository,
             mockAvailabilityService,
             mockActivityRecognitionManager,
         )
@@ -624,7 +621,7 @@ class HabitEditViewModelTest {
         val vm = HabitEditViewModel(
             mockHabitRepository, mockLocationRepository, mockWindowRepository,
             mockPromptGenerator, mockRefillScheduler, mockVariationRepository,
-            mockGeofenceManager, mockTriggerRepository, mockAvailabilityService,
+            mockGeofenceManager, mockAvailabilityService,
             mockActivityRecognitionManager,
         )
         assertEquals(AiStatus.Unavailable, vm.aiStatus.value)
@@ -636,7 +633,7 @@ class HabitEditViewModelTest {
         val vm = HabitEditViewModel(
             mockHabitRepository, mockLocationRepository, mockWindowRepository,
             mockPromptGenerator, mockRefillScheduler, mockVariationRepository,
-            mockGeofenceManager, mockTriggerRepository, mockAvailabilityService,
+            mockGeofenceManager, mockAvailabilityService,
             mockActivityRecognitionManager,
         )
         assertEquals(AiStatus.Ready, vm.aiStatus.value)
@@ -870,7 +867,7 @@ class HabitEditViewModelTest {
         viewModel = HabitEditViewModel(
             mockHabitRepository, mockLocationRepository, mockWindowRepository,
             mockPromptGenerator, mockRefillScheduler, mockVariationRepository,
-            mockGeofenceManager, mockTriggerRepository, mockAvailabilityService,
+            mockGeofenceManager, mockAvailabilityService,
             mockActivityRecognitionManager,
         )
 
@@ -891,7 +888,7 @@ class HabitEditViewModelTest {
         viewModel = HabitEditViewModel(
             mockHabitRepository, mockLocationRepository, mockWindowRepository,
             mockPromptGenerator, mockRefillScheduler, mockVariationRepository,
-            mockGeofenceManager, mockTriggerRepository, mockAvailabilityService,
+            mockGeofenceManager, mockAvailabilityService,
             mockActivityRecognitionManager,
         )
 
